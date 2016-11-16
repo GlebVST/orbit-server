@@ -1,0 +1,28 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{% block head %}
+    <title>{% block title %}Welcome to Orbit{% endblock %}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" media="screen" href="{% static 'css/styles.css' %}">
+    <script
+        src="https://code.jquery.com/jquery-2.2.4.min.js"
+        integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44="
+        crossorigin="anonymous"
+    ></script>
+	<script src="https://js.braintreegateway.com/web/3.5.0/js/client.min.js"></script>
+	<script src="https://js.braintreegateway.com/web/3.5.0/js/hosted-fields.min.js"></script>
+    {% block jshead %}
+    {% endblock %}
+{% endblock %}
+</head>
+<body onunload="">
+{% block content %}
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
+</body>
+</html>

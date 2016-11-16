@@ -1,0 +1,34 @@
+{% extends "users/base.html" %}
+{% load static %}
+
+{% block jshead %}
+<script>
+var token = '{{ token }}';
+console.debug(token);
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+<h1>Payment Test</h1>
+<form id="checkout-form" action="/payment/checkout" method="post">
+  <div id="error-message"></div>
+
+  <label for="card-number">Card Number</label>
+  <div class="hosted-field" id="card-number"></div>
+
+  <label for="cvv">CVV</label>
+  <div class="hosted-field" id="cvv"></div>
+
+  <label for="expiration-date">Expiration Date</label>
+  <div class="hosted-field" id="expiration-date"></div>
+
+  <input type="hidden" name="payment-method-nonce">
+  <input type="submit" value="Pay $10" disabled>
+</form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/payment_test_form.js' %}"></script>
+{% endblock %}
