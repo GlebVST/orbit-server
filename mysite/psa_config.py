@@ -15,5 +15,5 @@ SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
 # http://psa.matiasaguirre.net/docs/configuration/django.html
 SOCIAL_AUTH_ADMIN_USER_SEARCH_FIELDS = ['username', 'first_name', 'email']
 # http://psa.matiasaguirre.net/docs/configuration/settings.html
-SOCIAL_AUTH_LOGIN_ERROR_URL = '/login-error/'  # must match urls.py
+SOCIAL_AUTH_LOGIN_ERROR_URL = '/auth/ss-login-error/'  # must match urls.py
 SOCIAL_AUTH_SANITIZE_REDIRECTS = True # redirect after login must be to same domain as login url

@@ -45,9 +45,8 @@ api_patterns = [
     url(r'^point-purchase-options/?$', views.PPOList.as_view()),
     url(r'^point-purchase-options/(?P<pk>[0-9]+)/?$', views.PPODetail.as_view()),
 ]
+api_patterns = format_suffix_patterns(api_patterns) # what does this do?
 
-# Wire up our API using automatic URL routing.
-# Additionally, we include login URLs for the browsable API.
 urlpatterns = [
     # api
     url(r'^api/v1/', include(api_patterns)),

@@ -3,8 +3,10 @@ import braintree
 import json
 import datetime
 from datetime import timedelta
+from pprint import pprint
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.http import HttpResponse, Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -45,10 +47,27 @@ class Checkout(JsonResponseMixin, generic.View):
                 'error_message': 'Nonce is required'
             }
             return self.render_to_json_response(context, status_code=400)
+        ppoId = userdata.get('point-purchase-option-id', None)
+        if not ppoId:
+            context = {
+                'success': False,
+                'error_message': 'Point Purchase Option Id is required'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        try:
+            ppo = PointPurchaseOption.objects.get(pk=ppoId)
+        except ObjectDoesNotExist:
+            context = {
+                'success': False,
+                'error_message': 'Invalid Point Purchase Option Id'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        # get customer object from database
+        customer = Customer.objects.get(user=request.user)
         # https://developers.braintreepayments.com/reference/request/transaction/sale/python
         # https://developers.braintreepayments.com/reference/response/transaction/python#result-object
         result = braintree.Transaction.sale({
-            "amount": "10.00",
+            "amount": str(ppo.price),
             "payment_method_nonce": nonce,
             "options": {
                 "submit_for_settlement": True
@@ -56,13 +75,32 @@ class Checkout(JsonResponseMixin, generic.View):
         })
         print(result)
         success = result.is_success # bool
-        print('success: {0}'.format(success))
         context['success'] = success
         if success:
             status = result.transaction.status
             print(status)
             context['status'] = status
-            context['transactionid'] = result.transaction.id  # need to store this in PointTransactionModel
+            context['transactionid'] = result.transaction.id
+            # update database using atomic transaction
+            with transaction.atomic():
+                PointTransaction.objects.create(
+                    customer=customer,
+                    points=ppo.points,
+                    pricePaid=ppo.price,
+                    transactionId=result.transaction.id
+                )
+                # update points balance
+                customer.balance += ppo.points
+                customer.save()
+            context['balance'] = str(customer.balance)
+            # update braintree customer information: add payment method
+            result = braintree.Customer.update(str(customer.customerId), {
+                "credit_card": {
+                    "payment_method_nonce": nonce
+                }
+            })
+            context['customer_updated_success'] = result.is_success
+            pprint(context)
             return self.render_to_json_response(context)
         else:
             if hasattr(result, 'transaction') and result.transaction is not None:

@@ -9,6 +9,7 @@ from social.apps.django_app.utils import psa
 from common.viewutils import render_to_json_response
 # app
 from .oauth_tools import get_access_token, delete_access_token
+from .models import Profile, Customer
 
 TPL_DIR = 'users'
 
@@ -60,6 +61,11 @@ def login_via_token(request, backend):
             'success': True,
             'token': get_access_token(user),
             'user': user_dict
+        }
+        customer = Customer.objects.get(user=user)
+        context['customer'] = {
+            'customerId': customer.customerId,
+            'balance': customer.balance
         }
         pprint(context)
         return render_to_json_response(context)

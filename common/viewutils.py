@@ -1,5 +1,6 @@
 """Common utility functions"""
 import datetime
+import decimal
 import hashlib
 import json
 import uuid
@@ -11,6 +12,10 @@ def jsonSerialize(obj):
         # for consistency, and to save space, don't return microseconds
         date = obj.replace(microsecond=0)
         return date.isoformat()
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+    elif isinstance(obj, decimal.Decimal):
+        return str(obj)
     else:
         raise TypeError ("Type not serializable")
 
