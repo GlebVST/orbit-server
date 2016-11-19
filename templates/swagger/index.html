@@ -1,0 +1,77 @@
+{% extends "swagger/base.html" %}
+{% block extra_scripts %}
+    <script type="text/javascript">
+        $(function () {
+            hljs.configure({
+                highlightSizeThreshold: 5000
+            });
+
+            // Pre load translate...
+            if(window.SwaggerTranslator) {
+                window.SwaggerTranslator.translate();
+            }
+            var settings = {
+                url: window.location.pathname + '?format=openapi',
+                dom_id: "swagger-ui-container",
+                useJQuery: false,
+                withCredentials: false,
+                enableCookies: false,
+                onComplete: function(swaggerApi, swaggerUi){
+                    if(typeof initOAuth == "function") {
+                        initOAuth({
+                            clientId: "your-client-id",
+                            clientSecret: "your-client-secret-if-required",
+                            realm: "your-realms",
+                            appName: "your-app-name",
+                            scopeSeparator: ",",
+                            additionalQueryStringParams: {}
+                        });
+                    }
+
+                    if(window.SwaggerTranslator) {
+                        window.SwaggerTranslator.translate();
+                    }
+                    addCsrfTokenHeaders();
+                },
+                onFailure: function(data) {
+                    log("Unable to Load SwaggerUI");
+                },
+            };
+            $.extend(settings, JSON.parse($('#drs-settings').html()));
+
+            window.swaggerUi = new SwaggerUi(settings);
+
+            window.swaggerUi.load();
+
+            function addCsrfTokenHeaders() {
+                var token = $('[name="csrfmiddlewaretoken"]')[0];
+                if (!token) {
+                    return;
+                }
+                // customized - add bearer token here instead of CSRF
+                $('#auth_container').hide();
+                {% if USE_SESSION_AUTH %}
+                {% if request.user.is_authenticated %}
+                    swaggerUi.api.clientAuthorizations.add(
+                            'access_token',
+                            new SwaggerClient.ApiKeyAuthorization(
+                                    'Authorization',
+                                    'Bearer {{ access_token.access_token }}',
+                                    'header'
+                            )
+                    );
+                {% endif %}
+                {% endif %}
+
+            }
+
+            function log() {
+                if ('console' in window) {
+                    console.log.apply(console, arguments);
+                }
+            }
+        });
+
+
+    </script>
+{% endblock %}

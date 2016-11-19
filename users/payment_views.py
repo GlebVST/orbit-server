@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import generic
+from rest_framework.views import APIView
 from django.views.decorators.csrf import csrf_exempt
 # proj
 from common.viewutils import JsonResponseMixin
@@ -22,7 +23,7 @@ from .models import *
 TPL_DIR = 'users'
 
 # https://developers.braintreepayments.com/start/hello-server/python
-class GetToken(JsonResponseMixin, generic.View):
+class GetToken(JsonResponseMixin, APIView):
     http_method_names = ['get',]
 
     def get(self, request, *args, **kwargs):
@@ -34,7 +35,7 @@ class GetToken(JsonResponseMixin, generic.View):
 
 @method_decorator(csrf_exempt, name='dispatch')
 @method_decorator(login_required, name='dispatch')
-class Checkout(JsonResponseMixin, generic.View):
+class Checkout(JsonResponseMixin, APIView):
     http_method_names = ['post',]
     def post(self, request, *args, **kwargs):
         context = {}

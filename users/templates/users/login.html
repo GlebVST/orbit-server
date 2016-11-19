@@ -12,7 +12,7 @@
         <li><a href="{% url 'ss-home' %}">Home</a></li>
         <li><a href="{% url 'ss-logout' %}">Logout</a></li>
     {% else %}
-        <li><a href="{% url 'social:begin' 'facebook' %}?next={% url 'ss-home' %}">Sign in with Facebook</a></li>
+        <li><a href="{% url 'social:begin' 'facebook' %}?next={% url 'api-docs' %}">Sign in with Facebook</a></li>
     {% endif %}
     </ul>
 </div>

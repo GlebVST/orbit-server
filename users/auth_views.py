@@ -5,6 +5,7 @@ from django.contrib.auth import logout as auth_logout
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from social.apps.django_app.utils import psa
+from rest_framework.decorators import api_view
 # proj
 from common.viewutils import render_to_json_response
 # app
@@ -34,21 +35,32 @@ def ss_logout(request):
 # Client passes fb access token as GET parameter.
 # Server logs in the user, and returns user info, and internal access_token
 @psa('social:complete')
-def login_via_token(request, backend):
+@api_view()
+def login_via_token(request, backend, access_token):
     """
     This view expects an access_token GET parameter.
     request.backend and request.strategy will be loaded with the current
     backend and strategy.
+
+    access_token -- username
+
+    parameters:
+        - name: access_token
+          description: FFacebook token obtained via external means like Javascript SDK
+          required: true
+          type: string
+          paramType: form
+
     """
-    key = 'access_token'
-    token = request.GET.get(key)
-    if key not in request.GET or not token:
-        context = {
-            'success': False,
-            'error_message': 'Invalid GET parameter'
-        }
-        return render_to_json_response(context, status_code=400)
-    user = request.backend.do_auth(token)
+    # key = 'access_token'
+    # token = request.GET.get(key)
+    # if key not in request.GET or not token:
+    #     context = {
+    #         'success': False,
+    #         'error_message': 'Invalid GET parameter'
+    #     }
+    #     return render_to_json_response(context, status_code=400)
+    user = request.backend.do_auth(access_token)
     if user:
         auth_login(request, user)
         user_dict = {
