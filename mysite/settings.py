@@ -203,3 +203,26 @@ SWAGGER_SETTINGS = {
     'LOGOUT_URL': 'ss-logout',
     'USE_SESSION_AUTH': True,
 }
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            '()': 'django.utils.log.ServerFormatter',
+            'format': '[%(server_time)s] %(message)s',
+        }
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'users': {
+            'handlers': ['console'],
+            'level': 'DEBUG'
+        }
+    }
+}
