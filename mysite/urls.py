@@ -43,6 +43,7 @@ payment_patterns = [
 
 api_patterns = [
     # AUTH
+    url(r'^auth/status/?$', auth_views.auth_status, name='get-status'),
     # client gets fb access token and exchanges it for internal token, and login user
     url(r'^auth/login/(?P<backend>[^/]+)/(?P<access_token>[^/]+)/?$', auth_views.login_via_token, name='login-via-token'),
     # client requests to revoke internal token and logout user
@@ -50,7 +51,7 @@ api_patterns = [
 
     # BRAINTREE & SHOP
     url(r'^shop/client-token/?$', payment_views.GetToken.as_view(), name='get-client-token'),
-    url(r'^shop/client-methods/?$', payment_views.GetToken.as_view(), name='get-client-payment-methods'),
+    url(r'^shop/client-methods/?$', payment_views.GetPaymentMethods.as_view(), name='get-client-payment-methods'),
     url(r'^shop/checkout/?$', payment_views.Checkout.as_view(), name='payment-checkout'),
     url(r'^shop/purchase-options/?$', views.PPOList.as_view(), name='shop-options'),
 

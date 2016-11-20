@@ -32,6 +32,22 @@ class GetToken(JsonResponseMixin, APIView):
         }
         return self.render_to_json_response(context)
 
+class GetPaymentMethods(JsonResponseMixin, APIView):
+    http_method_names = ['get',]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_authenticated():
+            context = {
+                'success': False,
+                'error_message': 'User not authenticated'
+            }
+            return self.render_to_json_response(context, status_code=401)
+
+        local_customer = Customer.objects.get(user=user)
+        btree_customer = braintree.Customer.find(str(local_customer.customerId))
+
+        return self.render_to_json_response(btree_customer.payment_methods)
 
 @method_decorator(csrf_exempt, name='dispatch')
 @method_decorator(login_required, name='dispatch')
