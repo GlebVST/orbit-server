@@ -28,6 +28,10 @@ logger = logging.getLogger(__name__)
 
 # https://developers.braintreepayments.com/start/hello-server/python
 class GetToken(JsonResponseMixin, APIView):
+    """
+    This endpoint returns a Braintree Client Token.
+
+    """
     http_method_names = ['get',]
 
     def get(self, request, *args, **kwargs):
@@ -37,6 +41,10 @@ class GetToken(JsonResponseMixin, APIView):
         return self.render_to_json_response(context)
 
 class GetPaymentMethods(JsonResponseMixin, APIView):
+    """
+    This endpoint returns a list of existing payment methods from the Braintree Customer (if any).
+
+    """
     http_method_names = ['get',]
 
     def get(self, request, *args, **kwargs):
@@ -57,6 +65,16 @@ class GetPaymentMethods(JsonResponseMixin, APIView):
 # @method_decorator(csrf_exempt, name='dispatch')
 # @method_decorator(login_required, name='dispatch')
 class Checkout(JsonResponseMixin, APIView):
+    """
+    This view expects a JSON object from the POST with Braintree transaction details.
+
+    Example JSON when using existing customer payment method with token obtained from BT Vault:
+    {"point-purchase-option-id":1,"payment-method-token":"5wfrrp"}
+
+    Example JSON when using a new payment method with a Nonce prepared on client:
+    {"point-purchase-option-id":1,"payment-method-nonce":"cd36493e-f883-48c2-aef8-3789ee3569a9"}
+
+    """
     http_method_names = ['post',]
     def post(self, request, *args, **kwargs):
         context = {}
