@@ -20,12 +20,16 @@ from rest_framework.urlpatterns import format_suffix_patterns
 from users import views
 from users import auth_views
 from users import payment_views
+from common.swagger import SwaggerCustomUIRenderer
+from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import response, schemas
+from rest_framework.renderers import CoreJSONRenderer
+from rest_framework_swagger.renderers import OpenAPIRenderer
+from django.contrib.auth.decorators import login_required
 
 auth_patterns = [
-    # client gets fb access token and exchanges it for internal token, and login user
-    url(r'^login-via-token/(?P<backend>[^/]+)/?$', auth_views.login_via_token, name='login-via-token'),
-    # client requests to revoke internal token and logout user
-    url(r'^logout-via-token/?$', auth_views.logout_via_token, name='logout-via-token'),
     # site login via server-side fb login (for testing only)
     url(r'^ss-login/?$', auth_views.ss_login, name='ss-login'),
     url(r'^ss-login-error/?$', auth_views.ss_login_error, name='ss-login-error'),
@@ -35,19 +39,42 @@ auth_patterns = [
 
 payment_patterns = [
     url(r'^test-form/$', payment_views.TestForm.as_view(), name='payment-test-form'),
-    url(r'^get-token/?$', payment_views.GetToken.as_view(), name='payment-get-token'),
-    url(r'^checkout/?$', payment_views.Checkout.as_view(), name='payment-checkout'),
 ]
 
 api_patterns = [
+    # AUTH
+    url(r'^auth/status/?$', auth_views.auth_status, name='get-status'),
+    # client gets fb access token and exchanges it for internal token, and login user
+    url(r'^auth/login/(?P<backend>[^/]+)/(?P<access_token>[^/]+)/?$', auth_views.login_via_token, name='login-via-token'),
+    # client requests to revoke internal token and logout user
+    url(r'^auth/logout/?$', auth_views.logout_via_token, name='logout-via-token'),
+
+    # BRAINTREE & SHOP
+    url(r'^shop/client-token/?$', payment_views.GetToken.as_view(), name='get-client-token'),
+    url(r'^shop/client-methods/?$', payment_views.GetPaymentMethods.as_view(), name='get-client-payment-methods'),
+    url(r'^shop/checkout/?$', payment_views.Checkout.as_view(), name='payment-checkout'),
+    url(r'^shop/purchase-options/?$', views.PPOList.as_view(), name='shop-options'),
+
+    # FEED
     url(r'^degrees/?$', views.DegreeList.as_view()),
     url(r'^degrees/(?P<pk>[0-9]+)/?$', views.DegreeDetail.as_view()),
-    url(r'^point-purchase-options/?$', views.PPOList.as_view()),
-    url(r'^point-purchase-options/(?P<pk>[0-9]+)/?$', views.PPODetail.as_view()),
 ]
-api_patterns = format_suffix_patterns(api_patterns) # what does this do?
+
+# Custom view to render Swagger UI consuming only /api/ endpoints
+@login_required()
+@api_view()
+@authentication_classes((SessionAuthentication,))
+@renderer_classes([CoreJSONRenderer, OpenAPIRenderer, SwaggerCustomUIRenderer])
+@permission_classes((IsAuthenticated,))
+def swagger_view(request):
+    patterns = url(r'^api/v1/', include(api_patterns)),
+    generator = schemas.SchemaGenerator(title='Orbit API', patterns=patterns)
+    return response.Response(generator.get_schema())
+
 
 urlpatterns = [
+    # Swagger
+    url(r'^api-docs/', swagger_view, name='api-docs'),
     # api
     url(r'^api/v1/', include(api_patterns)),
     # auth

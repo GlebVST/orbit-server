@@ -19,10 +19,23 @@ def get_token_dict(access_token):
     }
     return token
 
-
 def get_access_token(user):
     """
-    Takes a user instance and return an access_token as a dict
+   Takes a user instance and return an access_token as a dict if available
+   """
+    # our oauth2 app
+    app = Application.objects.get(name=APP_NAME)
+
+    try:
+        old_access_token = AccessToken.objects.get(application=app, user=user)
+    except:
+        return None
+
+    return get_token_dict(old_access_token)
+
+def new_access_token(user):
+    """
+    Takes a user instance and return a new access_token as a dict
     """
     # our oauth2 app
     app = Application.objects.get(name=APP_NAME)

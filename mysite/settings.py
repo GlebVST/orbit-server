@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'social.apps.django_app.default',
     'users.apps.UsersConfig',
+    'rest_framework_swagger'
 ]
 
 # Braintree sandbox environment vars
@@ -121,7 +122,7 @@ ROOT_URLCONF = 'mysite.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -195,4 +196,33 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'collected_static')
 
 # auth settings (for server-side login/logout)
 LOGIN_URL = 'ss-login'      # named url pattern
-LOGIN_REDIRECT_URL = 'ss-home' # ,,
+LOGIN_REDIRECT_URL = 'api-docs' # ,,
+
+SWAGGER_SETTINGS = {
+    'LOGIN_URL': 'ss-login',
+    'LOGOUT_URL': 'ss-logout',
+    'USE_SESSION_AUTH': True,
+}
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            '()': 'django.utils.log.ServerFormatter',
+            'format': '[%(server_time)s] %(message)s',
+        }
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'users': {
+            'handlers': ['console'],
+            'level': 'DEBUG'
+        }
+    }
+}
