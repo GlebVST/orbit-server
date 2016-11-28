@@ -91,7 +91,6 @@ CORS_ORIGIN_ALLOW_ALL = True
 # DRF
 #
 REST_FRAMEWORK = {
-    #'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAdminUser',),  # DRF tutorial
     'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
     'PAGE_SIZE': 10,
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -193,6 +192,9 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
 STATIC_ROOT = os.path.join(BASE_DIR, 'collected_static')
+
+MEDIA_ROOT = os.path.join(BASE_DIR, 'user_media')
+MEDIA_URL = '/user-media/'
 
 # auth settings (for server-side login/logout)
 LOGIN_URL = 'ss-login'      # named url pattern

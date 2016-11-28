@@ -32,8 +32,6 @@ class GetToken(JsonResponseMixin, APIView):
     This endpoint returns a Braintree Client Token.
 
     """
-    http_method_names = ['get',]
-
     def get(self, request, *args, **kwargs):
         context = {
             'token': braintree.ClientToken.generate()
@@ -45,8 +43,6 @@ class GetPaymentMethods(JsonResponseMixin, APIView):
     This endpoint returns a list of existing payment methods from the Braintree Customer (if any).
 
     """
-    http_method_names = ['get',]
-
     def get(self, request, *args, **kwargs):
         user = request.user
         if not user.is_authenticated():
@@ -75,7 +71,6 @@ class Checkout(JsonResponseMixin, APIView):
     {"point-purchase-option-id":1,"payment-method-nonce":"cd36493e-f883-48c2-aef8-3789ee3569a9"}
 
     """
-    http_method_names = ['post',]
     def post(self, request, *args, **kwargs):
         context = {}
         userdata = request.data
@@ -151,13 +146,6 @@ class Checkout(JsonResponseMixin, APIView):
                 customer.balance += ppo.points
                 customer.save()
             context['balance'] = str(customer.balance)
-            # update braintree customer information: add payment method
-            result = braintree.Customer.update(str(customer.customerId), {
-                "credit_card": {
-                    "payment_method_nonce": payment_nonce
-                }
-            })
-            context['customer_updated_success'] = result.is_success
             return self.render_to_json_response(context)
         else:
             if hasattr(result, 'transaction') and result.transaction is not None:

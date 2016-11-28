@@ -17,9 +17,7 @@ from django.contrib import admin
 from django.conf.urls import url, include
 #from rest_framework import routers
 from rest_framework.urlpatterns import format_suffix_patterns
-from users import views
-from users import auth_views
-from users import payment_views
+from users import views, auth_views, debug_views, payment_views
 from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
@@ -55,9 +53,39 @@ api_patterns = [
     url(r'^shop/checkout/?$', payment_views.Checkout.as_view(), name='payment-checkout'),
     url(r'^shop/purchase-options/?$', views.PPOList.as_view(), name='shop-options'),
 
-    # FEED
+    # Account and Profile-related
+    url(r'^accounts/?$', views.CustomerList.as_view()),
+    url(r'^accounts/(?P<pk>[0-9]+)/?$', views.CustomerDetail.as_view()),
+    url(r'^profiles/?$', views.ProfileList.as_view()),
+    url(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileDetail.as_view()),
+    url(r'^cmetags/?$', views.CmeTagList.as_view()),
+    url(r'^cmetags/(?P<pk>[0-9]+)/?$', views.CmeTagDetail.as_view()),
     url(r'^degrees/?$', views.DegreeList.as_view()),
     url(r'^degrees/(?P<pk>[0-9]+)/?$', views.DegreeDetail.as_view()),
+    url(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view()),
+    url(r'^practice-specialties/(?P<pk>[0-9]+)/?$', views.PracticeSpecialtyDetail.as_view()),
+
+    # Feed entry types
+    url(r'^entrytypes/?$', views.EntryTypeList.as_view()),
+    url(r'^entrytypes/(?P<pk>[0-9]+)/?$', views.EntryTypeDetail.as_view()),
+
+    # FEED
+    url(r'^feed/?$', views.FeedList.as_view()),
+    url(r'^feed/(?P<pk>[0-9]+)/?$', views.FeedEntryDetail.as_view()),
+    url(r'^feed/browser-cme-offer/?$', views.GetBrowserCmeOffer.as_view()),
+    url(r'^feed/browser-cme/?$', views.CreateBrowserCme.as_view()),
+    url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', views.UpdateBrowserCme.as_view()),
+    url(r'^feed/cme/?$', views.CreateSRCme.as_view()),
+    url(r'^feed/cme-spec/?$', views.CreateSRCmeSpec.as_view()),
+    url(r'^feed/cme/(?P<pk>[0-9]+)/?$', views.UpdateSRCme.as_view()),
+
+    # user feedback (list/create)
+    url(r'^feedback/?$', views.UserFeedbackList.as_view()),
+
+    # debug
+    url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
+    url(r'^debug/feed/?$', debug_views.FeedList.as_view()),
+    url(r'^debug/feed/reward/?$', debug_views.MakeRewardEntry.as_view()),
 ]
 
 # Custom view to render Swagger UI consuming only /api/ endpoints

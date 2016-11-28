@@ -11,6 +11,7 @@ def save_profile(backend, user, response, *args, **kwargs):
         profile = Profile(user=user)
         profile.firstName = response.get('first_name', '')
         profile.lastName = response.get('last_name', '')
+        profile.inviteId = "{0:%y%m%d}-{1:0>5}".format(user.date_joined, user.pk)
         if 'link' in response:
             profile.socialUrl = response['link']
     else:

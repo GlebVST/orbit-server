@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from oauth2_provider.settings import oauth2_settings
 from oauthlib.common import generate_token
 from oauth2_provider.models import AccessToken, Application, RefreshToken
@@ -27,11 +28,12 @@ def get_access_token(user):
     app = Application.objects.get(name=APP_NAME)
 
     try:
-        old_access_token = AccessToken.objects.get(application=app, user=user)
-    except:
+        access_token = AccessToken.objects.get(application=app, user=user)
+    except ObjectDoesNotExist:
         return None
-
-    return get_token_dict(old_access_token)
+    if not access_token.is_expired():
+        return get_token_dict(access_token)
+    return None
 
 def new_access_token(user):
     """
@@ -43,7 +45,7 @@ def new_access_token(user):
     try:
         old_access_token = AccessToken.objects.get(application=app, user=user)
         old_refresh_token = RefreshToken.objects.get(application=app, user=user, access_token=old_access_token)
-    except:
+    except ObjectDoesNotExist:
         pass
     else:
         old_access_token.delete()

@@ -5,14 +5,14 @@ from django.contrib.auth import logout as auth_logout
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from social.apps.django_app.utils import psa
-from rest_framework.decorators import api_view
+from rest_framework import status
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.permissions import AllowAny
 # proj
 from common.viewutils import render_to_json_response
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import Profile, Customer
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.permissions import AllowAny
 
 TPL_DIR = 'users'
 
@@ -32,6 +32,20 @@ def ss_logout(request):
     auth_logout(request)
     return render(request, os.path.join(TPL_DIR, 'logged_out.html'))
 
+def make_user_dict(user):
+    return {
+        'id': user.pk,
+        'username': user.username,
+        'first_name': user.first_name,
+        'last_name': user.last_name
+    }
+
+def make_customer_dict(customer):
+    return {
+        'customerId': customer.customerId,
+        'balance': customer.balance
+    }
+
 @api_view()
 @permission_classes((AllowAny,))
 def auth_status(request):
@@ -48,13 +62,6 @@ def auth_status(request):
             'error_message': 'User not authenticated'
         }
         return render_to_json_response(context, status_code=401)
-
-    user_dict = {
-        'id': user.pk,
-        'username': user.username,
-        'first_name': user.first_name,
-        'last_name': user.last_name
-    }
     token = get_access_token(user)
     if not token:
         context = {
@@ -62,16 +69,12 @@ def auth_status(request):
             'error_message': 'User not authenticated'
         }
         return render_to_json_response(context, status_code=401)
+    customer = Customer.objects.get(user=user)
     context = {
         'success': True,
         'token': token,
-        'user': user_dict
-    }
-
-    customer = Customer.objects.get(user=user)
-    context['customer'] = {
-        'customerId': customer.customerId,
-        'balance': customer.balance
+        'user': make_user_dict(user),
+        'customer': make_customer_dict(customer)
     }
     pprint(context)
     return render_to_json_response(context)
@@ -91,7 +94,7 @@ def login_via_token(request, backend, access_token):
 
     parameters:
         - name: access_token
-          description: FFacebook token obtained via external means like Javascript SDK
+          description: Facebook token obtained via external means like Javascript SDK
           required: true
           type: string
           paramType: form
@@ -101,21 +104,12 @@ def login_via_token(request, backend, access_token):
     pprint(user)
     if user:
         auth_login(request, user)
-        user_dict = {
-            'id': user.pk,
-            'username': user.username,
-            'first_name': user.first_name,
-            'last_name': user.last_name
-        }
+        customer = Customer.objects.get(user=user)
         context = {
             'success': True,
             'token': new_access_token(user),
-            'user': user_dict
-        }
-        customer = Customer.objects.get(user=user)
-        context['customer'] = {
-            'customerId': customer.customerId,
-            'balance': customer.balance
+            'user': make_user_dict(user),
+            'customer': make_customer_dict(customer)
         }
         pprint(context)
         return render_to_json_response(context)

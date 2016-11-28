@@ -1,0 +1,20 @@
+[
+{
+  "model": "users.practicespecialty",
+  "pk": 1,
+  "fields": {
+    "name": "Radiology",
+    "created": "2016-11-26T08:35:06.830Z",
+    "modified": "2016-11-26T08:35:06.830Z"
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 2,
+  "fields": {
+    "name": "Neurology",
+    "created": "2016-11-26T09:38:04.070Z",
+    "modified": "2016-11-26T09:38:04.070Z"
+  }
+}
+]

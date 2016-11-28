@@ -1,0 +1,42 @@
+[
+{
+  "model": "users.entrytype",
+  "pk": 1,
+  "fields": {
+    "name": "browser-cme",
+    "description": "Browser CME",
+    "created": "2016-11-26T08:32:39.236Z",
+    "modified": "2016-11-26T08:32:39.236Z"
+  }
+},
+{
+  "model": "users.entrytype",
+  "pk": 2,
+  "fields": {
+    "name": "expired-browser-cme",
+    "description": "Expired Browser CME",
+    "created": "2016-11-26T08:32:59.150Z",
+    "modified": "2016-11-26T08:32:59.150Z"
+  }
+},
+{
+  "model": "users.entrytype",
+  "pk": 3,
+  "fields": {
+    "name": "sr-cme",
+    "description": "Self Reported CME",
+    "created": "2016-11-26T08:33:14.581Z",
+    "modified": "2016-11-26T08:33:14.581Z"
+  }
+},
+{
+  "model": "users.entrytype",
+  "pk": 4,
+  "fields": {
+    "name": "reward",
+    "description": "Reward",
+    "created": "2016-11-26T08:33:23.124Z",
+    "modified": "2016-11-26T08:33:23.124Z"
+  }
+}
+]
