@@ -72,7 +72,8 @@ api_patterns = [
     # FEED
     url(r'^feed/?$', views.FeedList.as_view()),
     url(r'^feed/(?P<pk>[0-9]+)/?$', views.FeedEntryDetail.as_view()),
-    url(r'^feed/browser-cme-offer/?$', views.GetBrowserCmeOffer.as_view()),
+    url(r'^feed/browser-cme-offers/?$', views.BrowserCmeOfferList.as_view()),
+    ##url(r'^feed/browser-cme-offer/?$', views.GetBrowserCmeOffer.as_view()),
     url(r'^feed/browser-cme/?$', views.CreateBrowserCme.as_view()),
     url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', views.UpdateBrowserCme.as_view()),
     url(r'^feed/cme/?$', views.CreateSRCme.as_view()),

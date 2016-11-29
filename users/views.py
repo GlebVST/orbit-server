@@ -6,6 +6,7 @@ from django.db import transaction
 from django.http import QueryDict
 from django.utils import timezone
 from rest_framework import generics, permissions, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser,MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -118,11 +119,32 @@ class PRODetail(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 
-# BrowserCmeOffer
+# custom pagination for BrowserCmeOfferList
+class BrowserCmeOfferPagination(PageNumberPagination):
+    page_size = 5
+
+class BrowserCmeOfferList(generics.ListAPIView):
+    """
+    Find the top N un-redeemed and unexpired offers order by expireDate
+    (earliest first) for the authenticated user.
+    """
+    serializer_class = BrowserCmeOfferSerializer
+    pagination_class = BrowserCmeOfferPagination
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        user = self.request.user
+        now = timezone.now()
+        return BrowserCmeOffer.objects.filter(
+            user=user,
+            expireDate__gt=now,
+            redeemed=False
+            ).order_by('expireDate')
+
 class GetBrowserCmeOffer(APIView):
     """
-    Find the first un-redeemed and unexpired offer with the earliest
-    expireDate for the authenticated user.
+    Find the earliest un-redeemed and unexpired offers order by expireDate
+    for the authenticated user.
     If no offer exists, returns {offer: null}
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]

@@ -171,7 +171,8 @@ class ExpiredBRCmeSubSerializer(serializers.ModelSerializer):
 
 class EntryReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
-    entryType = serializers.PrimaryKeyRelatedField(read_only=True)
+    entryTypeId = serializers.PrimaryKeyRelatedField(source='entryType.id', read_only=True)
+    entryType = serializers.StringRelatedField(read_only=True)
     documentUrl = serializers.FileField(source='document', max_length=None, allow_empty_file=True, use_url=True)
     extra = serializers.SerializerMethodField()
 
@@ -193,6 +194,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'id',
             'user',
             'entryType',
+            'entryTypeId',
             'activityDate',
             'description',
             'documentUrl',
