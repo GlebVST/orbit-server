@@ -49,6 +49,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'id',
             'firstName',
             'lastName',
+            'contactEmail',
             'jobTitle',
             'description',
             'npiNumber',
@@ -71,7 +72,6 @@ class CustomerSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'customerId',
-            'contactEmail',
             'balance',
             'created',
             'modified'
@@ -118,16 +118,10 @@ class RewardSubSerializer(serializers.ModelSerializer):
 # intended to be used by SerializerMethodField on EntrySerializer
 class SRCmeSubSerializer(serializers.ModelSerializer):
     credits = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
-    tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
-        many=True,
-        allow_null=False
-    )
     class Meta:
         model = SRCme
         fields = (
-            'credits',
-            'tags'
+            'credits'
         )
 
 
@@ -174,6 +168,11 @@ class EntryReadSerializer(serializers.ModelSerializer):
     entryTypeId = serializers.PrimaryKeyRelatedField(source='entryType.id', read_only=True)
     entryType = serializers.StringRelatedField(read_only=True)
     documentUrl = serializers.FileField(source='document', max_length=None, allow_empty_file=True, use_url=True)
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=CmeTag.objects.all(),
+        many=True,
+        allow_null=True
+    )
     extra = serializers.SerializerMethodField()
 
     def get_extra(self, obj):
@@ -198,6 +197,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'activityDate',
             'description',
             'documentUrl',
+            'tags',
             'extra',
             'created',
             'modified'
@@ -213,6 +213,10 @@ class BRCmeCreateSerializer(serializers.Serializer):
     offerId = serializers.PrimaryKeyRelatedField(
         queryset=BrowserCmeOffer.objects.filter(redeemed=False)
     )
+    tags = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=CmeTag.objects.all()
+    )
 
     class Meta:
         fields = (
@@ -220,7 +224,8 @@ class BRCmeCreateSerializer(serializers.Serializer):
             'offerId',
             'description',
             'purpose',
-            'planEffect'
+            'planEffect',
+            'tags'
         )
 
     def validate(self, data):
@@ -228,7 +233,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
         offer = data.get('offerId', None)
         print('validate offer: {0}'.format(offer.pk))
         if offer is not None and hasattr(offer, 'expireDate') and (offer.expireDate < timezone.now()):
-            return serializers.ValidationError('The offerId {offerId} has already expired'.format(**data))
+            return serializers.ValidationError('The offerId {0} has already expired'.format(offer.pk))
         return data
 
     def create(self, validated_data):
@@ -245,6 +250,10 @@ class BRCmeCreateSerializer(serializers.Serializer):
             description=validated_data.get('description'),
             user=validated_data.get('user')
         )
+        # associate tags with saved entry
+        tag_ids = validated_data.get('tags', [])
+        if tag_ids:
+            entry.tags.set(tag_ids)
         # Using parent entry, create BrowserCme instance
         instance = BrowserCme.objects.create(
             entry=entry,
@@ -263,19 +272,28 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
+    tags = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=CmeTag.objects.all()
+    )
 
     class Meta:
         fields = (
             'id',
             'description',
             'purpose',
-            'planEffect'
+            'planEffect',
+            'tags'
         )
 
     def update(self, instance, validated_data):
         entry = instance.entry
         entry.description = validated_data.get('description', entry.description)
         entry.save() # updates modified timestamp
+        # replace old tags with new tags (wholesale)
+        tag_ids = validated_data.get('tags', [])
+        if tag_ids:
+            entry.tags.set(tag_ids)
         instance.purpose = validated_data.get('purpose', instance.purpose)
         instance.planEffect = validated_data.get('planEffect', instance.planEffect)
         instance.save()
@@ -332,6 +350,10 @@ class SRCmeFormSerializer(serializers.Serializer):
             description=validated_data.get('description'),
             user=validated_data.get('user')
         )
+        # associate tags with saved entry
+        tag_ids = validated_data.get('tags', [])
+        if tag_ids:
+            entry.tags.set(tag_ids)
         newDoc = validated_data.get('document', None) # UploadedFile (or subclass)
         if newDoc:
             print('uploaded filename: {0}'.format(newDoc.name))
@@ -347,9 +369,6 @@ class SRCmeFormSerializer(serializers.Serializer):
             entry=entry,
             credits=validated_data.get('credits')
         )
-        tag_ids = validated_data.get('tags', [])
-        if tag_ids:
-            instance.tags.set(tag_ids)
         return instance
 
     def update(self, instance, validated_data):
@@ -370,10 +389,11 @@ class SRCmeFormSerializer(serializers.Serializer):
                 entry.document.delete()
             entry.document.save(docName.lower(), newDoc)
         entry.save()  # updates modified timestamp
-        instance.credits = validated_data.get('credits', instance.credits)
+        # replace old tags with new tags (wholesale)
         tag_ids = validated_data.get('tags', [])
         if tag_ids:
-            instance.tags.set(tag_ids)
+            entry.tags.set(tag_ids)
+        instance.credits = validated_data.get('credits', instance.credits)
         instance.save()
         return instance
 

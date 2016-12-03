@@ -1,0 +1,47 @@
+[
+{
+  "model": "users.cmetag",
+  "pk": 1,
+  "fields": {
+    "name": "SA-CME",
+    "created": "2016-11-26T08:27:34.195Z",
+    "modified": "2016-11-26T08:27:34.195Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 2,
+  "fields": {
+    "name": "Breast",
+    "created": "2016-11-26T08:27:38.058Z",
+    "modified": "2016-11-26T08:27:38.058Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 3,
+  "fields": {
+    "name": "Tag-02",
+    "created": "2016-11-26T08:27:47.195Z",
+    "modified": "2016-11-26T08:27:47.195Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 4,
+  "fields": {
+    "name": "Tag-01",
+    "created": "2016-11-26T08:27:56.806Z",
+    "modified": "2016-11-26T08:27:56.806Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 5,
+  "fields": {
+    "name": "Tag-03",
+    "created": "2016-11-26T08:28:01.139Z",
+    "modified": "2016-11-26T08:28:01.139Z"
+  }
+}
+]

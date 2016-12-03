@@ -85,7 +85,6 @@ api_patterns = [
 
     # debug
     url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
-    url(r'^debug/feed/?$', debug_views.FeedList.as_view()),
     url(r'^debug/feed/reward/?$', debug_views.MakeRewardEntry.as_view()),
 ]
 

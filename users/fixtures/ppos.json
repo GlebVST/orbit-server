@@ -1,0 +1,32 @@
+[
+{
+  "model": "users.pointpurchaseoption",
+  "pk": 1,
+  "fields": {
+    "points": "300.00",
+    "price": "0.03",
+    "created": "2016-12-03T07:59:31.242Z",
+    "modified": "2016-12-03T07:59:31.242Z"
+  }
+},
+{
+  "model": "users.pointpurchaseoption",
+  "pk": 2,
+  "fields": {
+    "points": "200.00",
+    "price": "0.02",
+    "created": "2016-12-03T07:59:40.024Z",
+    "modified": "2016-12-03T07:59:40.024Z"
+  }
+},
+{
+  "model": "users.pointpurchaseoption",
+  "pk": 3,
+  "fields": {
+    "points": "100.00",
+    "price": "0.01",
+    "created": "2016-12-03T07:59:48.536Z",
+    "modified": "2016-12-03T07:59:48.536Z"
+  }
+}
+]

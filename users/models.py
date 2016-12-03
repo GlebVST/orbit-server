@@ -25,7 +25,7 @@ CMETAG_SACME = 'SA-CME'
 class Degree(models.Model):
     """Names and abbreviations of professional degrees"""
     abbrev = models.CharField(max_length=5, unique=True)
-    name = models.CharField(max_length=30)
+    name = models.CharField(max_length=40)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -35,7 +35,6 @@ class Degree(models.Model):
 @python_2_unicode_compatible
 class PracticeSpecialty(models.Model):
     """Names of practice specialties.
-    TODO: add OccupationType ForeignKey (Phase 2)
     """
     name = models.CharField(max_length=100, unique=True)
     created = models.DateTimeField(auto_now_add=True)
@@ -67,6 +66,7 @@ class Profile(models.Model):
     )
     firstName = models.CharField(max_length=30)
     lastName = models.CharField(max_length=30)
+    contactEmail = models.EmailField(blank=True)
     jobTitle = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True) # about me
     npiNumber = models.CharField(max_length=20, blank=True)
@@ -90,7 +90,6 @@ class Customer(models.Model):
     )
     customerId = models.UUIDField(unique=True, editable=False, default=uuid.uuid4,
         help_text='Used for Braintree customerId')
-    contactEmail = models.EmailField(blank=True)
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -151,11 +150,13 @@ class Entry(models.Model):
     description = models.CharField(max_length=500)
     valid = models.BooleanField(default=True)
     document = models.FileField(upload_to='entries', blank=True, null=True)
+    tags = models.ManyToManyField(CmeTag, related_name='entries')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.user.username
+        return self.description
+
     class Meta:
         verbose_name_plural = 'Entries'
 
@@ -174,7 +175,7 @@ class Reward(models.Model):
         return self.rewardType
 
 # Self-reported CME
-# Earned credits are self-reported along with the relevant cme tags
+# Earned credits are self-reported
 @python_2_unicode_compatible
 class SRCme(models.Model):
     entry = models.OneToOneField(Entry,
@@ -183,7 +184,6 @@ class SRCme(models.Model):
         primary_key=True
     )
     credits = models.DecimalField(max_digits=6, decimal_places=2)
-    tags = models.ManyToManyField(CmeTag, related_name='srcmes')
 
     def __str__(self):
         return str(self.credits)

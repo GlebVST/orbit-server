@@ -12,11 +12,11 @@ class CmeTagAdmin(admin.ModelAdmin):
 
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'npiNumber', 'created')
+    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'npiNumber', 'modified')
     search_fields = ['npiNumber', 'lastName']
 
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'contactEmail', 'customerId', 'balance', 'created')
+    list_display = ('user', 'customerId', 'balance', 'modified')
     search_fields = ['contactEmail',]
 
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
@@ -27,7 +27,7 @@ class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
 
 class EntryAdmin(admin.ModelAdmin):
-    list_display = ('user', 'entryType', 'activityDate', 'valid', 'description')
+    list_display = ('user', 'entryType', 'activityDate', 'valid', 'document', 'description', 'created')
     list_filter = ('entryType', 'valid')
 
 class PointTransactionAdmin(admin.ModelAdmin):

@@ -87,10 +87,10 @@ class CustomerList(generics.ListAPIView):
     serializer_class = CustomerSerializer
     permission_classes = [permissions.IsAdminUser, TokenHasReadWriteScope]
 
-# A customer is viewable by any Admin user.
-# A customer can edited only by the owner from the API
+# A customer is viewable by any Admin user (or the user that is the owner of the account)
+# A customer cannot be edited from the API because it only contains read-only fields
 # A customer cannot be deleted from the API
-class CustomerDetail(generics.RetrieveUpdateAPIView):
+class CustomerDetail(generics.RetrieveAPIView):
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
     permission_classes = [IsOwnerOrAdmin, TokenHasReadWriteScope]
