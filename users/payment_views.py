@@ -54,7 +54,7 @@ class GetPaymentMethods(JsonResponseMixin, APIView):
 
         local_customer = Customer.objects.get(user=user)
         btree_customer = braintree.Customer.find(str(local_customer.customerId))
-        results = [{ "token": m.token, "number": m.masked_number} for m in btree_customer.payment_methods]
+        results = [{ "token": m.token, "number": m.masked_number, "type": m.card_type, "expiry": m.expiration_date } for m in btree_customer.payment_methods]
         logger.debug("Customer {} payment methods: {}".format(local_customer, results))
         return self.render_to_json_response(results)
 
@@ -146,6 +146,13 @@ class Checkout(JsonResponseMixin, APIView):
                 customer.balance += ppo.points
                 customer.save()
             context['balance'] = str(customer.balance)
+            # update braintree customer information: add payment method
+            result = braintree.Customer.update(str(customer.customerId), {
+                "credit_card": {
+                    "payment_method_nonce": payment_nonce
+                }
+            })
+            context['customer_updated_success'] = result.is_success
             return self.render_to_json_response(context)
         else:
             if hasattr(result, 'transaction') and result.transaction is not None:
