@@ -121,7 +121,7 @@ class SRCmeSubSerializer(serializers.ModelSerializer):
     class Meta:
         model = SRCme
         fields = (
-            'credits'
+            'credits',
         )
 
 
