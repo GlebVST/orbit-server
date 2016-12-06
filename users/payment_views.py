@@ -54,7 +54,7 @@ class GetPaymentMethods(JsonResponseMixin, APIView):
 
         local_customer = Customer.objects.get(user=user)
         btree_customer = braintree.Customer.find(str(local_customer.customerId))
-        results = [{ "token": m.token, "number": m.masked_number} for m in btree_customer.payment_methods]
+        results = [{ "token": m.token, "number": m.masked_number, "type": m.card_type, "expiry": m.expiration_date } for m in btree_customer.payment_methods]
         logger.debug("Customer {} payment methods: {}".format(local_customer, results))
         return self.render_to_json_response(results)
 

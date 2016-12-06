@@ -361,11 +361,10 @@ class CreateSRCme(generics.CreateAPIView):
         """Override to add custom keys to response"""
         print(request.data)  # a QueryDict
         form_data = request.data.copy()
-        # Change tags to be a list of pks
+        # Change tags to be a list (comes as comma separated string of IDs)
         tags = form_data.get('tags', '')
         if tags:
-            qdict = QueryDict(tags)
-            tag_ids = qdict.getlist('tags')
+            tag_ids = tags.split(",")
             form_data.setlist('tags', tag_ids)
         print(form_data)
         serializer = self.get_serializer(data=form_data)
@@ -397,11 +396,10 @@ class UpdateSRCme(generics.UpdateAPIView):
         instance = self.get_object()
         #print(request.data)
         form_data = request.data.copy()
-        # Change tags to be a list of pks
+        # Change tags to be a list (comes as comma separated string of IDs)
         tags = form_data.get('tags', '')
         if tags:
-            qdict = QueryDict(tags)
-            tag_ids = qdict.getlist('tags')
+            tag_ids = tags.split(",")
             form_data.setlist('tags', tag_ids)
         serializer = self.get_serializer(instance, data=form_data, partial=partial)
         serializer.is_valid(raise_exception=True)

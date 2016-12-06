@@ -7,13 +7,15 @@ from django.contrib.auth.decorators import login_required
 from social.apps.django_app.utils import psa
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 # proj
 from common.viewutils import render_to_json_response
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import Profile, Customer
+import logging
 
+logger = logging.getLogger(__name__)
 TPL_DIR = 'users'
 
 def ss_login(request):
@@ -121,18 +123,14 @@ def login_via_token(request, backend, access_token):
         return render_to_json_response(context, status_code=400)
 
 
+@api_view()
+@permission_classes((IsAuthenticated,))
 def logout_via_token(request):
-    key = 'access_token'
-    token = request.GET.get(key)
-    if key not in request.GET or not token:
-        context = {
-            'success': False,
-            'error_message': 'Invalid GET parameter'
-        }
-        return render_to_json_response(context, status_code=400)
     if request.user.is_authenticated:
-        print('logout {0}'.format(request.user))
-        delete_access_token(request.user, token)
+        logger.info('logout user: {}'.format(request.user))
+        token = get_access_token(request.user)
+        logger.debug('got token {}'.format(token))
+        delete_access_token(request.user, token.get('access_token'))
         auth_logout(request)
     context = {'success': True}
     return render_to_json_response(context)
