@@ -146,13 +146,6 @@ class Checkout(JsonResponseMixin, APIView):
                 customer.balance += ppo.points
                 customer.save()
             context['balance'] = str(customer.balance)
-            # update braintree customer information: add payment method
-            result = braintree.Customer.update(str(customer.customerId), {
-                "credit_card": {
-                    "payment_method_nonce": payment_nonce
-                }
-            })
-            context['customer_updated_success'] = result.is_success
             return self.render_to_json_response(context)
         else:
             if hasattr(result, 'transaction') and result.transaction is not None:
