@@ -1,0 +1,20 @@
+[
+{
+  "model": "users.country",
+  "pk": 1,
+  "fields": {
+    "name": "United States",
+    "created": "2016-12-09T23:25:44.723Z",
+    "modified": "2016-12-09T23:25:44.723Z"
+  }
+},
+{
+  "model": "users.country",
+  "pk": 2,
+  "fields": {
+    "name": "Canada",
+    "created": "2016-12-09T23:25:48.540Z",
+    "modified": "2016-12-09T23:25:48.540Z"
+  }
+}
+]

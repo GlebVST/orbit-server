@@ -15,6 +15,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.conf.urls import url, include
+from django.conf import settings
+from django.conf.urls.static import static
 #from rest_framework import routers
 from rest_framework.urlpatterns import format_suffix_patterns
 from users import views, auth_views, debug_views, payment_views
@@ -62,6 +64,8 @@ api_patterns = [
     url(r'^cmetags/(?P<pk>[0-9]+)/?$', views.CmeTagDetail.as_view()),
     url(r'^degrees/?$', views.DegreeList.as_view()),
     url(r'^degrees/(?P<pk>[0-9]+)/?$', views.DegreeDetail.as_view()),
+    url(r'^countries/?$', views.CountryList.as_view()),
+    url(r'^countries/(?P<pk>[0-9]+)/?$', views.CountryDetail.as_view()),
     url(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view()),
     url(r'^practice-specialties/(?P<pk>[0-9]+)/?$', views.PracticeSpecialtyDetail.as_view()),
 
@@ -77,7 +81,6 @@ api_patterns = [
     url(r'^feed/browser-cme/?$', views.CreateBrowserCme.as_view()),
     url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', views.UpdateBrowserCme.as_view()),
     url(r'^feed/cme/?$', views.CreateSRCme.as_view()),
-    url(r'^feed/cme-spec/?$', views.CreateSRCmeSpec.as_view()),
     url(r'^feed/cme/(?P<pk>[0-9]+)/?$', views.UpdateSRCme.as_view()),
 
     # user feedback (list/create)
@@ -118,4 +121,6 @@ urlpatterns = [
     url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     # PSA
     url(r'', include('social.apps.django_app.urls', namespace='social')),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Note: the helper to serve media files only works in debug mode.
+# https://docs.djangoproject.com/en/1.10/howto/static-files/#serving-files-uploaded-by-a-user-during-development

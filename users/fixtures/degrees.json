@@ -98,5 +98,15 @@
     "created": "2016-12-03T08:07:03.085Z",
     "modified": "2016-12-03T08:07:03.085Z"
   }
+},
+{
+  "model": "users.degree",
+  "pk": 11,
+  "fields": {
+    "abbrev": "BS",
+    "name": "Bachelor of Science",
+    "created": "2016-12-09T23:26:08.063Z",
+    "modified": "2016-12-09T23:26:08.063Z"
+  }
 }
 ]

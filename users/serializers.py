@@ -1,12 +1,15 @@
 from datetime import timedelta
 from decimal import Decimal
 import os
+import logging
 from pprint import pprint
 from django.contrib.auth.models import User
 from django.utils import timezone
 from rest_framework import serializers
 from common.viewutils import md5_uploaded_file
 from .models import *
+
+logger = logging.getLogger(__name__)
 
 class DegreeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -23,10 +26,16 @@ class CmeTagSerializer(serializers.ModelSerializer):
         model = CmeTag
         fields = ('id', 'name')
 
+class CountrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Country
+        fields = ('id', 'name')
 
 class ProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
     socialUrl = serializers.ReadOnlyField()
+    inviteId = serializers.ReadOnlyField()
+    isComplete = serializers.ReadOnlyField()
     cmeTags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -42,7 +51,10 @@ class ProfileSerializer(serializers.ModelSerializer):
         many=True,
         allow_null=True
     )
-
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        allow_null=True
+    )
     class Meta:
         model = Profile
         fields = (
@@ -50,18 +62,50 @@ class ProfileSerializer(serializers.ModelSerializer):
             'firstName',
             'lastName',
             'contactEmail',
+            'country',
             'jobTitle',
             'description',
-            'npiNumber',
             'inviteId',
             'socialUrl',
-            'pictureUrl',
+            'npiNumber',
             'cmeTags',
             'degrees',
             'specialties',
+            'isComplete',
             'created',
             'modified'
         )
+
+    def update(self, instance, validated_data):
+        """Set isComplete flag if the following fields are populated
+            1. contactEmail is a gmail address
+            2. Country is provided
+            3. One or more PracticeSpecialty
+            4. One or more Degree
+            5. If profile.shouldReqNPINumber and npiNumber is non-blank.
+        """
+        updInstance = super(ProfileSerializer, self).update(instance, validated_data)
+        if not instance.isComplete:
+            # go through checklist
+            if not updInstance.contactEmail.endswith('gmail.com'):
+                return updInstance
+            if not updInstance.country:
+                return updInstance
+            if not updInstance.specialties.count():
+                return updInstance
+            if not updInstance.degrees.count():
+                return updInstance
+            if updInstance.shouldReqNPINumber():
+                if updInstance.npiNumber:
+                    isComplete = True
+                else:
+                    isComplete = False
+            else:
+                isComplete = True
+            if isComplete != instance.isComplete:
+                updInstance.isComplete = isComplete
+                updInstance.save()
+        return updInstance
 
 
 class CustomerSerializer(serializers.ModelSerializer):
@@ -167,7 +211,9 @@ class EntryReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     entryTypeId = serializers.PrimaryKeyRelatedField(source='entryType.id', read_only=True)
     entryType = serializers.StringRelatedField(read_only=True)
-    documentUrl = serializers.FileField(source='document', max_length=None, allow_empty_file=True, use_url=True)
+    documentUrl = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
+    md5sum = serializers.ReadOnlyField()
+    content_type = serializers.ReadOnlyField()
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -197,6 +243,8 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'activityDate',
             'description',
             'documentUrl',
+            'md5sum',
+            'content_type',
             'tags',
             'extra',
             'created',
@@ -231,7 +279,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
     def validate(self, data):
         """Check offer is not expired"""
         offer = data.get('offerId', None)
-        print('validate offer: {0}'.format(offer.pk))
+        logger.debug('validate offer: {0}'.format(offer.pk))
         if offer is not None and hasattr(offer, 'expireDate') and (offer.expireDate < timezone.now()):
             return serializers.ValidationError('The offerId {0} has already expired'.format(offer.pk))
         return data
@@ -320,6 +368,7 @@ class SRCmeFormSerializer(serializers.Serializer):
             'activityDate',
             'description',
             'document',
+            'fileMd5',
             'credits',
             'tags'
         )
@@ -328,9 +377,8 @@ class SRCmeFormSerializer(serializers.Serializer):
         """
         Validate the client file_md5 matches server file_md5
         """
-        pprint(data)
+        #pprint(data)
         if 'document' in data and 'fileMd5' in data:
-            print('Verifying fileMd5')
             client_md5 = data['fileMd5']
             server_md5 = md5_uploaded_file(data['document'])
             if client_md5 != server_md5:
@@ -344,26 +392,30 @@ class SRCmeFormSerializer(serializers.Serializer):
             user: User instance
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_SRCME)
-        entry = Entry.objects.create(
+        entry = Entry(
             entryType=etype,
             activityDate=validated_data.get('activityDate'),
             description=validated_data.get('description'),
             user=validated_data.get('user')
         )
-        # associate tags with saved entry
-        tag_ids = validated_data.get('tags', [])
-        if tag_ids:
-            entry.tags.set(tag_ids)
         newDoc = validated_data.get('document', None) # UploadedFile (or subclass)
         if newDoc:
-            print('uploaded filename: {0}'.format(newDoc.name))
+            logger.debug('uploaded filename: {0}'.format(newDoc.name))
             fileExt = os.path.splitext(newDoc.name)[1]
             fileMd5 = validated_data.get('fileMd5', '')
             if fileMd5:
                 docName = fileMd5 + fileExt
             else:
                 docName = newDoc.name
+            entry.md5sum = fileMd5
+            entry.content_type = newDoc.content_type
+        entry.save()
+        if newDoc:
             entry.document.save(docName.lower(), newDoc)
+        # associate tags with saved entry
+        tag_ids = validated_data.get('tags', [])
+        if tag_ids:
+            entry.tags.set(tag_ids)
         # Using parent entry, create SRCme instance
         instance = SRCme.objects.create(
             entry=entry,
@@ -378,7 +430,7 @@ class SRCmeFormSerializer(serializers.Serializer):
         entry.description = validated_data.get('description', entry.description)
         newDoc = validated_data.get('document', None)
         if newDoc:
-            print('uploaded filename: {0}'.format(newDoc.name))
+            logger.debug('uploaded filename: {0}'.format(newDoc.name))
             fileExt = os.path.splitext(newDoc.name)[1]
             fileMd5 = validated_data.get('fileMd5', '')
             if fileMd5:
@@ -388,6 +440,8 @@ class SRCmeFormSerializer(serializers.Serializer):
             if entry.document:
                 entry.document.delete()
             entry.document.save(docName.lower(), newDoc)
+            entry.md5sum = fileMd5
+            entry.content_type = newDoc.content_type
         entry.save()  # updates modified timestamp
         # replace old tags with new tags (wholesale)
         tag_ids = validated_data.get('tags', [])

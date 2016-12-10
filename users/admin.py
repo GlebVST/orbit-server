@@ -10,14 +10,17 @@ class PracticeSpecialtyAdmin(admin.ModelAdmin):
 class CmeTagAdmin(admin.ModelAdmin):
     list_display = ('name', 'created')
 
+class CountryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'created')
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'npiNumber', 'modified')
+    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'npiNumber', 'isComplete', 'country', 'modified')
+    list_filter = ('isComplete','country')
     search_fields = ['npiNumber', 'lastName']
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'customerId', 'balance', 'modified')
-    search_fields = ['contactEmail',]
+    search_fields = ['customerId',]
 
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
     list_display = ('user', 'activityDate', 'redeemed', 'expireDate', 'url')
@@ -49,6 +52,7 @@ class UserFeedbackAdmin(admin.ModelAdmin):
 
 admin.site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
 admin.site.register(CmeTag, CmeTagAdmin)
+admin.site.register(Country, CountryAdmin)
 admin.site.register(Customer, CustomerAdmin)
 admin.site.register(Degree, DegreeAdmin)
 admin.site.register(Entry, EntryAdmin)

@@ -1,4 +1,5 @@
 import os
+import logging
 from pprint import pprint
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
@@ -13,7 +14,7 @@ from common.viewutils import render_to_json_response
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import Profile, Customer
-import logging
+from .serializers import ProfileSerializer
 
 logger = logging.getLogger(__name__)
 TPL_DIR = 'users'
@@ -30,7 +31,7 @@ def ss_home(request):
     return render(request, os.path.join(TPL_DIR, 'home.html'))
 
 def ss_logout(request):
-    print('logout {0}'.format(request.user))
+    logger.info('logout {0}'.format(request.user))
     auth_logout(request)
     return render(request, os.path.join(TPL_DIR, 'logged_out.html'))
 
@@ -47,6 +48,11 @@ def make_customer_dict(customer):
         'customerId': customer.customerId,
         'balance': customer.balance
     }
+
+def make_profile_dict(profile):
+    s = ProfileSerializer(profile)
+    return s.data
+
 
 @api_view()
 @permission_classes((AllowAny,))
@@ -72,10 +78,12 @@ def auth_status(request):
         }
         return render_to_json_response(context, status_code=401)
     customer = Customer.objects.get(user=user)
+    profile = Profile.objects.get(user=user).select_related('country')
     context = {
         'success': True,
         'token': token,
         'user': make_user_dict(user),
+        'profile': make_profile_dict(profile),
         'customer': make_customer_dict(customer)
     }
     pprint(context)
@@ -107,10 +115,12 @@ def login_via_token(request, backend, access_token):
     if user:
         auth_login(request, user)
         customer = Customer.objects.get(user=user)
+        profile = Profile.objects.get(user=user).select_related('country')
         context = {
             'success': True,
             'token': new_access_token(user),
             'user': make_user_dict(user),
+            'profile': make_profile_dict(profile),
             'customer': make_customer_dict(customer)
         }
         pprint(context)
@@ -126,7 +136,7 @@ def login_via_token(request, backend, access_token):
 @api_view()
 @permission_classes((IsAuthenticated,))
 def logout_via_token(request):
-    if request.user.is_authenticated:
+    if request.user.is_authenticated():
         logger.info('logout user: {}'.format(request.user))
         token = get_access_token(request.user)
         logger.debug('got token {}'.format(token))

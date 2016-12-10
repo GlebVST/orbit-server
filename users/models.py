@@ -20,6 +20,24 @@ ENTRYTYPE_BRCME = 'browser-cme'
 ENTRYTYPE_EXBRCME = 'expired-browser-cme'
 ENTRYTYPE_SRCME = 'sr-cme'
 CMETAG_SACME = 'SA-CME'
+COUNTRY_USA = 'United States'
+DEGREE_MD = 'MD'
+DEGREE_DO = 'DO'
+
+
+@python_2_unicode_compatible
+class Country(models.Model):
+    """Names of countries for country of practice.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+    class Meta:
+        verbose_name_plural = 'Countries'
+
 
 @python_2_unicode_compatible
 class Degree(models.Model):
@@ -67,20 +85,45 @@ class Profile(models.Model):
     firstName = models.CharField(max_length=30)
     lastName = models.CharField(max_length=30)
     contactEmail = models.EmailField(blank=True)
+    country = models.ForeignKey(Country,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='profiles',
+        null=True,
+        blank=True,
+        help_text='Primary country of practice'
+    )
     jobTitle = models.CharField(max_length=100, blank=True)
-    description = models.TextField(blank=True) # about me
-    npiNumber = models.CharField(max_length=20, blank=True)
+    description = models.TextField(blank=True, help_text='About me')
+    npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     inviteId = models.CharField(max_length=12, unique=True)
     socialUrl = models.URLField(blank=True)
-    pictureUrl = models.URLField(max_length=300, blank=True)
     cmeTags = models.ManyToManyField(CmeTag, related_name='profiles')
     degrees = models.ManyToManyField(Degree)
     specialties = models.ManyToManyField(PracticeSpecialty)
+    isComplete = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return '{0} {1}'.format(self.firstName, self.lastName)
+
+    def shouldReqNPINumber(self):
+        """
+        If (country=COUNTRY_USA) and (MD or DO in self.degrees),
+        then npiNumber should be requested
+        """
+        us = Country.objects.get(name=COUNTRY_USA)
+        if self.country != us.pk:
+            return False
+        md = Degree.objects.get(abbrev=DEGREE_MD)
+        do = Degree.objects.get(abbrev=DEGREE_DO)
+        has_md = self.degrees.filter(pk=md.pk).exists()
+        has_do = self.degrees.filter(pk=do.pk).exists()
+        if has_md or has_do:
+            return True
+        return False
+
 
 @python_2_unicode_compatible
 class Customer(models.Model):
@@ -134,8 +177,9 @@ class EntryType(models.Model):
         return self.name
 
 # Base class for all feed entries (contains fields common to all entry types)
-# A entry belongs to a user, and is defined by an activityDate and
-# a description.
+# A entry belongs to a user, and is defined by an activityDate and a description.
+# It can optionally have a document file (described by m5sum and content_type).
+# For SRCme and BrowserCme: the Entry must have one or more associated cme tags.
 @python_2_unicode_compatible
 class Entry(models.Model):
     user = models.ForeignKey(User,
@@ -150,6 +194,8 @@ class Entry(models.Model):
     description = models.CharField(max_length=500)
     valid = models.BooleanField(default=True)
     document = models.FileField(upload_to='entries', blank=True, null=True)
+    md5sum = models.CharField(max_length=32, blank=True, help_text='md5sum of the document file')
+    content_type = models.CharField(max_length=100, blank=True, help_text='content_type of the document file')
     tags = models.ManyToManyField(CmeTag, related_name='entries')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)

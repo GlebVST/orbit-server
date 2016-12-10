@@ -1,5 +1,4 @@
 from decimal import Decimal
-import json
 from pprint import pprint
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -16,6 +15,18 @@ from common.viewutils import  newUuid
 from .models import *
 from .serializers import *
 from .permissions import *
+
+
+# Country
+class CountryList(generics.ListCreateAPIView):
+    queryset = Country.objects.all().order_by('name')
+    serializer_class = CountrySerializer
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
+class CountryDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Country.objects.all()
+    serializer_class = CountrySerializer
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 # Degree
 class DegreeList(generics.ListCreateAPIView):
@@ -66,7 +77,7 @@ class EntryTypeDetail(generics.RetrieveUpdateDestroyAPIView):
 # A list of profiles is readable by any authenticated user
 # A profile cannot be created from the API because it is created by the psa pipeline for each user.
 class ProfileList(generics.ListAPIView):
-    queryset = Profile.objects.all().order_by('lastName')
+    queryset = Profile.objects.all().order_by('lastName').select_related('country')
     serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
@@ -74,7 +85,7 @@ class ProfileList(generics.ListAPIView):
 # A profile can edited only by the owner from the API
 # A profile cannot be deleted from the API
 class ProfileDetail(generics.RetrieveUpdateAPIView):
-    queryset = Profile.objects.all()
+    queryset = Profile.objects.all().select_related('country')
     serializer_class = ProfileSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
@@ -194,8 +205,25 @@ class FeedEntryDetail(generics.RetrieveDestroyAPIView):
             instance.document.delete()
         return self.destroy(request, *args, **kwargs)
 
+class TagsMixin(object):
+    """Mixin to handle the tags parameter in request.data
+    for BrowserCme.
+    """
 
-class CreateBrowserCme(generics.CreateAPIView):
+    def get_tags(self, form_data):
+        """Handle different format for tags in request body
+        Swagger UI sends tags as a list, e.g.
+            tags: ['1','2']
+        UI sends tags as a comma separated string of IDs, e.g.
+            tags: "1,2"
+        """
+        #pprint(form_data) # <type 'dict'>
+        tags = form_data.get('tags', '')
+        if type(tags) == type(u'') and ',' in tags:
+            tag_ids = tags.split(",") # convert "1,2" to [1,2]
+            form_data['tags'] = tag_ids
+
+class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
     """
     Create a BrowserCme Entry in the user's feed.
     This action redeems the BrowserCmeOffer specified in the
@@ -236,7 +264,10 @@ class CreateBrowserCme(generics.CreateAPIView):
                 'error': 'Local customer object not found for user'
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        serializer = self.get_serializer(data=request.data)
+        form_data = request.data.copy()
+        self.get_tags(form_data)
+        logger.debug(form_data)
+        serializer = self.get_serializer(data=form_data)
         serializer.is_valid(raise_exception=True)
         brcme = self.perform_create(serializer)
         entry = brcme.entry
@@ -251,7 +282,7 @@ class CreateBrowserCme(generics.CreateAPIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 
-class UpdateBrowserCme(generics.UpdateAPIView):
+class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
     """
     Update a BrowserCme Entry in the user's feed.
     This action does not change the credits earned or the points
@@ -266,141 +297,9 @@ class UpdateBrowserCme(generics.UpdateAPIView):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        entry = Entry.objects.get(pk=instance.pk)
-        context = {
-            'success': True,
-            'modified': entry.modified
-        }
-        return Response(context)
-
-# http://stackoverflow.com/questions/30176570/using-django-rest-framework-how-can-i-upload-a-file-and-send-a-json-payload
-class CreateSRCmeSpec(generics.CreateAPIView):
-    """Alternate version of create SRCme.
-    This version conforms to the original API specification. But it does not
-    work Swagger becuase it expects this input format:
-        entry : JSON.stringify({
-            activityDate: str  (required) future date is allowed
-            description: str   (required) 500 chars max
-            credits: float     (required, must be positive number)
-            tags: array of tag Ids (at least 1 id is required)
-            fileMd5: str       (optional. Value is the md5sum of the document to upload)
-        })
-        file: blob (optional. document to upload. Max filesize=X MB)
-    """
-    serializer_class = SRCmeFormSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    parser_classes = (MultiPartParser,FormParser,)
-
-    def get_queryset(self):
-        user = self.request.user
-        return SRCme.objects.filter(user=user).select_related('entry')
-
-    def perform_create(self, serializer, format=None):
-        user = self.request.user
-        with transaction.atomic():
-            srcme = serializer.save(user=user)
-        return srcme
-
-    def create(self, request, *args, **kwargs):
-        """Override method to handle custom input/output data structures"""
-        print(request.data)
-        try:
-            form_data = json.loads(request.data['entry'])
-            if request.data.get('document'):
-                form_data['document'] = request.data['document']
-        except ValueError, e:
-            context = {
-                'success': False,
-                'error': 'Malformed JSON for entry key'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            serializer = self.get_serializer(data=form_data)
-            serializer.is_valid(raise_exception=True)
-            srcme = self.perform_create(serializer)
-            entry = srcme.entry
-            if entry.document is not None:
-                documentUrl = entry.document.url
-            else:
-                documentUrl = None
-            context = {
-                'success': True,
-                'id': entry.pk,
-                'created': entry.created,
-                'documentUrl': documentUrl
-            }
-            headers = self.get_success_headers(serializer.data)
-            return Response(context, status=status.HTTP_201_CREATED, headers=headers)
-
-
-class CreateSRCme(generics.CreateAPIView):
-    """
-    Create SRCme Entry in the user's feed.
-    This version works in Swagger UI.
-    File upload is optional. If file is given, then client
-    must also provide file md5.
-    """
-    serializer_class = SRCmeFormSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    parser_classes = (MultiPartParser,FormParser,)
-
-    def get_queryset(self):
-        user = self.request.user
-        return SRCme.objects.filter(user=user).select_related('entry')
-
-    def perform_create(self, serializer, format=None):
-        user = self.request.user
-        with transaction.atomic():
-            srcme = serializer.save(user=user)
-        return srcme
-
-    def create(self, request, *args, **kwargs):
-        """Override to add custom keys to response"""
-        print(request.data)  # a QueryDict
         form_data = request.data.copy()
-        # Change tags to be a list (comes as comma separated string of IDs)
-        tags = form_data.get('tags', '')
-        if tags:
-            tag_ids = tags.split(",")
-            form_data.setlist('tags', tag_ids)
-        print(form_data)
-        serializer = self.get_serializer(data=form_data)
-        serializer.is_valid(raise_exception=True)
-        srcme = self.perform_create(serializer)
-        entry = srcme.entry
-        context = {
-            'success': True,
-            'id': entry.pk,
-            'created': entry.created
-        }
-        return Response(context, status=status.HTTP_201_CREATED)
-
-class UpdateSRCme(generics.UpdateAPIView):
-    """
-    Update an existing SRCme Entry in the user's feed. This
-    version works in Swagger UI.
-    """
-    serializer_class = SRCmeFormSerializer
-    permission_classes = [IsEntryOwner, TokenHasReadWriteScope]
-    parser_classes = (MultiPartParser,FormParser,)
-
-    def get_queryset(self):
-        return SRCme.objects.select_related('entry')
-
-    def update(self, request, *args, **kwargs):
-        """Override method to handle custom input/output data structures"""
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        #print(request.data)
-        form_data = request.data.copy()
-        # Change tags to be a list (comes as comma separated string of IDs)
-        tags = form_data.get('tags', '')
-        if tags:
-            tag_ids = tags.split(",")
-            form_data.setlist('tags', tag_ids)
+        self.get_tags(form_data)
+        logger.debug(form_data)
         serializer = self.get_serializer(instance, data=form_data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -412,8 +311,64 @@ class UpdateSRCme(generics.UpdateAPIView):
         return Response(context)
 
 
-class UpdateSRCmeSpec(generics.UpdateAPIView):
-    """Alternate version that conforms to original spec but does not work in Swagger.
+class SRCmeTagsMixin(object):
+    """Mixin to handle the tags parameter in request.data"""
+
+    def get_tags(self, form_data):
+        """Handle different format for tags in request body
+        UI sends tags as a comma separated string of IDs
+        Swagger UI sends tags in the select multiple format,
+            e.g. tags=1&tags2
+        """
+        tags = form_data.get('tags', '')
+        if tags:
+            if ',' in tags:  # comma separated list of pks
+                tag_ids = tags.split(",") # [1,2]
+            else:
+                # format sent by swagger
+                qdict = QueryDict(tags) # tags=1&tags=2
+                tag_ids = qdict.getlist('tags') # [1,2]
+            form_data.setlist('tags', tag_ids)
+
+
+class CreateSRCme(SRCmeTagsMixin, generics.CreateAPIView):
+    """
+    Create SRCme Entry in the user's feed.
+    File upload is optional. If file is given, then client
+    must also provide the md5sum of the file.
+    """
+    serializer_class = SRCmeFormSerializer
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    parser_classes = (MultiPartParser,FormParser,)
+
+    def get_queryset(self):
+        user = self.request.user
+        return SRCme.objects.filter(user=user).select_related('entry')
+
+    def perform_create(self, serializer, format=None):
+        user = self.request.user
+        with transaction.atomic():
+            srcme = serializer.save(user=user)
+        return srcme
+
+    def create(self, request, *args, **kwargs):
+        """Override method to handle custom input/output data structures"""
+        form_data = request.data.copy() # a QueryDict
+        self.get_tags(form_data)
+        logger.debug(form_data)
+        serializer = self.get_serializer(data=form_data)
+        serializer.is_valid(raise_exception=True)
+        srcme = self.perform_create(serializer)
+        entry = srcme.entry
+        context = {
+            'success': True,
+            'id': entry.pk,
+            'created': entry.created
+        }
+        return Response(context, status=status.HTTP_201_CREATED)
+
+class UpdateSRCme(SRCmeTagsMixin, generics.UpdateAPIView):
+    """
     Update an existing SRCme Entry in the user's feed.
     """
     serializer_class = SRCmeFormSerializer
@@ -427,27 +382,19 @@ class UpdateSRCmeSpec(generics.UpdateAPIView):
         """Override method to handle custom input/output data structures"""
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-        print(request.data)
-        try:
-            form_data = json.loads(request.data['entry'])
-            if request.data.get('document'):
-                form_data['document'] = request.data['document']
-        except ValueError, e:
-            context = {
-                'success': False,
-                'error': 'Malformed JSON for entry key'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            serializer = self.get_serializer(instance, data=form_data, partial=partial)
-            serializer.is_valid(raise_exception=True)
-            self.perform_update(serializer)
-            entry = Entry.objects.get(pk=instance.pk)
-            context = {
-                'success': False,
-                'modified': entry.modified
-            }
-            return Response(context)
+        form_data = request.data.copy()
+        self.get_tags(form_data)
+        logger.debug(form_data)
+        serializer = self.get_serializer(instance, data=form_data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        entry = Entry.objects.get(pk=instance.pk)
+        context = {
+            'success': True,
+            'modified': entry.modified
+        }
+        return Response(context)
+
 
 
 # User Feedback
