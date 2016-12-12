@@ -97,7 +97,7 @@ class Profile(models.Model):
     description = models.TextField(blank=True, help_text='About me')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     inviteId = models.CharField(max_length=12, unique=True)
-    socialUrl = models.URLField(blank=True)
+    socialUrl = models.URLField(blank=True)  # TODO: rename to socialId and store id only
     cmeTags = models.ManyToManyField(CmeTag, related_name='profiles')
     degrees = models.ManyToManyField(Degree)
     specialties = models.ManyToManyField(PracticeSpecialty)

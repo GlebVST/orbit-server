@@ -33,7 +33,8 @@ class CountrySerializer(serializers.ModelSerializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
-    socialUrl = serializers.ReadOnlyField()
+    #socialUrl = serializers.ReadOnlyField()
+    socialId = serializers.ReadOnlyField(source='socialUrl')  # will rename db column to socialId
     inviteId = serializers.ReadOnlyField()
     isComplete = serializers.ReadOnlyField()
     cmeTags = serializers.PrimaryKeyRelatedField(
@@ -66,7 +67,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'jobTitle',
             'description',
             'inviteId',
-            'socialUrl',
+            'socialId',
             'npiNumber',
             'cmeTags',
             'degrees',
