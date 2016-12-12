@@ -78,7 +78,7 @@ def auth_status(request):
         }
         return render_to_json_response(context, status_code=401)
     customer = Customer.objects.get(user=user)
-    profile = Profile.objects.get(user=user).select_related('country')
+    profile = Profile.objects.get(user=user)
     context = {
         'success': True,
         'token': token,
@@ -115,7 +115,7 @@ def login_via_token(request, backend, access_token):
     if user:
         auth_login(request, user)
         customer = Customer.objects.get(user=user)
-        profile = Profile.objects.get(user=user).select_related('country')
+        profile = Profile.objects.get(user=user)
         context = {
             'success': True,
             'token': new_access_token(user),
