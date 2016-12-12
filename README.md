@@ -1,6 +1,6 @@
 ## Installation
 
-To run this project, first make sure you have python2.7, pip, and virtualenv on your machine.
+To run this project, first make sure you have python2.7, python-dev, pip, and virtualenv on your machine. 
   
   ```
   git clone ...
