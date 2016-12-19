@@ -29,14 +29,12 @@ class CmeTagSerializer(serializers.ModelSerializer):
 class CountrySerializer(serializers.ModelSerializer):
     class Meta:
         model = Country
-        fields = ('id', 'name')
+        fields = ('id', 'code', 'name')
 
 class ProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
-    #socialUrl = serializers.ReadOnlyField()
-    socialId = serializers.ReadOnlyField(source='socialUrl')  # will rename db column to socialId
+    socialId = serializers.ReadOnlyField()
     inviteId = serializers.ReadOnlyField()
-    isComplete = serializers.ReadOnlyField()
     cmeTags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -56,6 +54,41 @@ class ProfileSerializer(serializers.ModelSerializer):
         queryset=Country.objects.all(),
         allow_null=True
     )
+    isSignupComplete = serializers.SerializerMethodField()
+    isNPIComplete = serializers.SerializerMethodField()
+
+    def get_isSignupComplete(self, obj):
+        """Signup is complete if the following fields are populated
+            1. contactEmail is a gmail address
+            2. Country is provided
+            3. One or more PracticeSpecialty
+            4. One or more Degree
+        """
+        if not obj.contactEmail.endswith('gmail.com'):
+            return False
+        if not obj.country:
+            return False
+        if not obj.specialties.count():
+            return False
+        if not obj.degrees.count():
+            return False
+        return True
+
+    def get_isNPIComplete(self, obj):
+        """
+        True: obj.shouldReqNPINumber is False
+        True: If obj.shouldReqNPINumber and npiNumber is non-blank.
+        False: If obj.shouldReqNPINumber and npiNumber is blank.
+        """
+        if obj.shouldReqNPINumber():
+            #print('shouldReqNPINumber is True!')
+            #print('npiNumber: {0}'.format(obj.npiNumber))
+            if obj.npiNumber:
+                return True
+            return False
+        #print('shouldReqNPINumber is False')
+        return True
+
     class Meta:
         model = Profile
         fields = (
@@ -72,42 +105,11 @@ class ProfileSerializer(serializers.ModelSerializer):
             'cmeTags',
             'degrees',
             'specialties',
-            'isComplete',
+            'isNPIComplete',
+            'isSignupComplete',
             'created',
             'modified'
         )
-
-    def update(self, instance, validated_data):
-        """Set isComplete flag if the following fields are populated
-            1. contactEmail is a gmail address
-            2. Country is provided
-            3. One or more PracticeSpecialty
-            4. One or more Degree
-            5. If profile.shouldReqNPINumber and npiNumber is non-blank.
-        """
-        updInstance = super(ProfileSerializer, self).update(instance, validated_data)
-        if not instance.isComplete:
-            # go through checklist
-            if not updInstance.contactEmail.endswith('gmail.com'):
-                return updInstance
-            if not updInstance.country:
-                return updInstance
-            if not updInstance.specialties.count():
-                return updInstance
-            if not updInstance.degrees.count():
-                return updInstance
-            if updInstance.shouldReqNPINumber():
-                if updInstance.npiNumber:
-                    isComplete = True
-                else:
-                    isComplete = False
-            else:
-                isComplete = True
-            if isComplete != instance.isComplete:
-                updInstance.isComplete = isComplete
-                updInstance.save()
-        return updInstance
-
 
 class CustomerSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)

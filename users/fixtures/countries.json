@@ -4,6 +4,7 @@
   "pk": 1,
   "fields": {
     "name": "United States",
+    "code": "USA",
     "created": "2016-12-09T23:25:44.723Z",
     "modified": "2016-12-09T23:25:44.723Z"
   }
@@ -13,6 +14,27 @@
   "pk": 2,
   "fields": {
     "name": "Canada",
+    "code": "CAN",
+    "created": "2016-12-09T23:25:48.540Z",
+    "modified": "2016-12-09T23:25:48.540Z"
+  }
+},
+{
+  "model": "users.country",
+  "pk": 3,
+  "fields": {
+    "name": "Europe",
+    "code": "",
+    "created": "2016-12-09T23:25:48.540Z",
+    "modified": "2016-12-09T23:25:48.540Z"
+  }
+},
+{
+  "model": "users.country",
+  "pk": 4,
+  "fields": {
+    "name": "Other",
+    "code": "",
     "created": "2016-12-09T23:25:48.540Z",
     "modified": "2016-12-09T23:25:48.540Z"
   }

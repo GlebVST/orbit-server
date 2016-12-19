@@ -11,8 +11,7 @@ def save_profile(backend, user, response, *args, **kwargs):
         profile = Profile(user=user)
         profile.firstName = response.get('first_name', '')
         profile.lastName = response.get('last_name', '')
-        # TODO: rename column to socialId
-        profile.socialUrl = response.get('id', '')
+        profile.socialId = response.get('id', '')
         profile.inviteId = "{0:%y%m%d}-{1:0>5}".format(user.date_joined, user.pk)
         # copy social-auth email if it is a gmail address
         sa_email = response.get('email', '').lower()
@@ -28,17 +27,11 @@ def save_profile(backend, user, response, *args, **kwargs):
         if not profile.lastName:
             profile.lastName = response.get('last_name', '')
             changed = True
-        # TODO: rename column to socialId
-        profile.socialUrl = response.get('id', profile.socialUrl)
+        profile.socialId = response.get('id', profile.socialId)
         changed = True
-        #if not profile.socialUrl and 'id' in response:
-        #    profile.socialUrl = response['id']
+        #if not profile.socialId and 'id' in response:
+        #    profile.socialId = response['id']
         #    changed = True
-        # copy social-auth email if it is a gmail address
-        sa_email = response.get('email', '').lower()
-        if sa_email.endswith('gmail.com') and not profile.contactEmail:
-            profile.contactEmail = sa_email
-            changed = True
         if changed:
             profile.save()
     qset = Customer.objects.filter(user=user)

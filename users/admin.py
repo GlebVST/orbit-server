@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import *
 
 class DegreeAdmin(admin.ModelAdmin):
-    list_display = ('abbrev', 'name', 'created')
+    list_display = ('id', 'abbrev', 'name', 'created')
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
     list_display = ('name', 'created')
@@ -11,11 +11,11 @@ class CmeTagAdmin(admin.ModelAdmin):
     list_display = ('name', 'created')
 
 class CountryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created')
+    list_display = ('id', 'code', 'name', 'created')
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'npiNumber', 'isComplete', 'country', 'modified')
-    list_filter = ('isComplete','country')
+    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'npiNumber', 'country', 'modified')
+    list_filter = ('country',)
     search_fields = ['npiNumber', 'lastName']
 
 class CustomerAdmin(admin.ModelAdmin):

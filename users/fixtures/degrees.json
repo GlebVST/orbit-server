@@ -5,53 +5,13 @@
   "fields": {
     "abbrev": "MD",
     "name": "Medical Doctor",
-    "created": "2016-11-26T08:08:30.147Z",
-    "modified": "2016-11-26T08:08:30.147Z"
+    "created": "2016-12-03T08:02:51.438Z",
+    "modified": "2016-12-03T08:02:51.438Z"
   }
 },
 {
   "model": "users.degree",
   "pk": 2,
-  "fields": {
-    "abbrev": "RN",
-    "name": "Registered Nurse",
-    "created": "2016-11-26T08:08:41.310Z",
-    "modified": "2016-11-26T08:08:41.310Z"
-  }
-},
-{
-  "model": "users.degree",
-  "pk": 3,
-  "fields": {
-    "abbrev": "PhD",
-    "name": "Doctor of Philosophy",
-    "created": "2016-11-26T08:09:42.134Z",
-    "modified": "2016-11-26T08:09:42.134Z"
-  }
-},
-{
-  "model": "users.degree",
-  "pk": 4,
-  "fields": {
-    "abbrev": "NP",
-    "name": "Nurse Practitioner",
-    "created": "2016-12-03T08:01:03.439Z",
-    "modified": "2016-12-03T08:01:03.439Z"
-  }
-},
-{
-  "model": "users.degree",
-  "pk": 5,
-  "fields": {
-    "abbrev": "DDS",
-    "name": "Doctor of Dental Surgery",
-    "created": "2016-12-03T08:01:54.590Z",
-    "modified": "2016-12-03T08:01:54.590Z"
-  }
-},
-{
-  "model": "users.degree",
-  "pk": 6,
   "fields": {
     "abbrev": "DO",
     "name": "Doctor of Osteopathic Medicine",
@@ -61,52 +21,62 @@
 },
 {
   "model": "users.degree",
-  "pk": 7,
+  "pk": 3,
   "fields": {
     "abbrev": "PA",
     "name": "Physician Assistant",
-    "created": "2016-12-03T08:03:38.707Z",
-    "modified": "2016-12-03T08:03:38.707Z"
+    "created": "2016-12-03T08:02:51.438Z",
+    "modified": "2016-12-03T08:02:51.438Z"
+  }
+},
+{
+  "model": "users.degree",
+  "pk": 4,
+  "fields": {
+    "abbrev": "PharmD",
+    "name": "Doctor of Pharmacology",
+    "created": "2016-12-03T08:02:51.438Z",
+    "modified": "2016-12-03T08:02:51.438Z"
+  }
+},
+{
+  "model": "users.degree",
+  "pk": 5,
+  "fields": {
+    "abbrev": "NP",
+    "name": "Nurse Practitioner",
+    "created": "2016-12-03T08:02:51.438Z",
+    "modified": "2016-12-03T08:02:51.438Z"
+  }
+},
+{
+  "model": "users.degree",
+  "pk": 6,
+  "fields": {
+    "abbrev": "CRNA",
+    "name": "Certified Registered Nurse Anesthetist",
+    "created": "2016-12-03T08:02:51.438Z",
+    "modified": "2016-12-03T08:02:51.438Z"
+  }
+},
+{
+  "model": "users.degree",
+  "pk": 7,
+  "fields": {
+    "abbrev": "RT",
+    "name": "Radiologic Technologist",
+    "created": "2016-12-03T08:02:51.438Z",
+    "modified": "2016-12-03T08:02:51.438Z"
   }
 },
 {
   "model": "users.degree",
   "pk": 8,
   "fields": {
-    "abbrev": "RT",
-    "name": "Radiologic Technologist",
-    "created": "2016-12-03T08:04:15.964Z",
-    "modified": "2016-12-03T08:04:15.964Z"
-  }
-},
-{
-  "model": "users.degree",
-  "pk": 9,
-  "fields": {
-    "abbrev": "MSW",
-    "name": "Master of Social Work",
-    "created": "2016-12-03T08:04:57.377Z",
-    "modified": "2016-12-03T08:04:57.377Z"
-  }
-},
-{
-  "model": "users.degree",
-  "pk": 10,
-  "fields": {
-    "abbrev": "DMD",
-    "name": "Doctor of Medicine in Dentistry",
-    "created": "2016-12-03T08:07:03.085Z",
-    "modified": "2016-12-03T08:07:03.085Z"
-  }
-},
-{
-  "model": "users.degree",
-  "pk": 11,
-  "fields": {
-    "abbrev": "BS",
-    "name": "Bachelor of Science",
-    "created": "2016-12-09T23:26:08.063Z",
-    "modified": "2016-12-09T23:26:08.063Z"
+    "abbrev": "Other",
+    "name": "Other",
+    "created": "2016-12-03T08:02:51.438Z",
+    "modified": "2016-12-03T08:02:51.438Z"
   }
 }
 ]

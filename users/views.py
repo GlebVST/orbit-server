@@ -19,7 +19,7 @@ from .permissions import *
 
 # Country
 class CountryList(generics.ListCreateAPIView):
-    queryset = Country.objects.all().order_by('name')
+    queryset = Country.objects.all().order_by('id')
     serializer_class = CountrySerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
@@ -30,7 +30,7 @@ class CountryDetail(generics.RetrieveUpdateDestroyAPIView):
 
 # Degree
 class DegreeList(generics.ListCreateAPIView):
-    queryset = Degree.objects.all().order_by('abbrev')
+    queryset = Degree.objects.all().order_by('id')
     serializer_class = DegreeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 

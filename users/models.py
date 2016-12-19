@@ -20,7 +20,7 @@ ENTRYTYPE_BRCME = 'browser-cme'
 ENTRYTYPE_EXBRCME = 'expired-browser-cme'
 ENTRYTYPE_SRCME = 'sr-cme'
 CMETAG_SACME = 'SA-CME'
-COUNTRY_USA = 'United States'
+COUNTRY_USA = 'USA'
 DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
 
@@ -30,6 +30,7 @@ class Country(models.Model):
     """Names of countries for country of practice.
     """
     name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=5, blank=True, help_text='ISO Alpha-3 code')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -42,7 +43,7 @@ class Country(models.Model):
 @python_2_unicode_compatible
 class Degree(models.Model):
     """Names and abbreviations of professional degrees"""
-    abbrev = models.CharField(max_length=5, unique=True)
+    abbrev = models.CharField(max_length=7, unique=True)
     name = models.CharField(max_length=40)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -97,24 +98,25 @@ class Profile(models.Model):
     description = models.TextField(blank=True, help_text='About me')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     inviteId = models.CharField(max_length=12, unique=True)
-    socialUrl = models.URLField(blank=True)  # TODO: rename to socialId and store id only
-    cmeTags = models.ManyToManyField(CmeTag, related_name='profiles')
-    degrees = models.ManyToManyField(Degree)
-    specialties = models.ManyToManyField(PracticeSpecialty)
-    isComplete = models.BooleanField(default=False)
+    socialId = models.CharField(max_length=64, blank=True, help_text='FB social auth ID')
+    cmeTags = models.ManyToManyField(CmeTag, related_name='profiles', blank=True)
+    degrees = models.ManyToManyField(Degree, blank=True)
+    specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{0} {1}'.format(self.firstName, self.lastName)
+        return self.lastName
 
     def shouldReqNPINumber(self):
         """
         If (country=COUNTRY_USA) and (MD or DO in self.degrees),
         then npiNumber should be requested
         """
-        us = Country.objects.get(name=COUNTRY_USA)
-        if self.country != us.pk:
+        if self.country is None:
+            return False
+        us = Country.objects.get(code=COUNTRY_USA)
+        if self.country.pk != us.pk:
             return False
         md = Degree.objects.get(abbrev=DEGREE_MD)
         do = Degree.objects.get(abbrev=DEGREE_DO)
