@@ -1,7 +1,11 @@
-from django.contrib.auth.models import User
-import braintree
+import logging
 from pprint import pprint
+
+import braintree
+
 from .models import Profile, Customer
+
+logger = logging.getLogger(__name__)
 
 def save_profile(backend, user, response, *args, **kwargs):
     """Save Profile and Customer models for the user"""
@@ -39,16 +43,21 @@ def save_profile(backend, user, response, *args, **kwargs):
         customer = Customer(user=user)
         customer.balance = 100
         customer.save()
-        # create braintree Customer
-        result = braintree.Customer.create({
-            "id": str(customer.customerId),
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "email": user.email
-        })
-        if not result.is_success:
+        result = None
+        try:
+            # create braintree Customer
+            result = braintree.Customer.create({
+                "id": str(customer.customerId),
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email
+            })
+        except Exception as ex:
+            logger.error('Braintree error when trying to create customer: %s', ex, exc_info=ex)
+        if not result or not result.is_success:
             print('Create braintree Customer failed.')
             # send email to admins...
+            #todo prefer logging at ERROR level that could be later captured by email logger
     else:
         customer = qset[0]
         # if braintree Customer does not exist, then create it
@@ -65,5 +74,8 @@ def save_profile(backend, user, response, *args, **kwargs):
             if not result.is_success:
                 print('Create braintree Customer failed.')
                 # send email to admins...
+                #todo prefer logging at ERROR level that could be later captured by email logger
+        except Exception as ex:
+            logger.error('Braintree error when trying to find customer: %s', ex, exc_info=ex)
         else:
             pass
