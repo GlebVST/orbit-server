@@ -40,9 +40,14 @@ class DegreeDetail(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 # PracticeSpecialty
+# custom pagination for large page size
+class LongPagination(PageNumberPagination):
+    page_size = 10000
+
 class PracticeSpecialtyList(generics.ListCreateAPIView):
     queryset = PracticeSpecialty.objects.all().order_by('name')
     serializer_class = PracticeSpecialtySerializer
+    pagination_class = LongPagination
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -54,6 +59,7 @@ class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
 class CmeTagList(generics.ListCreateAPIView):
     queryset = CmeTag.objects.all().order_by('name')
     serializer_class = CmeTagSerializer
+    pagination_class = LongPagination
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 class CmeTagDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -182,8 +188,12 @@ class GetBrowserCmeOffer(APIView):
 #
 # FEED
 #
+class FeedListPagination(PageNumberPagination):
+    page_size = 100
+
 class FeedList(generics.ListAPIView):
     serializer_class = EntryReadSerializer
+    pagination_class = FeedListPagination
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def get_queryset(self):
