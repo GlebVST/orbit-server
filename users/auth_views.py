@@ -1,6 +1,5 @@
 import os
 import logging
-from pprint import pprint
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.shortcuts import render, redirect
@@ -86,7 +85,6 @@ def auth_status(request):
         'profile': make_profile_dict(profile),
         'customer': make_customer_dict(customer)
     }
-    pprint(context)
     return render_to_json_response(context)
 
 
@@ -111,7 +109,6 @@ def login_via_token(request, backend, access_token):
 
     """
     user = request.backend.do_auth(access_token)
-    pprint(user)
     if user:
         auth_login(request, user)
         customer = Customer.objects.get(user=user)
@@ -123,7 +120,6 @@ def login_via_token(request, backend, access_token):
             'profile': make_profile_dict(profile),
             'customer': make_customer_dict(customer)
         }
-        pprint(context)
         return render_to_json_response(context)
     else:
         context = {

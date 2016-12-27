@@ -1,5 +1,4 @@
 import logging
-from pprint import pprint
 
 import braintree
 
@@ -9,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 def save_profile(backend, user, response, *args, **kwargs):
     """Save Profile and Customer models for the user"""
-    pprint(response)
     qset = Profile.objects.filter(user=user)
     if not qset.exists():
         profile = Profile(user=user)
