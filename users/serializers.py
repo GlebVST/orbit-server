@@ -265,8 +265,10 @@ class BRCmeCreateSerializer(serializers.Serializer):
         queryset=BrowserCmeOffer.objects.filter(redeemed=False)
     )
     tags = serializers.PrimaryKeyRelatedField(
+        queryset=CmeTag.objects.all(),
         many=True,
-        queryset=CmeTag.objects.all()
+        required=False,
+        allow_null=True
     )
 
     class Meta:
@@ -324,8 +326,10 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
     tags = serializers.PrimaryKeyRelatedField(
+        queryset=CmeTag.objects.all(),
         many=True,
-        queryset=CmeTag.objects.all()
+        required=False,
+        allow_null=True
     )
 
     class Meta:
@@ -361,8 +365,10 @@ class SRCmeFormSerializer(serializers.Serializer):
     document = serializers.FileField(max_length=None, allow_empty_file=False, required=False)
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False)
     tags = serializers.PrimaryKeyRelatedField(
+        queryset=CmeTag.objects.all(),
         many=True,
-        queryset=CmeTag.objects.all()
+        required=False,
+        allow_null=True
     )
 
     class Meta:
