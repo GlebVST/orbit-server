@@ -14,8 +14,9 @@ class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'npiNumber', 'country', 'modified')
+    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'npiNumber', 'country', 'inviter', 'modified')
     list_filter = ('country',)
+    list_select_related = ('country','inviter')
     search_fields = ['npiNumber', 'lastName']
 
 class CustomerAdmin(admin.ModelAdmin):

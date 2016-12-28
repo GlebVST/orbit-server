@@ -100,6 +100,14 @@ class Profile(models.Model):
         blank=True,
         help_text='Primary country of practice'
     )
+    inviter = models.ForeignKey(User,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        related_name='invites',
+        null=True,
+        blank=True,
+        help_text='Set during profile creation to the user whose inviteId was provided upon first login.'
+    )
     jobTitle = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True, help_text='About me')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')

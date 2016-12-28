@@ -70,6 +70,7 @@ AUTHENTICATION_BACKENDS = (
     # Django
     'django.contrib.auth.backends.ModelBackend',
 )
+SOCIAL_AUTH_FIELDS_STORED_IN_SESSION = ['inviteid',]
 # PSA pipeline
 SOCIAL_AUTH_PIPELINE = (
     'social.pipeline.social_auth.social_details',

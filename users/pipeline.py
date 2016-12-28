@@ -19,6 +19,14 @@ def save_profile(backend, user, response, *args, **kwargs):
         sa_email = response.get('email', '').lower()
         if sa_email.endswith('gmail.com'):
             profile.contactEmail = sa_email
+        # check for inviteid
+        inviteId = backend.strategy.session_get('inviteid')
+        if inviteId:
+            logger.debug('inviteId: {0}'.format(inviteId))
+            pdata = Profile.objects.filter(inviteId=inviteId)
+            if pdata.exists():
+                # this is a valid inviteId, save user as the inviter
+                profile.inviter = pdata[0].user
         profile.save()
     else:
         profile = qset[0]

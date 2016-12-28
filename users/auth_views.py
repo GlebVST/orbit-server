@@ -96,7 +96,7 @@ def auth_status(request):
 @permission_classes((AllowAny,))
 def login_via_token(request, backend, access_token):
     """
-    This view expects an access_token GET parameter.
+    This view expects an access_token parameter as part of the URL.
     request.backend and request.strategy will be loaded with the current
     backend and strategy.
 
@@ -108,6 +108,10 @@ def login_via_token(request, backend, access_token):
           paramType: form
 
     """
+    inviteId = request.GET.get('inviteid', None)
+    if inviteId:
+        request.backend.strategy.session_set('inviteid', inviteId)
+        logger.debug('GET inviteId: {0}'.format(inviteId))
     user = request.backend.do_auth(access_token)
     if user:
         auth_login(request, user)
