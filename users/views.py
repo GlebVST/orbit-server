@@ -366,16 +366,11 @@ class CreateSRCme(SRCmeTagsMixin, generics.CreateAPIView):
         form_data = request.data.copy() # a QueryDict
         self.get_tags(form_data)
         logger.debug(form_data)
-        serializer = self.get_serializer(data=form_data)
-        serializer.is_valid(raise_exception=True)
-        srcme = self.perform_create(serializer)
-        entry = srcme.entry
-        context = {
-            'success': True,
-            'id': entry.pk,
-            'created': entry.created
-        }
-        return Response(context, status=status.HTTP_201_CREATED)
+        in_serializer = self.get_serializer(data=form_data)
+        in_serializer.is_valid(raise_exception=True)
+        srcme = self.perform_create(in_serializer)
+        out_serializer = CreateSRCmeOutSerializer(srcme.entry)
+        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
 class UpdateSRCme(SRCmeTagsMixin, generics.UpdateAPIView):
     """
@@ -395,15 +390,12 @@ class UpdateSRCme(SRCmeTagsMixin, generics.UpdateAPIView):
         form_data = request.data.copy()
         self.get_tags(form_data)
         logger.debug(form_data)
-        serializer = self.get_serializer(instance, data=form_data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
+        in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
+        in_serializer.is_valid(raise_exception=True)
+        self.perform_update(in_serializer)
         entry = Entry.objects.get(pk=instance.pk)
-        context = {
-            'success': True,
-            'modified': entry.modified
-        }
-        return Response(context)
+        out_serializer = UpdateSRCmeOutSerializer(entry)
+        return Response(out_serializer.data)
 
 
 

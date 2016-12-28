@@ -210,6 +210,40 @@ class ExpiredBRCmeSubSerializer(serializers.ModelSerializer):
             'expireDate'
         )
 
+class CreateSRCmeOutSerializer(serializers.ModelSerializer):
+    """Serializer for the response returned for create srcme entry"""
+    documentUrl = serializers.FileField(source='document', max_length=None, use_url=True)
+
+    class Meta:
+        model = Entry
+        fields = (
+            'id',
+            'documentUrl',
+            'created',
+            'success'
+        )
+    success = serializers.SerializerMethodField()
+
+    def get_success(self, obj):
+        return True
+
+class UpdateSRCmeOutSerializer(serializers.ModelSerializer):
+    """Serializer for the response returned for update srcme entry"""
+    documentUrl = serializers.FileField(source='document', max_length=None, use_url=True)
+
+    class Meta:
+        model = Entry
+        fields = (
+            'id',
+            'documentUrl',
+            'modified',
+            'success'
+        )
+    success = serializers.SerializerMethodField()
+
+    def get_success(self, obj):
+        return True
+
 class EntryReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     entryTypeId = serializers.PrimaryKeyRelatedField(source='entryType.id', read_only=True)
