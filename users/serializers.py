@@ -24,7 +24,7 @@ class PracticeSpecialtySerializer(serializers.ModelSerializer):
 class CmeTagSerializer(serializers.ModelSerializer):
     class Meta:
         model = CmeTag
-        fields = ('id', 'name')
+        fields = ('id', 'name', 'priority', 'description')
 
 class CountrySerializer(serializers.ModelSerializer):
     class Meta:

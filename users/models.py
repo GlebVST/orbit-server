@@ -68,6 +68,11 @@ class PracticeSpecialty(models.Model):
 @python_2_unicode_compatible
 class CmeTag(models.Model):
     name= models.CharField(max_length=20, unique=True)
+    priority = models.IntegerField(
+        default=0,
+        help_text='Used for non-alphabetical sort.'
+    )
+    description = models.CharField(max_length=200, blank=True, help_text='Used for tooltip')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -75,6 +80,7 @@ class CmeTag(models.Model):
         return self.name
     class Meta:
         verbose_name_plural = 'CME Tags'
+        ordering = ['-priority', 'name']
 
 
 @python_2_unicode_compatible

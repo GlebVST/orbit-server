@@ -8,7 +8,7 @@ class PracticeSpecialtyAdmin(admin.ModelAdmin):
     list_display = ('name', 'created')
 
 class CmeTagAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created')
+    list_display = ('name', 'priority', 'description', 'created')
 
 class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
