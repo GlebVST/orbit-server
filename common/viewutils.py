@@ -1,4 +1,5 @@
 """Common utility functions"""
+import logging
 import datetime
 import decimal
 import hashlib
@@ -35,6 +36,13 @@ def parseUriDomain(url):
     print(domain)
     return domain
 
+def getUrlLastPart(url):
+    output = urlparse(url.strip('/')) # strip any trailing slash
+    last_part = output.path.rpartition('/')[-1]
+    #print(last_part)
+    return last_part
+
+
 def md5_uploaded_file(f):
 #    print('begin md5calc on file:{0}/{1}'.format(f.name, f.content_type))
     md5 = hashlib.md5()
@@ -44,3 +52,14 @@ def md5_uploaded_file(f):
 
 def newUuid():
     return uuid.uuid4()
+
+# http://stackoverflow.com/questions/4581789/how-do-i-get-user-ip-address-in-django
+def getClientIp(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+

@@ -420,7 +420,6 @@ class SRCmeFormSerializer(serializers.Serializer):
         """
         Validate the client file_md5 matches server file_md5
         """
-        #pprint(data)
         if 'document' in data and 'fileMd5' in data:
             client_md5 = data['fileMd5']
             server_md5 = md5_uploaded_file(data['document'])

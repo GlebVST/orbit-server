@@ -12,8 +12,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from common.viewutils import render_to_json_response
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
-from .models import Profile, Customer
-from .serializers import ProfileSerializer
+from .models import Profile, Customer, CmeTag, CMETAG_SACME
+from .serializers import ProfileSerializer, CmeTagSerializer
 
 logger = logging.getLogger(__name__)
 TPL_DIR = 'users'
@@ -34,7 +34,7 @@ def ss_logout(request):
     auth_logout(request)
     return render(request, os.path.join(TPL_DIR, 'logged_out.html'))
 
-def make_user_dict(user):
+def serialize_user(user):
     return {
         'id': user.pk,
         'username': user.username,
@@ -42,16 +42,34 @@ def make_user_dict(user):
         'last_name': user.last_name
     }
 
-def make_customer_dict(customer):
+def serialize_customer(customer):
     return {
         'customerId': customer.customerId,
         'balance': customer.balance
     }
 
-def make_profile_dict(profile):
+def serialize_profile(profile):
     s = ProfileSerializer(profile)
     return s.data
 
+def serialize_cmetag(tag):
+    s = CmeTagSerializer(tag)
+    return s.data
+
+def make_login_context(user, token):
+    customer = Customer.objects.get(user=user)
+    profile = Profile.objects.get(user=user)
+    sacme_tag = CmeTag.objects.get(name=CMETAG_SACME)
+    context = {
+        'success': True,
+        'token': token,
+        'user': serialize_user(user),
+        'profile': serialize_profile(profile),
+        'customer': serialize_customer(customer),
+        'sacmetag': serialize_cmetag(sacme_tag),
+        'cmetags': CmeTagSerializer(profile.cmeTags, many=True).data
+    }
+    return context
 
 @api_view()
 @permission_classes((AllowAny,))
@@ -76,15 +94,7 @@ def auth_status(request):
             'error_message': 'User not authenticated'
         }
         return render_to_json_response(context, status_code=401)
-    customer = Customer.objects.get(user=user)
-    profile = Profile.objects.get(user=user)
-    context = {
-        'success': True,
-        'token': token,
-        'user': make_user_dict(user),
-        'profile': make_profile_dict(profile),
-        'customer': make_customer_dict(customer)
-    }
+    context = make_login_context(user, token)
     return render_to_json_response(context)
 
 
@@ -115,15 +125,8 @@ def login_via_token(request, backend, access_token):
     user = request.backend.do_auth(access_token)
     if user:
         auth_login(request, user)
-        customer = Customer.objects.get(user=user)
-        profile = Profile.objects.get(user=user)
-        context = {
-            'success': True,
-            'token': new_access_token(user),
-            'user': make_user_dict(user),
-            'profile': make_profile_dict(profile),
-            'customer': make_customer_dict(customer)
-        }
+        token = new_access_token(user)
+        context = make_login_context(user, token)
         return render_to_json_response(context)
     else:
         context = {
