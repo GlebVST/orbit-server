@@ -489,6 +489,8 @@ class SRCmeFormSerializer(serializers.Serializer):
         tag_ids = validated_data.get('tags', [])
         if tag_ids:
             entry.tags.set(tag_ids)
+        else:
+            entry.tags.set([])
         instance.credits = validated_data.get('credits', instance.credits)
         instance.save()
         return instance
