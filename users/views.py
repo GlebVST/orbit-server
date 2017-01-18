@@ -112,8 +112,18 @@ class CustomerDetail(generics.RetrieveAPIView):
     serializer_class = CustomerSerializer
     permission_classes = [IsOwnerOrAdmin, TokenHasReadWriteScope]
 
+# SubscriptionPlan : new payment model
+class SubscriptionPlanList(generics.ListCreateAPIView):
+    queryset = SubscriptionPlan.objects.all().order_by('created')
+    serializer_class = SubscriptionPlanSerializer
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-# PointPurchaseOption
+class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = SubscriptionPlan.objects.all()
+    serializer_class = SubscriptionPlanSerializer
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
+# PointPurchaseOption (old payment model)
 class PPOList(generics.ListCreateAPIView):
     queryset = PointPurchaseOption.objects.all().order_by('points')
     serializer_class = PPOSerializer

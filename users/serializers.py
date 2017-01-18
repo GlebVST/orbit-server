@@ -517,6 +517,21 @@ class PointTransactionSerializer(serializers.ModelSerializer):
         )
 
 
+class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0.01'))
+    class Meta:
+        model = SubscriptionPlan
+        fields = (
+            'id',
+            'planId',
+            'name',
+            'price',
+            'trialDays',
+            'billingCycleMonths',
+            'created',
+            'modified'
+        )
+
 class PPOSerializer(serializers.ModelSerializer):
     points = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('1.0'))
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0.01'))
