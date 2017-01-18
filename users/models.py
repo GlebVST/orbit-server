@@ -378,3 +378,42 @@ class UserFeedback(models.Model):
         return self.message
     class Meta:
         verbose_name_plural = 'User Feedback'
+
+
+# Recurring Billing Plans
+# https://developers.braintreepayments.com/guides/recurring-billing/plans
+# A Plan must be created in the Braintree Control Panel, and synced with the db.
+@python_2_unicode_compatible
+class SubscriptionPlan(models.Model):
+    planId = models.CharField(max_length=36, unique=True)
+    name = models.CharField(max_length=80)
+    price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
+    trialDays = models.IntegerField(default=0, help_text='Trial period in days')
+    billingCycleMonths = models.IntegerField(default=12, help_text='Billing Cycle in months')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.planId
+
+# User Subscription
+# https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
+@python_2_unicode_compatible
+class UserSubscription(models.Model):
+    subscriptionId = models.CharField(max_length=36, unique=True)
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='subscriptions',
+    )
+    plan = models.ForeignKey(SubscriptionPlan,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='subscribers',
+    )
+    status = models.CharField(max_length=30, blank=True) # Active/Canceled/Expired/PastDue/Pending
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.subscriptionId

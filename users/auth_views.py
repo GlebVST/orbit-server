@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from common.viewutils import render_to_json_response
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
-from .models import Profile, Customer, CmeTag, CMETAG_SACME
+from .models import Profile, Customer, CmeTag, CMETAG_SACME, UserSubscription
 from .serializers import ProfileSerializer, CmeTagSerializer
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,12 @@ def serialize_customer(customer):
         'balance': customer.balance
     }
 
+def serialize_subscription(subscription):
+    return {
+        'subscriptionId': subscription.subscriptionId,
+        'status': subscription.status
+    }
+
 def serialize_profile(profile):
     s = ProfileSerializer(profile)
     return s.data
@@ -59,6 +65,10 @@ def serialize_cmetag(tag):
 def make_login_context(user, token):
     customer = Customer.objects.get(user=user)
     profile = Profile.objects.get(user=user)
+    subscription = None
+    qset = UserSubscription.objects.filter(user=user).order_by('-created')
+    if qset.exists():
+        subscription = qset[0]
     sacme_tag = CmeTag.objects.get(name=CMETAG_SACME)
     context = {
         'success': True,
@@ -69,6 +79,7 @@ def make_login_context(user, token):
         'sacmetag': serialize_cmetag(sacme_tag),
         'cmetags': CmeTagSerializer(profile.cmeTags, many=True).data
     }
+    context['subscription'] = serialize_subscription(subscription) if subscription else None
     return context
 
 @api_view()
