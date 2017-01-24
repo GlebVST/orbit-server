@@ -51,7 +51,8 @@ def serialize_customer(customer):
 def serialize_subscription(subscription):
     return {
         'subscriptionId': subscription.subscriptionId,
-        'status': subscription.status
+        'bt_status': subscription.status,
+        'display_status': subscription.display_status
     }
 
 def serialize_profile(profile):

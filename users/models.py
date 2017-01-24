@@ -116,6 +116,7 @@ class Profile(models.Model):
     cmeTags = models.ManyToManyField(CmeTag, related_name='profiles', blank=True)
     degrees = models.ManyToManyField(Degree, blank=True)
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
+    verified = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -390,6 +391,7 @@ class SubscriptionPlan(models.Model):
     price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
     trialDays = models.IntegerField(default=0, help_text='Trial period in days')
     billingCycleMonths = models.IntegerField(default=12, help_text='Billing Cycle in months')
+    active = models.BooleanField(default=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -400,6 +402,18 @@ class SubscriptionPlan(models.Model):
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
 @python_2_unicode_compatible
 class UserSubscription(models.Model):
+    ACTIVE = 'Active'
+    CANCELED = 'Canceled'
+    EXPIRED = 'Expired'
+    PASTDUE = 'Past Due'
+    PENDING = 'Pending'
+    STATUS_CHOICES = (
+        (ACTIVE, ACTIVE),
+        (CANCELED, CANCELED),
+        (EXPIRED, EXPIRED),
+        (PASTDUE, PASTDUE),
+        (PENDING, PENDING)
+    )
     subscriptionId = models.CharField(max_length=36, unique=True)
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
@@ -411,7 +425,10 @@ class UserSubscription(models.Model):
         db_index=True,
         related_name='subscribers',
     )
-    status = models.CharField(max_length=30, blank=True) # Active/Canceled/Expired/PastDue/Pending
+    status = models.CharField(max_length=10, blank=True, choices=STATUS_CHOICES,
+        help_text='Braintree-defined status')
+    display_status = models.CharField(max_length=40, blank=True,
+        help_text='Status for UI display')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 

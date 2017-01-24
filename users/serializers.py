@@ -105,6 +105,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'cmeTags',
             'degrees',
             'specialties',
+            'verified',
             'isNPIComplete',
             'isSignupComplete',
             'created',
@@ -528,6 +529,25 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'price',
             'trialDays',
             'billingCycleMonths',
+            'active',
+            'created',
+            'modified'
+        )
+
+class UserSubscriptionSerializer(serializers.ModelSerializer):
+    subscriptionId = serializers.ReadOnlyField()
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    plan = serializers.PrimaryKeyRelatedField(read_only=True)
+    status = serializers.ReadOnlyField()
+    display_status = serializers.ReadOnlyField()
+    class Meta:
+        model = UserSubscription
+        fields = (
+            'subscriptionId',
+            'user',
+            'plan',
+            'status',
+            'display_status',
             'created',
             'modified'
         )

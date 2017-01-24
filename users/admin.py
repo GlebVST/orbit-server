@@ -14,8 +14,8 @@ class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'npiNumber', 'country', 'inviter', 'modified')
-    list_filter = ('country',)
+    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'verified', 'npiNumber', 'country', 'inviter', 'modified')
+    list_filter = ('country','verified')
     list_select_related = ('country','inviter')
     search_fields = ['npiNumber', 'lastName']
 
@@ -31,25 +31,20 @@ class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
 
 class EntryAdmin(admin.ModelAdmin):
-    list_display = ('user', 'entryType', 'activityDate', 'valid', 'document', 'description', 'created')
+    list_display = ('user', 'entryType', 'activityDate', 'valid', 'description', 'created')
     list_filter = ('entryType', 'valid')
-
-class PointTransactionAdmin(admin.ModelAdmin):
-    list_display = ('customer', 'points', 'pricePaid', 'transactionId', 'created')
-
-class PpoAdmin(admin.ModelAdmin):
-    list_display = ('points', 'price', 'created')
-
-class ProAdmin(admin.ModelAdmin):
-    list_display = ('points', 'rewardType', 'description', 'created')
-
-class PpoAdmin(admin.ModelAdmin):
-    list_display = ('points', 'price', 'created')
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('user', 'hasBias', 'hasUnfairContent', 'created')
     list_filter = ('hasBias', 'hasUnfairContent')
 
+class SubscriptionPlanAdmin(admin.ModelAdmin):
+    list_display = ('planId', 'name', 'price', 'trialDays', 'billingCycleMonths', 'active', 'modified')
+
+class UserSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('subscriptionId', 'user', 'plan', 'status', 'display_status', 'created', 'modified')
+    list_select_related = ('user','plan')
+    list_filter = ('status',)
 
 admin.site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
 admin.site.register(CmeTag, CmeTagAdmin)
@@ -59,8 +54,7 @@ admin.site.register(Degree, DegreeAdmin)
 admin.site.register(Entry, EntryAdmin)
 admin.site.register(EntryType, EntryTypeAdmin)
 admin.site.register(Profile, ProfileAdmin)
-admin.site.register(PointTransaction, PointTransactionAdmin)
-admin.site.register(PointPurchaseOption, PpoAdmin)
-admin.site.register(PointRewardOption, ProAdmin)
 admin.site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin.site.register(UserFeedback, UserFeedbackAdmin)
+admin.site.register(SubscriptionPlan, SubscriptionPlanAdmin)
+admin.site.register(UserSubscription, UserSubscriptionAdmin)
