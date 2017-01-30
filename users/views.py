@@ -1,5 +1,7 @@
+from datetime import datetime
 from decimal import Decimal
 from pprint import pprint
+import pytz
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import QueryDict
@@ -208,7 +210,7 @@ class FeedList(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Entry.objects.filter(user=user, valid=True).select_related('entryType').order_by('-created')
+        return Entry.objects.filter(user=user, valid=True).select_related('entryType').order_by('-activityDate')
 
 class FeedEntryDetail(generics.RetrieveDestroyAPIView):
     serializer_class = EntryReadSerializer
@@ -418,3 +420,64 @@ class UserFeedbackList(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+#
+# Dashboard
+#
+class CmeAggregateStats(APIView):
+    """
+    This view expects a start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1) as URL parameters. It calculates
+    the total SRCme and BrowserCme for the time period for the current
+    user, and also the total by tag.
+    
+    parameters:
+        - name: start
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: end
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def serialize_and_render(self, stats):
+        context = {
+            'result': stats
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
+    def get(self, request, start, end):
+        try:
+            startdt = timezone.make_aware(datetime.datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.datetime.utcfromtimestamp(int(end)), pytz.utc)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            profile = Profile.objects.get(user=request.user)
+        except Profile.DoesNotExist:
+            context = {
+                'error': 'Invalid user. No profile found.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        user_tags = profile.cmeTags.all()
+        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        stats = {
+            ENTRYTYPE_BRCME: {
+                'total': Entry.objects.sumBrowserCme(request.user, startdt, enddt)
+            },
+            ENTRYTYPE_SRCME: {
+                'total': Entry.objects.sumSRCme(request.user, startdt, enddt),
+                satag.name: Entry.objects.sumSRCme(request.user, startdt, enddt, satag)
+            }
+        }
+        for tag in user_tags:
+            stats[ENTRYTYPE_BRCME][tag.name] = Entry.objects.sumBrowserCme(request.user, startdt, enddt, tag)
+            stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(request.user, startdt, enddt, tag)
+        return self.serialize_and_render(stats)

@@ -88,6 +88,8 @@ api_patterns = [
 
     # user feedback (list/create)
     url(r'^feedback/?$', views.UserFeedbackList.as_view()),
+    # dashboard
+    url(r'^dashboard/cme-aggregate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CmeAggregateStats.as_view()),
 
     # debug
     url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),

@@ -6,6 +6,7 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.db import models
+from django.db.models import Sum
 #from django.contrib.contenttypes.fields import GenericForeignKey
 #from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -193,10 +194,50 @@ class EntryType(models.Model):
     def __str__(self):
         return self.name
 
+
+
 # Base class for all feed entries (contains fields common to all entry types)
 # A entry belongs to a user, and is defined by an activityDate and a description.
-# It can optionally have a document file (described by m5sum and content_type).
-# For SRCme and BrowserCme: the Entry must have one or more associated cme tags.
+class EntryManager(models.Manager):
+
+    def sumSRCme(self, user, startDate, endDate, tag=None):
+        """
+        Total Srcme credits over the given time period for
+        the given user. Optional extra filter by cmetag.
+        """
+        filter_kwargs = dict(
+            user=user,
+            activityDate__gte=startDate,
+            activityDate__lte=endDate
+        )
+        if tag:
+            filter_kwargs['tags__exact'] = tag
+        qset = self.model.objects.filter(**filter_kwargs)
+        total = qset.aggregate(credit_sum=Sum('srcme__credits'))
+        credit_sum = total['credit_sum']
+        if credit_sum:
+            return float(credit_sum)
+        return 0
+
+    def sumBrowserCme(self, user, startDate, endDate, tag=None):
+        """
+        Total BrowserCme credits over the given time period for
+        the given user. Optional extra filter by cmetag.
+        """
+        filter_kwargs = dict(
+            entry__user=user,
+            entry__activityDate__gte=startDate,
+            entry__activityDate__lte=endDate
+        )
+        if tag:
+            filter_kwargs['entry__tags__exact'] = tag
+        qset = BrowserCme.objects.select_related('entry').filter(**filter_kwargs)
+        total = qset.aggregate(credit_sum=Sum('credits'))
+        credit_sum = total['credit_sum']
+        if credit_sum:
+            return float(credit_sum)
+        return 0
+
 @python_2_unicode_compatible
 class Entry(models.Model):
     user = models.ForeignKey(User,
@@ -216,6 +257,7 @@ class Entry(models.Model):
     tags = models.ManyToManyField(CmeTag, related_name='entries')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = EntryManager()
 
     def __str__(self):
         return self.description

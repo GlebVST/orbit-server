@@ -111,7 +111,7 @@ def auth_status(request):
 
 
 # http://psa.matiasaguirre.net/docs/use_cases.html#signup-by-oauth-access-token
-# Client passes fb access token as GET parameter.
+# Client passes fb access token as url parameter.
 # Server logs in the user, and returns user info, and internal access_token
 @psa('social:complete')
 @api_view()
