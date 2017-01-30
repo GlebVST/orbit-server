@@ -260,7 +260,7 @@ class NewSubscription(JsonResponseMixin, APIView):
             }
             return self.render_to_json_response(context, status_code=400)
         subs_params = {
-            'plan_id': planId
+            'plan_id': plan.planId
         }
         # get customer object from database
         try:
@@ -275,7 +275,7 @@ class NewSubscription(JsonResponseMixin, APIView):
         if payment_nonce:
             # First we need to update the Customer in the Vault to get a token
             # Fetch existing list of tokens
-            bc1 = braintree.Customer.find(str(local_customer.customerId))
+            bc1 = braintree.Customer.find(str(customer.customerId))
             tokens1 = [m.token for m in bc1.payment_methods]
 
             # Now add new payment method
@@ -285,7 +285,7 @@ class NewSubscription(JsonResponseMixin, APIView):
                 }
             })
             # Fetch list of tokens again
-            bc2 = braintree.Customer.find(str(local_customer.customerId))
+            bc2 = braintree.Customer.find(str(customer.customerId))
             tokens2 = [m.token for m in bc2.payment_methods]
             # Find the new token
             token_diff_set = set(tokens2) - set(tokens1)
