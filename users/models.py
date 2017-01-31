@@ -415,7 +415,7 @@ class UserSubscriptionManager(models.Manager):
         else:
             return subscription
 
-    def createBtSubscription(self, plan, subs_params):
+    def createBtSubscription(self, user, plan, subs_params):
         """Create Braintree subscription using the given params
         and create user_subs object in local db
         Returns (Braintree result object, UserSubscription object)
@@ -435,7 +435,7 @@ class UserSubscriptionManager(models.Manager):
 
             # create UserSubscription object in database
             user_subs = UserSubscription.objects.create(
-                user=request.user,
+                user=user,
                 plan=plan,
                 subscriptionId=result.subscription.id,
                 display_status=display_status,

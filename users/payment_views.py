@@ -76,7 +76,7 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
         if not payment_nonce or not payment_token:
             context = {
                 'success': False,
-                'error_message': 'Payment Nonce and Payment Token are both required.'
+                'message': 'Payment Nonce and Payment Token are both required.'
             }
             return self.render_to_json_response(context, status_code=400)
         # get customer object from database
@@ -85,7 +85,7 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
         except Customer.DoesNotExist:
             context = {
                 'success': False,
-                'error_message': 'Customer object not found.'
+                'message': 'Customer object not found.'
             }
             return self.render_to_json_response(context, status_code=400)
         # Update Customer
@@ -120,7 +120,7 @@ class NewSubscription(JsonResponseMixin, APIView):
         if not UserSubscription.objects.allowNewSubscription(request.user):
             context = {
                 'success': False,
-                'error_message': 'User has an existing Subscription that must be canceled first.'
+                'message': 'User has an existing Subscription that must be canceled first.'
             }
             return self.render_to_json_response(context, status_code=400)
         userdata = request.data
@@ -130,14 +130,14 @@ class NewSubscription(JsonResponseMixin, APIView):
         if not payment_nonce and not payment_token:
             context = {
                 'success': False,
-                'error_message': 'Payment Nonce or Method Token is required'
+                'message': 'Payment Nonce or Method Token is required'
             }
             return self.render_to_json_response(context, status_code=400)
         do_trial = userdata.get('do-trial', 1)
         if do_trial not in (0, 1):
             context = {
                 'success': False,
-                'error_message': 'do-trial value must be either 0 or 1'
+                'message': 'do-trial value must be either 0 or 1'
             }
             return self.render_to_json_response(context, status_code=400)
         # plan pk (primary_key of plan in db)
@@ -145,7 +145,7 @@ class NewSubscription(JsonResponseMixin, APIView):
         if not planPk:
             context = {
                 'success': False,
-                'error_message': 'Plan Id is required (pk)'
+                'message': 'Plan Id is required (pk)'
             }
             return self.render_to_json_response(context, status_code=400)
         try:
@@ -153,7 +153,7 @@ class NewSubscription(JsonResponseMixin, APIView):
         except ObjectDoesNotExist:
             context = {
                 'success': False,
-                'error_message': 'Invalid Plan Id (pk)'
+                'message': 'Invalid Plan Id (pk)'
             }
             return self.render_to_json_response(context, status_code=400)
         subs_params = {
@@ -167,7 +167,7 @@ class NewSubscription(JsonResponseMixin, APIView):
         except Customer.DoesNotExist:
             context = {
                 'success': False,
-                'error_message': 'Customer object not found.'
+                'message': 'Customer object not found.'
             }
             return self.render_to_json_response(context, status_code=400)
 
@@ -186,7 +186,7 @@ class NewSubscription(JsonResponseMixin, APIView):
             if not result.is_success:
                 context = {
                     'success': False,
-                    'error_message': 'Customer vault update failed.'
+                    'message': 'Customer vault update failed.'
                 }
                 return self.render_to_json_response(context, status_code=400)
             # Fetch list of tokens again
@@ -202,7 +202,7 @@ class NewSubscription(JsonResponseMixin, APIView):
             # Update params for subscription
             subs_params['payment_method_token'] = payment_token
         # finally, create the subscription
-        result, user_subs = UserSubscription.objects.createBtSubscription(plan, subs_params)
+        result, user_subs = UserSubscription.objects.createBtSubscription(request.user, plan, subs_params)
         context = {
             'success': result.is_success
         }
@@ -232,7 +232,7 @@ class CancelSubscription(JsonResponseMixin, APIView):
         if not subscriptionId:
             context = {
                 'success': False,
-                'error_message': 'bt SubscriptionId is required'
+                'message': 'BT SubscriptionId is required'
             }
             return self.render_to_json_response(context, status_code=400)
         try:
@@ -243,14 +243,14 @@ class CancelSubscription(JsonResponseMixin, APIView):
         except UserSubscription.DoesNotExist:
             context = {
                 'success': False,
-                'error_message': 'UserSubscription local object not found.'
+                'message': 'UserSubscription local object not found.'
             }
             return self.render_to_json_response(context, status_code=400)
         # check current status
         if user_subs.status != UserSubscription.ACTIVE or user_subs.status != UserSubscription.PENDING:
             context = {
                 'success': False,
-                'error_message': 'UserSubscription status is already: ' + user_subs.status
+                'message': 'UserSubscription status is already: ' + user_subs.status
             }
             return self.render_to_json_response(context, status_code=400)
         # proceed with cancel
@@ -259,14 +259,14 @@ class CancelSubscription(JsonResponseMixin, APIView):
         except braintree.exceptions.not_found_error.NotFoundError:
             context = {
                 'success': False,
-                'error_message': 'btSubscription not found.'
+                'message': 'btSubscription not found.'
             }
             return self.render_to_json_response(context, status_code=400)
         else:
             if not result.is_success:
                 context = {
                     'success': False,
-                    'error_message': 'btSubscription cancel failed.'
+                    'message': 'btSubscription cancel failed.'
                 }
                 return self.render_to_json_response(context, status_code=400)
             else:
