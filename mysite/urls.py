@@ -54,6 +54,7 @@ api_patterns = [
     url(r'^shop/client-methods/?$', payment_views.GetPaymentMethods.as_view(), name='get-client-payment-methods'),
     url(r'^shop/checkout/?$', payment_views.Checkout.as_view(), name='payment-checkout'),
     url(r'^shop/new-subscription/?$', payment_views.NewSubscription.as_view(), name='payment-new-subscription'),
+    url(r'^shop/cancel-subscription/?$', payment_views.CancelSubscription.as_view(), name='payment-cancel-subscription'),
     url(r'^shop/update-token/?$', payment_views.UpdatePaymentToken.as_view(), name='payment-update-token'),
     url(r'^shop/plans/?$', views.SubscriptionPlanList.as_view(), name='shop-plans'),
     url(r'^shop/purchase-options/?$', views.PPOList.as_view(), name='shop-options'),

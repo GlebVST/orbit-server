@@ -52,7 +52,9 @@ def serialize_subscription(subscription):
     return {
         'subscriptionId': subscription.subscriptionId,
         'bt_status': subscription.status,
-        'display_status': subscription.display_status
+        'display_status': subscription.display_status,
+        'billingStartDate': subscription.billingStartDate,
+        'billingEndDate': subscription.billingEndDate
     }
 
 def serialize_profile(profile):
@@ -66,10 +68,7 @@ def serialize_cmetag(tag):
 def make_login_context(user, token):
     customer = Customer.objects.get(user=user)
     profile = Profile.objects.get(user=user)
-    subscription = None
-    qset = UserSubscription.objects.filter(user=user).order_by('-created')
-    if qset.exists():
-        subscription = qset[0]
+    subscription = UserSubscription.objects.getLatestSubscription(user)
     sacme_tag = CmeTag.objects.get(name=CMETAG_SACME)
     context = {
         'success': True,

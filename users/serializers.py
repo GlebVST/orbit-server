@@ -540,14 +540,22 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
     plan = serializers.PrimaryKeyRelatedField(read_only=True)
     status = serializers.ReadOnlyField()
     display_status = serializers.ReadOnlyField()
+    billingFirstDate = serializers.ReadOnlyField()
+    billingStartDate = serializers.ReadOnlyField()
+    billingEndDate = serializers.ReadOnlyField()
+
     class Meta:
         model = UserSubscription
         fields = (
+            'id',
             'subscriptionId',
             'user',
             'plan',
             'status',
             'display_status',
+            'billingFirstDate',
+            'billingStartDate',
+            'billingEndDate',
             'created',
             'modified'
         )

@@ -1,5 +1,5 @@
 from __future__ import unicode_literals
-
+import braintree
 import datetime
 from decimal import Decimal
 import uuid
@@ -442,12 +442,103 @@ class SubscriptionPlan(models.Model):
 
 # User Subscription
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
+class UserSubscriptionManager(models.Manager):
+    def getLatestSubscription(self, user):
+        qset = UserSubscription.objects.filter(user=user).order_by('-created')
+        if qset.exists():
+            return qset[0]
+
+    def allowNewSubscription(self, user):
+        """If user has no existing subscriptions, or latest subscription is canceled/expired, then allow new subscription.
+        """
+        user_subs = self.getLatestSubscription(user)
+        if not user_subs:
+            return True
+        status = user_subs.status
+        return (status == UserSubscription.CANCELED or status == UserSubscription.EXPIRED)
+
+    def findBtSubscription(self, subscriptionId):
+        try:
+            subscription = braintree.Subscription.find(subscriptionId)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            return None
+        else:
+            return subscription
+
+    def createBtSubscription(self, plan, subs_params):
+        """Create Braintree subscription using the given params
+        and create user_subs object in local db
+        Returns (Braintree result object, UserSubscription object)
+        """
+        user_subs = None
+        result = braintree.Subscription.create(subs_params)
+        if result.is_success:
+            key = 'trial_duration'
+            if key in subs_params and subs_params[key] == 0:
+                display_status = UserSubscription.UI_ACTIVE
+            elif plan.trialDays:
+                # subscription created with plan's default trial period
+                display_status = UserSubscription.UI_TRIAL
+            else:
+                # plan has no trial period
+                display_status = UserSubscription.UI_ACTIVE
+
+            # create UserSubscription object in database
+            user_subs = UserSubscription.objects.create(
+                user=request.user,
+                plan=plan,
+                subscriptionId=result.subscription.id,
+                display_status=display_status,
+                status=result.subscription.status,
+                billingFirstDate=result.subscription.first_billing_date,
+                billingStartDate=result.subscription.billing_period_start_date,
+                billingEndDate=result.subscription.billing_period_end_date,
+                billingCycle=result.subscription.current_billing_cycle
+            )
+        return (result, user_subs)
+
+    def cancelBtSubscription(self, user_subs):
+        """Cancel Braintree subscription and update model
+        Can raise braintree.exceptions.not_found_error.NotFoundError
+        Returns Braintree result object
+        """
+        result = braintree.Subscription.cancel(user_subs.subscriptionId)
+        if result.is_success:
+            user_subs.status = result.subscription.status
+            user_subs.display_status = self.model.UI_CANCELED
+            user_subs.save()
+        return result
+
+
+    def searchBtSubscriptionsByPlan(self, planId):
+        """Search Braintree subscriptions by plan.
+        https://developers.braintreepayments.com/reference/request/subscription/search/python
+        https://developers.braintreepayments.com/reference/response/subscription/python
+        Returns Braintree collection object (list of Subscription result objects)
+        """
+        collection = braintree.Subscription.search(braintree.SubscriptionSearch.plan_id == planId)
+        for subs in collection.items:
+            print('subscriptionId:{0} status:{1} start:{2} end:{3}.'.format(
+                subs.subscriptionId,
+                subs.status,
+                subs.billing_period_start_date,
+                subs.billing_period_end_date
+            ))
+        return collection
+
 @python_2_unicode_compatible
 class UserSubscription(models.Model):
+    # Braintree status choices
+    # Active subscriptions will be charged on the next billing date. Subscriptions in a trial period are Active.
     ACTIVE = 'Active'
+    # User cancels the subscription, and no further billing will occur.
+    # Once canceled, a subscription cannot be edited or reactivated.
     CANCELED = 'Canceled'
+    # Subscriptions are Expired when they have reached the specified number of billing cycles.
     EXPIRED = 'Expired'
+    # If a payment for a subscription fails, the subscription status will change to Past Due.
     PASTDUE = 'Past Due'
+    # Pending subscriptions are ones that have an explicit first bill date in the future.
     PENDING = 'Pending'
     STATUS_CHOICES = (
         (ACTIVE, ACTIVE),
@@ -456,6 +547,20 @@ class UserSubscription(models.Model):
         (PASTDUE, PASTDUE),
         (PENDING, PENDING)
     )
+    # UI status values for display
+    UI_TRIAL = 'Trial'
+    UI_ACTIVE = 'Active'
+    UI_CANCELED = 'Active-Canceled'
+    UI_SUSPENDED = 'Suspended'
+    UI_EXPIRED = 'Expired'
+    UI_STATUS_CHOICES = (
+        (UI_TRIAL, UI_TRIAL),
+        (UI_ACTIVE, UI_ACTIVE),
+        (UI_CANCELED, UI_CANCELED),
+        (UI_SUSPENDED, UI_SUSPENDED),
+        (UI_EXPIRED, UI_EXPIRED)
+    )
+    # fields
     subscriptionId = models.CharField(max_length=36, unique=True)
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
@@ -467,12 +572,19 @@ class UserSubscription(models.Model):
         db_index=True,
         related_name='subscribers',
     )
-    status = models.CharField(max_length=10, blank=True, choices=STATUS_CHOICES,
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES,
         help_text='Braintree-defined status')
-    display_status = models.CharField(max_length=40, blank=True,
+    display_status = models.CharField(max_length=40, choices=UI_STATUS_CHOICES,
         help_text='Status for UI display')
+    billingFirstDate = models.DateTimeField(help_text='Braintree first_bill_date')
+    billingStartDate = models.DateTimeField(help_text='Braintree billing_period_start_date - regardless of status')
+    billingEndDate = models.DateTimeField(help_text='Braintree billing_period_end_date - regardless of status')
+    billingCycle = models.PositiveIntegerField(default=1, help_text='Braintree current_billing_cycle')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = UserSubscriptionManager()
 
     def __str__(self):
         return self.subscriptionId
+
+
