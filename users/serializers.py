@@ -62,7 +62,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             1. contactEmail is a gmail address
             2. Country is provided
             3. One or more PracticeSpecialty
-            4. One or more Degree
+            4. One or more Degree (now called primaryRole in UI, and only 1 selection allowed...)
+            5. user has saved a UserSubscription
         """
         if not obj.contactEmail.endswith('gmail.com'):
             return False
@@ -71,6 +72,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         if not obj.specialties.count():
             return False
         if not obj.degrees.count():
+            return False
+        if not obj.user.subscriptions.exists():
             return False
         return True
 
