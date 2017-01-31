@@ -526,9 +526,9 @@ class UserSubscription(models.Model):
         help_text='Braintree-defined status')
     display_status = models.CharField(max_length=40, choices=UI_STATUS_CHOICES,
         help_text='Status for UI display')
-    billingFirstDate = models.DateTimeField(help_text='Braintree first_bill_date')
-    billingStartDate = models.DateTimeField(help_text='Braintree billing_period_start_date - regardless of status')
-    billingEndDate = models.DateTimeField(help_text='Braintree billing_period_end_date - regardless of status')
+    billingFirstDate = models.DateTimeField(null=True, blank=True, help_text='Braintree first_bill_date')
+    billingStartDate = models.DateTimeField(null=True, blank=True, help_text='Braintree billing_period_start_date - regardless of status')
+    billingEndDate = models.DateTimeField(null=True, blank=True, help_text='Braintree billing_period_end_date - regardless of status')
     billingCycle = models.PositiveIntegerField(default=1, help_text='Braintree current_billing_cycle')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
