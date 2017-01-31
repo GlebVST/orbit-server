@@ -117,13 +117,11 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 class CustomerSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
-    balance = serializers.ReadOnlyField()
     class Meta:
         model = Customer
         fields = (
             'id',
             'customerId',
-            'balance',
             'created',
             'modified'
         )
@@ -135,7 +133,6 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
     pageTitle = serializers.ReadOnlyField()
     expireDate = serializers.ReadOnlyField()
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    points = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
 
     class Meta:
         model = BrowserCmeOffer
@@ -146,8 +143,7 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
             'url',
             'pageTitle',
             'expireDate',
-            'credits',
-            'points'
+            'credits'
         )
 
 class EntryTypeSerializer(serializers.ModelSerializer):
@@ -499,27 +495,6 @@ class SRCmeFormSerializer(serializers.Serializer):
         instance.save()
         return instance
 
-class PointTransactionSerializer(serializers.ModelSerializer):
-    customerId = serializers.UUIDField(source='customer.customerId', format='hex_verbose', read_only=True)
-    entry = serializers.PrimaryKeyRelatedField(allow_null=True, read_only=True)
-    points = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('1.0'), read_only=True)
-    pricePaid = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0'), read_only=True)
-    transactionId = serializers.ReadOnlyField()
-
-    class Meta:
-        model = PointTransaction
-        fields = (
-            'id',
-            'customerId',
-            'entry',
-            'points',
-            'pricePaid',
-            'transactionId',
-            'valid',
-            'created',
-            'modified'
-        )
-
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0.01'))
@@ -562,20 +537,6 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
             'created',
             'modified'
         )
-
-class PPOSerializer(serializers.ModelSerializer):
-    points = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('1.0'))
-    price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0.01'))
-    class Meta:
-        model = PointPurchaseOption
-        fields = ('id', 'points', 'price')
-
-
-class PROSerializer(serializers.ModelSerializer):
-    points = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('1.0'))
-    class Meta:
-        model = PointRewardOption
-        fields = ('id', 'points', 'rewardType', 'description')
 
 
 class UserFeedbackSerializer(serializers.ModelSerializer):

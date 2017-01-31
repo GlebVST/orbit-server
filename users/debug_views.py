@@ -35,7 +35,6 @@ class MakeBrowserCmeOffer(APIView):
             expireDate=expireDate,
             url=url,
             pageTitle=pageTitle,
-            points=Decimal('10.0'),
             credits=Decimal('0.5')
         )
         context = {'success': True, 'id': offer.pk}
@@ -74,18 +73,9 @@ class MakeRewardEntry(APIView):
                 rewardType='TEST-REWARD',
                 points=pointsEarned
             )
-            PointTransaction.objects.create(
-                customer=customer,
-                points=pointsEarned,
-                pricePaid=Decimal('0'),
-                transactionId=newUuid()
-            )
-            customer.balance += pointsEarned
-            customer.save()
         context = {
             'success': True,
             'id': entry.pk,
-            'balance': customer.balance
         }
         return Response(context, status=status.HTTP_201_CREATED)
 

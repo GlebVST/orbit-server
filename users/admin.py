@@ -42,9 +42,11 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ('planId', 'name', 'price', 'trialDays', 'billingCycleMonths', 'active', 'modified')
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
-    list_display = ('subscriptionId', 'user', 'plan', 'status', 'display_status', 'created', 'modified')
+    list_display = ('subscriptionId', 'user', 'plan', 'status', 'display_status', 
+        'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle',
+        'created', 'modified')
     list_select_related = ('user','plan')
-    list_filter = ('status',)
+    list_filter = ('status', 'display_status')
 
 admin.site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
 admin.site.register(CmeTag, CmeTagAdmin)

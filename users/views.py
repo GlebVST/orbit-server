@@ -125,28 +125,6 @@ class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-# PointPurchaseOption (old payment model)
-class PPOList(generics.ListCreateAPIView):
-    queryset = PointPurchaseOption.objects.all().order_by('points')
-    serializer_class = PPOSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
-
-class PPODetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = PointPurchaseOption.objects.all()
-    serializer_class = PPOSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
-
-# PointRewardOption
-class PROList(generics.ListCreateAPIView):
-    queryset = PointRewardOption.objects.all().order_by('points')
-    serializer_class = PROSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
-
-class PRODetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = PointRewardOption.objects.all()
-    serializer_class = PROSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
-
 
 # custom pagination for BrowserCmeOfferList
 class BrowserCmeOfferPagination(PageNumberPagination):
@@ -249,7 +227,7 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
     """
     Create a BrowserCme Entry in the user's feed.
     This action redeems the BrowserCmeOffer specified in the
-    request, and deducts points from the customer's balance.
+    request, and sets the redeemed flag on the offer.
     """
     serializer_class = BRCmeCreateSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
@@ -262,17 +240,6 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
             # set redeemed flag on offer
             offer.redeemed = True
             offer.save()
-            # create PointTransaction
-            pointsDeducted = -1*offer.points
-            PointTransaction.objects.create(
-                customer=self.customer,
-                points=pointsDeducted,
-                pricePaid=Decimal('0'),
-                transactionId=newUuid()
-            )
-            # deduct points from user's balance
-            self.customer.balance += pointsDeducted
-            self.customer.save()
         return brcme
 
     def create(self, request, *args, **kwargs):
@@ -298,8 +265,7 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
             'success': True,
             'id': entry.pk,
             'created': entry.created,
-            'credits': offer.credits,
-            'balance': self.customer.balance
+            'credits': offer.credits
         }
         return Response(context, status=status.HTTP_201_CREATED)
 
@@ -307,8 +273,7 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
 class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
     """
     Update a BrowserCme Entry in the user's feed.
-    This action does not change the credits earned or the points
-    deducted from the original creation.
+    This action does not change the credits earned from the original creation.
     """
     serializer_class = BRCmeUpdateSerializer
     permission_classes = [IsEntryOwner, TokenHasReadWriteScope]

@@ -54,7 +54,6 @@ def makeOffers(user):
             url=url,
             pageTitle=urlname,
             expireDate=expireDate,
-            points=1,
             credits=0.5
         )
         print user.username, urlname, offer.pk

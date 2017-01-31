@@ -44,8 +44,7 @@ def serialize_user(user):
 
 def serialize_customer(customer):
     return {
-        'customerId': customer.customerId,
-        'balance': customer.balance
+        'customerId': customer.customerId
     }
 
 def serialize_subscription(subscription):

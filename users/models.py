@@ -171,8 +171,6 @@ class BrowserCmeOffer(models.Model):
     pageTitle = models.TextField(blank=True)
     expireDate = models.DateTimeField()
     redeemed = models.BooleanField(default=False)
-    points = models.DecimalField(max_digits=6, decimal_places=2,
-        help_text='Points needed to redeem this offer')
     credits = models.DecimalField(max_digits=5, decimal_places=2,
         help_text='CME credits to be awarded upon redemption')
     created = models.DateTimeField(auto_now_add=True)
@@ -296,7 +294,6 @@ class SRCme(models.Model):
 
 # Browser CME entry
 # An entry is created when a Browser CME offer is redeemed by the user
-# in exchange for points.
 @python_2_unicode_compatible
 class BrowserCme(models.Model):
     PURPOSE_DX = 0  # Diagnosis
@@ -357,53 +354,6 @@ class ExBrowserCme(models.Model):
     def __str__(self):
         return self.url
 
-
-# User points activity
-# (+) User can purchase points (entry is null)
-# (+) User can earn points (entry is Reward)
-# (-) User has points deducted in order to redeem BrowserCmeOffer (entry is BrowserCme).
-@python_2_unicode_compatible
-class PointTransaction(models.Model):
-    customer = models.ForeignKey(Customer,
-        on_delete=models.CASCADE,
-        db_index=True
-    )
-    entry = models.OneToOneField(Entry,
-        null=True,
-        on_delete=models.PROTECT
-    )
-    points = models.DecimalField(max_digits=6, decimal_places=2)
-    pricePaid = models.DecimalField(max_digits=6, decimal_places=2)
-    transactionId = models.CharField(max_length=36, unique=True)
-    valid = models.BooleanField(default=True)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.transactionId
-
-# Available options for purchasing points
-@python_2_unicode_compatible
-class PointPurchaseOption(models.Model):
-    points = models.DecimalField(max_digits=6, decimal_places=2)
-    price = models.DecimalField(max_digits=6, decimal_places=2)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return str(self.points)
-
-# Available options for earning points
-@python_2_unicode_compatible
-class PointRewardOption(models.Model):
-    points = models.DecimalField(max_digits=6, decimal_places=2)
-    rewardType = models.CharField(max_length=30, unique=True)
-    description = models.TextField(blank=True)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.rewardType
 
 @python_2_unicode_compatible
 class UserFeedback(models.Model):
@@ -586,5 +536,4 @@ class UserSubscription(models.Model):
 
     def __str__(self):
         return self.subscriptionId
-
 
