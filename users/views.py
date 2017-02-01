@@ -98,6 +98,40 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
 
+class VerifyProfileEmail(APIView):
+    """This view expects the lookup-id in the JSON object for the POST.
+    It finds the user linked to the customerId and sets their profile.verified flag to True. If user not found, return success=False.
+    Example JSON:
+        {"lookup-id": customerId string}
+    """
+    permission_classes = (permissions.AllowAny,)
+    def post(self, request, *args, **kwargs):
+        userdata = request.data
+        lookupId = userdata.get('lookup-id', None)
+        if not lookupId:
+            context = {
+                'success': False,
+                'message': 'Lookup Id value is required'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # get customer object from database
+        try:
+            customer = Customer.objects.get(customerId=lookupId)
+        except Customer.DoesNotExist:
+            context = {
+                'success': False,
+                'message': 'Invalid Lookup Id.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # set verified to True
+            profile = customer.user.profile
+            if not profile.verified:
+                profile.verified = True
+                profile.save()
+            context = {'success': True}
+            return Response(context, status=status.HTTP_200_OK)
+
 # Customer
 # A list of customers is readable by any Admin user
 # A customer cannot be created from the API because it is created by the psa pipeline for each user.
@@ -179,7 +213,7 @@ class GetBrowserCmeOffer(APIView):
 # FEED
 #
 class FeedListPagination(PageNumberPagination):
-    page_size = 100
+    page_size = 10
 
 class FeedList(generics.ListAPIView):
     serializer_class = EntryReadSerializer

@@ -47,7 +47,6 @@ def save_profile(backend, user, response, *args, **kwargs):
     qset = Customer.objects.filter(user=user)
     if not qset.exists():
         customer = Customer(user=user)
-        customer.balance = 100
         customer.save()
         result = None
         try:

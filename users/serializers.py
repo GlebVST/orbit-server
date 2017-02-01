@@ -35,6 +35,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
     socialId = serializers.ReadOnlyField()
     inviteId = serializers.ReadOnlyField()
+    verified = serializers.ReadOnlyField()
     cmeTags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -114,6 +115,19 @@ class ProfileSerializer(serializers.ModelSerializer):
             'created',
             'modified'
         )
+
+    def update(self, instance, validated_data):
+        """If contactEmail changed and profile is already verified, then reset verified to False"""
+        reset_verify = False
+        newEmail = validated_data.get('contactEmail', None)
+        if newEmail and newEmail != instance.contactEmail and instance.verified:
+            reset_verify = True
+        instance = super(ProfileSerializer, self).update(instance, validated_data)
+        if reset_verify:
+            instance.verified = False
+            instance.save()
+            logger.debug('reset profile.verified for {0}'.format(instance.contactEmail))
+        return instance
 
 class CustomerSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
