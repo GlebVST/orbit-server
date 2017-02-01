@@ -3,6 +3,7 @@ import braintree
 import datetime
 from decimal import Decimal
 import uuid
+from dateutil.relativedelta import *
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.db import models
@@ -434,6 +435,12 @@ class UserSubscriptionManager(models.Manager):
                 display_status = UserSubscription.UI_ACTIVE
 
             # create UserSubscription object in database
+            startDate = result.subscription.billing_period_start_date
+            if not startDate:
+                startDate = result.subscription.first_billing_date
+            endDate = result.subscription.billing_period_end_date
+            if not endDate:
+                endDate = startDate + relativedelta(months=plan.billingCycleMonths)
             user_subs = UserSubscription.objects.create(
                 user=user,
                 plan=plan,
@@ -441,8 +448,8 @@ class UserSubscriptionManager(models.Manager):
                 display_status=display_status,
                 status=result.subscription.status,
                 billingFirstDate=result.subscription.first_billing_date,
-                billingStartDate=result.subscription.billing_period_start_date,
-                billingEndDate=result.subscription.billing_period_end_date,
+                billingStartDate=startDate,
+                billingEndDate=endDate,
                 billingCycle=result.subscription.current_billing_cycle
             )
         return (result, user_subs)

@@ -140,6 +140,15 @@ class NewSubscription(JsonResponseMixin, APIView):
                 'message': 'do-trial value must be either 0 or 1'
             }
             return self.render_to_json_response(context, status_code=400)
+        # If user has had a prior subscription, do_trial must be 0
+        if do_trial:
+            last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
+            if last_subscription:
+                context = {
+                    'success': False,
+                    'message': 'Renewing subscription is not permitted a trial period.'
+                }
+                return self.render_to_json_response(context, status_code=400)
         # plan pk (primary_key of plan in db)
         planPk = userdata.get('plan-id', None)
         if not planPk:
