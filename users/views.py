@@ -1,6 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
 from pprint import pprint
+from smtplib import SMTPException
+
 import pytz
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -17,7 +19,10 @@ from common.viewutils import  newUuid
 from .models import *
 from .serializers import *
 from .permissions import *
-
+from django.core.mail import send_mail, EmailMessage
+from django.template import Context
+from django.template.loader import render_to_string, get_template
+from django.conf import settings
 
 # Country
 class CountryList(generics.ListCreateAPIView):
@@ -98,7 +103,7 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
 
-class VerifyProfileEmail(APIView):
+class VerifyProfile(APIView):
     """This view expects the lookup-id in the JSON object for the POST.
     It finds the user linked to the customerId and sets their profile.verified flag to True. If user not found, return success=False.
     Example JSON:
@@ -131,6 +136,35 @@ class VerifyProfileEmail(APIView):
                 profile.save()
             context = {'success': True}
             return Response(context, status=status.HTTP_200_OK)
+
+class VerifyProfileEmail(APIView):
+    """
+    This endpoint will user the current user's profile to send gmail verification email with a special link.
+
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        customer = Customer.objects.get(user=request.user)
+        subject = settings.EMAIL_VERIFICATION_SUBJECT
+        from_email = settings.EMAIL_FROM
+        ctx = {
+            'profile': user.profile,
+            'customer': customer,
+            'domain': settings.EMAIL_DOMAIN_REFERENCE
+        }
+        message = get_template('email/verification.html').render(Context(ctx))
+        msg = EmailMessage(subject, message, to=[user.profile.contactEmail], from_email=from_email)
+        msg.content_subtype = 'html'
+        try:
+            msg.send()
+        except SMTPException as e:
+            logger.debug('Failure sending email: {}'.format(e))
+            context = {'success': False, 'message': 'Failure sending email'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
+        context = {'success': True}
+        return Response(context, status=status.HTTP_200_OK)
 
 # Customer
 # A list of customers is readable by any Admin user
