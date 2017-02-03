@@ -47,20 +47,38 @@ class GetPaymentMethods(JsonResponseMixin, APIView):
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def get(self, request, *args, **kwargs):
-        user = request.user
-        local_customer = Customer.objects.get(user=user)
-        btree_customer = braintree.Customer.find(str(local_customer.customerId))
-        results = [{ "token": m.token, "number": m.masked_number, "type": m.card_type, "expiry": m.expiration_date } for m in btree_customer.payment_methods]
-        logger.debug("Customer {} payment methods: {}".format(local_customer, results))
-        return self.render_to_json_response(results)
-
+        try:
+            customer = Customer.objects.get(user=request.user)
+            results = Customer.objects.getPaymentMethods(customer)
+            logger.debug("Customer {} payment methods: {}".format(customer, results))
+        except Customer.DoesNotExist:
+            context = {
+                'success': False,
+                'message': 'Local Customer object not found for user.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            context = {
+                'success': False,
+                'message': 'BT Customer object not found.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        else:
+            return self.render_to_json_response(results)
 
 class UpdatePaymentToken(JsonResponseMixin, APIView):
     """
-    This view allows the customer to update an existing payment
-    token with a new nonce (e.g. to update an expired card)
-    Reference: https://developers.braintreepayments.com/reference/request/customer/update/python#examples
+    This view updates the existing payment_token for a
+    customer using a new nonce (e.g. to update an expired
+    card).
+    It expects the Customer Vault to only contain 1 token.
+    If more than 1 token is found, it returns 400 error
+    unless a payment_token is explicitly provided to update.
     Example JSON:
+    {
+      "payment-method-nonce":"abcd-efg"
+    }
+    Example JSON with token (only used if Customer has multiple tokens in Vault):
     {
       "payment-method-token":"5wfrrp"
       "payment-method-nonce":"abcd-efg"
@@ -73,33 +91,61 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
         payment_nonce = userdata.get('payment-method-nonce', None)
         payment_token = userdata.get('payment-method-token', None)
         # some basic validation for incoming parameters
-        if not payment_nonce or not payment_token:
+        if not payment_nonce:
             context = {
                 'success': False,
-                'message': 'Payment Nonce and Payment Token are both required.'
+                'message': 'Payment Nonce is required.'
             }
             return self.render_to_json_response(context, status_code=400)
         # get customer object from database
         try:
             customer = Customer.objects.get(user=request.user)
+            bc = Customer.objects.findBtCustomer(customer)
         except Customer.DoesNotExist:
             context = {
                 'success': False,
-                'message': 'Customer object not found.'
+                'message': 'Local Customer object not found for user.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            context = {
+                'success': False,
+                'message': 'BT Customer object not found.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        # Get existing tokens for customer
+        tokens = [m.token for m in bc.payment_methods]
+        num_tokens = len(tokens)
+        if not num_tokens:
+            context = {
+                'success': False,
+                'message': 'BT Customer has no existing tokens to update.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        if num_tokens == 1:
+            payment_token = tokens[0]
+        elif payment_token is None:
+            # Multiple tokens exist and request did not specify a token
+            context = {
+                'success': False,
+                'message': 'BT Customer has multiple existing tokens. Request must specify the token to update.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        elif payment_token not in tokens:
+            context = {
+                'success': False,
+                'message': 'Invalid Payment Token - does not exist for Customer.'
             }
             return self.render_to_json_response(context, status_code=400)
         # Update Customer
-        result = braintree.Customer.update(str(customer.customerId), {
-            "credit_card": {
-                "payment_method_nonce": payment_nonce,
-                "options": {
-                    "update_existing_token": payment_token
-                }
-            }
-        })
+        result = Customer.objects.updatePaymentMethod(customer, payment_nonce, payment_token)
         context = {
             'success': result.is_success
         }
+        if not result.is_success:
+            context['message'] = 'Customer vault update failed.'
+            logger.debug(result.message)
+            return self.render_to_json_response(context, status_code=400)
         return self.render_to_json_response(context)
 
 
@@ -170,47 +216,45 @@ class NewSubscription(JsonResponseMixin, APIView):
         }
         if not do_trial:
             subs_params['trial_duration'] = 0  # subscription starts immediately
-        # get customer object from database
+        # get local customer object and braintree customer
         try:
             customer = Customer.objects.get(user=request.user)
+            bc = Customer.objects.findBtCustomer(customer)
         except Customer.DoesNotExist:
             context = {
                 'success': False,
-                'message': 'Customer object not found.'
+                'message': 'Local Customer object not found for user.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            context = {
+                'success': False,
+                'message': 'BT Customer object not found.'
             }
             return self.render_to_json_response(context, status_code=400)
 
         if payment_nonce:
-            # First we need to update the Customer in the Vault to get a token
-            # Fetch existing list of tokens
-            bc1 = braintree.Customer.find(str(customer.customerId))
-            tokens1 = [m.token for m in bc1.payment_methods]
-
-            # Now add new payment method
-            result = braintree.Customer.update(str(customer.customerId), {
-                "credit_card": {
-                    "payment_method_nonce": payment_nonce
+            # First we need to update the Customer Vault to get a token
+            try:
+                result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
+            except ValueError, e:
+                context = {
+                    'success': False,
+                    'message': str(e)
                 }
-            })
+                return self.render_to_json_response(context, status_code=400)
             if not result.is_success:
                 context = {
                     'success': False,
                     'message': 'Customer vault update failed.'
                 }
                 return self.render_to_json_response(context, status_code=400)
-            # Fetch list of tokens again
-            bc2 = braintree.Customer.find(str(customer.customerId))
-            tokens2 = [m.token for m in bc2.payment_methods]
-            # Find the new token
-            token_diff_set = set(tokens2) - set(tokens1)
-            if len(token_diff_set):
-                new_payment_token = token_diff_set.pop()
-                # Update params for subscription
-                subs_params['payment_method_token'] = new_payment_token
-        else:
-            # Update params for subscription
-            subs_params['payment_method_token'] = payment_token
-        # finally, create the subscription
+            bc2 = Customer.objects.findBtCustomer(customer)
+            tokens = [m.token for m in bc2.payment_methods]
+            payment_token = tokens[0]
+        # Update params for subscription
+        subs_params['payment_method_token'] = payment_token
+        # Create the subscription
         result, user_subs = UserSubscription.objects.createBtSubscription(request.user, plan, subs_params)
         context = {'success': result.is_success}
         if not result.is_success:

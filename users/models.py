@@ -144,6 +144,87 @@ class Profile(models.Model):
         return False
 
 
+class CustomerManager(models.Manager):
+    def findBtCustomer(self, customer):
+        """customer: Customer instance from db
+        Returns: Braintree Customer object
+        Can raise braintree.exceptions.not_found_error.NotFoundError
+        """
+        return braintree.Customer.find(str(customer.customerId))
+
+    def getPaymentMethods(self, customer):
+        """Get the existing payment methods (credit card only)
+            customer: Customer instance from db
+        Returns: [{token, number, type, expiry},]
+        """
+        bc = self.findBtCustomer(customer)
+        results = [{
+            "token": m.token,
+            "number": m.masked_number,
+            "type": m.card_type,
+            "expiry": m.expiration_date
+            } for m in bc.payment_methods]
+        return results
+
+    def addNewPaymentMethod(self, customer, payment_nonce):
+        """Update bt_customer Vault: add new payment method
+            customer: Customer instance from db
+            payment_nonce: payment nonce prepared on client
+        Returns: braintree result object from Customer.update
+        Can raise braintree.exceptions.not_found_error.NotFoundError
+        Reference: https://developers.braintreepayments.com/reference/request/customer/update/python#examples
+        """
+        result = braintree.Customer.update(str(customer.customerId), {
+            "credit_card": {
+                "payment_method_nonce": payment_nonce
+            }
+        })
+        return result
+
+    def updatePaymentMethod(self, customer, payment_nonce, token):
+        """Update bt_customer Vault: add new payment method
+            customer: Customer instance from db
+            payment_nonce: payment nonce prepared on client
+            token: existing token to update
+        Returns: braintree result object from Customer.update
+        Can raise braintree.exceptions.not_found_error.NotFoundError
+        """
+        result = braintree.Customer.update(str(customer.customerId), {
+            "credit_card": {
+                "payment_method_nonce": payment_nonce,
+                "options": {
+                    "update_existing_token": token
+                }
+            }
+        })
+        return result
+
+    def addOrUpdatePaymentMethod(self, customer, payment_nonce):
+        """
+        If customer has no existing tokens: add new payment method
+        else if customer has 1 token: update payment method
+        else if customer has >1 tokens: raise ValueError
+            customer: Customer instance from db
+            payment_nonce: payment nonce prepared on client
+        Can raise braintree.exceptions.not_found_error.NotFoundError
+        Returns: braintree result object from Customer.update
+        """
+        bc = self.findBtCustomer(customer)
+        # Fetch existing list of tokens
+        tokens = [m.token for m in bc.payment_methods]
+        num_tokens = len(tokens)
+        result = None
+        if not num_tokens:
+            # Add new payment method
+            result = self.addNewPaymentMethod(customer, payment_nonce)
+        elif num_tokens == 1:
+            # Update existing token with the nonce
+            result = self.updatePaymentMethod(customer, payment_nonce, tokens[0])
+        else:
+            raise ValueError('Customer has multiple payment tokens.')
+        return result
+
+
 @python_2_unicode_compatible
 class Customer(models.Model):
     user = models.OneToOneField(User,
@@ -155,6 +236,7 @@ class Customer(models.Model):
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = CustomerManager()
 
     def __str__(self):
         return str(self.customerId)
