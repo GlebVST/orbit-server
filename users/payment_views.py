@@ -212,10 +212,12 @@ class NewSubscription(JsonResponseMixin, APIView):
             subs_params['payment_method_token'] = payment_token
         # finally, create the subscription
         result, user_subs = UserSubscription.objects.createBtSubscription(request.user, plan, subs_params)
-        context = {
-            'success': result.is_success
-        }
-        if result.is_success:
+        context = {'success': result.is_success}
+        if not result.is_success:
+            context['message'] = 'Create Subscription failed.'
+            logger.debug(result.message)
+            return self.render_to_json_response(context, status_code=400)
+        else:
             context['subscriptionId'] = user_subs.subscriptionId
             context['bt_status'] = user_subs.status
             context['display_status'] = user_subs.display_status
