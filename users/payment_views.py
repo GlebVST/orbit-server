@@ -302,7 +302,7 @@ class CancelSubscription(JsonResponseMixin, APIView):
             }
             return self.render_to_json_response(context, status_code=400)
         # check current status
-        if user_subs.status != UserSubscription.ACTIVE or user_subs.status != UserSubscription.PENDING:
+        if user_subs.status != UserSubscription.ACTIVE and user_subs.status != UserSubscription.PENDING:
             context = {
                 'success': False,
                 'message': 'UserSubscription status is already: ' + user_subs.status
