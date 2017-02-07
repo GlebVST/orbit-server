@@ -247,10 +247,10 @@ LOGGING = {
 }
 
 EMAIL_HOST = 'email-smtp.us-west-2.amazonaws.com'
-EMAIL_HOST_USER = 'AKIAIAKN5RUXG3POVKZA'
-EMAIL_HOST_PASSWORD = 'An1N6Lfutcwje5R/JI6X4YpZU439Yys7MAUsTpGGpBQM'
+EMAIL_HOST_USER = 'AKIAIK23BTEAQYLOOY7A'
+EMAIL_HOST_PASSWORD = 'AgG/jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_FROM = 'central-command@codeabovelab.com'
+EMAIL_FROM = 'central-command@orbitcme.com'
 EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
 EMAIL_DOMAIN_REFERENCE = 'test1.orbitcme.com'
