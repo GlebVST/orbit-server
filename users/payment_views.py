@@ -278,11 +278,11 @@ class CancelSubscription(JsonResponseMixin, APIView):
     """
     This view expects a JSON object from the POST:
     {"subscription-id": braintree subscriptionid to cancel}
-    If the subscription Id is valid, it will be canceled.
-    https://developers.braintreepayments.com/reference/request/subscription/cancel/python
-    Once canceled, a subscription cannot be reactivated.
-    You would have to create a new subscription.
-    You cannot cancel subscriptions that have already been canceled.
+    If the subscription Id is valid:
+        If the subscription is in UI_TRIAL:
+            call terminalCancelBtSubscription
+        If the subscription is in UI_ACTIVE:
+            call makeActiveCanceled
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):
@@ -306,26 +306,29 @@ class CancelSubscription(JsonResponseMixin, APIView):
             }
             return self.render_to_json_response(context, status_code=400)
         # check current status
-        if user_subs.status != UserSubscription.ACTIVE and user_subs.status != UserSubscription.PENDING:
+        if user_subs.display_status not in (UserSubscription.UI_ACTIVE, UserSubscription.UI_TRIAL):
             context = {
                 'success': False,
-                'message': 'UserSubscription status is already: ' + user_subs.status
+                'message': 'UserSubscription status is already: ' + user_subs.display_status
             }
             return self.render_to_json_response(context, status_code=400)
         # proceed with cancel
         try:
-            result = UserSubscription.objects.cancelBtSubscription(user_subs)
+            if user_subs.display_status == UserSubscription.UI_TRIAL:
+                result = UserSubscription.objects.terminalCancelBtSubscription(user_subs)
+            else:
+                result = UserSubscription.objects.makeActiveCanceled(user_subs)
         except braintree.exceptions.not_found_error.NotFoundError:
             context = {
                 'success': False,
-                'message': 'btSubscription not found.'
+                'message': 'BT Subscription not found.'
             }
             return self.render_to_json_response(context, status_code=400)
         else:
             if not result.is_success:
                 context = {
                     'success': False,
-                    'message': 'btSubscription cancel failed.'
+                    'message': 'BT Subscription update failed.'
                 }
                 return self.render_to_json_response(context, status_code=400)
             else:
@@ -335,6 +338,72 @@ class CancelSubscription(JsonResponseMixin, APIView):
                     'display_status': user_subs.display_status
                 }
                 return self.render_to_json_response(context)
+
+class ResumeSubscription(JsonResponseMixin, APIView):
+    """
+    This view expects a JSON object from the POST:
+    {"subscription-id": braintree subscriptionid to cancel}
+    If the subscription Id is valid and it is in UI_ACTIVE_CANCELED:
+            call reactivateBtSubscription
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, *args, **kwargs):
+        userdata = request.data
+        subscriptionId = userdata.get('subscription-id', None)
+        if not subscriptionId:
+            context = {
+                'success': False,
+                'message': 'BT SubscriptionId is required'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        try:
+            user_subs = UserSubscription.objects.get(
+                user=request.user,
+                subscriptionId=subscriptionId
+            )
+        except UserSubscription.DoesNotExist:
+            context = {
+                'success': False,
+                'message': 'UserSubscription local object not found.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        # check current status
+        if user_subs.display_status != UserSubscription.UI_ACTIVE_CANCELED:
+            context = {
+                'success': False,
+                'message': 'UserSubscription status is already: ' + user_subs.display_status
+            }
+            return self.render_to_json_response(context, status_code=400)
+        # proceed with reactivate
+        try:
+            result = UserSubscription.objects.reactivateBtSubscription(user_subs)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            context = {
+                'success': False,
+                'message': 'BT Subscription not found.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        except ValueError, e:
+            context = {
+                'success': False,
+                'message': str(e)
+            }
+            return self.render_to_json_response(context, status_code=400)
+        else:
+            if not result.is_success:
+                context = {
+                    'success': False,
+                    'message': 'BT Subscription update failed.'
+                }
+                return self.render_to_json_response(context, status_code=400)
+            else:
+                context = {
+                    'success': True,
+                    'bt_status': user_subs.status,
+                    'display_status': user_subs.display_status
+                }
+                return self.render_to_json_response(context)
+
 
 #
 # testing only

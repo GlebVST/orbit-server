@@ -551,15 +551,79 @@ class UserSubscriptionManager(models.Manager):
             )
         return (result, user_subs)
 
-    def cancelBtSubscription(self, user_subs):
-        """Cancel Braintree subscription and update model
+    def makeActiveCanceled(self, user_subs):
+        """
+        Use case: User does not want to renew subscription,
+        and their subscription is currently active and we have
+        not reached billingEndDate.
+        Model: set display_status to UI_ACTIVE_CANCELED.
+        Bt: set number_of_billing_cycles on the subscription.
+        Once this number is reached, the subscription will expire.
+        Can raise braintree.exceptions.not_found_error.NotFoundError
+        Returns Braintree result object
+        """
+        subscription = braintree.Subscription.find(user_subs.subscriptionId)
+        # When subscription passes the billing_period_end_date, the current_billing_cycle is incremented
+        curBillingCycle = subscription.current_billing_cycle
+        if not curBillingCycle:
+            curBillingCycle = 0
+        # Set the max number of billing cycles. When this is reached, the subscription will expire in braintree.
+        numBillingCycles = curBillingCycle + 1
+        result = braintree.Subscription.update(user_subs.subscriptionId, {
+            'never_expires': False,
+            'number_of_billing_cycles': numBillingCycles
+        });
+        if result.is_success:
+            # update model
+            user_subs.display_status = UserSubscription.UI_ACTIVE_CANCELED
+            if curBillingCycle:
+                user_subs.billingCycle = curBillingCycle
+            user_subs.save()
+        return result
+
+    def reactivateBtSubscription(self, user_subs, payment_token=None):
+        """
+        Use case: switch from UI_ACTIVE_CANCELED back to UI_ACTIVE
+        while the btSubscription is still ACTIVE.
+        Caller may optionally provide a payment_token with which
+        to update the subscription.
+
+        Note: This action cannot be done if the btSubscription is already
+        expired/canceled - (user must create new subscription)
+        Reference: https://developers.braintreepayments.com/guides/recurring-billing/manage/python
+        """
+        subscription = braintree.Subscription.find(user_subs.subscriptionId)
+        if subscription.status != UserSubscription.ACTIVE:
+            raise ValueError('BT Subscription status is: {0}'.format(subscription.status))
+        subs_params = {
+            'never_expires': True,
+            'number_of_billing_cycles': None
+        }
+        if payment_token:
+            subs_params['payment_method_token'] = payment_token
+        result = braintree.Subscription.update(user_subs.subscriptionId, subs_params)
+        if result.is_success:
+            # update model
+            user_subs.display_status = UserSubscription.UI_ACTIVE
+            if curBillingCycle:
+                user_subs.billingCycle = curBillingCycle
+            user_subs.save()
+        return result
+
+    def terminalCancelBtSubscription(self, user_subs):
+        """
+        Use case: User wants to cancel while they are still in UI_TRIAL.
+        Cancel Braintree subscription - this is a terminal state. Once
+            canceled, a subscription cannot be reactivated.
+        Update model: set display_status to UI_EXPIRED.
+        Reference: https://developers.braintreepayments.com/reference/request/subscription/cancel/python
         Can raise braintree.exceptions.not_found_error.NotFoundError
         Returns Braintree result object
         """
         result = braintree.Subscription.cancel(user_subs.subscriptionId)
         if result.is_success:
             user_subs.status = result.subscription.status
-            user_subs.display_status = self.model.UI_CANCELED
+            user_subs.display_status = self.model.UI_EXPIRED
             user_subs.save()
         return result
 
@@ -585,7 +649,7 @@ class UserSubscription(models.Model):
     # Braintree status choices
     # Active subscriptions will be charged on the next billing date. Subscriptions in a trial period are Active.
     ACTIVE = 'Active'
-    # User cancels the subscription, and no further billing will occur.
+    # Cancel subscription, and no further billing will occur (terminal state).
     # Once canceled, a subscription cannot be edited or reactivated.
     CANCELED = 'Canceled'
     # Subscriptions are Expired when they have reached the specified number of billing cycles.
@@ -604,13 +668,13 @@ class UserSubscription(models.Model):
     # UI status values for display
     UI_TRIAL = 'Trial'
     UI_ACTIVE = 'Active'
-    UI_CANCELED = 'Active-Canceled'
+    UI_ACTIVE_CANCELED = 'Active-Canceled'
     UI_SUSPENDED = 'Suspended'
     UI_EXPIRED = 'Expired'
     UI_STATUS_CHOICES = (
         (UI_TRIAL, UI_TRIAL),
         (UI_ACTIVE, UI_ACTIVE),
-        (UI_CANCELED, UI_CANCELED),
+        (UI_ACTIVE_CANCELED, UI_ACTIVE_CANCELED),
         (UI_SUSPENDED, UI_SUSPENDED),
         (UI_EXPIRED, UI_EXPIRED)
     )
