@@ -199,6 +199,21 @@ class CustomerManager(models.Manager):
         })
         return result
 
+    def makeSureNoMultipleMethods(self, customer):
+        """
+        A method to be called only when no active subscription for the customer
+        so it's safe to remove all payment methods
+        (note might not be used in production but in dev some users could have multiple methods).
+        """
+        bc = self.findBtCustomer(customer)
+        # Fetch existing list of tokens
+        tokens = [m.token for m in bc.payment_methods]
+        num_tokens = len(tokens)
+        if num_tokens > 1:
+            # Cleanup all previous tokens
+            for token in tokens:
+                braintree.PaymentMethod.delete(token)
+
     def addOrUpdatePaymentMethod(self, customer, payment_nonce):
         """
         If customer has no existing tokens: add new payment method

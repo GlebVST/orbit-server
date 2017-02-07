@@ -234,6 +234,10 @@ class NewSubscription(JsonResponseMixin, APIView):
             return self.render_to_json_response(context, status_code=400)
 
         if payment_nonce:
+            # We would only create a new subscription when there was no previous subscription or everything was cancelled
+            # so should be safe to make sure that user has no or just one payment method (can't be many).
+            Customer.objects.makeSureNoMultipleMethods(customer)
+
             # First we need to update the Customer Vault to get a token
             try:
                 result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
