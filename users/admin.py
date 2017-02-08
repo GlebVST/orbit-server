@@ -31,7 +31,7 @@ class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
 
 class DocumentAdmin(admin.ModelAdmin):
-    list_display = ('user', 'uploadId', 'name', 'content_type','document','image_h','image_w','md5sum','created')
+    list_display = ('user', 'name', 'content_type','document','image_h','image_w','md5sum','set_id', 'created')
     list_select_related = ('user',)
 
 class EntryAdmin(admin.ModelAdmin):

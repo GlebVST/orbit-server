@@ -352,7 +352,7 @@ class Document(models.Model):
     image_h = models.PositiveIntegerField(null=True, blank=True, help_text='image height')
     image_w = models.PositiveIntegerField(null=True, blank=True, help_text='image width')
     is_thumb = models.BooleanField(default=False, help_text='True if the file is an image thumbnail')
-    uploadId = models.CharField(max_length=36)
+    set_id = models.CharField(max_length=36, blank=True, help_text='Used to group an image and its thumbnail into a set')
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -374,7 +374,6 @@ class Entry(models.Model):
     valid = models.BooleanField(default=True)
     tags = models.ManyToManyField(CmeTag, related_name='entries')
     documents = models.ManyToManyField(Document, related_name='entries')
-    uploadId = models.CharField(max_length=36, blank=True, help_text='To connect an entry with uploaded Documents')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = EntryManager()

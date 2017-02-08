@@ -419,7 +419,6 @@ class BRCmeUpdateSerializer(serializers.Serializer):
 class UploadDocumentSerializer(serializers.Serializer):
     document = serializers.FileField(max_length=None, allow_empty_file=False)
     fileMd5 = serializers.CharField(max_length=32)
-    uploadId = serializers.CharField(max_length=36)
     name = serializers.CharField(max_length=255, required=False)
     image_h = serializers.IntegerField(min_value=0, required=False)
     image_w = serializers.IntegerField(min_value=0, required=False)
@@ -428,7 +427,6 @@ class UploadDocumentSerializer(serializers.Serializer):
         fields = (
             'document',
             'fileMd5',
-            'uploadId',
             'name',
             'image_h',
             'image_w'
@@ -460,7 +458,6 @@ class UploadDocumentSerializer(serializers.Serializer):
             document=newDoc,
             md5sum = fileMd5,
             content_type = newDoc.content_type,
-            uploadId=validated_data['uploadId'],
             name=validated_data.get('name', ''),
             image_h=validated_data.get('image_h', None),
             image_w=validated_data.get('image_w', None),
@@ -476,8 +473,6 @@ class SRCmeFormSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     activityDate = serializers.DateTimeField()
     description = serializers.CharField(max_length=500)
-    # uploadId: used by create to associate Documents with entry
-    uploadId = serializers.CharField(max_length=36, required=False)
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
@@ -485,7 +480,6 @@ class SRCmeFormSerializer(serializers.Serializer):
         required=False,
         allow_null=True
     )
-    # used by update to update the document_set
     documents = serializers.PrimaryKeyRelatedField(
         queryset=Document.objects.all(),
         many=True,
@@ -498,7 +492,6 @@ class SRCmeFormSerializer(serializers.Serializer):
             'id',
             'activityDate',
             'description',
-            'uploadId',
             'credits',
             'tags',
             'documents'
@@ -512,7 +505,6 @@ class SRCmeFormSerializer(serializers.Serializer):
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_SRCME)
         user = validated_data['user']
-        uploadId = validated_data.get('uploadId')
         entry = Entry(
             entryType=etype,
             activityDate=validated_data.get('activityDate'),
@@ -521,16 +513,13 @@ class SRCmeFormSerializer(serializers.Serializer):
         )
         entry.save()
         # associate tags with saved entry
-        tag_ids = validated_data.get('tags', [])
-        if tag_ids:
-            entry.tags.set(tag_ids)
-        # associate documents with saved entry using uploadId
-        if uploadId:
-            documents = Document.objects.filter(user=user, uploadId=uploadId)
-            num_docs = documents.count()
-            if num_docs:
-                logger.debug('Associating {0} documents with entry'.format(num_docs))
-                entry.documents.set(documents)
+        tags = validated_data.get('tags', [])
+        if tags:
+            entry.tags.set(tags)
+        # associate documents with saved entry
+        docs = validated_data.get('documents', [])
+        if docs:
+            entry.documents.set(docs)
         # Using parent entry, create SRCme instance
         instance = SRCme.objects.create(
             entry=entry,

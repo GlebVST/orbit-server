@@ -359,9 +359,6 @@ class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
 class CreateSRCme(TagsMixin, generics.CreateAPIView):
     """
     Create SRCme Entry in the user's feed.
-    If uploadId is specified, it finds the user's uploaded
-    documents for the given uploadId, and associates them
-    with the entry.
     """
     serializer_class = SRCmeFormSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
@@ -371,17 +368,17 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
         return SRCme.objects.filter(user=user).select_related('entry')
 
     def perform_create(self, serializer, format=None):
-        """If uploadId is specified:
-            Find the documents matching the given uploadId and request.user.
-            Raise ValidationError if no match found (uploadId is not valid for the user).
+        """If documents is specified, verify that document.user
+        is request.user, else raise ValidationError.
         """
         user = self.request.user
-        uploadId = self.request.data.get('uploadId')
-        if uploadId:
-            qset = Document.objects.filter(user=user, uploadId=uploadId)
-            if not qset.exists():
-                logger.debug('CreateSRCme: Invalid uploadId for user. No matching Documents found.')
-                raise serializers.ValidationError('Invalid uploadId for current user - no matching documents found.')
+        doc_ids = self.request.data.get('documents', [])
+        num_docs = len(doc_ids)
+        if num_docs:
+            qset = Document.objects.filter(user=user, pk__in=doc_ids)
+            if qset.count() != num_docs:
+                logger.debug('CreateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
+                raise serializers.ValidationError('Invalid documentId(s) specified for user.')
         with transaction.atomic():
             srcme = serializer.save(user=user)
         return srcme
