@@ -466,7 +466,7 @@ class UploadDocumentSerializer(serializers.Serializer):
             image_w=validated_data.get('image_w', None),
             user=validated_data.get('user')
         )
-        #instance.save()
+        # Save the file, and save the model instance
         instance.document.save(docName.lower(), newDoc, save=True)
         return instance
 
@@ -476,10 +476,18 @@ class SRCmeFormSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     activityDate = serializers.DateTimeField()
     description = serializers.CharField(max_length=500)
+    # uploadId: used by create to associate Documents with entry
     uploadId = serializers.CharField(max_length=36, required=False)
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
+        many=True,
+        required=False,
+        allow_null=True
+    )
+    # used by update to update the document_set
+    documents = serializers.PrimaryKeyRelatedField(
+        queryset=Document.objects.all(),
         many=True,
         required=False,
         allow_null=True
@@ -492,7 +500,8 @@ class SRCmeFormSerializer(serializers.Serializer):
             'description',
             'uploadId',
             'credits',
-            'tags'
+            'tags',
+            'documents'
         )
 
     def create(self, validated_data):
@@ -542,6 +551,25 @@ class SRCmeFormSerializer(serializers.Serializer):
                 entry.tags.set(tag_ids)
             else:
                 entry.tags.set([])
+        if 'documents' in validated_data:
+            currentDocs = entry.documents.all()
+            current_doc_ids = set([m.pk for m in currentDocs])
+            #logger.debug(current_doc_ids)
+            docs = validated_data['documents']
+            doc_ids = [m.pk for m in docs]
+            #logger.debug(doc_ids)
+            if doc_ids:
+                # are there any docs to delete
+                delete_doc_ids = current_doc_ids.difference(set(doc_ids))
+                for docid in delete_doc_ids:
+                    m = Document.objects.get(pk=docid)
+                    logger.debug('updateSRCme: delete document {0}'.format(m))
+                    m.document.delete()
+                    m.delete()
+                # associate entry with docs
+                entry.documents.set(doc_ids)
+            else:
+                entry.documents.set([])
         instance.credits = validated_data.get('credits', instance.credits)
         instance.save()
         return instance

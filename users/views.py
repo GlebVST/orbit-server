@@ -8,13 +8,12 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import QueryDict
 from django.utils import timezone
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, serializers
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser,MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
-from common.viewutils import  newUuid
 # app
 from .models import *
 from .serializers import *
@@ -372,7 +371,17 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
         return SRCme.objects.filter(user=user).select_related('entry')
 
     def perform_create(self, serializer, format=None):
+        """If uploadId is specified:
+            Find the documents matching the given uploadId and request.user.
+            Raise ValidationError if no match found (uploadId is not valid for the user).
+        """
         user = self.request.user
+        uploadId = self.request.data.get('uploadId')
+        if uploadId:
+            qset = Document.objects.filter(user=user, uploadId=uploadId)
+            if not qset.exists():
+                logger.debug('CreateSRCme: Invalid uploadId for user. No matching Documents found.')
+                raise serializers.ValidationError('Invalid uploadId for current user - no matching documents found.')
         with transaction.atomic():
             srcme = serializer.save(user=user)
         return srcme
@@ -380,7 +389,7 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         """Override method to handle custom input/output data structures"""
         form_data = request.data.copy()
-        pprint(form_data)
+        #pprint(form_data)
         self.get_tags(form_data)
         logger.debug(form_data)
         in_serializer = self.get_serializer(data=form_data)
@@ -398,6 +407,23 @@ class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
 
     def get_queryset(self):
         return SRCme.objects.select_related('entry')
+
+    def perform_update(self, serializer, format=None):
+        """If documents is specified, verify that document.user
+        is request.user, else raise ValidationError.
+        """
+        user = self.request.user
+        # check documents
+        doc_ids = self.request.data.get('documents', [])
+        num_docs = len(doc_ids)
+        if num_docs:
+            qset = Document.objects.filter(user=user, pk__in=doc_ids)
+            if qset.count() != num_docs:
+                logger.debug('UpdateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
+                raise serializers.ValidationError('Invalid documentId(s) specified for user.')
+        with transaction.atomic():
+            srcme = serializer.save(user=user)
+        return srcme
 
     def update(self, request, *args, **kwargs):
         """Override method to handle custom input/output data structures"""
