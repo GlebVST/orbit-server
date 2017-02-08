@@ -30,6 +30,10 @@ class BrowserCmeOfferAdmin(admin.ModelAdmin):
 class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
 
+class DocumentAdmin(admin.ModelAdmin):
+    list_display = ('user', 'uploadId', 'name', 'content_type','document','image_h','image_w','md5sum','created')
+    list_select_related = ('user',)
+
 class EntryAdmin(admin.ModelAdmin):
     list_display = ('user', 'entryType', 'activityDate', 'valid', 'description', 'created')
     list_filter = ('entryType', 'valid')
@@ -53,6 +57,7 @@ admin.site.register(CmeTag, CmeTagAdmin)
 admin.site.register(Country, CountryAdmin)
 admin.site.register(Customer, CustomerAdmin)
 admin.site.register(Degree, DegreeAdmin)
+admin.site.register(Document, DocumentAdmin)
 admin.site.register(Entry, EntryAdmin)
 admin.site.register(EntryType, EntryTypeAdmin)
 admin.site.register(Profile, ProfileAdmin)

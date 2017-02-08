@@ -224,15 +224,32 @@ class ExpiredBRCmeSubSerializer(serializers.ModelSerializer):
             'expireDate'
         )
 
+class DocumentReadSerializer(serializers.ModelSerializer):
+    url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
+    class Meta:
+        model = Document
+        fields = (
+            'id',
+            'url',
+            'name',
+            'md5sum',
+            'content_type',
+            'image_h',
+            'image_w',
+            'is_thumb'
+        )
+        read_only_fields = ('name','md5sum','content_type','image_h','image_w', 'is_thumb')
+
+
 class CreateSRCmeOutSerializer(serializers.ModelSerializer):
     """Serializer for the response returned for create srcme entry"""
-    documentUrl = serializers.FileField(source='document', max_length=None, use_url=True)
+    documents = DocumentReadSerializer(many=True, required=False)
 
     class Meta:
         model = Entry
         fields = (
             'id',
-            'documentUrl',
+            'documents',
             'created',
             'success'
         )
@@ -243,13 +260,13 @@ class CreateSRCmeOutSerializer(serializers.ModelSerializer):
 
 class UpdateSRCmeOutSerializer(serializers.ModelSerializer):
     """Serializer for the response returned for update srcme entry"""
-    documentUrl = serializers.FileField(source='document', max_length=None, use_url=True)
+    documents = DocumentReadSerializer(many=True, required=False)
 
     class Meta:
         model = Entry
         fields = (
             'id',
-            'documentUrl',
+            'documents',
             'modified',
             'success'
         )
@@ -262,14 +279,12 @@ class EntryReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     entryTypeId = serializers.PrimaryKeyRelatedField(source='entryType.id', read_only=True)
     entryType = serializers.StringRelatedField(read_only=True)
-    documentUrl = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
-    md5sum = serializers.ReadOnlyField()
-    content_type = serializers.ReadOnlyField()
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
         allow_null=True
     )
+    documents = DocumentReadSerializer(many=True, required=False)
     extra = serializers.SerializerMethodField()
 
     def get_extra(self, obj):
@@ -293,10 +308,8 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'entryTypeId',
             'activityDate',
             'description',
-            'documentUrl',
-            'md5sum',
-            'content_type',
             'tags',
+            'documents',
             'extra',
             'created',
             'modified'
@@ -403,31 +416,22 @@ class BRCmeUpdateSerializer(serializers.Serializer):
         return instance
 
 
-# Serializer for the combined fields of Entry + SRCme
-# Used for both create and update
-class SRCmeFormSerializer(serializers.Serializer):
-    id = serializers.IntegerField(label='ID', read_only=True)
-    activityDate = serializers.DateTimeField()
-    description = serializers.CharField(max_length=500)
-    fileMd5 = serializers.CharField(max_length=32, required=False)
-    document = serializers.FileField(max_length=None, allow_empty_file=False, required=False)
-    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False)
-    tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
-        many=True,
-        required=False,
-        allow_null=True
-    )
+class UploadDocumentSerializer(serializers.Serializer):
+    document = serializers.FileField(max_length=None, allow_empty_file=False)
+    fileMd5 = serializers.CharField(max_length=32)
+    uploadId = serializers.CharField(max_length=36)
+    name = serializers.CharField(max_length=255, required=False)
+    image_h = serializers.IntegerField(min_value=0, required=False)
+    image_w = serializers.IntegerField(min_value=0, required=False)
 
     class Meta:
         fields = (
-            'id',
-            'activityDate',
-            'description',
             'document',
             'fileMd5',
-            'credits',
-            'tags'
+            'uploadId',
+            'name',
+            'image_h',
+            'image_w'
         )
 
     def validate(self, data):
@@ -442,36 +446,82 @@ class SRCmeFormSerializer(serializers.Serializer):
         return data
 
     def create(self, validated_data):
+        """Create Document instance.
+        It expects that View has passed the following keys to the serializer.save
+        method, which then appear in validated_data:
+            user: User instance
+        """
+        newDoc = validated_data['document'] # UploadedFile (or subclass)
+        logger.debug('uploaded filename: {0}'.format(newDoc.name))
+        fileExt = os.path.splitext(newDoc.name)[1]
+        fileMd5 = validated_data['fileMd5']
+        docName = fileMd5 + fileExt
+        instance = Document(
+            document=newDoc,
+            md5sum = fileMd5,
+            content_type = newDoc.content_type,
+            uploadId=validated_data['uploadId'],
+            name=validated_data.get('name', ''),
+            image_h=validated_data.get('image_h', None),
+            image_w=validated_data.get('image_w', None),
+            user=validated_data.get('user')
+        )
+        #instance.save()
+        instance.document.save(docName.lower(), newDoc, save=True)
+        return instance
+
+# Serializer for the combined fields of Entry + SRCme
+# Used for both create and update
+class SRCmeFormSerializer(serializers.Serializer):
+    id = serializers.IntegerField(label='ID', read_only=True)
+    activityDate = serializers.DateTimeField()
+    description = serializers.CharField(max_length=500)
+    uploadId = serializers.CharField(max_length=36, required=False)
+    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False)
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=CmeTag.objects.all(),
+        many=True,
+        required=False,
+        allow_null=True
+    )
+
+    class Meta:
+        fields = (
+            'id',
+            'activityDate',
+            'description',
+            'uploadId',
+            'credits',
+            'tags'
+        )
+
+    def create(self, validated_data):
         """Create parent Entry and SRCme instances.
         It expects that View has passed the following keys to the serializer.save
         method, which then appear in validated_data:
             user: User instance
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_SRCME)
+        user = validated_data['user']
+        uploadId = validated_data.get('uploadId')
         entry = Entry(
             entryType=etype,
             activityDate=validated_data.get('activityDate'),
             description=validated_data.get('description'),
-            user=validated_data.get('user')
+            user=user
         )
-        newDoc = validated_data.get('document', None) # UploadedFile (or subclass)
-        if newDoc:
-            logger.debug('uploaded filename: {0}'.format(newDoc.name))
-            fileExt = os.path.splitext(newDoc.name)[1]
-            fileMd5 = validated_data.get('fileMd5', '')
-            if fileMd5:
-                docName = fileMd5 + fileExt
-            else:
-                docName = newDoc.name
-            entry.md5sum = fileMd5
-            entry.content_type = newDoc.content_type
         entry.save()
-        if newDoc:
-            entry.document.save(docName.lower(), newDoc)
         # associate tags with saved entry
         tag_ids = validated_data.get('tags', [])
         if tag_ids:
             entry.tags.set(tag_ids)
+        # associate documents with saved entry using uploadId
+        if uploadId:
+            documents = Document.objects.filter(user=user, uploadId=uploadId)
+            num_docs = documents.count()
+            if num_docs:
+                logger.debug('Associating {0} documents with entry'.format(num_docs))
+                entry.documents.set(documents)
         # Using parent entry, create SRCme instance
         instance = SRCme.objects.create(
             entry=entry,
@@ -484,27 +534,14 @@ class SRCmeFormSerializer(serializers.Serializer):
         entry = instance.entry
         entry.activityDate = validated_data.get('activityDate', entry.activityDate)
         entry.description = validated_data.get('description', entry.description)
-        newDoc = validated_data.get('document', None)
-        if newDoc:
-            logger.debug('uploaded filename: {0}'.format(newDoc.name))
-            fileExt = os.path.splitext(newDoc.name)[1]
-            fileMd5 = validated_data.get('fileMd5', '')
-            if fileMd5:
-                docName = fileMd5 + fileExt
-            else:
-                docName = newDoc.name
-            if entry.document:
-                entry.document.delete()
-            entry.document.save(docName.lower(), newDoc)
-            entry.md5sum = fileMd5
-            entry.content_type = newDoc.content_type
         entry.save()  # updates modified timestamp
-        # replace old tags with new tags (wholesale)
-        tag_ids = validated_data.get('tags', [])
-        if tag_ids:
-            entry.tags.set(tag_ids)
-        else:
-            entry.tags.set([])
+        # if tags key is present: replace old with new (wholesale)
+        if 'tags' in validated_data:
+            tag_ids = validated_data['tags']
+            if tag_ids:
+                entry.tags.set(tag_ids)
+            else:
+                entry.tags.set([])
         instance.credits = validated_data.get('credits', instance.credits)
         instance.save()
         return instance

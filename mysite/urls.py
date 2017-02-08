@@ -87,6 +87,8 @@ api_patterns = [
     url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', views.UpdateBrowserCme.as_view()),
     url(r'^feed/cme/?$', views.CreateSRCme.as_view()),
     url(r'^feed/cme/(?P<pk>[0-9]+)/?$', views.UpdateSRCme.as_view()),
+    url(r'^feed/upload-document/?$', views.CreateDocument.as_view()),
+    url(r'^feed/delete-document/?$', views.DeleteDocument.as_view()),
 
     # user feedback (list/create)
     url(r'^feedback/?$', views.UserFeedbackList.as_view()),

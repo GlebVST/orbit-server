@@ -4,6 +4,7 @@ import datetime
 from decimal import Decimal
 import uuid
 from dateutil.relativedelta import *
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.db import models
@@ -334,6 +335,30 @@ class EntryManager(models.Manager):
             return float(credit_sum)
         return 0
 
+
+def entry_document_path(instance, filename):
+    return '{0}/uid_{1}/{2}'.format(settings.FEED_MEDIA_BASEDIR, instance.user.id, filename)
+
+@python_2_unicode_compatible
+class Document(models.Model):
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True
+    )
+    document = models.FileField(upload_to=entry_document_path)
+    name = models.CharField(max_length=255, blank=True, help_text='Original file name')
+    md5sum = models.CharField(max_length=32, blank=True, help_text='md5sum of the document file')
+    content_type = models.CharField(max_length=100, blank=True, help_text='file content_type')
+    image_h = models.PositiveIntegerField(null=True, blank=True, help_text='image height')
+    image_w = models.PositiveIntegerField(null=True, blank=True, help_text='image width')
+    is_thumb = models.BooleanField(default=False, help_text='True if the file is an image thumbnail')
+    uploadId = models.CharField(max_length=36)
+    created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.md5sum
+
+
 @python_2_unicode_compatible
 class Entry(models.Model):
     user = models.ForeignKey(User,
@@ -347,16 +372,15 @@ class Entry(models.Model):
     activityDate = models.DateTimeField()
     description = models.CharField(max_length=500)
     valid = models.BooleanField(default=True)
-    document = models.FileField(upload_to='entries', blank=True, null=True)
-    md5sum = models.CharField(max_length=32, blank=True, help_text='md5sum of the document file')
-    content_type = models.CharField(max_length=100, blank=True, help_text='content_type of the document file')
     tags = models.ManyToManyField(CmeTag, related_name='entries')
+    documents = models.ManyToManyField(Document, related_name='entries')
+    uploadId = models.CharField(max_length=36, blank=True, help_text='To connect an entry with uploaded Documents')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = EntryManager()
 
     def __str__(self):
-        return self.description
+        return '{0} on {1}'.format(self.entryType, self.activityDate)
 
     class Meta:
         verbose_name_plural = 'Entries'

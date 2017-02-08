@@ -102,7 +102,6 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
     serializer_class = ProfileSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
-
 class VerifyProfile(APIView):
     """This view expects the lookup-id in the JSON object for the POST.
     It finds the user linked to the customerId and sets their profile.verified flag to True. If user not found, return success=False.
@@ -256,7 +255,7 @@ class FeedList(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Entry.objects.filter(user=user, valid=True).select_related('entryType').order_by('-activityDate')
+        return Entry.objects.filter(user=user, valid=True).select_related('entryType').order_by('-created')
 
 class FeedEntryDetail(generics.RetrieveDestroyAPIView):
     serializer_class = EntryReadSerializer
@@ -275,7 +274,7 @@ class FeedEntryDetail(generics.RetrieveDestroyAPIView):
 
 class TagsMixin(object):
     """Mixin to handle the tags parameter in request.data
-    for BrowserCme.
+    for SRCme and BrowserCme entry form.
     """
 
     def get_tags(self, form_data):
@@ -312,15 +311,6 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         """Override create to add custom keys to response"""
-        # get local customer instance for request.user
-        try:
-            self.customer = Customer.objects.get(user=request.user)
-        except ObjectDoesNotExist:
-            context = {
-                'success': False,
-                'error': 'Local customer object not found for user'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         form_data = request.data.copy()
         self.get_tags(form_data)
         logger.debug(form_data)
@@ -366,35 +356,16 @@ class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
         return Response(context)
 
 
-class SRCmeTagsMixin(object):
-    """Mixin to handle the tags parameter in request.data"""
 
-    def get_tags(self, form_data):
-        """Handle different format for tags in request body
-        UI sends tags as a comma separated string of IDs
-        Swagger UI sends tags in the select multiple format,
-            e.g. tags=1&tags2
-        """
-        tags = form_data.get('tags', '')
-        if tags:
-            if ',' in tags:  # comma separated list of pks
-                tag_ids = tags.split(",") # [1,2]
-            else:
-                # format sent by swagger
-                qdict = QueryDict(tags) # tags=1&tags=2
-                tag_ids = qdict.getlist('tags') # [1,2]
-            form_data.setlist('tags', tag_ids)
-
-
-class CreateSRCme(SRCmeTagsMixin, generics.CreateAPIView):
+class CreateSRCme(TagsMixin, generics.CreateAPIView):
     """
     Create SRCme Entry in the user's feed.
-    File upload is optional. If file is given, then client
-    must also provide the md5sum of the file.
+    If uploadId is specified, it finds the user's uploaded
+    documents for the given uploadId, and associates them
+    with the entry.
     """
     serializer_class = SRCmeFormSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    parser_classes = (MultiPartParser,FormParser,)
 
     def get_queryset(self):
         user = self.request.user
@@ -408,7 +379,8 @@ class CreateSRCme(SRCmeTagsMixin, generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         """Override method to handle custom input/output data structures"""
-        form_data = request.data.copy() # a QueryDict
+        form_data = request.data.copy()
+        pprint(form_data)
         self.get_tags(form_data)
         logger.debug(form_data)
         in_serializer = self.get_serializer(data=form_data)
@@ -417,13 +389,12 @@ class CreateSRCme(SRCmeTagsMixin, generics.CreateAPIView):
         out_serializer = CreateSRCmeOutSerializer(srcme.entry)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
-class UpdateSRCme(SRCmeTagsMixin, generics.UpdateAPIView):
+class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
     """
     Update an existing SRCme Entry in the user's feed.
     """
     serializer_class = SRCmeFormSerializer
     permission_classes = [IsEntryOwner, TokenHasReadWriteScope]
-    parser_classes = (MultiPartParser,FormParser,)
 
     def get_queryset(self):
         return SRCme.objects.select_related('entry')
@@ -441,6 +412,62 @@ class UpdateSRCme(SRCmeTagsMixin, generics.UpdateAPIView):
         entry = Entry.objects.get(pk=instance.pk)
         out_serializer = UpdateSRCmeOutSerializer(entry)
         return Response(out_serializer.data)
+
+
+class CreateDocument(generics.CreateAPIView):
+    serializer_class = UploadDocumentSerializer
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    parser_classes = (MultiPartParser,FormParser,)
+
+    def perform_create(self, serializer, format=None):
+        user = self.request.user
+        instance = serializer.save(user=user)
+        return instance
+
+    def create(self, request, *args, **kwargs):
+        """Override method to handle custom input/output data structures"""
+        in_serializer = self.get_serializer(data=request.data)
+        in_serializer.is_valid(raise_exception=True)
+        instance = self.perform_create(in_serializer)
+        out_serializer = DocumentReadSerializer(instance)
+        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
+class DeleteDocument(APIView):
+    """
+    This view expects a list of document IDs (pk of document in db) in the JSON object for the POST.
+    It finds the associated documents and deletes them.
+    This also checks that request.user owns the document-id, else return 400.
+    Example JSON:
+        {"document-ids": [1,2,3]}
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, *args, **kwargs):
+        userdata = request.data
+        doc_pks = userdata.get('document-id', [])
+        if not doc_pks:
+            context = {
+                'success': False,
+                'message': 'An array of Document Id (pk) values is required.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # find Document instances in db : filter by pk AND user
+        qset = Document.objects.filter(
+            user=request.user,
+            pk__in=doc_pks
+        )
+        if not qset.exists():
+            context = {
+                'success': False,
+                'message': 'Invalid Document Id list.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            for instance in qset:
+                # delete the file from storage, and the model instance
+                instance.document.delete()
+                instance.delete()
+            context = {'success': True}
+            return Response(context, status=status.HTTP_200_OK)
 
 
 
