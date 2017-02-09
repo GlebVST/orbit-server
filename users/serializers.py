@@ -455,14 +455,15 @@ class UploadDocumentSerializer(serializers.Serializer):
             user: User instance
         """
         newDoc = validated_data['document'] # UploadedFile (or subclass)
-        logger.debug('uploaded filename: {0}'.format(newDoc.name))
-        basename, fileExt = os.path.splitext(newDoc.name)
+        fileName = validated_data.get('name', '')
+        logger.debug('uploaded filename: {0}'.format(fileName))
+        basename, fileExt = os.path.splitext(fileName)
         fileMd5 = validated_data['fileMd5']
         docName = fileMd5 + fileExt
         image_h=validated_data.get('image_h', None)
         image_w=validated_data.get('image_w', None)
         set_id = ''
-        thumb_size = 128
+        thumb_size = 200
         thumbMd5 = None
         is_image = newDoc.content_type.lower().startswith('image')
         if is_image:
@@ -470,9 +471,9 @@ class UploadDocumentSerializer(serializers.Serializer):
                 im = Image.open(newDoc)
                 image_w, image_h = im.size
                 if image_w > thumb_size or image_h > thumb_size:
-                    logger.debug('Creating thumbnail: {0}'.format(newDoc.name))
+                    logger.debug('Creating thumbnail: {0}'.format(fileName))
                     im.thumbnail((thumb_size, thumb_size))
-                    mime = mimetypes.guess_type(newDoc.name)
+                    mime = mimetypes.guess_type(fileName)
                     plain_ext = mime[0].split('/')[1]
                     memory_file = StringIO()
                     # save thumb to memory_file

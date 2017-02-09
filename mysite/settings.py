@@ -53,7 +53,7 @@ AWS_STORAGE_BUCKET_NAME = os.environ.get('ORBIT_AWS_S3_BUCKET_NAME')
 AWS_QUERYSTRING_AUTH = True
 AWS_QUERYSTRING_EXPIRE = 3600*2 # duration in seconds
 AWS_DEFAULT_ACL = 'private'
-
+AWS_S3_ENCRYPTION = True
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 FEED_MEDIA_BASEDIR = 'entries'
 MEDIA_URL = "http://%s.s3.amazonaws.com/%s/" % (AWS_STORAGE_BUCKET_NAME, FEED_MEDIA_BASEDIR)
