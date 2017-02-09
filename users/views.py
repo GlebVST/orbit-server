@@ -452,7 +452,14 @@ class CreateDocument(generics.CreateAPIView):
         in_serializer = self.get_serializer(data=request.data)
         in_serializer.is_valid(raise_exception=True)
         instance = self.perform_create(in_serializer)
-        out_serializer = DocumentReadSerializer(instance)
+        out_data = [instance,]
+        if instance.image_w:
+            # find thumb
+            qset = Document.objects.filter(user=request.user, set_id=instance.set_id, is_thumb=True)
+            if qset.exists():
+                out_data.insert(0, qset[0])
+        # serialized data contains either 1 or 2 records
+        out_serializer = DocumentReadSerializer(out_data, many=True)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
 class DeleteDocument(APIView):

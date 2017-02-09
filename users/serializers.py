@@ -1,12 +1,17 @@
 from datetime import timedelta
 from decimal import Decimal
+from cStringIO import StringIO
 import os
+import hashlib
 import logging
+import mimetypes
+from PIL import Image
 from pprint import pprint
 from django.contrib.auth.models import User
+from django.core.files.base import ContentFile
 from django.utils import timezone
 from rest_framework import serializers
-from common.viewutils import md5_uploaded_file
+from common.viewutils import newUuid, md5_uploaded_file
 from .models import *
 
 logger = logging.getLogger(__name__)
@@ -451,20 +456,61 @@ class UploadDocumentSerializer(serializers.Serializer):
         """
         newDoc = validated_data['document'] # UploadedFile (or subclass)
         logger.debug('uploaded filename: {0}'.format(newDoc.name))
-        fileExt = os.path.splitext(newDoc.name)[1]
+        basename, fileExt = os.path.splitext(newDoc.name)
         fileMd5 = validated_data['fileMd5']
         docName = fileMd5 + fileExt
+        image_h=validated_data.get('image_h', None)
+        image_w=validated_data.get('image_w', None)
+        set_id = ''
+        thumb_size = 128
+        thumbMd5 = None
+        is_image = newDoc.content_type.lower().startswith('image')
+        if is_image:
+            try:
+                im = Image.open(newDoc)
+                image_w, image_h = im.size
+                if image_w > thumb_size or image_h > thumb_size:
+                    logger.debug('Creating thumbnail: {0}'.format(newDoc.name))
+                    im.thumbnail((thumb_size, thumb_size))
+                    mime = mimetypes.guess_type(newDoc.name)
+                    plain_ext = mime[0].split('/')[1]
+                    memory_file = StringIO()
+                    # save thumb to memory_file
+                    im.save(memory_file, plain_ext, quality=70)
+                    # calculate md5sum of thumb
+                    thumbMd5 = hashlib.md5(memory_file.getvalue()).hexdigest()
+            except IOError, e:
+                logger.debug('UploadDocument: Image open failed: {0}'.format(str(e)))
+            else:
+                set_id = newUuid()
         instance = Document(
-            document=newDoc,
             md5sum = fileMd5,
             content_type = newDoc.content_type,
             name=validated_data.get('name', ''),
-            image_h=validated_data.get('image_h', None),
-            image_w=validated_data.get('image_w', None),
+            image_h=image_h,
+            image_w=image_w,
+            set_id=set_id,
             user=validated_data.get('user')
         )
         # Save the file, and save the model instance
         instance.document.save(docName.lower(), newDoc, save=True)
+        # Save thumbnail instance
+        if thumbMd5:
+            thumbName = thumbMd5 + fileExt
+            thumb_instance = Document(
+                md5sum = thumbMd5,
+                content_type = newDoc.content_type,
+                name=instance.name,
+                image_h=thumb_size,
+                image_w=thumb_size,
+                set_id=set_id,
+                is_thumb=True,
+                user=validated_data.get('user')
+            )
+            # Save the thumb file, and save the model instance
+            memory_file.seek(0)
+            cf = ContentFile(memory_file.getvalue()) # Create a ContentFile from the memory_file
+            thumb_instance.document.save(thumbName.lower(), cf, save=True)
         return instance
 
 # Serializer for the combined fields of Entry + SRCme
