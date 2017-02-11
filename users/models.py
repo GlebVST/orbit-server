@@ -622,6 +622,7 @@ class UserSubscriptionManager(models.Manager):
             'never_expires': True,
             'number_of_billing_cycles': None
         }
+        curBillingCycle = subscription.current_billing_cycle
         if payment_token:
             subs_params['payment_method_token'] = payment_token
         result = braintree.Subscription.update(user_subs.subscriptionId, subs_params)
