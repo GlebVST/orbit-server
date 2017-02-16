@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from common.viewutils import render_to_json_response
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
-from .models import Profile, Customer, CmeTag, CMETAG_SACME, UserSubscription
+from .models import Profile, Customer, CmeTag, CMETAG_SACME, SubscriptionPlan, UserSubscription
 from .serializers import ProfileSerializer, CmeTagSerializer
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,11 @@ def serialize_customer(customer):
         'customerId': customer.customerId
     }
 
+def serialize_plan(plan):
+    return {
+        'trialDays': plan.trialDays
+    }
+
 def serialize_subscription(subscription):
     return {
         'subscriptionId': subscription.subscriptionId,
@@ -69,6 +74,11 @@ def make_login_context(user, token):
     profile = Profile.objects.get(user=user)
     subscription = UserSubscription.objects.getLatestSubscription(user)
     sacme_tag = CmeTag.objects.get(name=CMETAG_SACME)
+    # Get the subscription plan so that UI can display trial period
+    plan = None
+    qset = SubscriptionPlan.objects.filter(active=True)
+    if qset.exists():
+        plan = qset[0]
     context = {
         'success': True,
         'token': token,
@@ -79,6 +89,7 @@ def make_login_context(user, token):
         'cmetags': CmeTagSerializer(profile.cmeTags, many=True).data
     }
     context['subscription'] = serialize_subscription(subscription) if subscription else None
+    context['subscription-plan'] = serialize_plan(plan) if plan else None
     return context
 
 @api_view()
