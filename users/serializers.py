@@ -21,11 +21,6 @@ class DegreeSerializer(serializers.ModelSerializer):
         model = Degree
         fields = ('id', 'abbrev', 'name')
 
-class PracticeSpecialtySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PracticeSpecialty
-        fields = ('id', 'name')
-
 class CmeTagSerializer(serializers.ModelSerializer):
     class Meta:
         model = CmeTag
@@ -35,6 +30,22 @@ class CountrySerializer(serializers.ModelSerializer):
     class Meta:
         model = Country
         fields = ('id', 'code', 'name')
+
+class PracticeSpecialtyListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PracticeSpecialty
+        fields = ('id', 'name')
+
+class PracticeSpecialtySerializer(serializers.ModelSerializer):
+    cmeTags = serializers.PrimaryKeyRelatedField(
+        queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
+        many=True,
+        allow_null=True
+    )
+    class Meta:
+        model = PracticeSpecialty
+        fields = ('id', 'name', 'cmeTags')
+
 
 class ProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
@@ -165,20 +176,24 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
             'credits'
         )
 
+class SponsorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sponsor
+        fields = ('id', 'name', 'logo_url')
+
 class EntryTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = EntryType
         fields = ('id', 'name','description')
 
+
 # intended to be used by SerializerMethodField on EntrySerializer
-class RewardSubSerializer(serializers.ModelSerializer):
-    rewardType = serializers.ReadOnlyField()
-    points = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
+class NotificationSubSerializer(serializers.ModelSerializer):
+    expireDate = serializers.ReadOnlyField()
     class Meta:
-        model = Reward
+        model = Notification
         fields = (
-            'rewardType',
-            'points'
+            'expireDate',
         )
 
 # intended to be used by SerializerMethodField on EntrySerializer
@@ -189,7 +204,6 @@ class SRCmeSubSerializer(serializers.ModelSerializer):
         fields = (
             'credits',
         )
-
 
 # intended to be used by SerializerMethodField on EntrySerializer
 class BRCmeSubSerializer(serializers.ModelSerializer):
@@ -211,23 +225,6 @@ class BRCmeSubSerializer(serializers.ModelSerializer):
             'planEffect'
         )
 
-# intended to be used by SerializerMethodField on EntrySerializer
-class ExpiredBRCmeSubSerializer(serializers.ModelSerializer):
-    offer = serializers.PrimaryKeyRelatedField(read_only=True)
-    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    url = serializers.ReadOnlyField()
-    pageTitle = serializers.ReadOnlyField()
-    expireDate = serializers.ReadOnlyField()
-
-    class Meta:
-        model = ExBrowserCme
-        fields = (
-            'offer',
-            'credits',
-            'url',
-            'pageTitle',
-            'expireDate'
-        )
 
 class DocumentReadSerializer(serializers.ModelSerializer):
     url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
@@ -284,6 +281,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     entryTypeId = serializers.PrimaryKeyRelatedField(source='entryType.id', read_only=True)
     entryType = serializers.StringRelatedField(read_only=True)
+    sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -294,14 +292,12 @@ class EntryReadSerializer(serializers.ModelSerializer):
 
     def get_extra(self, obj):
         etype = obj.entryType.name
-        if etype == ENTRYTYPE_REWARD:
-            s = RewardSubSerializer(obj.reward)
+        if etype == ENTRYTYPE_SRCME:
+            s = SRCmeSubSerializer(obj.srcme)
         elif etype == ENTRYTYPE_BRCME:
             s = BRCmeSubSerializer(obj.brcme)
-        elif etype == ENTRYTYPE_SRCME:
-            s = SRCmeSubSerializer(obj.srcme)
-        elif etype == ENTRYTYPE_EXBRCME:
-            s = ExpiredBRCmeSubSerializer(obj.exbrcme)
+        else:
+            s = NotificationSubSerializer(obj.notification)
         return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>
 
     class Meta:
@@ -316,6 +312,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'tags',
             'documents',
             'extra',
+            'sponsorId',
             'created',
             'modified'
         )
@@ -659,3 +656,22 @@ class UserFeedbackSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserFeedback
         fields = ('id', 'user', 'message', 'hasBias', 'hasUnfairContent')
+
+class EligibleSiteSerializer(serializers.ModelSerializer):
+    specialties = serializers.PrimaryKeyRelatedField(
+        queryset=PracticeSpecialty.objects.all(),
+        many=True,
+        required=False,
+        allow_null=True
+    )
+    class Meta:
+        model = EligibleSite
+        fields = (
+            'id',
+            'domain_url',
+            'domain_title',
+            'example_url',
+            'example_title',
+            'description',
+            'specialties'
+        )

@@ -45,16 +45,22 @@ class DegreeDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = DegreeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-# PracticeSpecialty
 # custom pagination for large page size
 class LongPagination(PageNumberPagination):
     page_size = 10000
 
+# PracticeSpecialty
 class PracticeSpecialtyList(generics.ListCreateAPIView):
     queryset = PracticeSpecialty.objects.all().order_by('name')
-    serializer_class = PracticeSpecialtySerializer
+    serializer_class = PracticeSpecialtyListSerializer
     pagination_class = LongPagination
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
+    def get_serializer_class(self):
+        method = self.request.method.lower()
+        if method == u'post':
+            return PracticeSpecialtySerializer
+        return self.serializer_class
 
 class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = PracticeSpecialty.objects.all()
@@ -82,6 +88,18 @@ class EntryTypeList(generics.ListCreateAPIView):
 class EntryTypeDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = EntryType.objects.all()
     serializer_class = EntryTypeSerializer
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
+# Sponsor
+class SponsorList(generics.ListCreateAPIView):
+    queryset = Sponsor.objects.all().order_by('name')
+    serializer_class = SponsorSerializer
+    pagination_class = LongPagination
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
+class SponsorDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Sponsor.objects.all()
+    serializer_class = SponsorSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 

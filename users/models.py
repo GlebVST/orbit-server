@@ -1,7 +1,8 @@
 from __future__ import unicode_literals
 import braintree
-import datetime
+from datetime import datetime
 from decimal import Decimal
+import pytz
 import uuid
 from dateutil.relativedelta import *
 from django.conf import settings
@@ -18,15 +19,14 @@ from django.utils.translation import ugettext_lazy as _
 #
 # constants (should match the database values)
 #
-ENTRYTYPE_REWARD = 'reward'
 ENTRYTYPE_BRCME = 'browser-cme'
-ENTRYTYPE_EXBRCME = 'expired-browser-cme'
 ENTRYTYPE_SRCME = 'sr-cme'
+ENTRYTYPE_NOTIFICATION = 'notification'
 CMETAG_SACME = 'SA-CME'
 COUNTRY_USA = 'USA'
 DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
-
+ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
 
 @python_2_unicode_compatible
 class Country(models.Model):
@@ -54,19 +54,6 @@ class Degree(models.Model):
     def __str__(self):
         return self.abbrev
 
-@python_2_unicode_compatible
-class PracticeSpecialty(models.Model):
-    """Names of practice specialties.
-    """
-    name = models.CharField(max_length=100, unique=True)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-    class Meta:
-        verbose_name_plural = 'Practice Specialties'
-
 # CME tag types (SA-CME, Breast, etc)
 @python_2_unicode_compatible
 class CmeTag(models.Model):
@@ -84,6 +71,25 @@ class CmeTag(models.Model):
     class Meta:
         verbose_name_plural = 'CME Tags'
         ordering = ['-priority', 'name']
+
+@python_2_unicode_compatible
+class PracticeSpecialty(models.Model):
+    """Names of practice specialties.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    cmeTags = models.ManyToManyField(CmeTag,
+        blank=True,
+        related_name='specialties',
+        help_text='Eligible cmeTags for this specialty'
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name_plural = 'Practice Specialties'
 
 
 @python_2_unicode_compatible
@@ -117,7 +123,7 @@ class Profile(models.Model):
     inviteId = models.CharField(max_length=12, unique=True)
     socialId = models.CharField(max_length=64, blank=True, help_text='FB social auth ID')
     cmeTags = models.ManyToManyField(CmeTag, related_name='profiles', blank=True)
-    degrees = models.ManyToManyField(Degree, blank=True)
+    degrees = models.ManyToManyField(Degree, blank=True) # TODO: switch to single ForeignKey
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     verified = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
@@ -257,6 +263,18 @@ class Customer(models.Model):
     def __str__(self):
         return str(self.customerId)
 
+# Sponsors for entries in feed
+@python_2_unicode_compatible
+class Sponsor(models.Model):
+    name = models.CharField(max_length=200, unique=True)
+    url = models.URLField(max_length=1000, blank=True, help_text='Link to website of sponsor')
+    logo_url = models.URLField(max_length=1000, help_text='Link to logo of sponsor')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
 # Browser CME offer
 # An offer for a user is generated based on the user's plugin activity.
 @python_2_unicode_compatible
@@ -290,7 +308,6 @@ class EntryType(models.Model):
 
     def __str__(self):
         return self.name
-
 
 
 # Base class for all feed entries (contains fields common to all entry types)
@@ -369,6 +386,11 @@ class Entry(models.Model):
         on_delete=models.PROTECT,
         db_index=True
     )
+    sponsor = models.ForeignKey(Sponsor,
+        on_delete=models.PROTECT,
+        null=True,
+        db_index=True
+    )
     activityDate = models.DateTimeField()
     description = models.CharField(max_length=500)
     valid = models.BooleanField(default=True)
@@ -384,19 +406,18 @@ class Entry(models.Model):
     class Meta:
         verbose_name_plural = 'Entries'
 
-# Reward entry to show points earned by user
+# Notification entry (message to user in feed)
 @python_2_unicode_compatible
-class Reward(models.Model):
+class Notification(models.Model):
     entry = models.OneToOneField(Entry,
         on_delete=models.CASCADE,
-        related_name='reward',
+        related_name='notification',
         primary_key=True
     )
-    rewardType = models.CharField(max_length=30)
-    points = models.DecimalField(max_digits=6, decimal_places=2)
+    expireDate = models.DateTimeField(default=ACTIVE_OFFDATE)
 
     def __str__(self):
-        return self.rewardType
+        return self.entry.activityDate
 
 # Self-reported CME
 # Earned credits are self-reported
@@ -455,26 +476,6 @@ class BrowserCme(models.Model):
     def __str__(self):
         return self.url
 
-# Expired Browser CME entry
-# An entry is created for an expired Browser CME offer that was never redeemed
-@python_2_unicode_compatible
-class ExBrowserCme(models.Model):
-    entry = models.OneToOneField(Entry,
-        on_delete=models.CASCADE,
-        related_name='exbrcme',
-        primary_key=True
-    )
-    offer = models.OneToOneField(BrowserCmeOffer,
-        on_delete=models.PROTECT,
-        related_name='exbrcme',
-        db_index=True
-    )
-    url = models.URLField(max_length=500)
-    pageTitle = models.TextField()
-
-    def __str__(self):
-        return self.url
-
 
 @python_2_unicode_compatible
 class UserFeedback(models.Model):
@@ -492,6 +493,31 @@ class UserFeedback(models.Model):
         return self.message
     class Meta:
         verbose_name_plural = 'User Feedback'
+
+@python_2_unicode_compatible
+class EligibleSite(models.Model):
+    """Eligible (or white-listed) domains that will be recognized by the plugin.
+    To start, we will have a manual system for translating data in this model
+    into the AllowedUrl model.
+    """
+    domain_url = models.URLField(max_length=500,
+        help_text='e.g. https://www.wikipedia.org/')
+    domain_title = models.CharField(max_length=300, blank=True,
+        help_text='e.g. Wikipedia Anatomy Pages')
+    is_valid_domurl = models.BooleanField(default=True)
+    example_url = models.URLField(max_length=1000,
+        help_text='A URL within the given domain')
+    example_title = models.CharField(max_length=300, blank=True,
+        help_text='Label for the example URL')
+    is_valid_expurl = models.BooleanField(default=True)
+    description = models.CharField(max_length=500, blank=True)
+    specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
+    needs_ad_block = models.BooleanField(default=False)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.domain_url
 
 
 # Recurring Billing Plans

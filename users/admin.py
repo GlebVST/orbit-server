@@ -23,6 +23,9 @@ class CustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'customerId', 'balance', 'modified')
     search_fields = ['customerId',]
 
+class SponsorAdmin(admin.ModelAdmin):
+    list_display = ('name', 'url', 'logo_url', 'modified')
+
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
     list_display = ('user', 'activityDate', 'redeemed', 'expireDate', 'url')
     list_filter = ('redeemed',)
@@ -37,6 +40,10 @@ class DocumentAdmin(admin.ModelAdmin):
 class EntryAdmin(admin.ModelAdmin):
     list_display = ('user', 'entryType', 'activityDate', 'valid', 'description', 'created')
     list_filter = ('entryType', 'valid')
+
+class EligibleSiteAdmin(admin.ModelAdmin):
+    list_display = ('domain_url', 'domain_title', 'example_title', 'example_url', 'modified')
+
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('user', 'hasBias', 'hasUnfairContent', 'created')
@@ -58,10 +65,12 @@ admin.site.register(Country, CountryAdmin)
 admin.site.register(Customer, CustomerAdmin)
 admin.site.register(Degree, DegreeAdmin)
 admin.site.register(Document, DocumentAdmin)
+admin.site.register(EligibleSite, EligibleSiteAdmin)
 admin.site.register(Entry, EntryAdmin)
 admin.site.register(EntryType, EntryTypeAdmin)
 admin.site.register(Profile, ProfileAdmin)
 admin.site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
+admin.site.register(Sponsor, SponsorAdmin)
 admin.site.register(UserFeedback, UserFeedbackAdmin)
 admin.site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin.site.register(UserSubscription, UserSubscriptionAdmin)
