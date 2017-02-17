@@ -26,6 +26,7 @@ CMETAG_SACME = 'SA-CME'
 COUNTRY_USA = 'USA'
 DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
+SPONSOR_BRCME = 'TUSM'
 ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
 
 @python_2_unicode_compatible

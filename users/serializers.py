@@ -282,6 +282,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
     entryTypeId = serializers.PrimaryKeyRelatedField(source='entryType.id', read_only=True)
     entryType = serializers.StringRelatedField(read_only=True)
     sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
+    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -313,6 +314,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'documents',
             'extra',
             'sponsorId',
+            'logo_url',
             'created',
             'modified'
         )
@@ -359,9 +361,11 @@ class BRCmeCreateSerializer(serializers.Serializer):
             user: User instance
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
+        sponsor = Sponsor.objects.get(name=SPONSOR_BRCME)
         offer = validated_data['offerId']
         entry = Entry.objects.create(
             entryType=etype,
+            sponsor=sponsor,
             activityDate=offer.activityDate,
             description=validated_data.get('description'),
             user=validated_data.get('user')
@@ -469,12 +473,12 @@ class UploadDocumentSerializer(serializers.Serializer):
                 image_w, image_h = im.size
                 if image_w > thumb_size or image_h > thumb_size:
                     logger.debug('Creating thumbnail: {0}'.format(fileName))
-                    im.thumbnail((thumb_size, thumb_size))
+                    im.thumbnail((thumb_size, thumb_size), Image.ANTIALIAS)
                     mime = mimetypes.guess_type(fileName)
                     plain_ext = mime[0].split('/')[1]
                     memory_file = StringIO()
                     # save thumb to memory_file
-                    im.save(memory_file, plain_ext, quality=70)
+                    im.save(memory_file, plain_ext, quality=90)
                     # calculate md5sum of thumb
                     thumbMd5 = hashlib.md5(memory_file.getvalue()).hexdigest()
             except IOError, e:

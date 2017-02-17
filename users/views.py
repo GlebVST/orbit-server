@@ -49,18 +49,13 @@ class DegreeDetail(generics.RetrieveUpdateDestroyAPIView):
 class LongPagination(PageNumberPagination):
     page_size = 10000
 
-# PracticeSpecialty
-class PracticeSpecialtyList(generics.ListCreateAPIView):
+# PracticeSpecialty - list only
+class PracticeSpecialtyList(generics.ListAPIView):
     queryset = PracticeSpecialty.objects.all().order_by('name')
     serializer_class = PracticeSpecialtyListSerializer
     pagination_class = LongPagination
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-    def get_serializer_class(self):
-        method = self.request.method.lower()
-        if method == u'post':
-            return PracticeSpecialtySerializer
-        return self.serializer_class
 
 class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = PracticeSpecialty.objects.all()
@@ -339,6 +334,7 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
         context = {
             'success': True,
             'id': entry.pk,
+            'logo_url': entry.sponsor.logo_url,
             'created': entry.created,
             'credits': offer.credits
         }
