@@ -74,11 +74,13 @@ api_patterns = [
     url(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view()),
     url(r'^practice-specialties/(?P<pk>[0-9]+)/?$', views.PracticeSpecialtyDetail.as_view()),
 
-    # Feed entry types, sponsors
+    # Feed entry types, sponsors, eligibleSites for browserCme
     url(r'^entrytypes/?$', views.EntryTypeList.as_view()),
     url(r'^entrytypes/(?P<pk>[0-9]+)/?$', views.EntryTypeDetail.as_view()),
     url(r'^sponsors/?$', views.SponsorList.as_view()),
     url(r'^sponsors/(?P<pk>[0-9]+)/?$', views.SponsorDetail.as_view()),
+    url(r'^eligible-sites/?$', views.EligibleSiteList.as_view()),
+    url(r'^eligible-sites/(?P<pk>[0-9]+)/?$', views.EligibleSiteDetail.as_view()),
 
     # FEED
     url(r'^feed/?$', views.FeedList.as_view()),

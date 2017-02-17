@@ -267,7 +267,7 @@ class FeedList(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Entry.objects.filter(user=user, valid=True).select_related('entryType').order_by('-created')
+        return Entry.objects.filter(user=user, valid=True).select_related('entryType','sponsor').order_by('-created')
 
 class FeedEntryDetail(generics.RetrieveDestroyAPIView):
     serializer_class = EntryReadSerializer
@@ -524,6 +524,19 @@ class UserFeedbackList(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+# Eligible Site
+class EligibleSiteList(generics.ListCreateAPIView):
+    queryset = EligibleSite.objects.all().order_by('domain_title','created')
+    serializer_class = EligibleSiteSerializer
+    pagination_class = LongPagination
+    permission_classes = (IsContentAdminOrAny,)
+
+class EligibleSiteDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = EligibleSite.objects.all()
+    serializer_class = EligibleSiteSerializer
+    permission_classes = (IsContentAdminOrAny,)
+
 
 #
 # Dashboard

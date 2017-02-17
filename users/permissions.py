@@ -1,5 +1,7 @@
 from rest_framework import permissions
 
+GROUP_CONTENTADMIN = 'ContentAdmin'
+
 class IsAdminOrAuthenticated(permissions.BasePermission):
     """Global permission (can be used for both list/detail) to check
     that User must be:
@@ -18,6 +20,18 @@ class IsAdminOrAuthenticated(permissions.BasePermission):
             return True
         return request.user.is_staff
 
+class IsContentAdminOrAny(permissions.BasePermission):
+    """Global permission (can be used for both list/detail) to check
+    that User must be:
+        AllowAny: for SAFE_METHODS
+        user belongs ContentAdmin group: for other methods
+    """
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        elif not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        return request.user.groups.filter(name=GROUP_CONTENTADMIN).exists()
 
 class IsOwnerOrAuthenticated(permissions.BasePermission):
     """
