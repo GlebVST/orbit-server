@@ -47,18 +47,23 @@ def serialize_customer(customer):
         'customerId': customer.customerId
     }
 
-def serialize_plan(plan):
+def serialize_plan(plan, user_subs):
+    """
+    plan: SubscriptionPlan object
+    user_subs: latest UserSubscription or None
+    """
     return {
-        'trialDays': plan.trialDays
+        'trialDays': plan.trialDays,
+        'allowTrial': user_subs is None
     }
 
-def serialize_subscription(subscription):
+def serialize_subscription(user_subs):
     return {
-        'subscriptionId': subscription.subscriptionId,
-        'bt_status': subscription.status,
-        'display_status': subscription.display_status,
-        'billingStartDate': subscription.billingStartDate,
-        'billingEndDate': subscription.billingEndDate
+        'subscriptionId': user_subs.subscriptionId,
+        'bt_status': user_subs.status,
+        'display_status': user_subs.display_status,
+        'billingStartDate': user_subs.billingStartDate,
+        'billingEndDate': user_subs.billingEndDate
     }
 
 def serialize_profile(profile):
@@ -72,7 +77,8 @@ def serialize_cmetag(tag):
 def make_login_context(user, token):
     customer = Customer.objects.get(user=user)
     profile = Profile.objects.get(user=user)
-    subscription = UserSubscription.objects.getLatestSubscription(user)
+    user_subs = UserSubscription.objects.getLatestSubscription(user)
+    UserSubscription.checkTrialToActive(user_subs)
     sacme_tag = CmeTag.objects.get(name=CMETAG_SACME)
     # Get the subscription plan so that UI can display trial period
     plan = None
@@ -88,8 +94,8 @@ def make_login_context(user, token):
         'sacmetag': serialize_cmetag(sacme_tag),
         'cmetags': CmeTagSerializer(profile.cmeTags, many=True).data
     }
-    context['subscription'] = serialize_subscription(subscription) if subscription else None
-    context['subscription-plan'] = serialize_plan(plan) if plan else None
+    context['subscription'] = serialize_subscription(user_subs) if user_subs else None
+    context['subscription-plan'] = serialize_plan(plan, user_subs) if plan else None
     return context
 
 @api_view()

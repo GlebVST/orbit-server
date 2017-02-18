@@ -582,11 +582,16 @@ class UserSubscriptionManager(models.Manager):
                 display_status = UserSubscription.UI_ACTIVE
 
             # create UserSubscription object in database
+            firstDate = timezone.make_aware(result.subscription.first_billing_date, pytz.utc)
             startDate = result.subscription.billing_period_start_date
-            if not startDate:
-                startDate = result.subscription.first_billing_date
+            if startDate:
+                startDate = timezone.make_aware(startDate, pytz.utc)
+            else:
+                startDate = firstDate
             endDate = result.subscription.billing_period_end_date
-            if not endDate:
+            if endDate:
+                endDate = timezone.make_aware(endDate, pytz.utc)
+            else:
                 endDate = startDate + relativedelta(months=plan.billingCycleMonths)
             user_subs = UserSubscription.objects.create(
                 user=user,
@@ -594,7 +599,7 @@ class UserSubscriptionManager(models.Manager):
                 subscriptionId=result.subscription.id,
                 display_status=display_status,
                 status=result.subscription.status,
-                billingFirstDate=result.subscription.first_billing_date,
+                billingFirstDate=firstDate,
                 billingStartDate=startDate,
                 billingEndDate=endDate,
                 billingCycle=result.subscription.current_billing_cycle
@@ -678,6 +683,35 @@ class UserSubscriptionManager(models.Manager):
             user_subs.save()
         return result
 
+
+    def checkTrialToActive(self, user_subs):
+        """
+            Check if user_subs is out of trial period.
+            Returns: bool if user_subs was saved with new data from bt subscription.
+        """
+        today = timezone.now()
+        saved = False
+        if user_subs.display_status == self.model.UI_TRIAL and (today > user_subs.billingFirstDate):
+            subscription = braintree.Subscription.find(user_subs.subscriptionId)
+            user_subs.status = subscription.status
+            if subscription.status == self.model.ACTIVE:
+                user_subs.display_status = self.model.UI_ACTIVE
+            elif subscription.status == self.models.PASTDUE:
+                user_subs.display_status = self.models.UI_SUSPENDED
+            startDate = subscription.billing_period_start_date
+            endDate = subscription.billing_period_end_date
+            if startDate:
+                startDate = timezone.make_aware(startDate, pytz.utc)
+                if user_subs.billingStartDate != startDate:
+                    user_subs.billingStartDate = startDate
+            if endDate:
+                endDate = timezone.make_aware(endDate, pytz.utc)
+                if user_subs.billingEndDate != endDate:
+                    user_subs.billingEndDate = endDate
+            user_subs.billingCycle = subscription.current_billing_cycle
+            user_subs.save()
+            saved = True
+        return saved
 
     def searchBtSubscriptionsByPlan(self, planId):
         """Search Braintree subscriptions by plan.
