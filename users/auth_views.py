@@ -78,7 +78,7 @@ def make_login_context(user, token):
     customer = Customer.objects.get(user=user)
     profile = Profile.objects.get(user=user)
     user_subs = UserSubscription.objects.getLatestSubscription(user)
-    UserSubscription.checkTrialToActive(user_subs)
+    UserSubscription.objects.checkTrialToActive(user_subs)
     sacme_tag = CmeTag.objects.get(name=CMETAG_SACME)
     # Get the subscription plan so that UI can display trial period
     plan = None
