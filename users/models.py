@@ -701,10 +701,12 @@ class UserSubscriptionManager(models.Manager):
             startDate = subscription.billing_period_start_date
             endDate = subscription.billing_period_end_date
             if startDate:
+                startDate = datetime.combine(startDate, datetime.min.time())
                 startDate = timezone.make_aware(startDate, pytz.utc)
                 if user_subs.billingStartDate != startDate:
                     user_subs.billingStartDate = startDate
             if endDate:
+                endDate = datetime.combine(endDate, datetime.min.time())
                 endDate = timezone.make_aware(endDate, pytz.utc)
                 if user_subs.billingEndDate != endDate:
                     user_subs.billingEndDate = endDate
