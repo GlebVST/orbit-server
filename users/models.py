@@ -29,6 +29,11 @@ DEGREE_DO = 'DO'
 SPONSOR_BRCME = 'TUSM'
 ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
 
+def makeAwareDatetime(a_date, tzinfo=pytz.utc):
+    """Convert <date> to <datetime> with timezone info"""
+    return timezone.make_aware(
+        datetime.combine(a_date, datetime.min.time()), tzinfo)
+
 @python_2_unicode_compatible
 class Country(models.Model):
     """Names of countries for country of practice.
@@ -582,15 +587,15 @@ class UserSubscriptionManager(models.Manager):
                 display_status = UserSubscription.UI_ACTIVE
 
             # create UserSubscription object in database
-            firstDate = timezone.make_aware(result.subscription.first_billing_date, pytz.utc)
+            firstDate = makeAwareDatetime(result.subscription.first_billing_date)
             startDate = result.subscription.billing_period_start_date
             if startDate:
-                startDate = timezone.make_aware(startDate, pytz.utc)
+                startDate = makeAwareDatetime(startDate)
             else:
                 startDate = firstDate
             endDate = result.subscription.billing_period_end_date
             if endDate:
-                endDate = timezone.make_aware(endDate, pytz.utc)
+                endDate = makeAwareDatetime(endDate)
             else:
                 endDate = startDate + relativedelta(months=plan.billingCycleMonths)
             user_subs = UserSubscription.objects.create(
@@ -671,7 +676,7 @@ class UserSubscriptionManager(models.Manager):
         Use case: User wants to cancel while they are still in UI_TRIAL.
         Cancel Braintree subscription - this is a terminal state. Once
             canceled, a subscription cannot be reactivated.
-        Update model: set display_status to UI_EXPIRED.
+        Update model: set display_status to UI_TRIAL_CANCELED.
         Reference: https://developers.braintreepayments.com/reference/request/subscription/cancel/python
         Can raise braintree.exceptions.not_found_error.NotFoundError
         Returns Braintree result object
@@ -679,7 +684,7 @@ class UserSubscriptionManager(models.Manager):
         result = braintree.Subscription.cancel(user_subs.subscriptionId)
         if result.is_success:
             user_subs.status = result.subscription.status
-            user_subs.display_status = self.model.UI_EXPIRED
+            user_subs.display_status = self.model.UI_TRIAL_CANCELED
             user_subs.save()
         return result
 
@@ -701,13 +706,11 @@ class UserSubscriptionManager(models.Manager):
             startDate = subscription.billing_period_start_date
             endDate = subscription.billing_period_end_date
             if startDate:
-                startDate = datetime.combine(startDate, datetime.min.time())
-                startDate = timezone.make_aware(startDate, pytz.utc)
+                startDate = makeAwareDatetime(startDate)
                 if user_subs.billingStartDate != startDate:
                     user_subs.billingStartDate = startDate
             if endDate:
-                endDate = datetime.combine(endDate, datetime.min.time())
-                endDate = timezone.make_aware(endDate, pytz.utc)
+                endDate = makeAwareDatetime(endDate)
                 if user_subs.billingEndDate != endDate:
                     user_subs.billingEndDate = endDate
             user_subs.billingCycle = subscription.current_billing_cycle
@@ -756,6 +759,7 @@ class UserSubscription(models.Model):
     UI_TRIAL = 'Trial'
     UI_ACTIVE = 'Active'
     UI_ACTIVE_CANCELED = 'Active-Canceled'
+    UI_TRIAL_CANCELED = 'Trial-Canceled'
     UI_SUSPENDED = 'Suspended'
     UI_EXPIRED = 'Expired'
     UI_STATUS_CHOICES = (
@@ -763,7 +767,8 @@ class UserSubscription(models.Model):
         (UI_ACTIVE, UI_ACTIVE),
         (UI_ACTIVE_CANCELED, UI_ACTIVE_CANCELED),
         (UI_SUSPENDED, UI_SUSPENDED),
-        (UI_EXPIRED, UI_EXPIRED)
+        (UI_EXPIRED, UI_EXPIRED),
+        (UI_TRIAL_CANCELED, UI_TRIAL_CANCELED)
     )
     # fields
     subscriptionId = models.CharField(max_length=36, unique=True)
