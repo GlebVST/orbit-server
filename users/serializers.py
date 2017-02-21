@@ -163,6 +163,12 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
     pageTitle = serializers.ReadOnlyField()
     expireDate = serializers.ReadOnlyField()
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
+    logo_url = serializers.SerializerMethodField()
+
+    def get_logo_url(self, obj):
+        """Return SPONSOR_BRCME logo_url"""
+        sponsor = Sponsor.objects.get(name=SPONSOR_BRCME)
+        return sponsor.logo_url
 
     class Meta:
         model = BrowserCmeOffer
@@ -173,7 +179,8 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
             'url',
             'pageTitle',
             'expireDate',
-            'credits'
+            'credits',
+            'logo_url'
         )
 
 class SponsorSerializer(serializers.ModelSerializer):
