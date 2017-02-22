@@ -47,19 +47,11 @@ class MakeRewardEntry(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
-        # get local customer instance for request.user
-        try:
-            customer = Customer.objects.get(user=request.user)
-        except ObjectDoesNotExist:
-            context = {
-                'success': False,
-                'error': 'Local customer object not found for user'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # create reward entry for feed test
         now = timezone.now()
         activityDate = now - timedelta(seconds=10)
-        entryType = EntryType.objects.get(name=ENTRYTYPE_REWARD)
+        expireDate = now + timedelta(days=1)
+        entryType = EntryType.objects.get(name=ENTRYTYPE_NOTIFICATION)
         with transaction.atomic():
             entry = Entry.objects.create(
                 user=request.user,
@@ -67,11 +59,9 @@ class MakeRewardEntry(APIView):
                 activityDate=activityDate,
                 description='Created for feed test'
             )
-            pointsEarned = Decimal('10.0')
-            rewardEntry = Reward.objects.create(
+            Notification.objects.create(
                 entry=entry,
-                rewardType='TEST-REWARD',
-                points=pointsEarned
+                expireDate=expireDate,
             )
         context = {
             'success': True,
