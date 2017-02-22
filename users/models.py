@@ -289,6 +289,10 @@ class BrowserCmeOffer(models.Model):
         on_delete=models.CASCADE,
         db_index=True
     )
+    sponsor = models.ForeignKey(Sponsor,
+        on_delete=models.PROTECT,
+        db_index=True
+    )
     activityDate = models.DateTimeField()
     url = models.URLField(max_length=500)
     pageTitle = models.TextField(blank=True)

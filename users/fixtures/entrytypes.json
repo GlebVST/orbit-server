@@ -13,10 +13,10 @@
   "model": "users.entrytype",
   "pk": 2,
   "fields": {
-    "name": "expired-browser-cme",
-    "description": "Expired Browser CME",
+    "name": "notification",
+    "description": "In-feed Notification",
     "created": "2016-11-26T08:32:59.150Z",
-    "modified": "2016-11-26T08:32:59.150Z"
+    "modified": "2017-02-22T00:42:02.543Z"
   }
 },
 {
@@ -27,16 +27,6 @@
     "description": "Self Reported CME",
     "created": "2016-11-26T08:33:14.581Z",
     "modified": "2016-11-26T08:33:14.581Z"
-  }
-},
-{
-  "model": "users.entrytype",
-  "pk": 4,
-  "fields": {
-    "name": "reward",
-    "description": "Reward",
-    "created": "2016-11-26T08:33:23.124Z",
-    "modified": "2016-11-26T08:33:23.124Z"
   }
 }
 ]

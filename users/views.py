@@ -204,6 +204,26 @@ class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
+# SubscriptionPlanPublic : for AllowAny
+class SubscriptionPlanPublic(APIView):
+    """This expects a single annual plan in the db which
+    must be in agreement with the Braintree Control Panel.
+    """
+    permission_classes = (permissions.AllowAny,)
+
+    def serialize_and_render(self, plan):
+        context = {'plan': None}
+        if plan:
+            s = SubscriptionPlanPublicSerializer(plan)
+            context['plan'] = s.data
+        return Response(context, status=status.HTTP_200_OK)
+
+    def get(self, request, format=None):
+        qset = SubscriptionPlan.objects.filter(active=True)
+        plan = qset[0] if qset.exists() else None
+        return self.serialize_and_render(plan)
+
+
 
 # custom pagination for BrowserCmeOfferList
 class BrowserCmeOfferPagination(PageNumberPagination):
@@ -225,34 +245,8 @@ class BrowserCmeOfferList(generics.ListAPIView):
             user=user,
             expireDate__gt=now,
             redeemed=False
-            ).order_by('expireDate')
+            ).select_related('sponsor').order_by('expireDate')
 
-class GetBrowserCmeOffer(APIView):
-    """
-    Find the earliest un-redeemed and unexpired offers order by expireDate
-    for the authenticated user.
-    If no offer exists, returns {offer: null}
-    """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def serialize_and_render(self, offer):
-        context = {'offer': None}
-        if offer:
-            s_offer = BrowserCmeOfferSerializer(offer)
-            context['offer'] = s_offer.data
-        return Response(context, status=status.HTTP_200_OK)
-
-    def get(self, request, format=None):
-        now = timezone.now()
-        qset = BrowserCmeOffer.objects.filter(
-            user=request.user,
-            expireDate__gt=now,
-            redeemed=False
-            ).order_by('expireDate')
-        if qset.exists():
-            offer = qset[0]
-        else:
-            offer = None
-        return self.serialize_and_render(offer)
 
 #
 # FEED

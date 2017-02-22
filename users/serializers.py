@@ -163,12 +163,8 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
     pageTitle = serializers.ReadOnlyField()
     expireDate = serializers.ReadOnlyField()
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    logo_url = serializers.SerializerMethodField()
-
-    def get_logo_url(self, obj):
-        """Return SPONSOR_BRCME logo_url"""
-        sponsor = Sponsor.objects.get(name=SPONSOR_BRCME)
-        return sponsor.logo_url
+    sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
+    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True)
 
     class Meta:
         model = BrowserCmeOffer
@@ -180,6 +176,7 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
             'pageTitle',
             'expireDate',
             'credits',
+            'sponsorId',
             'logo_url'
         )
 
@@ -368,11 +365,10 @@ class BRCmeCreateSerializer(serializers.Serializer):
             user: User instance
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
-        sponsor = Sponsor.objects.get(name=SPONSOR_BRCME)
         offer = validated_data['offerId']
         entry = Entry.objects.create(
             entryType=etype,
-            sponsor=sponsor,
+            sponsor=offer.sponsor,
             activityDate=offer.activityDate,
             description=validated_data.get('description'),
             user=validated_data.get('user')
@@ -419,10 +415,13 @@ class BRCmeUpdateSerializer(serializers.Serializer):
         entry = instance.entry
         entry.description = validated_data.get('description', entry.description)
         entry.save() # updates modified timestamp
-        # replace old tags with new tags (wholesale)
-        tag_ids = validated_data.get('tags', [])
-        if tag_ids:
-            entry.tags.set(tag_ids)
+        # if tags key is present: replace old with new (wholesale)
+        if 'tags' in validated_data:
+            tag_ids = validated_data['tags']
+            if tag_ids:
+                entry.tags.set(tag_ids)
+            else:
+                entry.tags.set([])
         instance.purpose = validated_data.get('purpose', instance.purpose)
         instance.planEffect = validated_data.get('planEffect', instance.planEffect)
         instance.save()
@@ -634,6 +633,23 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'created',
             'modified'
         )
+
+class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
+    price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
+    displayMonthlyPrice = serializers.SerializerMethodField()
+
+    def get_displayMonthlyPrice(self, obj):
+        """Returns True if the price should be divided by 12 to be displayed as a monthly price"""
+        return True
+
+    class Meta:
+        model = SubscriptionPlan
+        fields = (
+            'price',
+            'displayMonthlyPrice',
+            'trialDays',
+        )
+
 
 class UserSubscriptionSerializer(serializers.ModelSerializer):
     subscriptionId = serializers.ReadOnlyField()

@@ -42,6 +42,7 @@ def getUser(firstName=None, lastName=None, email=None):
         print('User filter parameter is required.')
 
 def makeOffers(user):
+    sponsor = Sponsor.objects.get(name=SPONSOR_BRCME)
     now = timezone.now()
     t1 = now - timedelta(days=20)
     for url in urls:
@@ -54,7 +55,8 @@ def makeOffers(user):
             url=url,
             pageTitle=urlname,
             expireDate=expireDate,
-            credits=0.5
+            credits=0.5,
+            sponsor=sponsor
         )
         print user.username, urlname, offer.pk
 
@@ -76,6 +78,7 @@ def redeemOffers(user):
             entry = Entry.objects.create(
                 entryType=etype,
                 user=user,
+                sponsor=offer.sponsor,
                 description='some description text',
                 activityDate=offer.activityDate
             )
