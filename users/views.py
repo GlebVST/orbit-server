@@ -236,7 +236,7 @@ class BrowserCmeOfferList(generics.ListAPIView):
     """
     serializer_class = BrowserCmeOfferSerializer
     pagination_class = BrowserCmeOfferPagination
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewOffer)
 
     def get_queryset(self):
         user = self.request.user
@@ -257,7 +257,7 @@ class FeedListPagination(PageNumberPagination):
 class FeedList(generics.ListAPIView):
     serializer_class = EntryReadSerializer
     pagination_class = FeedListPagination
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    permission_classes = (CanViewFeed, permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         user = self.request.user
@@ -265,17 +265,26 @@ class FeedList(generics.ListAPIView):
 
 class FeedEntryDetail(generics.RetrieveDestroyAPIView):
     serializer_class = EntryReadSerializer
-    permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = (CanViewFeed, IsOwnerOrAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         user = self.request.user
-        return Entry.objects.filter(user=user, valid=True).select_related('entryType')
+        return Entry.objects.filter(user=user, valid=True).select_related('entryType', 'sponsor')
+
+    def perform_destroy(self, instance):
+        """Entry must be of type srcme else raise ValidationError"""
+        if instance.entryType != ENTRYTYPE_SRCME:
+            raise serializers.ValidationError('Invalid entryType for deletion.')
 
     def delete(self, request, *args, **kwargs):
-        """Override to delete associated document if one exists"""
+        """Delete entry and any documents associated with it.
+        Currently, only SRCme entries can be deleted from the UI.
+        """
         instance = self.get_object()
-        if instance.document:
-            instance.document.delete()
+        if instance.documents.exists():
+            for doc in instance.documents.all():
+                logger.debug('Deleting document {0}'.format(doc))
+                doc.delete()
         return self.destroy(request, *args, **kwargs)
 
 class TagsMixin(object):
@@ -303,7 +312,7 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
     request, and sets the redeemed flag on the offer.
     """
     serializer_class = BRCmeCreateSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanPostBRCme)
 
     def perform_create(self, serializer, format=None):
         user = self.request.user
@@ -341,7 +350,7 @@ class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
     This action does not change the credits earned from the original creation.
     """
     serializer_class = BRCmeUpdateSerializer
-    permission_classes = [IsEntryOwner, TokenHasReadWriteScope]
+    permission_classes = (CanPostBRCme, IsEntryOwner, TokenHasReadWriteScope)
 
     def get_queryset(self):
         return BrowserCme.objects.select_related('entry')
@@ -369,7 +378,7 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
     Create SRCme Entry in the user's feed.
     """
     serializer_class = SRCmeFormSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanPostSRCme)
 
     def get_queryset(self):
         user = self.request.user
@@ -408,7 +417,7 @@ class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
     Update an existing SRCme Entry in the user's feed.
     """
     serializer_class = SRCmeFormSerializer
-    permission_classes = [IsEntryOwner, TokenHasReadWriteScope]
+    permission_classes = (CanPostSRCme, IsEntryOwner, TokenHasReadWriteScope)
 
     def get_queryset(self):
         return SRCme.objects.select_related('entry')
@@ -554,7 +563,7 @@ class CmeAggregateStats(APIView):
           type: string
           paramType: form
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
     def serialize_and_render(self, stats):
         context = {
             'result': stats

@@ -1,6 +1,18 @@
 from rest_framework import permissions
-
-GROUP_CONTENTADMIN = 'ContentAdmin'
+from django.contrib.auth.models import Group, Permission
+from .models import (
+    UserSubscription,
+    PERM_VIEW_OFFER,
+    PERM_VIEW_FEED,
+    PERM_VIEW_DASH,
+    PERM_POST_BRCME,
+    PERM_POST_SRCME,
+    PERM_PRINT_AUDIT_REPORT,
+    PERM_PRINT_BRCME_CERT
+)
+# Note: all groups must be created in the database using the Django Group model.
+GROUP_CONTENTADMIN = 'ContentAdmin' # Whitelist Admin (and other admin-level site content)
+GROUP_CMEREQADMIN = 'CmeReqAdmin'   # to edit Cme Requirements per Specialty (no model yet)
 
 class IsAdminOrAuthenticated(permissions.BasePermission):
     """Global permission (can be used for both list/detail) to check
@@ -77,3 +89,82 @@ class IsEntryOwner(permissions.BasePermission):
         is_owner = obj.entry.user.pk == request.user.pk
         return is_owner
 
+def hasUserSubscriptionPerm(user, codename):
+    """Gets the latest UserSubscription for the user
+    and checks if the permission given by codename
+    has the group of the subscription's display_status.
+    This expects a Group exists in the database for each
+    UserSubscription.display_status and assigned the
+    intended permissions.
+    Returns: bool
+    """
+    user_subs = UserSubscription.objects.getLatestSubscription(user)
+    if not user_subs:
+        return False
+    p = Permission.objects.get(codename=codename)
+    return p.group_set.filter(name=user_subs.display_status)
+
+class CanViewOffer(permissions.BasePermission):
+    """Global permission (can be used for both list/detail) to check
+        that user has the permission: PERM_VIEW_OFFER via the
+        latest subscription.
+    """
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        return hasUserSubscriptionPerm(request.user, codename=PERM_VIEW_OFFER)
+
+class CanViewFeed(permissions.BasePermission):
+    """Global permission (can be used for both list/detail) to check
+        that user has the permission: PERM_VIEW_FEED via the
+        latest subscription.
+    """
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        return hasUserSubscriptionPerm(request.user, codename=PERM_VIEW_FEED)
+
+class CanViewDashboard(permissions.BasePermission):
+    """Global permission to check that user has the permission:
+        PERM_VIEW_DASH via the latest subscription.
+    """
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        return hasUserSubscriptionPerm(request.user, codename=PERM_VIEW_DASH)
+
+class CanPrintCert(permissions.BasePermission):
+    """Global permission to check that user has the permission:
+        PERM_PRINT_BRCME_CERT via the latest subscription.
+    """
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        return hasUserSubscriptionPerm(request.user, codename=PERM_PRINT_BRCME_CERT)
+
+class CanPrintAuditReport(permissions.BasePermission):
+    """Global permission to check that user has the permission:
+        PERM_PRINT_AUDIT_REPORT via the latest subscription.
+    """
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        return hasUserSubscriptionPerm(request.user, codename=PERM_PRINT_AUDIT_REPORT)
+
+class CanPostSRCme(permissions.BasePermission):
+    """Global permission to check that user has the permission:
+        PERM_POST_SRCME via the latest subscription.
+    """
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        return hasUserSubscriptionPerm(request.user, codename=PERM_POST_SRCME)
+
+class CanPostBRCme(permissions.BasePermission):
+    """Global permission to check that user has the permission:
+        PERM_POST_BRCME via the latest subscription.
+    """
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        return hasUserSubscriptionPerm(request.user, codename=PERM_POST_BRCME)

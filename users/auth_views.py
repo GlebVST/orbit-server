@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from common.viewutils import render_to_json_response
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
-from .models import Profile, Customer, CmeTag, CMETAG_SACME, SubscriptionPlan, UserSubscription
+from .models import *
 from .serializers import ProfileSerializer, CmeTagSerializer
 
 logger = logging.getLogger(__name__)
@@ -47,15 +47,26 @@ def serialize_customer(customer):
         'customerId': customer.customerId
     }
 
-def serialize_plan(plan, user_subs):
+def serialize_permissions(user, user_subs):
     """
-    plan: SubscriptionPlan object
-    user_subs: latest UserSubscription or None
+    user_subs_perms: Permission queryset of the allowed permissions for the user
+    Returns list of dicts: [{codename:str, allowed:bool}]
+    for the permissions in models.ALL_PERMS.
     """
-    return {
-        'trialDays': plan.trialDays,
-        'allowTrial': user_subs is None
-    }
+    allowed_codes = []
+    # get any special admin groups that user is a member of
+    for g in user.groups.all():
+        allowed_codes.extend([p.codename for p in g.permissions.all()])
+    if user_subs:
+        user_subs_perms = UserSubscription.objects.getPermissions(user_subs) # Permission queryset
+        allowed_codes.extend([p.codename for p in user_subs_perms])
+    allowed_codes = set(allowed_codes)
+    perms = [{
+            'codename': codename,
+            'allow': codename in allowed_codes
+        } for codename in ALL_PERMS]
+    print(perms)
+    return perms
 
 def serialize_subscription(user_subs):
     return {
@@ -81,11 +92,6 @@ def make_login_context(user, token):
     if user_subs:
         UserSubscription.objects.checkTrialToActive(user_subs)
     sacme_tag = CmeTag.objects.get(name=CMETAG_SACME)
-    # Get the subscription plan so that UI can display trial period
-    plan = None
-    qset = SubscriptionPlan.objects.filter(active=True)
-    if qset.exists():
-        plan = qset[0]
     context = {
         'success': True,
         'token': token,
@@ -96,7 +102,8 @@ def make_login_context(user, token):
         'cmetags': CmeTagSerializer(profile.cmeTags, many=True).data
     }
     context['subscription'] = serialize_subscription(user_subs) if user_subs else None
-    context['subscription-plan'] = serialize_plan(plan, user_subs) if plan else None
+    context['allowTrial'] = user_subs is None  # allow a trial period if user has never had a subscription
+    context['permissions'] = serialize_permissions(user, user_subs)
     return context
 
 @api_view()

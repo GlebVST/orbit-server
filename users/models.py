@@ -7,7 +7,7 @@ import uuid
 from dateutil.relativedelta import *
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.db import models
 from django.db.models import Sum
 #from django.contrib.contenttypes.fields import GenericForeignKey
@@ -28,6 +28,26 @@ DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
 SPONSOR_BRCME = 'TUSM'
 ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
+# codenames for permissions
+PERM_VIEW_OFFER = u'view_offer'
+PERM_VIEW_FEED = u'view_feed'
+PERM_POST_SRCME = u'post_srcme'
+PERM_POST_BRCME = u'post_brcme'
+PERM_VIEW_DASH = u'view_dashboard'
+PERM_PRINT_BRCME_CERT = u'print_brcme_cert'
+PERM_PRINT_AUDIT_REPORT = u'print_audit_report'
+# default add permission on EligibleSite model
+PERM_POST_WHITELIST = u'add_eligiblesite'
+ALL_PERMS = (
+    PERM_VIEW_OFFER,
+    PERM_VIEW_FEED,
+    PERM_VIEW_DASH,
+    PERM_POST_BRCME,
+    PERM_POST_SRCME,
+    PERM_PRINT_AUDIT_REPORT,
+    PERM_PRINT_BRCME_CERT,
+    PERM_POST_WHITELIST
+)
 
 def makeAwareDatetime(a_date, tzinfo=pytz.utc):
     """Convert <date> to <datetime> with timezone info"""
@@ -307,6 +327,10 @@ class BrowserCmeOffer(models.Model):
         return self.url
     class Meta:
         verbose_name_plural = 'BrowserCME Offers'
+        # list of (codename, human_readable_permission_name)
+        permissions = (
+            (PERM_VIEW_OFFER, 'Can view BrowserCmeOffer'),
+        )
 
 # Extensible list of entry types that can appear in a user's feed
 @python_2_unicode_compatible
@@ -415,6 +439,16 @@ class Entry(models.Model):
 
     class Meta:
         verbose_name_plural = 'Entries'
+        # custom permissions
+        # https://docs.djangoproject.com/en/1.10/topics/auth/customizing/#custom-permissions
+        permissions = (
+            (PERM_VIEW_FEED, 'Can view Feed'),
+            (PERM_VIEW_DASH, 'Can view Dashboard'),
+            (PERM_POST_BRCME, 'Can redeem BrowserCmeOffer'),
+            (PERM_POST_SRCME, 'Can post Self-reported Cme entry'),
+            (PERM_PRINT_AUDIT_REPORT, 'Can print/share audit report'),
+            (PERM_PRINT_BRCME_CERT, 'Can print/share BrowserCme certificate'),
+        )
 
 # Notification entry (message to user in feed)
 @python_2_unicode_compatible
@@ -554,6 +588,13 @@ class UserSubscriptionManager(models.Manager):
         qset = UserSubscription.objects.filter(user=user).order_by('-created')
         if qset.exists():
             return qset[0]
+
+    def getPermissions(self, user_subs):
+        """Return the permissions for the group given by user_subs.display_status
+        Returns: Permission queryset
+        """
+        g = Group.objects.get(name=user_subs.display_status)
+        return g.permissions.all().order_by('codename')
 
     def allowNewSubscription(self, user):
         """If user has no existing subscriptions, or latest subscription is canceled/expired, then allow new subscription.

@@ -623,8 +623,10 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
     displayMonthlyPrice = serializers.SerializerMethodField()
 
     def get_displayMonthlyPrice(self, obj):
-        """Returns True if the price should be divided by 12 to be displayed as a monthly price"""
-        return True
+        """Returns True if the price should be divided by 12 to be displayed as a monthly price.
+        2017-02-28: changed to False per Ram
+        """
+        return False
 
     class Meta:
         model = SubscriptionPlan
@@ -646,8 +648,10 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
     displayMonthlyPrice = serializers.SerializerMethodField()
 
     def get_displayMonthlyPrice(self, obj):
-        """Returns True if the price should be divided by 12 to be displayed as a monthly price"""
-        return True
+        """Returns True if the price should be divided by 12 to be displayed as a monthly price.
+        2017-02-28: changed to False per Ram
+        """
+        return False
 
     class Meta:
         model = SubscriptionPlan
