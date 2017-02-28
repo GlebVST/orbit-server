@@ -572,8 +572,8 @@ class CmeAggregateStats(APIView):
 
     def get(self, request, start, end):
         try:
-            startdt = timezone.make_aware(datetime.datetime.utcfromtimestamp(int(start)), pytz.utc)
-            enddt = timezone.make_aware(datetime.datetime.utcfromtimestamp(int(end)), pytz.utc)
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
         except ValueError:
             context = {
                 'error': 'Invalid date parameters'
