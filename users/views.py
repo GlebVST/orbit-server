@@ -590,10 +590,12 @@ class CmeAggregateStats(APIView):
         satag = CmeTag.objects.get(name=CMETAG_SACME)
         stats = {
             ENTRYTYPE_BRCME: {
-                'total': Entry.objects.sumBrowserCme(request.user, startdt, enddt)
+                'total': Entry.objects.sumBrowserCme(request.user, startdt, enddt),
+                'untagged': Entry.objects.sumBrowserCme(request.user, startdt, enddt, untaggedOnly=True)
             },
             ENTRYTYPE_SRCME: {
                 'total': Entry.objects.sumSRCme(request.user, startdt, enddt),
+                'untagged': Entry.objects.sumSRCme(request.user, startdt, enddt, untaggedOnly=True),
                 satag.name: Entry.objects.sumSRCme(request.user, startdt, enddt, satag)
             }
         }

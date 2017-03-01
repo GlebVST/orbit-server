@@ -9,7 +9,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User, Group
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Count, Sum
 #from django.contrib.contenttypes.fields import GenericForeignKey
 #from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -348,29 +348,34 @@ class EntryType(models.Model):
 # A entry belongs to a user, and is defined by an activityDate and a description.
 class EntryManager(models.Manager):
 
-    def sumSRCme(self, user, startDate, endDate, tag=None):
+    def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
-        Total Srcme credits over the given time period for
-        the given user. Optional extra filter by cmetag.
+        Total Srcme credits over the given time period for the given user.
+        Optional filter by specific tag (cmeTag object).
+        Optional filter by untagged only. This arg cannot be specified together with tag.
         """
         filter_kwargs = dict(
             user=user,
+            entryType__name=ENTRYTYPE_SRCME,
             activityDate__gte=startDate,
             activityDate__lte=endDate
         )
         if tag:
             filter_kwargs['tags__exact'] = tag
-        qset = self.model.objects.filter(**filter_kwargs)
+        qset = self.model.objects.select_related('entryType').filter(**filter_kwargs)
+        if untaggedOnly:
+            qset = qset.annotate(num_tags=Count('tags')).filter(num_tags=0)
         total = qset.aggregate(credit_sum=Sum('srcme__credits'))
         credit_sum = total['credit_sum']
         if credit_sum:
             return float(credit_sum)
         return 0
 
-    def sumBrowserCme(self, user, startDate, endDate, tag=None):
+    def sumBrowserCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
-        Total BrowserCme credits over the given time period for
-        the given user. Optional extra filter by cmetag.
+        Total BrowserCme credits over the given time period for the given user.
+        Optional filter by specific tag (cmeTag object).
+        Optional filter by untagged only. This arg cannot be specified together with tag.
         """
         filter_kwargs = dict(
             entry__user=user,
@@ -380,6 +385,8 @@ class EntryManager(models.Manager):
         if tag:
             filter_kwargs['entry__tags__exact'] = tag
         qset = BrowserCme.objects.select_related('entry').filter(**filter_kwargs)
+        if untaggedOnly:
+            qset = qset.annotate(num_tags=Count('entry__tags')).filter(num_tags=0)
         total = qset.aggregate(credit_sum=Sum('credits'))
         credit_sum = total['credit_sum']
         if credit_sum:
