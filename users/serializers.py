@@ -126,6 +126,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'degrees',
             'specialties',
             'verified',
+            'cmeDuedate',
             'isNPIComplete',
             'isSignupComplete',
             'created',
@@ -133,12 +134,31 @@ class ProfileSerializer(serializers.ModelSerializer):
         )
 
     def update(self, instance, validated_data):
-        """If contactEmail changed and profile is already verified, then reset verified to False"""
+        """
+        1. If contactEmail changed and profile is already verified:
+            then reset verified to False
+        2. If any new specialties added, then check for new cmeTags.
+            Note: this only adds new tags to profile, it does not remove
+            any old tags b/c they can be associated with user's feed entries
+            and hence needed by the Dashboard.
+        """
         reset_verify = False
+        upd_cmetags = False
         newEmail = validated_data.get('contactEmail', None)
         if newEmail and newEmail != instance.contactEmail and instance.verified:
             reset_verify = True
+        pracSpecs = validated_data.get('specialties', [])
+        tag_ids = set([t.pk for t in instance.cmeTags.all()])
+        for ps in pracSpecs:
+            logger.debug(ps.name)
+            for t in ps.cmeTags.all():
+                if t.pk not in tag_ids:
+                    tag_ids.add(t.pk)
+                    logger.debug('New profile.cmeTag: {0}'.format(t))
+                    upd_cmetags = True
         instance = super(ProfileSerializer, self).update(instance, validated_data)
+        if upd_cmetags:
+            instance.cmeTags.set(list(tag_ids))
         if reset_verify:
             instance.verified = False
             instance.save()
@@ -706,7 +726,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
         model = EligibleSite
         fields = (
             'id',
-            'domain_url',
+            'domain_name',
             'domain_title',
             'example_url',
             'example_title',

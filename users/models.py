@@ -152,6 +152,7 @@ class Profile(models.Model):
     degrees = models.ManyToManyField(Degree, blank=True) # TODO: switch to single ForeignKey
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     verified = models.BooleanField(default=False)
+    cmeDuedate = models.DateTimeField(null=True, help_text='Due date for CME requirements fulfillment')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -551,16 +552,15 @@ class EligibleSite(models.Model):
     To start, we will have a manual system for translating data in this model
     into the AllowedUrl model.
     """
-    domain_url = models.URLField(max_length=500,
-        help_text='e.g. https://www.wikipedia.org/')
-    domain_title = models.CharField(max_length=300, blank=True,
+    domain_name = models.CharField(max_length=100,
+        help_text='wikipedia.org')
+    domain_title = models.CharField(max_length=300,
         help_text='e.g. Wikipedia Anatomy Pages')
-    is_valid_domurl = models.BooleanField(default=True)
     example_url = models.URLField(max_length=1000,
         help_text='A URL within the given domain')
     example_title = models.CharField(max_length=300, blank=True,
         help_text='Label for the example URL')
-    is_valid_expurl = models.BooleanField(default=True)
+    is_valid_expurl = models.BooleanField(default=True, help_text='Is example_url a valid URL')
     description = models.CharField(max_length=500, blank=True)
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     needs_ad_block = models.BooleanField(default=False)
@@ -568,8 +568,7 @@ class EligibleSite(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.domain_url
-
+        return self.domain_title
 
 # Recurring Billing Plans
 # https://developers.braintreepayments.com/guides/recurring-billing/plans
@@ -848,4 +847,3 @@ class UserSubscription(models.Model):
 
     def __str__(self):
         return self.subscriptionId
-

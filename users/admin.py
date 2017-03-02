@@ -14,7 +14,7 @@ class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'verified', 'npiNumber', 'country', 'inviter', 'modified')
+    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'verified', 'npiNumber', 'country', 'inviter', 'cmeDuedate', 'modified')
     list_filter = ('country','verified')
     list_select_related = ('country','inviter')
     search_fields = ['npiNumber', 'lastName']
@@ -42,7 +42,8 @@ class EntryAdmin(admin.ModelAdmin):
     list_filter = ('entryType', 'valid')
 
 class EligibleSiteAdmin(admin.ModelAdmin):
-    list_display = ('domain_url', 'domain_title', 'example_title', 'example_url', 'modified')
+    list_display = ('domain_name', 'domain_title', 'example_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
+    list_filter = ('is_valid_expurl', 'needs_ad_block')
 
 
 class UserFeedbackAdmin(admin.ModelAdmin):

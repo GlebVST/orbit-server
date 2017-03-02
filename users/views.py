@@ -54,13 +54,13 @@ class PracticeSpecialtyList(generics.ListAPIView):
     queryset = PracticeSpecialty.objects.all().order_by('name')
     serializer_class = PracticeSpecialtyListSerializer
     pagination_class = LongPagination
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = (IsContentAdminOrAny,)
 
 
 class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = PracticeSpecialty.objects.all()
     serializer_class = PracticeSpecialtySerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = (IsContentAdminOrAny,)
 
 # CmeTag
 class CmeTagList(generics.ListCreateAPIView):
