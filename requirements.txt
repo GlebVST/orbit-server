@@ -38,3 +38,5 @@ s3transfer==0.1.10
 simplejson==3.10.0
 six==1.10.0
 uritemplate==3.0.0
+reportlab==3.3.0
+hashids==1.2.0

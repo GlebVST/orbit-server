@@ -847,3 +847,23 @@ class UserSubscription(models.Model):
 
     def __str__(self):
         return self.subscriptionId
+
+def certificate_document_path(instance, filename):
+    return '{0}/uid_{1}/{2}'.format(settings.CERTIFICATE_MEDIA_BASEDIR, instance.user.id, filename)
+
+@python_2_unicode_compatible
+class Certificate(models.Model):
+    user = models.ForeignKey(User,
+                             on_delete=models.CASCADE,
+                             db_index=True
+                             )
+    referenceId = models.CharField(max_length=20, blank=True, help_text='alphanum key of the certitficate')
+    name = models.CharField(max_length=255, blank=True, help_text='Name on certificate')
+    startDate = models.DateTimeField()
+    endDate = models.DateTimeField()
+    credits = models.DecimalField(max_digits=5, decimal_places=2)
+    document = models.FileField(upload_to=certificate_document_path)
+    created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name

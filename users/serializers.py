@@ -733,3 +733,17 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
             'description',
             'specialties'
         )
+
+class CertificateSerializer(serializers.ModelSerializer):
+    url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
+    class Meta:
+        model = Certificate
+        fields = (
+            'referenceId',
+            'url',
+            'name',
+            'startDate',
+            'endDate',
+            'credits',
+            'created'
+        )

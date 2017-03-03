@@ -23,6 +23,30 @@ from django.template import Context
 from django.template.loader import render_to_string, get_template
 from django.conf import settings
 
+import copy
+import StringIO
+from PyPDF2 import PdfFileWriter, PdfFileReader
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import Paragraph
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT
+from django.http import HttpResponse
+from reportlab.lib.fonts import addMapping
+from glob import glob
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
+from hashids import Hashids
+from django.utils.dateformat import DateFormat
+
+FONT_CHARACTER_TABLES = {}
+for font_file in glob('{0}/fonts/*.ttf'.format(settings.PDF_TEMPLATES_DIR)):
+    font_name = os.path.basename(os.path.splitext(font_file)[0])
+    ttf = TTFont(font_name, font_file)
+    FONT_CHARACTER_TABLES[font_name] = ttf.face.charToGlyph.keys()
+    pdfmetrics.registerFont(TTFont(font_name, font_file))
 # Country
 class CountryList(generics.ListCreateAPIView):
     queryset = Country.objects.all().order_by('id')
@@ -162,7 +186,7 @@ class VerifyProfileEmail(APIView):
         ctx = {
             'profile': user.profile,
             'customer': customer,
-            'domain': settings.EMAIL_DOMAIN_REFERENCE
+            'domain': settings.DOMAIN_REFERENCE
         }
         message = get_template('email/verification.html').render(Context(ctx))
         msg = EmailMessage(subject, message, to=[user.profile.contactEmail], from_email=from_email)
@@ -603,3 +627,167 @@ class CmeAggregateStats(APIView):
             stats[ENTRYTYPE_BRCME][tag.name] = Entry.objects.sumBrowserCme(request.user, startdt, enddt, tag)
             stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(request.user, startdt, enddt, tag)
         return self.serialize_and_render(stats)
+
+#
+# PDF
+#
+class CmeCertificatePdf(APIView):
+    """
+    This view expects a start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1) as URL parameters. It calculates
+    the total CME credit for the time period for the current
+    user, generates certificate record with PDF printout and stores that on S3
+
+    parameters:
+        - name: start
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: end
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+    """
+    # permission_classes = (permissions.AllowAny,)
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    def post(self, request, start, end):
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            profile = Profile.objects.get(user=request.user)
+        except Profile.DoesNotExist:
+            context = {
+                'error': 'Invalid user. No profile found.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        degrees = profile.degrees.all()
+        certificateName = "{0} {1}, {2}".format(profile.firstName, profile.lastName, ", ".join(str(degree.abbrev) for degree in degrees))
+
+        browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt)
+        srCmeTotal = Entry.objects.sumSRCme(request.user, startdt, enddt)
+        cmeTotal = browserCmeTotal+ srCmeTotal
+        hashids = Hashids(salt=settings.HASHIDS_SALT, min_length = 10)
+        certificate = Certificate(
+            name = certificateName,
+            startDate = startdt,
+            endDate = enddt,
+            credits = cmeTotal,
+            user=request.user
+        )
+        certificate.save()
+        certificate.referenceId = hashids.encode(certificate.id)
+        isVerified = any(d.abbrev.lower() == "DO" or d.abbrev.lower() == "MD" for d in degrees)
+        pdf_blob = self.generateCertificate(isVerified, certificate.referenceId, certificateName, cmeTotal, startdt, enddt, certificate.created)
+        cf = ContentFile(pdf_blob) # Create a ContentFile from the output
+        certificate.document.save("{0}.pdf".format(certificate.referenceId), cf, save=True)
+
+        out_serializer = CertificateSerializer(certificate)
+        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
+    # just for easier testing PDF generation todo remove later
+    def get(self, request, start, end):
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
+        pdf_blob = self.generateCertificate(False, "EDxBbe2mdV", "Mike Bharambeson", 250.4, startdt, enddt, enddt)
+        cf = ContentFile(pdf_blob) # Create a ContentFile from the output
+
+        response = HttpResponse(content=cf, content_type='application/pdf')
+        response['Content-Disposition'] = 'inline; filename="cme-certificate.pdf"'
+        return response
+
+    def generateCertificate(self, verified, reference, certificateName, credit, startDate, endDate, issued):
+        template_pdf = PdfFileReader(
+            file("{0}/cme-certificate-participation.pdf".format(settings.PDF_TEMPLATES_DIR), "rb"), strict=False
+        )
+        if verified:
+            template_pdf = PdfFileReader(
+                file("{0}/cme-certificate-verified.pdf".format(settings.PDF_TEMPLATES_DIR), "rb"), strict=False
+            )
+        # This file is overlaid on the template certificate
+        overlay_pdf_buffer = StringIO.StringIO()
+        pdfCanvas = canvas.Canvas(overlay_pdf_buffer, pagesize=landscape(A4))
+        addMapping('OpenSans-Light', 0, 0, 'OpenSans-Light')
+        addMapping('OpenSans-Light', 0, 1, 'OpenSans-LightItalic')
+        addMapping('OpenSans-Light', 1, 0, 'OpenSans-Bold')
+        addMapping('OpenSans-Regular', 0, 0, 'OpenSans-Regular')
+        addMapping('OpenSans-Regular', 0, 1, 'OpenSans-Italic')
+        addMapping('OpenSans-Regular', 1, 0, 'OpenSans-Bold')
+        addMapping('OpenSans-Regular', 1, 1, 'OpenSans-BoldItalic')
+        styleOpenSans = ParagraphStyle(name="opensans-regular", leading=10, fontName='OpenSans-Bold')
+        styleOpenSansLight = ParagraphStyle(name="opensans-light", leading=10, fontName='OpenSans-Regular')
+
+        WIDTH = 297  # width in mm (A4)
+        HEIGHT = 210  # hight in mm (A4)
+        LEFT_INDENT = 49  # mm from the left side to write the text
+        RIGHT_INDENT = 49  # mm from the right side for the CERTIFICATE
+        # CLIENT NAME
+        styleOpenSans.fontSize = 20
+        styleOpenSans.leading = 10
+        styleOpenSans.textColor = colors.Color(0, 0, 0)
+        styleOpenSans.alignment = TA_LEFT
+
+        styleOpenSansLight.fontSize = 12
+        styleOpenSansLight.leading = 10
+        styleOpenSansLight.textColor = colors.Color(
+            0.1, 0.1, 0.1)
+        styleOpenSansLight.alignment = TA_LEFT
+
+        paragraph = Paragraph(certificateName, styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
+
+        paragraph = Paragraph("{0} - {1}".format(DateFormat(startDate).format('d F Y'), DateFormat(endDate).format('d F Y')), styleOpenSansLight)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12 * mm, 65 * mm)
+
+        styleOpenSans.fontSize = 14
+        paragraph = Paragraph("{0}".format(credit), styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12 * mm, 53.83 * mm)
+
+        styleOpenSans.fontSize = 9
+        paragraph = Paragraph("Issued: {0}".format(DateFormat(issued).format('d F Y')), styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 12 * mm)
+
+        paragraph = Paragraph("https://{0}/verify/{1}".format(settings.DOMAIN_REFERENCE, reference), styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 127.5 * mm, 12 * mm)
+
+        if not verified:
+            styleOpenSansLight.fontSize = 7
+            paragraph = Paragraph("{0}".format(credit), styleOpenSansLight)
+            paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+            paragraph.drawOn(pdfCanvas, 49 * mm, 30.8 * mm)
+
+
+        pdfCanvas.showPage()
+        pdfCanvas.save()
+        # Merge the overlay with the template, then write it to file
+        writer = PdfFileWriter()
+        overlay = PdfFileReader(overlay_pdf_buffer, strict=False)
+        mergedPage = copy.copy(
+            PdfFileReader(file("{0}/blank.pdf".format(settings.PDF_TEMPLATES_DIR), "rb"), strict=False)).getPage(0)
+        mergedPage.mergePage(template_pdf.getPage(0))
+        mergedPage.mergePage(overlay.getPage(0))
+        writer.addPage(mergedPage)
+        output = StringIO.StringIO()
+        writer.write(output)
+        return output.getvalue()
+
+

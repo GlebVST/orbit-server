@@ -56,6 +56,7 @@ AWS_DEFAULT_ACL = 'private'
 AWS_S3_ENCRYPTION = True
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 FEED_MEDIA_BASEDIR = 'entries'
+CERTIFICATE_MEDIA_BASEDIR = 'certificates'
 MEDIA_URL = "http://%s.s3.amazonaws.com/%s/" % (AWS_STORAGE_BUCKET_NAME, FEED_MEDIA_BASEDIR)
 
 # File Upload settings
@@ -134,6 +135,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'mysite.urls'
+
+PDF_TEMPLATES_DIR = os.path.join(BASE_DIR, 'pdf_templates')
 
 TEMPLATES = [
     {
@@ -266,4 +269,6 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_FROM = 'mission-control@orbitcme.com'
 EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
-EMAIL_DOMAIN_REFERENCE = 'test1.orbitcme.com'
+DOMAIN_REFERENCE = 'test1.orbitcme.com'
+
+HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
