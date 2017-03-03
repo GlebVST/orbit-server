@@ -57,7 +57,7 @@ AWS_S3_ENCRYPTION = True
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 FEED_MEDIA_BASEDIR = 'entries'
 CERTIFICATE_MEDIA_BASEDIR = 'certificates'
-MEDIA_URL = "http://%s.s3.amazonaws.com/%s/" % (AWS_STORAGE_BUCKET_NAME, FEED_MEDIA_BASEDIR)
+MEDIA_URL = "http://%s.s3.amazonaws.com/" % AWS_STORAGE_BUCKET_NAME
 
 # File Upload settings
 # The maximum size (in bytes) that an upload will be before it gets streamed to the file system
