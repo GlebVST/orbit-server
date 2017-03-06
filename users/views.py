@@ -684,31 +684,13 @@ class CmeCertificatePdf(APIView):
         )
         certificate.save()
         certificate.referenceId = hashids.encode(certificate.id)
-        isVerified = any(d.abbrev.lower() == "DO" or d.abbrev.lower() == "MD" for d in degrees)
+        isVerified = any(d.abbrev.lower() == "DO" or d.abbrev.lower() == "md" for d in degrees)
         pdf_blob = self.generateCertificate(isVerified, certificate.referenceId, certificateName, cmeTotal, startdt, enddt, certificate.created)
         cf = ContentFile(pdf_blob) # Create a ContentFile from the output
         certificate.document.save("{0}.pdf".format(certificate.referenceId), cf, save=True)
 
         out_serializer = CertificateSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
-
-    # just for easier testing PDF generation todo remove later
-    def get(self, request, start, end):
-        try:
-            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
-            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
-        except ValueError:
-            context = {
-                'error': 'Invalid date parameters'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-
-        pdf_blob = self.generateCertificate(False, "EDxBbe2mdV", "Mike Bharambeson", 250.4, startdt, enddt, enddt)
-        cf = ContentFile(pdf_blob) # Create a ContentFile from the output
-
-        response = HttpResponse(content=cf, content_type='application/pdf')
-        response['Content-Disposition'] = 'inline; filename="cme-certificate.pdf"'
-        return response
 
     def generateCertificate(self, verified, reference, certificateName, credit, startDate, endDate, issued):
         template_pdf = PdfFileReader(
@@ -753,27 +735,33 @@ class CmeCertificatePdf(APIView):
 
         paragraph = Paragraph("{0} - {1}".format(DateFormat(startDate).format('d F Y'), DateFormat(endDate).format('d F Y')), styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12 * mm, 65 * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 65 * mm)
 
         styleOpenSans.fontSize = 14
-        paragraph = Paragraph("{0}".format(credit), styleOpenSans)
+        text = "<i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded"
+        if not verified:
+            text = "Hours of Participation Awarded"
+        paragraph = Paragraph("{0} {1}".format(credit, text), styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12 * mm, 53.83 * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 53.83 * mm)
 
         styleOpenSans.fontSize = 9
         paragraph = Paragraph("Issued: {0}".format(DateFormat(issued).format('d F Y')), styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
         paragraph.drawOn(pdfCanvas, 12.2 * mm, 12 * mm)
 
-        paragraph = Paragraph("https://{0}/verify/{1}".format(settings.DOMAIN_REFERENCE, reference), styleOpenSans)
+        paragraph = Paragraph("https://{0}/certificate/{1}".format(settings.DOMAIN_REFERENCE, reference), styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
         paragraph.drawOn(pdfCanvas, 127.5 * mm, 12 * mm)
 
         if not verified:
             styleOpenSansLight.fontSize = 7
-            paragraph = Paragraph("{0}".format(credit), styleOpenSansLight)
+            styleOpenSansLight.textColor = colors.Color(
+                0.3, 0.3, 0.3)
+            text = "This activity was designated for {0} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented in accordance with the Essential Areas <br/>and policies of the Accreditation Council for Continuing Medical Education through the joint providership Tufts University School of Medicine (TUSM) and <br/>Transcend Review, Inc. TUSM is accredited by the ACCME to provide continuing education for physicians."
+            paragraph = Paragraph(text.format(credit), styleOpenSansLight)
             paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-            paragraph.drawOn(pdfCanvas, 49 * mm, 30.8 * mm)
+            paragraph.drawOn(pdfCanvas, 12.2 * mm, 24 * mm)
 
 
         pdfCanvas.showPage()
@@ -791,3 +779,25 @@ class CmeCertificatePdf(APIView):
         return output.getvalue()
 
 
+class CmeCertificate(APIView):
+    """
+    This view expects a certificate reference ID and allows a public acccess
+
+    parameters:
+        - name: referenceId
+          description: unique certificate ID
+          required: true
+          type: string
+          paramType: query
+    """
+    permission_classes = (permissions.AllowAny,)
+    def get(self, request, referenceId):
+        try:
+            certificate = Certificate.objects.get(referenceId=referenceId)
+        except Certificate.DoesNotExist:
+            context = {
+                'error': 'Invalid certificate ID or not found'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        out_serializer = CertificateSerializer(certificate)
+        return Response(out_serializer.data, status=status.HTTP_200_OK)

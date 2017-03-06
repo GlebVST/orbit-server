@@ -99,6 +99,7 @@ api_patterns = [
     # dashboard
     url(r'^dashboard/cme-aggregate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CmeAggregateStats.as_view()),
     url(r'^dashboard/cme-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CmeCertificatePdf.as_view()),
+    url(r'^dashboard/cme-certificate/(?P<referenceId>\w+)/?$', views.CmeCertificate.as_view()),
 
     # debug
     url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
