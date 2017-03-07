@@ -684,7 +684,7 @@ class CmeCertificatePdf(APIView):
         )
         certificate.save()
         certificate.referenceId = hashids.encode(certificate.id)
-        isVerified = any(d.abbrev.lower() == "DO" or d.abbrev.lower() == "md" for d in degrees)
+        isVerified = any(d.abbrev.lower() == "do" or d.abbrev.lower() == "md" for d in degrees)
         pdf_blob = self.generateCertificate(isVerified, certificate.referenceId, certificateName, cmeTotal, startdt, enddt, certificate.created)
         cf = ContentFile(pdf_blob) # Create a ContentFile from the output
         certificate.document.save("{0}.pdf".format(certificate.referenceId), cf, save=True)
