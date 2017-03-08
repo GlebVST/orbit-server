@@ -79,6 +79,8 @@ SOCIAL_AUTH_FACEBOOK_KEY = os.environ.get('ORBIT_FB_AUTH_KEY')
 SOCIAL_AUTH_FACEBOOK_SECRET = os.environ.get('ORBIT_FB_AUTH_SECRET')
 if not DEBUG:
     SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
+SOCIAL_AUTH_STRATEGY = 'social_django.strategy.DjangoStrategy'
+SOCIAL_AUTH_STORAGE = 'social_django.models.DjangoStorage'
 # PSA auth backends
 AUTHENTICATION_BACKENDS = (
     # Facebook OAuth2
