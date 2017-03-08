@@ -4,7 +4,7 @@ from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from social.apps.django_app.utils import psa
+from social_django.utils import psa
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 TPL_DIR = 'users'
 
 def ss_login(request):
-    #print("host: {0}".format(request.get_host())) # to test if nginx passes correct host to django
+    logger.debug("host: {0}".format(request.get_host())) # to test if nginx passes correct host to django
     return render(request, os.path.join(TPL_DIR, 'login.html'))
 
 def ss_login_error(request):

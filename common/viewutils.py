@@ -19,7 +19,6 @@ class JSONResponse(HttpResponse):
 def render_to_json_response(context, status_code=200, **response_kwargs):
     response_kwargs['status'] = status_code
     resp = JSONResponse(context, **response_kwargs)
-    resp['X-Frame-Options'] = 'ALLOWALL'
     return resp
 
 # used by non-DRF cb views
@@ -27,7 +26,6 @@ class JsonResponseMixin(object):
     def render_to_json_response(self, context, status_code=200, **response_kwargs):
         response_kwargs['status'] = status_code
         resp = JSONResponse(context, **response_kwargs)
-        resp['X-Frame-Options'] = 'ALLOWALL'
         return resp
 
 def parseUriDomain(url):
