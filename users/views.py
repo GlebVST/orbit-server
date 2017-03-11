@@ -1,16 +1,20 @@
 from datetime import datetime
-from decimal import Decimal
+from hashids import Hashids
 from pprint import pprint
 from smtplib import SMTPException
 
 import pytz
+from django.conf import settings
 from django.contrib.auth.models import User
+from django.core.mail import send_mail, EmailMessage
 from django.db import transaction
-from django.http import QueryDict
+from django.template import Context
+from django.template.loader import get_template
 from django.utils import timezone
+
 from rest_framework import generics, permissions, status, serializers
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.parsers import FormParser,MultiPartParser
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
@@ -18,35 +22,8 @@ from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasS
 from .models import *
 from .serializers import *
 from .permissions import *
-from django.core.mail import send_mail, EmailMessage
-from django.template import Context
-from django.template.loader import render_to_string, get_template
-from django.conf import settings
+from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate
 
-import copy
-import StringIO
-from PyPDF2 import PdfFileWriter, PdfFileReader
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT
-from django.http import HttpResponse
-from reportlab.lib.fonts import addMapping
-from glob import glob
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
-from hashids import Hashids
-from django.utils.dateformat import DateFormat
-
-FONT_CHARACTER_TABLES = {}
-for font_file in glob('{0}/fonts/*.ttf'.format(settings.PDF_TEMPLATES_DIR)):
-    font_name = os.path.basename(os.path.splitext(font_file)[0])
-    ttf = TTFont(font_name, font_file)
-    FONT_CHARACTER_TABLES[font_name] = ttf.face.charToGlyph.keys()
-    pdfmetrics.registerFont(TTFont(font_name, font_file))
 # Country
 class CountryList(generics.ListCreateAPIView):
     queryset = Country.objects.all().order_by('id')
@@ -631,7 +608,7 @@ class CmeAggregateStats(APIView):
 #
 # PDF
 #
-class CmeCertificatePdf(APIView):
+class CreateCmeCertificatePdf(APIView):
     """
     This view expects a start date and end date in UNIX epoch format
     (number of seconds since 1970/1/1) as URL parameters. It calculates
@@ -650,12 +627,16 @@ class CmeCertificatePdf(APIView):
           type: string
           paramType: form
     """
-    # permission_classes = (permissions.AllowAny,)
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
     def post(self, request, start, end):
         try:
             startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
             enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+            if startdt >= enddt:
+                context = {
+                    'error': 'Start date must be prior to End Date.'
+                }
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
         except ValueError:
             context = {
                 'error': 'Invalid date parameters'
@@ -668,13 +649,19 @@ class CmeCertificatePdf(APIView):
                 'error': 'Invalid user. No profile found.'
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        degrees = profile.degrees.all()
-        certificateName = "{0} {1}, {2}".format(profile.firstName, profile.lastName, ", ".join(str(degree.abbrev) for degree in degrees))
-
+        # get total cme credits earned by user in date range
         browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt)
         srCmeTotal = Entry.objects.sumSRCme(request.user, startdt, enddt)
         cmeTotal = browserCmeTotal+ srCmeTotal
-        hashids = Hashids(salt=settings.HASHIDS_SALT, min_length = 10)
+        if cmeTotal == 0:
+            context = {
+                'error': 'No CME credits earned in this date range.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # prepare data for cert
+        degrees = profile.degrees.all()
+        degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
+        certificateName = "{0} {1}, {2}".format(profile.firstName, profile.lastName, degree_str)
         certificate = Certificate(
             name = certificateName,
             startDate = startdt,
@@ -683,106 +670,33 @@ class CmeCertificatePdf(APIView):
             user=request.user
         )
         certificate.save()
-        certificate.referenceId = hashids.encode(certificate.id)
-        isVerified = any(d.abbrev.lower() == "do" or d.abbrev.lower() == "md" for d in degrees)
-        pdf_blob = self.generateCertificate(isVerified, certificate.referenceId, certificateName, cmeTotal, startdt, enddt, certificate.created)
-        cf = ContentFile(pdf_blob) # Create a ContentFile from the output
+        hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
+        certificate.referenceId = hashgen.encode(certificate.id)
+        isVerified = any(d.isVerifiedForCme() for d in degrees)
+        # create StringIO buffer containing pdf overlay
+        overlayBuffer = makeCmeCertOverlay(
+            isVerified,
+            certificate.referenceId,
+            certificateName,
+            cmeTotal,
+            startdt,
+            enddt,
+            certificate.created
+        )
+        output = makeCmeCertificate(overlayBuffer, isVerified) # str
+        cf = ContentFile(output) # Create a ContentFile from the output
+        # Save file (upload to S3) and re-save model instance
         certificate.document.save("{0}.pdf".format(certificate.referenceId), cf, save=True)
-
+        overlayBuffer.close()
         out_serializer = CertificateSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
-    def generateCertificate(self, verified, reference, certificateName, credit, startDate, endDate, issued):
-        template_pdf = PdfFileReader(
-            file("{0}/cme-certificate-participation.pdf".format(settings.PDF_TEMPLATES_DIR), "rb"), strict=False
-        )
-        if verified:
-            template_pdf = PdfFileReader(
-                file("{0}/cme-certificate-verified.pdf".format(settings.PDF_TEMPLATES_DIR), "rb"), strict=False
-            )
-        # This file is overlaid on the template certificate
-        overlay_pdf_buffer = StringIO.StringIO()
-        pdfCanvas = canvas.Canvas(overlay_pdf_buffer, pagesize=landscape(A4))
-        addMapping('OpenSans-Light', 0, 0, 'OpenSans-Light')
-        addMapping('OpenSans-Light', 0, 1, 'OpenSans-LightItalic')
-        addMapping('OpenSans-Light', 1, 0, 'OpenSans-Bold')
-        addMapping('OpenSans-Regular', 0, 0, 'OpenSans-Regular')
-        addMapping('OpenSans-Regular', 0, 1, 'OpenSans-Italic')
-        addMapping('OpenSans-Regular', 1, 0, 'OpenSans-Bold')
-        addMapping('OpenSans-Regular', 1, 1, 'OpenSans-BoldItalic')
-        styleOpenSans = ParagraphStyle(name="opensans-regular", leading=10, fontName='OpenSans-Bold')
-        styleOpenSansLight = ParagraphStyle(name="opensans-light", leading=10, fontName='OpenSans-Regular')
 
-        WIDTH = 297  # width in mm (A4)
-        HEIGHT = 210  # hight in mm (A4)
-        LEFT_INDENT = 49  # mm from the left side to write the text
-        RIGHT_INDENT = 49  # mm from the right side for the CERTIFICATE
-        # CLIENT NAME
-        styleOpenSans.fontSize = 20
-        styleOpenSans.leading = 10
-        styleOpenSans.textColor = colors.Color(0, 0, 0)
-        styleOpenSans.alignment = TA_LEFT
-
-        styleOpenSansLight.fontSize = 12
-        styleOpenSansLight.leading = 10
-        styleOpenSansLight.textColor = colors.Color(
-            0.1, 0.1, 0.1)
-        styleOpenSansLight.alignment = TA_LEFT
-
-        paragraph = Paragraph(certificateName, styleOpenSans)
-        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
-
-        paragraph = Paragraph("{0} - {1}".format(DateFormat(startDate).format('d F Y'), DateFormat(endDate).format('d F Y')), styleOpenSansLight)
-        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 65 * mm)
-
-        styleOpenSans.fontSize = 14
-        text = "<i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded"
-        if not verified:
-            text = "Hours of Participation Awarded"
-        paragraph = Paragraph("{0} {1}".format(credit, text), styleOpenSans)
-        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 53.83 * mm)
-
-        styleOpenSans.fontSize = 9
-        paragraph = Paragraph("Issued: {0}".format(DateFormat(issued).format('d F Y')), styleOpenSans)
-        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 12 * mm)
-
-        paragraph = Paragraph("https://{0}/certificate/{1}".format(settings.DOMAIN_REFERENCE, reference), styleOpenSans)
-        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 127.5 * mm, 12 * mm)
-
-        if not verified:
-            styleOpenSansLight.fontSize = 7
-            styleOpenSansLight.textColor = colors.Color(
-                0.3, 0.3, 0.3)
-            text = "This activity was designated for {0} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented in accordance with the Essential Areas <br/>and policies of the Accreditation Council for Continuing Medical Education through the joint providership Tufts University School of Medicine (TUSM) and <br/>Transcend Review, Inc. TUSM is accredited by the ACCME to provide continuing education for physicians."
-            paragraph = Paragraph(text.format(credit), styleOpenSansLight)
-            paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-            paragraph.drawOn(pdfCanvas, 12.2 * mm, 24 * mm)
-
-
-        pdfCanvas.showPage()
-        pdfCanvas.save()
-        # Merge the overlay with the template, then write it to file
-        writer = PdfFileWriter()
-        overlay = PdfFileReader(overlay_pdf_buffer, strict=False)
-        mergedPage = copy.copy(
-            PdfFileReader(file("{0}/blank.pdf".format(settings.PDF_TEMPLATES_DIR), "rb"), strict=False)).getPage(0)
-        mergedPage.mergePage(template_pdf.getPage(0))
-        mergedPage.mergePage(overlay.getPage(0))
-        writer.addPage(mergedPage)
-        output = StringIO.StringIO()
-        writer.write(output)
-        return output.getvalue()
-
-
-class CmeCertificate(APIView):
+class AccessCmeCertificate(APIView):
     """
-    This view expects a certificate reference ID and allows a public acccess
-
+    This view expects a certificate reference ID to lookup a Certificate
+    in the db. The response returns a timed URL that allows public access
+    to the file (stored on S3).
     parameters:
         - name: referenceId
           description: unique certificate ID

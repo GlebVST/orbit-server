@@ -40,6 +40,7 @@ class DocumentAdmin(admin.ModelAdmin):
 class EntryAdmin(admin.ModelAdmin):
     list_display = ('user', 'entryType', 'activityDate', 'valid', 'description', 'created')
     list_filter = ('entryType', 'valid')
+    raw_id_fields = ('documents',)
 
 class EligibleSiteAdmin(admin.ModelAdmin):
     list_display = ('domain_name', 'domain_title', 'example_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
@@ -60,7 +61,14 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
     list_select_related = ('user','plan')
     list_filter = ('status', 'display_status')
 
+class CertificateAdmin(admin.ModelAdmin):
+    list_display = ('user', 'referenceId', 'name', 'startDate', 'endDate', 'credits', 'created')
+    list_select_related = ('user',)
+    search_fields = ['referenceId',]
+
+
 admin.site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
+admin.site.register(Certificate, CertificateAdmin)
 admin.site.register(CmeTag, CmeTagAdmin)
 admin.site.register(Country, CountryAdmin)
 admin.site.register(Customer, CustomerAdmin)

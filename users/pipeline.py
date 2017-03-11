@@ -1,7 +1,7 @@
 import logging
-
 import braintree
-
+from hashids import Hashids
+from django.conf import settings
 from .models import Profile, Customer
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,8 @@ def save_profile(backend, user, response, *args, **kwargs):
         profile.firstName = response.get('first_name', '')
         profile.lastName = response.get('last_name', '')
         profile.socialId = response.get('id', '')
-        profile.inviteId = "{0:%y%m%d}-{1:0>5}".format(user.date_joined, user.pk)
+        hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
+        profile.inviteId = hashgen.encode(user.pk)
         # copy social-auth email if it is a gmail address
         sa_email = response.get('email', '').lower()
         if sa_email.endswith('gmail.com'):
@@ -37,11 +38,9 @@ def save_profile(backend, user, response, *args, **kwargs):
         if not profile.lastName:
             profile.lastName = response.get('last_name', '')
             changed = True
-        profile.socialId = response.get('id', profile.socialId)
-        changed = True
-        #if not profile.socialId and 'id' in response:
-        #    profile.socialId = response['id']
-        #    changed = True
+        if not profile.socialId and 'id' in response:
+            profile.socialId = response['id']
+            changed = True
         if changed:
             profile.save()
     qset = Customer.objects.filter(user=user)

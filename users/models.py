@@ -80,6 +80,13 @@ class Degree(models.Model):
     def __str__(self):
         return self.abbrev
 
+    def isVerifiedForCme(self):
+        """Is degree verified for CME
+        Returns True if degree is MD/DO
+        """
+        abbrev = self.abbrev
+        return abbrev == DEGREE_MD or abbrev == DEGREE_DO
+
 # CME tag types (SA-CME, Breast, etc)
 @python_2_unicode_compatible
 class CmeTag(models.Model):
@@ -146,7 +153,7 @@ class Profile(models.Model):
     jobTitle = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True, help_text='About me')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
-    inviteId = models.CharField(max_length=12, unique=True)
+    inviteId = models.CharField(max_length=36, unique=True)
     socialId = models.CharField(max_length=64, blank=True, help_text='FB social auth ID')
     cmeTags = models.ManyToManyField(CmeTag, related_name='profiles', blank=True)
     degrees = models.ManyToManyField(Degree, blank=True) # TODO: switch to single ForeignKey
@@ -854,14 +861,19 @@ def certificate_document_path(instance, filename):
 @python_2_unicode_compatible
 class Certificate(models.Model):
     user = models.ForeignKey(User,
-                             on_delete=models.CASCADE,
-                             db_index=True
-                             )
-    referenceId = models.CharField(max_length=20, blank=True, help_text='alphanum key of the certitficate')
-    name = models.CharField(max_length=255, blank=True, help_text='Name on certificate')
+        on_delete=models.CASCADE,
+        db_index=True
+    )
+    referenceId = models.CharField(max_length=64,
+        null=True,
+        blank=True,
+        unique=True,
+        default=None,
+        help_text='alphanum unique key generated from the certificate id')
+    name = models.CharField(max_length=255, help_text='Name on certificate')
     startDate = models.DateTimeField()
     endDate = models.DateTimeField()
-    credits = models.DecimalField(max_digits=5, decimal_places=2)
+    credits = models.DecimalField(max_digits=6, decimal_places=2)
     document = models.FileField(upload_to=certificate_document_path)
     created = models.DateTimeField(auto_now_add=True)
 

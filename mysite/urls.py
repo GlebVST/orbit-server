@@ -17,17 +17,14 @@ from django.contrib import admin
 from django.conf.urls import url, include
 from django.conf import settings
 from django.conf.urls.static import static
-#from rest_framework import routers
-from rest_framework.urlpatterns import format_suffix_patterns
 from users import views, auth_views, debug_views, payment_views
 from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
-from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import response, schemas
 from rest_framework.renderers import CoreJSONRenderer
 from rest_framework_swagger.renderers import OpenAPIRenderer
-from django.contrib.auth.decorators import login_required
 
 auth_patterns = [
     # site login via server-side fb login (for testing only)
@@ -43,7 +40,7 @@ payment_patterns = [
 
 api_patterns = [
     # AUTH
-    url(r'^auth/status/?$', auth_views.auth_status, name='get-status'),
+    url(r'^auth/status/?$', auth_views.auth_status, name='get-auth-status'),
     # client gets fb access token and exchanges it for internal token, and login user
     url(r'^auth/login/(?P<backend>[^/]+)/(?P<access_token>[^/]+)/?$', auth_views.login_via_token, name='login-via-token'),
     # client requests to revoke internal token and logout user
@@ -98,16 +95,15 @@ api_patterns = [
     url(r'^feedback/?$', views.UserFeedbackList.as_view()),
     # dashboard
     url(r'^dashboard/cme-aggregate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CmeAggregateStats.as_view()),
-    url(r'^dashboard/cme-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CmeCertificatePdf.as_view()),
-    url(r'^dashboard/cme-certificate/(?P<referenceId>\w+)/?$', views.CmeCertificate.as_view()),
+    url(r'^dashboard/cme-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CreateCmeCertificatePdf.as_view()),
+    url(r'^dashboard/cme-certificate/(?P<referenceId>\w+)/?$', views.AccessCmeCertificate.as_view()),
 
     # debug
     url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
-    url(r'^debug/feed/reward/?$', debug_views.MakeRewardEntry.as_view()),
+    url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
 ]
 
 # Custom view to render Swagger UI consuming only /api/ endpoints
-@login_required()
 @api_view()
 @authentication_classes((SessionAuthentication,))
 @renderer_classes([CoreJSONRenderer, OpenAPIRenderer, SwaggerCustomUIRenderer])
