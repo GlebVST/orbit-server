@@ -10,6 +10,7 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import AllowAny, IsAuthenticated
 # proj
 from common.viewutils import render_to_json_response
+import common.appconstants as appconstants
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
@@ -51,7 +52,7 @@ def serialize_permissions(user, user_subs):
     """
     user_subs_perms: Permission queryset of the allowed permissions for the user
     Returns list of dicts: [{codename:str, allowed:bool}]
-    for the permissions in models.ALL_PERMS.
+    for the permissions in appconstants.ALL_PERMS.
     """
     allowed_codes = []
     # get any special admin groups that user is a member of
@@ -64,7 +65,7 @@ def serialize_permissions(user, user_subs):
     perms = [{
             'codename': codename,
             'allow': codename in allowed_codes
-        } for codename in ALL_PERMS]
+        } for codename in appconstants.ALL_PERMS]
     print(perms)
     return perms
 

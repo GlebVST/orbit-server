@@ -6,16 +6,21 @@ import pytz
 import uuid
 from dateutil.relativedelta import *
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User, Group
 from django.db import models
 from django.db.models import Count, Sum
-#from django.contrib.contenttypes.fields import GenericForeignKey
-#from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
-from django.utils.translation import ugettext_lazy as _
 
+from common.appconstants import (
+    PERM_VIEW_OFFER,
+    PERM_VIEW_FEED,
+    PERM_VIEW_DASH,
+    PERM_POST_BRCME,
+    PERM_POST_SRCME,
+    PERM_PRINT_AUDIT_REPORT,
+    PERM_PRINT_BRCME_CERT
+)
 #
 # constants (should match the database values)
 #
@@ -28,26 +33,6 @@ DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
 SPONSOR_BRCME = 'TUSM'
 ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
-# codenames for permissions
-PERM_VIEW_OFFER = u'view_offer'
-PERM_VIEW_FEED = u'view_feed'
-PERM_POST_SRCME = u'post_srcme'
-PERM_POST_BRCME = u'post_brcme'
-PERM_VIEW_DASH = u'view_dashboard'
-PERM_PRINT_BRCME_CERT = u'print_brcme_cert'
-PERM_PRINT_AUDIT_REPORT = u'print_audit_report'
-# default add permission on EligibleSite model
-PERM_POST_WHITELIST = u'add_eligiblesite'
-ALL_PERMS = (
-    PERM_VIEW_OFFER,
-    PERM_VIEW_FEED,
-    PERM_VIEW_DASH,
-    PERM_POST_BRCME,
-    PERM_POST_SRCME,
-    PERM_PRINT_AUDIT_REPORT,
-    PERM_PRINT_BRCME_CERT,
-    PERM_POST_WHITELIST
-)
 
 def makeAwareDatetime(a_date, tzinfo=pytz.utc):
     """Convert <date> to <datetime> with timezone info"""

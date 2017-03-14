@@ -1,7 +1,8 @@
 from rest_framework import permissions
 from django.contrib.auth.models import Group, Permission
-from .models import (
-    UserSubscription,
+from common.appconstants import (
+    GROUP_CONTENTADMIN,
+    GROUP_CMEREQADMIN,
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
@@ -10,9 +11,7 @@ from .models import (
     PERM_PRINT_AUDIT_REPORT,
     PERM_PRINT_BRCME_CERT
 )
-# Note: all groups must be created in the database using the Django Group model.
-GROUP_CONTENTADMIN = 'ContentAdmin' # Whitelist Admin (and other admin-level site content)
-GROUP_CMEREQADMIN = 'CmeReqAdmin'   # to edit Cme Requirements per Specialty (no model yet)
+from .models import UserSubscription
 
 class IsAdminOrAuthenticated(permissions.BasePermission):
     """Global permission (can be used for both list/detail) to check
