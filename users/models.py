@@ -404,6 +404,7 @@ class Document(models.Model):
     image_w = models.PositiveIntegerField(null=True, blank=True, help_text='image width')
     is_thumb = models.BooleanField(default=False, help_text='True if the file is an image thumbnail')
     set_id = models.CharField(max_length=36, blank=True, help_text='Used to group an image and its thumbnail into a set')
+    is_certificate = models.BooleanField(default=False, help_text='True if file is a certificate (if so, will be shared in audit report)')
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

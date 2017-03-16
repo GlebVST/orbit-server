@@ -262,9 +262,10 @@ class DocumentReadSerializer(serializers.ModelSerializer):
             'content_type',
             'image_h',
             'image_w',
-            'is_thumb'
+            'is_thumb',
+            'is_certificate'
         )
-        read_only_fields = ('name','md5sum','content_type','image_h','image_w', 'is_thumb')
+        read_only_fields = ('name','md5sum','content_type','image_h','image_w', 'is_thumb','is_certificate')
 
 
 class CreateSRCmeOutSerializer(serializers.ModelSerializer):
@@ -454,6 +455,7 @@ class UploadDocumentSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255, required=False)
     image_h = serializers.IntegerField(min_value=0, required=False)
     image_w = serializers.IntegerField(min_value=0, required=False)
+    is_certificate = serializers.BooleanField()
 
     class Meta:
         fields = (
@@ -461,7 +463,8 @@ class UploadDocumentSerializer(serializers.Serializer):
             'fileMd5',
             'name',
             'image_h',
-            'image_w'
+            'image_w',
+            'is_certificate'
         )
 
     def validate(self, data):
@@ -518,7 +521,8 @@ class UploadDocumentSerializer(serializers.Serializer):
             image_h=image_h,
             image_w=image_w,
             set_id=set_id,
-            user=validated_data.get('user')
+            user=validated_data.get('user'),
+            is_certificate=validated_data.get('is_certificate')
         )
         # Save the file, and save the model instance
         instance.document.save(docName.lower(), newDoc, save=True)
@@ -533,7 +537,8 @@ class UploadDocumentSerializer(serializers.Serializer):
                 image_w=thumb_size,
                 set_id=set_id,
                 is_thumb=True,
-                user=validated_data.get('user')
+                user=validated_data.get('user'),
+                is_certificate=validated_data.get('is_certificate')
             )
             # Save the thumb file, and save the model instance
             memory_file.seek(0)
