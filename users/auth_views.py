@@ -66,7 +66,7 @@ def serialize_permissions(user, user_subs):
             'codename': codename,
             'allow': codename in allowed_codes
         } for codename in appconstants.ALL_PERMS]
-    print(perms)
+    #print(perms)
     return perms
 
 def serialize_subscription(user_subs):

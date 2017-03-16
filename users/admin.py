@@ -27,23 +27,23 @@ class SponsorAdmin(admin.ModelAdmin):
     list_display = ('name', 'url', 'logo_url', 'modified')
 
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
-    list_display = ('user', 'activityDate', 'redeemed', 'expireDate', 'url')
+    list_display = ('id', 'user', 'activityDate', 'redeemed', 'expireDate', 'url')
     list_filter = ('redeemed',)
 
 class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
 
 class DocumentAdmin(admin.ModelAdmin):
-    list_display = ('user', 'name', 'content_type','document','image_h','image_w','md5sum','set_id', 'created')
+    list_display = ('id', 'user', 'name', 'content_type','document','image_h','image_w','md5sum','set_id', 'created')
     list_select_related = ('user',)
 
 class EntryAdmin(admin.ModelAdmin):
-    list_display = ('user', 'entryType', 'activityDate', 'valid', 'description', 'created')
+    list_display = ('id', 'user', 'entryType', 'activityDate', 'valid', 'description', 'created')
     list_filter = ('entryType', 'valid')
     raw_id_fields = ('documents',)
 
 class EligibleSiteAdmin(admin.ModelAdmin):
-    list_display = ('domain_name', 'domain_title', 'example_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
+    list_display = ('id', 'domain_name', 'domain_title', 'example_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
     list_filter = ('is_valid_expurl', 'needs_ad_block')
 
 

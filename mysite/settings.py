@@ -29,6 +29,9 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', '192.168.0.37', 'test1.orbitcme.com']
 
+# This value used by various expiration-related settings
+APP_EXPIRE_SECONDS = 86400*30  # 30 days
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -46,12 +49,16 @@ INSTALLED_APPS = [
     'users.apps.UsersConfig',
     'rest_framework_swagger'
 ]
+
+# Session
+SESSION_COOKIE_AGE = APP_EXPIRE_SECONDS
+
 # django-storages AWS S3
 AWS_ACCESS_KEY_ID = os.environ.get('ORBIT_AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.environ.get('ORBIT_AWS_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = os.environ.get('ORBIT_AWS_S3_BUCKET_NAME')
 AWS_QUERYSTRING_AUTH = True
-AWS_QUERYSTRING_EXPIRE = 3600*2 # duration in seconds
+AWS_QUERYSTRING_EXPIRE = APP_EXPIRE_SECONDS
 AWS_DEFAULT_ACL = 'private'
 AWS_S3_ENCRYPTION = True
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
@@ -119,6 +126,7 @@ REST_FRAMEWORK = {
 
 # OAuth
 OAUTH2_PROVIDER = {
+    'ACCESS_TOKEN_EXPIRE_SECONDS': APP_EXPIRE_SECONDS,
     # this is the list of available scopes
     'SCOPES': {'read': 'Read scope', 'write': 'Write scope', 'groups': 'Access to your groups'}
 }
