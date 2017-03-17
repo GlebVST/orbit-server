@@ -654,7 +654,7 @@ class CreateCmeCertificatePdf(APIView):
         # get total cme credits earned by user in date range
         browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt)
         srCmeTotal = Entry.objects.sumSRCme(request.user, startdt, enddt)
-        cmeTotal = browserCmeTotal+ srCmeTotal
+        cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
                 'error': 'No CME credits earned in this date range.'
