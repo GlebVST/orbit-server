@@ -353,7 +353,7 @@ class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
     This action does not change the credits earned from the original creation.
     """
     serializer_class = BRCmeUpdateSerializer
-    permission_classes = (CanPostBRCme, IsEntryOwner, TokenHasReadWriteScope)
+    permission_classes = (IsEntryOwner, TokenHasReadWriteScope)
 
     def get_queryset(self):
         return BrowserCme.objects.select_related('entry')
@@ -415,12 +415,13 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
         out_serializer = CreateSRCmeOutSerializer(srcme.entry)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
+
 class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
     """
     Update an existing SRCme Entry in the user's feed.
     """
     serializer_class = SRCmeFormSerializer
-    permission_classes = (CanPostSRCme, IsEntryOwner, TokenHasReadWriteScope)
+    permission_classes = (IsEntryOwner, TokenHasReadWriteScope)
 
     def get_queryset(self):
         return SRCme.objects.select_related('entry')
