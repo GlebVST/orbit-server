@@ -149,6 +149,8 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
         return self.render_to_json_response(context)
 
 
+
+
 class NewSubscription(JsonResponseMixin, APIView):
     """
     This view expects a JSON object from the POST with Braintree transaction details.
@@ -274,6 +276,48 @@ class NewSubscription(JsonResponseMixin, APIView):
         return self.render_to_json_response(context)
 
 
+class SwitchTrialToActive(JsonResponseMixin, APIView):
+    """
+    This view cancels the user's Trial subscription, and creates a new
+    Active subscription.
+    Example JSON when using existing customer payment method with token obtained from BT Vault:
+        {"payment-method-token":"5wfrrp"}
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, *args, **kwargs):
+        # 1. check that user is currently in UI_TRIAL
+        last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
+        if not last_subscription or (last_subscription.display_status != UserSubscription.UI_TRIAL):
+            context = {
+                'success': False,
+                'message': 'User cannot switch from Trial to Active subscription.'
+            }
+            return self.render_to_json_response(context, status_code=400)
+        userdata = request.data
+        payment_token = userdata.get('payment-method-token', None)
+        if not payment_token:
+            context = {
+                'success': False,
+                'message': 'Payment Method Token is required'
+            }
+            return self.render_to_json_response(context, status_code=400)
+
+        # Cancel old subscription and create new Active subscription
+        result, user_subs = UserSubscription.objects.switchTrialToActive(last_subscription, payment_token)
+        context = {'success': result.is_success}
+        if not result.is_success:
+            context['message'] = 'Create Subscription failed.'
+            logger.info(result.message)
+            return self.render_to_json_response(context, status_code=400)
+        else:
+            context['subscriptionId'] = user_subs.subscriptionId
+            context['bt_status'] = user_subs.status
+            context['display_status'] = user_subs.display_status
+            context['billingStartDate'] = user_subs.billingStartDate
+            context['billingEndDate'] = user_subs.billingEndDate
+        return self.render_to_json_response(context)
+
+
 class CancelSubscription(JsonResponseMixin, APIView):
     """
     This view expects a JSON object from the POST:
@@ -338,6 +382,7 @@ class CancelSubscription(JsonResponseMixin, APIView):
                     'display_status': user_subs.display_status
                 }
                 return self.render_to_json_response(context)
+
 
 class ResumeSubscription(JsonResponseMixin, APIView):
     """

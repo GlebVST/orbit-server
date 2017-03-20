@@ -715,6 +715,7 @@ class UserSubscriptionManager(models.Manager):
             user_subs.save()
         return result
 
+
     def terminalCancelBtSubscription(self, user_subs):
         """
         Use case: User wants to cancel while they are still in UI_TRIAL.
@@ -731,6 +732,29 @@ class UserSubscriptionManager(models.Manager):
             user_subs.display_status = self.model.UI_TRIAL_CANCELED
             user_subs.save()
         return result
+
+
+    def switchTrialToActive(self, user_subs, payment_token):
+        """
+        User is in UI_TRIAL, and their trial period
+        is still not over, but user wants to upgrade
+        to Active.  Cannot update existing subscription,
+        need to cancel it, and create new one.
+        Returns (Braintree result object, UserSubscription)
+        """
+        plan = user_subs.plan
+        user = user_subs.user
+        subs_params = {
+            'plan_id': plan.planId,
+            'trial_duration': 0,
+            'payment_method_token': payment_token
+        }
+        cancel_result = self.terminalCancelBtSubscription(user_subs)
+        if cancel_result.is_success:
+            # return (result, new_user_subs)
+            return self.createBtSubscription(user, plan, subs_params)
+        else:
+            return (cancel_result, user_subs)
 
 
     def checkTrialToActive(self, user_subs):
