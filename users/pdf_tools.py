@@ -29,6 +29,7 @@ PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated fo
 CREDIT_TEXT_VERIFIED = "<i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded"
 CREDIT_TEXT_PARTICIPATION = "Hours of Participation Awarded"
 
+SAMPLE_CERTIFICATE_NAME = "Sample Only - Upgrade to Receive Official CME"
 
 FONT_CHARACTER_TABLES = {}
 for font_file in glob('{0}/fonts/*.ttf'.format(settings.PDF_TEMPLATES_DIR)):

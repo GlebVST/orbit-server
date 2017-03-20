@@ -22,7 +22,7 @@ from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasS
 from .models import *
 from .serializers import *
 from .permissions import *
-from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate
+from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate, SAMPLE_CERTIFICATE_NAME
 
 # Country
 class CountryList(generics.ListCreateAPIView):
@@ -654,7 +654,7 @@ class CreateCmeCertificatePdf(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # get total cme credits earned by user in date range
         browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt)
-        srCmeTotal = Entry.objects.sumSRCme(request.user, startdt, enddt)
+        ##srCmeTotal = Entry.objects.sumSRCme(request.user, startdt, enddt)
         cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
@@ -663,8 +663,13 @@ class CreateCmeCertificatePdf(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # prepare data for cert
         degrees = profile.degrees.all()
-        degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
-        certificateName = "{0} {1}, {2}".format(profile.firstName, profile.lastName, degree_str)
+        # does user have PERM_PRINT_BRCME_CERT
+        can_print_cert = hasUserSubscriptionPerm(request.user, PERM_PRINT_BRCME_CERT)
+        if can_print_cert:
+            degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
+            certificateName = "{0} {1}, {2}".format(profile.firstName, profile.lastName, degree_str)
+        else:
+            certificateName = SAMPLE_CERTIFICATE_NAME
         certificate = Certificate(
             name = certificateName,
             startDate = startdt,
