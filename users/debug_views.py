@@ -30,7 +30,8 @@ class MakeBrowserCmeOffer(APIView):
             expireDate=expireDate,
             url=url,
             pageTitle=pageTitle,
-            credits=Decimal('0.5')
+            credits=Decimal('0.5'),
+            sponsor_id=1
         )
         context = {'success': True, 'id': offer.pk}
         return Response(context, status=status.HTTP_201_CREATED)
