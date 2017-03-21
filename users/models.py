@@ -161,11 +161,12 @@ class Profile(models.Model):
         us = Country.objects.get(code=COUNTRY_USA)
         if self.country.pk != us.pk:
             return False
-        md = Degree.objects.get(abbrev=DEGREE_MD)
-        do = Degree.objects.get(abbrev=DEGREE_DO)
-        has_md = self.degrees.filter(pk=md.pk).exists()
-        has_do = self.degrees.filter(pk=do.pk).exists()
-        if has_md or has_do:
+        deg_abbrevs = [d.abbrev for d in self.degrees.all()]
+        has_md = DEGREE_MD in deg_abbrevs
+        if has_md:
+            return True
+        has_do = DEGREE_DO in deg_abbrevs
+        if has_do:
             return True
         return False
 
@@ -337,9 +338,63 @@ class EntryType(models.Model):
         return self.name
 
 
+def entry_document_path(instance, filename):
+    return '{0}/uid_{1}/{2}'.format(settings.FEED_MEDIA_BASEDIR, instance.user.id, filename)
+
+@python_2_unicode_compatible
+class Document(models.Model):
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True
+    )
+    document = models.FileField(upload_to=entry_document_path)
+    name = models.CharField(max_length=255, blank=True, help_text='Original file name')
+    md5sum = models.CharField(max_length=32, blank=True, help_text='md5sum of the document file')
+    content_type = models.CharField(max_length=100, blank=True, help_text='file content_type')
+    image_h = models.PositiveIntegerField(null=True, blank=True, help_text='image height')
+    image_w = models.PositiveIntegerField(null=True, blank=True, help_text='image width')
+    is_thumb = models.BooleanField(default=False, help_text='True if the file is an image thumbnail')
+    set_id = models.CharField(max_length=36, blank=True, help_text='Used to group an image and its thumbnail into a set')
+    is_certificate = models.BooleanField(default=False, help_text='True if file is a certificate (if so, will be shared in audit report)')
+    created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.md5sum
+
+
 # Base class for all feed entries (contains fields common to all entry types)
 # A entry belongs to a user, and is defined by an activityDate and a description.
 class EntryManager(models.Manager):
+
+    def partitionBySACme(self, user, startDate, endDate):
+        """
+        Filter entries by user and activityDate range, and order by activityDate desc.
+        Then, partition the qset into:
+            saEntries: entries with tag=CMETAG_SACME
+            otherEntries: non SA-CME entries
+        Returns (saEntries, otherEntries)
+        """
+        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        filter_kwargs = dict(
+            user=user,
+            activityDate__gte=startDate,
+            activityDate__lte=endDate,
+            valid=True
+        )
+        qset = self.model.objects \
+            .select_related('entryType') \
+            .filter(**filter_kwargs) \
+            .prefetch_related('tags') \
+            .order_by('-activityDate')
+        saEntries = []
+        otherEntries = []
+        for m in qset:
+            tagids = set([t.pk for t in m.tags.all()])
+            if satag.pk in tagids:
+                saEntries.append(m)
+            else:
+                otherEntries.append(m)
+        return (saEntries, otherEntries)
 
     def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
@@ -387,30 +442,6 @@ class EntryManager(models.Manager):
         return 0
 
 
-def entry_document_path(instance, filename):
-    return '{0}/uid_{1}/{2}'.format(settings.FEED_MEDIA_BASEDIR, instance.user.id, filename)
-
-@python_2_unicode_compatible
-class Document(models.Model):
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        db_index=True
-    )
-    document = models.FileField(upload_to=entry_document_path)
-    name = models.CharField(max_length=255, blank=True, help_text='Original file name')
-    md5sum = models.CharField(max_length=32, blank=True, help_text='md5sum of the document file')
-    content_type = models.CharField(max_length=100, blank=True, help_text='file content_type')
-    image_h = models.PositiveIntegerField(null=True, blank=True, help_text='image height')
-    image_w = models.PositiveIntegerField(null=True, blank=True, help_text='image width')
-    is_thumb = models.BooleanField(default=False, help_text='True if the file is an image thumbnail')
-    set_id = models.CharField(max_length=36, blank=True, help_text='Used to group an image and its thumbnail into a set')
-    is_certificate = models.BooleanField(default=False, help_text='True if file is a certificate (if so, will be shared in audit report)')
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.md5sum
-
-
 @python_2_unicode_compatible
 class Entry(models.Model):
     user = models.ForeignKey(User,
@@ -437,6 +468,11 @@ class Entry(models.Model):
 
     def __str__(self):
         return '{0} on {1}'.format(self.entryType, self.activityDate)
+
+    def formatTags(self):
+        """Returns a comma-separated string of self.tags ordered by tag name"""
+        names = [t.name for t in self.tags.all()]  # should use default ordering on CmeTag model
+        return ', '.join(names)
 
     class Meta:
         verbose_name_plural = 'Entries'

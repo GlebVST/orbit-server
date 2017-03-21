@@ -355,7 +355,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
         queryset=BrowserCmeOffer.objects.filter(redeemed=False)
     )
     tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
+        queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
         many=True,
         required=False,
         allow_null=True
@@ -417,7 +417,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
     tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
+        queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
         many=True,
         required=False,
         allow_null=True
