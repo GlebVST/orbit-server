@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 TPL_DIR = 'users'
 
 def ss_login(request):
-    logger.debug("host: {0}".format(request.get_host())) # to test if nginx passes correct host to django
+    #logger.debug("host: {0}".format(request.get_host())) # to test if nginx passes correct host to django
     return render(request, os.path.join(TPL_DIR, 'login.html'))
 
 def ss_login_error(request):
@@ -31,7 +31,7 @@ def ss_home(request):
     return render(request, os.path.join(TPL_DIR, 'home.html'))
 
 def ss_logout(request):
-    logger.info('logout {0}'.format(request.user))
+    #logger.info('logout {0}'.format(request.user))
     auth_logout(request)
     return render(request, os.path.join(TPL_DIR, 'logged_out.html'))
 
@@ -157,7 +157,7 @@ def login_via_token(request, backend, access_token):
     inviteId = request.GET.get('inviteid', None)
     if inviteId:
         request.backend.strategy.session_set('inviteid', inviteId)
-        logger.debug('GET inviteId: {0}'.format(inviteId))
+        #logger.debug('GET inviteId: {0}'.format(inviteId))
     user = request.backend.do_auth(access_token)
     if user:
         auth_login(request, user)
@@ -176,9 +176,9 @@ def login_via_token(request, backend, access_token):
 @permission_classes((IsAuthenticated,))
 def logout_via_token(request):
     if request.user.is_authenticated():
-        logger.info('logout user: {}'.format(request.user))
+        #logger.info('logout user: {}'.format(request.user))
         token = get_access_token(request.user)
-        logger.debug('got token {}'.format(token))
+        #logger.debug('got token {}'.format(token))
         delete_access_token(request.user, token.get('access_token'))
         auth_logout(request)
     context = {'success': True}

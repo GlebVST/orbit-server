@@ -23,7 +23,7 @@ def save_profile(backend, user, response, *args, **kwargs):
         # check for inviteid
         inviteId = backend.strategy.session_get('inviteid')
         if inviteId:
-            logger.debug('inviteId: {0}'.format(inviteId))
+            #logger.debug('inviteId: {0}'.format(inviteId))
             pdata = Profile.objects.filter(inviteId=inviteId)
             if pdata.exists():
                 # this is a valid inviteId, save user as the inviter
@@ -56,12 +56,10 @@ def save_profile(backend, user, response, *args, **kwargs):
                 "last_name": user.last_name,
                 "email": user.email
             })
+            if not result or not result.is_success:
+                logger.error('Create braintree Customer failed.')
         except Exception as ex:
             logger.error('Braintree error when trying to create customer: %s', ex, exc_info=ex)
-        if not result or not result.is_success:
-            print('Create braintree Customer failed.')
-            # send email to admins...
-            #todo prefer logging at ERROR level that could be later captured by email logger
     else:
         customer = qset[0]
         # if braintree Customer does not exist, then create it
@@ -76,10 +74,6 @@ def save_profile(backend, user, response, *args, **kwargs):
                 "email": user.email
             })
             if not result.is_success:
-                print('Create braintree Customer failed.')
-                # send email to admins...
-                #todo prefer logging at ERROR level that could be later captured by email logger
-        except Exception as ex:
-            logger.error('Braintree error when trying to find customer: %s', ex, exc_info=ex)
+                logger.error('Create braintree Customer failed.')
         else:
             pass

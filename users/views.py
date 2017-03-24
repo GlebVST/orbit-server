@@ -331,7 +331,7 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
         """Override create to add custom keys to response"""
         form_data = request.data.copy()
         self.get_tags(form_data)
-        logger.debug(form_data)
+        #logger.debug(form_data)
         serializer = self.get_serializer(data=form_data)
         serializer.is_valid(raise_exception=True)
         brcme = self.perform_create(serializer)
@@ -363,7 +363,7 @@ class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
         instance = self.get_object()
         form_data = request.data.copy()
         self.get_tags(form_data)
-        logger.debug(form_data)
+        #logger.debug(form_data)
         serializer = self.get_serializer(instance, data=form_data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -397,7 +397,7 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
         if num_docs:
             qset = Document.objects.filter(user=user, pk__in=doc_ids)
             if qset.count() != num_docs:
-                logger.debug('CreateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
+                #logger.debug('CreateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
                 raise serializers.ValidationError('Invalid documentId(s) specified for user.')
         with transaction.atomic():
             srcme = serializer.save(user=user)
@@ -408,7 +408,7 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
         form_data = request.data.copy()
         #pprint(form_data)
         self.get_tags(form_data)
-        logger.debug(form_data)
+        #logger.debug(form_data)
         in_serializer = self.get_serializer(data=form_data)
         in_serializer.is_valid(raise_exception=True)
         srcme = self.perform_create(in_serializer)
@@ -437,7 +437,7 @@ class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
         if num_docs:
             qset = Document.objects.filter(user=user, pk__in=doc_ids)
             if qset.count() != num_docs:
-                logger.debug('UpdateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
+                #logger.debug('UpdateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
                 raise serializers.ValidationError('Invalid documentId(s) specified for user.')
         with transaction.atomic():
             srcme = serializer.save(user=user)
@@ -449,7 +449,7 @@ class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
         instance = self.get_object()
         form_data = request.data.copy()
         self.get_tags(form_data)
-        logger.debug(form_data)
+        #logger.debug(form_data)
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
         in_serializer.is_valid(raise_exception=True)
         self.perform_update(in_serializer)

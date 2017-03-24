@@ -50,7 +50,7 @@ class GetPaymentMethods(JsonResponseMixin, APIView):
         try:
             customer = Customer.objects.get(user=request.user)
             results = Customer.objects.getPaymentMethods(customer)
-            logger.debug("Customer {} payment methods: {}".format(customer, results))
+            #logger.debug("Customer {} payment methods: {}".format(customer, results))
         except Customer.DoesNotExist:
             context = {
                 'success': False,
