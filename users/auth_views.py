@@ -10,17 +10,20 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import AllowAny, IsAuthenticated
 # proj
 from common.viewutils import render_to_json_response
+from common.logutils import *
 import common.appconstants as appconstants
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
 from .serializers import ProfileSerializer, CmeTagSerializer
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('app.auth')
 TPL_DIR = 'users'
 
 def ss_login(request):
-    #logger.debug("host: {0}".format(request.get_host())) # to test if nginx passes correct host to django
+    msg = "host: {0}".format(request.get_host())
+    # to test if nginx passes correct host to django
+    logDebug(logger, request, msg)
     return render(request, os.path.join(TPL_DIR, 'login.html'))
 
 def ss_login_error(request):
@@ -31,7 +34,6 @@ def ss_home(request):
     return render(request, os.path.join(TPL_DIR, 'home.html'))
 
 def ss_logout(request):
-    #logger.info('logout {0}'.format(request.user))
     auth_logout(request)
     return render(request, os.path.join(TPL_DIR, 'logged_out.html'))
 
@@ -157,10 +159,10 @@ def login_via_token(request, backend, access_token):
     inviteId = request.GET.get('inviteid', None)
     if inviteId:
         request.backend.strategy.session_set('inviteid', inviteId)
-        #logger.debug('GET inviteId: {0}'.format(inviteId))
     user = request.backend.do_auth(access_token)
     if user:
         auth_login(request, user)
+        logDebug(logger, request, 'login')
         token = new_access_token(user)
         context = make_login_context(user, token)
         return render_to_json_response(context)
@@ -176,9 +178,8 @@ def login_via_token(request, backend, access_token):
 @permission_classes((IsAuthenticated,))
 def logout_via_token(request):
     if request.user.is_authenticated():
-        #logger.info('logout user: {}'.format(request.user))
+        logDebug(logger, request, 'logout')
         token = get_access_token(request.user)
-        #logger.debug('got token {}'.format(token))
         delete_access_token(request.user, token.get('access_token'))
         auth_logout(request)
     context = {'success': True}

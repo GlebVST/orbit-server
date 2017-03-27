@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 
 import os
 import braintree
+import logging
 # python-social-auth settings
 from psa_config import *
 
@@ -26,6 +27,10 @@ SECRET_KEY = 's*l=k=*e@(jj2t6hk1er_g!6g5ztxp+n@90+@a1$nqn*(7mw(d'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
+ADMINS = [
+    ('Faria Chowdhury', 'faria.chowdhury@gmail.com'),
+]
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', '192.168.0.37', 'test1.orbitcme.com']
 
@@ -247,26 +252,89 @@ SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': True,
 }
 
+#
+# logging configuration.
+#
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'simple': {
             '()': 'django.utils.log.ServerFormatter',
-            'format': '[%(server_time)s] %(message)s',
-        }
+            'format': '[%(server_time)s] %(levelname)-8s : %(message)s',
+        },
+        'verbose': {
+            '()': 'django.utils.log.ServerFormatter',
+            'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(lineno)-6s: %(message)s',
+        },
+        # requires extra context key: requser (request.user)
+        'req_fmt': {
+            '()': 'django.utils.log.ServerFormatter',
+            'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(requser)-20s: %(message)s',
+        },
+    },
+    'filters': {
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse'
+        },
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue'
+        },
     },
     'handlers': {
+        'null': {
+            'level': 'DEBUG',
+            'class': 'logging.NullHandler'
+        },
         'console': {
             'class': 'logging.StreamHandler',
+            'filters': ['require_debug_true'],
             'formatter': 'simple',
+        },
+        'mail_admins': {
+            'level': 'ERROR',
+            'filters': ['require_debug_false'],
+            'class': 'django.utils.log.AdminEmailHandler'
+        },
+        'gen_rotfile': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'verbose',
+            'filename': os.path.join(LOG_DIR, 'general.log'),
+            'maxBytes': 2**18,
+            'backupCount':5
+        },
+        'req_rotfile': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'req_fmt',
+            'filename': os.path.join(LOG_DIR, 'requests.log'),
+            'maxBytes': 2**18,
+            'backupCount':5
         },
     },
     'loggers': {
-        'users': {
-            'handlers': ['console'],
-            'level': 'DEBUG'
-        }
+        'django.request': {
+            'handlers': ['mail_admins'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+        'api': {
+            'handlers': ['req_rotfile', 'gen_rotfile', 'mail_admins',],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'psa-pipeline': {
+            'handlers': ['gen_rotfile', 'mail_admins'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'serializers': {
+            'handlers': ['gen_rotfile', 'mail_admins',],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
     }
 }
 
@@ -278,5 +346,8 @@ EMAIL_USE_TLS = True
 EMAIL_FROM = 'mission-control@orbitcme.com'
 EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
 DOMAIN_REFERENCE = 'test1.orbitcme.com'
+# used for error reporting
+SERVER_EMAIL = EMAIL_FROM
+
 
 HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'

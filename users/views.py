@@ -1,5 +1,6 @@
 from datetime import datetime
 from hashids import Hashids
+import logging
 from pprint import pprint
 from smtplib import SMTPException
 
@@ -18,11 +19,15 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
+# proj
+from common.logutils import *
 # app
 from .models import *
 from .serializers import *
 from .permissions import *
 from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate, SAMPLE_CERTIFICATE_NAME
+
+logger = logging.getLogger('api.views')
 
 # Country
 class CountryList(generics.ListCreateAPIView):
@@ -171,7 +176,7 @@ class VerifyProfileEmail(APIView):
         try:
             msg.send()
         except SMTPException as e:
-            logger.debug('Failure sending email: {}'.format(e))
+            logException(logger, request, 'VerifyProfileEmail send email failed.')
             context = {'success': False, 'message': 'Failure sending email'}
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
@@ -286,7 +291,7 @@ class FeedEntryDetail(generics.RetrieveDestroyAPIView):
         instance = self.get_object()
         if instance.documents.exists():
             for doc in instance.documents.all():
-                logger.debug('Deleting document {0}'.format(doc))
+                logDebug(logger, request, 'Deleting document {0}'.format(doc))
                 doc.delete()
         return self.destroy(request, *args, **kwargs)
 
@@ -331,7 +336,6 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
         """Override create to add custom keys to response"""
         form_data = request.data.copy()
         self.get_tags(form_data)
-        #logger.debug(form_data)
         serializer = self.get_serializer(data=form_data)
         serializer.is_valid(raise_exception=True)
         brcme = self.perform_create(serializer)
@@ -363,7 +367,6 @@ class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
         instance = self.get_object()
         form_data = request.data.copy()
         self.get_tags(form_data)
-        #logger.debug(form_data)
         serializer = self.get_serializer(instance, data=form_data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -397,7 +400,7 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
         if num_docs:
             qset = Document.objects.filter(user=user, pk__in=doc_ids)
             if qset.count() != num_docs:
-                #logger.debug('CreateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
+                logInfo(logger, request, 'CreateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
                 raise serializers.ValidationError('Invalid documentId(s) specified for user.')
         with transaction.atomic():
             srcme = serializer.save(user=user)
@@ -408,7 +411,6 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
         form_data = request.data.copy()
         #pprint(form_data)
         self.get_tags(form_data)
-        #logger.debug(form_data)
         in_serializer = self.get_serializer(data=form_data)
         in_serializer.is_valid(raise_exception=True)
         srcme = self.perform_create(in_serializer)
@@ -437,7 +439,7 @@ class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
         if num_docs:
             qset = Document.objects.filter(user=user, pk__in=doc_ids)
             if qset.count() != num_docs:
-                #logger.debug('UpdateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
+                logInfo(logger, request, 'UpdateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
                 raise serializers.ValidationError('Invalid documentId(s) specified for user.')
         with transaction.atomic():
             srcme = serializer.save(user=user)
@@ -449,7 +451,6 @@ class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
         instance = self.get_object()
         form_data = request.data.copy()
         self.get_tags(form_data)
-        #logger.debug(form_data)
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
         in_serializer.is_valid(raise_exception=True)
         self.perform_update(in_serializer)

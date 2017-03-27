@@ -4,7 +4,7 @@ from hashids import Hashids
 from django.conf import settings
 from .models import Profile, Customer
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('psa-pipeline')
 
 def save_profile(backend, user, response, *args, **kwargs):
     """Save Profile and Customer models for the user"""
@@ -23,7 +23,6 @@ def save_profile(backend, user, response, *args, **kwargs):
         # check for inviteid
         inviteId = backend.strategy.session_get('inviteid')
         if inviteId:
-            #logger.debug('inviteId: {0}'.format(inviteId))
             pdata = Profile.objects.filter(inviteId=inviteId)
             if pdata.exists():
                 # this is a valid inviteId, save user as the inviter
@@ -47,7 +46,6 @@ def save_profile(backend, user, response, *args, **kwargs):
     if not qset.exists():
         customer = Customer(user=user)
         customer.save()
-        result = None
         try:
             # create braintree Customer
             result = braintree.Customer.create({
@@ -56,10 +54,10 @@ def save_profile(backend, user, response, *args, **kwargs):
                 "last_name": user.last_name,
                 "email": user.email
             })
-            if not result or not result.is_success:
-                logger.error('Create braintree Customer failed.')
-        except Exception as ex:
-            logger.error('Braintree error when trying to create customer: %s', ex, exc_info=ex)
+            if not result.is_success:
+                logger.error('new profile: braintree.Customer.create failed. Result message: {0.message}'.format(result))
+        except:
+            logger.exception('new profile: braintree.Customer.create exception')
     else:
         customer = qset[0]
         # if braintree Customer does not exist, then create it
@@ -74,6 +72,6 @@ def save_profile(backend, user, response, *args, **kwargs):
                 "email": user.email
             })
             if not result.is_success:
-                logger.error('Create braintree Customer failed.')
+                logger.error('upd profile: braintree.Customer.create failed. Result message: {0.message}'.format(result))
         else:
             pass

@@ -3,6 +3,7 @@ import braintree
 import json
 import datetime
 from datetime import timedelta
+import logging
 from pprint import pprint
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -20,13 +21,13 @@ from rest_framework.views import APIView
 from rest_framework.parsers import JSONParser
 # proj
 from common.viewutils import JsonResponseMixin
+from common.logutils import *
 # app
 from .models import *
-import logging
 
 TPL_DIR = 'users'
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('api.shop')
 
 # https://developers.braintreepayments.com/start/hello-server/python
 class GetToken(JsonResponseMixin, APIView):
@@ -50,7 +51,6 @@ class GetPaymentMethods(JsonResponseMixin, APIView):
         try:
             customer = Customer.objects.get(user=request.user)
             results = Customer.objects.getPaymentMethods(customer)
-            #logger.debug("Customer {} payment methods: {}".format(customer, results))
         except Customer.DoesNotExist:
             context = {
                 'success': False,
@@ -65,6 +65,7 @@ class GetPaymentMethods(JsonResponseMixin, APIView):
             return self.render_to_json_response(context, status_code=400)
         else:
             return self.render_to_json_response(results)
+
 
 class UpdatePaymentToken(JsonResponseMixin, APIView):
     """
@@ -143,11 +144,13 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
             'success': result.is_success
         }
         if not result.is_success:
-            context['message'] = 'Customer vault update failed.'
-            logger.debug(result.message)
+            context['message'] = 'UpdatePaymentToken: Customer vault update failed.'
+            message = 'UpdatePaymentToken: Customer vault update failed. Result message: {0.message}'.format(result)
+            logError(logger, request, message)
             return self.render_to_json_response(context, status_code=400)
-        return self.render_to_json_response(context)
-
+        else:
+            logInfo(logger, request, 'UpdatePaymentToken complete')
+            return self.render_to_json_response(context)
 
 
 
@@ -248,12 +251,15 @@ class NewSubscription(JsonResponseMixin, APIView):
                     'success': False,
                     'message': str(e)
                 }
+                logException(logger, request, 'NewSubscription ValueError')
                 return self.render_to_json_response(context, status_code=400)
             if not result.is_success:
                 context = {
                     'success': False,
                     'message': 'Customer vault update failed.'
                 }
+                message = 'NewSubscription: Customer vault update failed. Result message: {0.message}'.format(result)
+                logError(logger, request, message)
                 return self.render_to_json_response(context, status_code=400)
             bc2 = Customer.objects.findBtCustomer(customer)
             tokens = [m.token for m in bc2.payment_methods]
@@ -265,7 +271,8 @@ class NewSubscription(JsonResponseMixin, APIView):
         context = {'success': result.is_success}
         if not result.is_success:
             context['message'] = 'Create Subscription failed.'
-            logger.debug(result.message)
+            message = 'NewSubscription: Create Subscription failed. Result message: {0.message}'.format(result)
+            logError(logger, request, message)
             return self.render_to_json_response(context, status_code=400)
         else:
             context['subscriptionId'] = user_subs.subscriptionId
@@ -273,6 +280,7 @@ class NewSubscription(JsonResponseMixin, APIView):
             context['display_status'] = user_subs.display_status
             context['billingStartDate'] = user_subs.billingStartDate
             context['billingEndDate'] = user_subs.billingEndDate
+            logInfo(logger, request, 'NewSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
         return self.render_to_json_response(context)
 
 
@@ -292,6 +300,7 @@ class SwitchTrialToActive(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'User cannot switch from Trial to Active subscription.'
             }
+            logError(logger, request, context['message'])
             return self.render_to_json_response(context, status_code=400)
         userdata = request.data
         payment_token = userdata.get('payment-method-token', None)
@@ -307,7 +316,8 @@ class SwitchTrialToActive(JsonResponseMixin, APIView):
         context = {'success': result.is_success}
         if not result.is_success:
             context['message'] = 'Create Subscription failed.'
-            logger.info(result.message)
+            message = 'SwitchTrialToActive: Create Subscription failed. Result message: {0.message}'.format(result)
+            logError(logger, request, message)
             return self.render_to_json_response(context, status_code=400)
         else:
             context['subscriptionId'] = user_subs.subscriptionId
@@ -315,6 +325,7 @@ class SwitchTrialToActive(JsonResponseMixin, APIView):
             context['display_status'] = user_subs.display_status
             context['billingStartDate'] = user_subs.billingStartDate
             context['billingEndDate'] = user_subs.billingEndDate
+            logInfo(logger, request, 'SwitchTrialToActive complete for subscriptionId={0.subscriptionId}'.format(user_subs))
         return self.render_to_json_response(context)
 
 
@@ -355,6 +366,7 @@ class CancelSubscription(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'UserSubscription status is already: ' + user_subs.display_status
             }
+            logError(logger, request, context['message'])
             return self.render_to_json_response(context, status_code=400)
         # proceed with cancel
         try:
@@ -367,6 +379,8 @@ class CancelSubscription(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'BT Subscription not found.'
             }
+            message = 'CancelSubscription: BT Subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs)
+            logException(logger, request, message)
             return self.render_to_json_response(context, status_code=400)
         else:
             if not result.is_success:
@@ -374,6 +388,8 @@ class CancelSubscription(JsonResponseMixin, APIView):
                     'success': False,
                     'message': 'BT Subscription update failed.'
                 }
+                message = 'CancelSubscription failed for subscriptionId: {0.subscriptionId}. Result message: {1.message}'.format(user_subs, result)
+                logError(logger, request, message)
                 return self.render_to_json_response(context, status_code=400)
             else:
                 context = {
@@ -381,6 +397,8 @@ class CancelSubscription(JsonResponseMixin, APIView):
                     'bt_status': user_subs.status,
                     'display_status': user_subs.display_status
                 }
+                message = 'CancelSubscription complete for subscriptionId: {0.subscriptionId}.'.format(user_subs)
+                logInfo(logger, request, message)
                 return self.render_to_json_response(context)
 
 
@@ -427,12 +445,15 @@ class ResumeSubscription(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'BT Subscription not found.'
             }
+            message = 'ResumeSubscription: BT Subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs)
+            logException(logger, request, message)
             return self.render_to_json_response(context, status_code=400)
         except ValueError, e:
             context = {
                 'success': False,
                 'message': str(e)
             }
+            logException(logger, request, 'ResumeSubscription ValueError')
             return self.render_to_json_response(context, status_code=400)
         else:
             if not result.is_success:
@@ -440,6 +461,8 @@ class ResumeSubscription(JsonResponseMixin, APIView):
                     'success': False,
                     'message': 'BT Subscription update failed.'
                 }
+                message = 'ResumeSubscription failed for subscriptionId: {0.subscriptionId}. Result message: {1.message}'.format(user_subs, result)
+                logError(logger, request, message)
                 return self.render_to_json_response(context, status_code=400)
             else:
                 context = {
@@ -447,6 +470,8 @@ class ResumeSubscription(JsonResponseMixin, APIView):
                     'bt_status': user_subs.status,
                     'display_status': user_subs.display_status
                 }
+                message = 'ResumeSubscription complete for subscriptionId: {0.subscriptionId}.'.format(user_subs)
+                logInfo(logger, request, message)
                 return self.render_to_json_response(context)
 
 

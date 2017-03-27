@@ -14,7 +14,7 @@ from rest_framework import serializers
 from common.viewutils import newUuid, md5_uploaded_file
 from .models import *
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('serializers')
 
 class DegreeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -511,7 +511,7 @@ class UploadDocumentSerializer(serializers.Serializer):
                     # calculate md5sum of thumb
                     thumbMd5 = hashlib.md5(memory_file.getvalue()).hexdigest()
             except IOError, e:
-                logger.debug('UploadDocument: Image open failed: {0}'.format(str(e)))
+                logger.exception('UploadDocument: Image open failed.')
             else:
                 set_id = newUuid()
         instance = Document(
