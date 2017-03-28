@@ -727,6 +727,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
+    needs_ad_block = serializers.BooleanField(default=False)
     class Meta:
         model = EligibleSite
         fields = (
@@ -736,7 +737,8 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
             'example_url',
             'example_title',
             'description',
-            'specialties'
+            'specialties',
+            'needs_ad_block'
         )
 
 class CertificateSerializer(serializers.ModelSerializer):

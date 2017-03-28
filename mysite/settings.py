@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 
 import os
 import braintree
+from distutils.util import strtobool
 import logging
 # python-social-auth settings
 from psa_config import *
@@ -26,7 +27,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = 's*l=k=*e@(jj2t6hk1er_g!6g5ztxp+n@90+@a1$nqn*(7mw(d'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = bool(strtobool(os.environ.get('ORBIT_SERVER_DEBUG', 'false')))
 
 ADMINS = [
     ('Faria Chowdhury', 'faria.chowdhury@gmail.com'),
