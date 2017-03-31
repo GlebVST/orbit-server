@@ -435,8 +435,8 @@ class EntryManager(models.Manager):
                 creditSumByTag[t.name] = creditSumByTag.setdefault(t.name, 0) + credits
         # sum credit totals
         saCmeTotal = sum([m.srcme.credits for m in saEntries])
-        print('saCmeTotal: {0}'.format(saCmeTotal))
-        print('otherCmeTotal: {0}'.format(otherCmeTotal))
+        #print('saCmeTotal: {0}'.format(saCmeTotal))
+        #print('otherCmeTotal: {0}'.format(otherCmeTotal))
         res = AuditReportResult(
             saEntries=saEntries,
             brcmeEntries=brcmeEntries,

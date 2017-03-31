@@ -764,11 +764,13 @@ class CertificateReadSerializer(serializers.ModelSerializer):
 
 
 class AuditReportReadSerializer(serializers.ModelSerializer):
+    npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
     class Meta:
         model = Certificate
         fields = (
             'referenceId',
             'name',
+            'npiNumber',
             'startDate',
             'endDate',
             'saCredits',
@@ -776,4 +778,4 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
             'data',
             'created'
         )
-        read_only_fields = ('referenceId', 'url', 'name', 'startDate', 'endDate', 'saCredits','otherCredits','data')
+        read_only_fields = ('referenceId', 'name', 'startDate', 'endDate', 'saCredits','otherCredits','data')
