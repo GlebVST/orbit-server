@@ -766,7 +766,7 @@ class CertificateReadSerializer(serializers.ModelSerializer):
 class AuditReportReadSerializer(serializers.ModelSerializer):
     npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
     class Meta:
-        model = Certificate
+        model = AuditReport
         fields = (
             'referenceId',
             'name',
