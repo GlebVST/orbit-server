@@ -340,7 +340,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_FROM = 'mission-control@orbitcme.com'
 EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
-DOMAIN_REFERENCE = 'test1.orbitcme.com'  # TODO: make this an environment var
+DOMAIN_REFERENCE = os.environ.get('ORBIT_DOMAIN_REFERENCE', 'test1.orbitcme.com')
 # used for error reporting
 SERVER_EMAIL = EMAIL_FROM
 

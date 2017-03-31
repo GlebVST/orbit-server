@@ -791,8 +791,7 @@ class CreateAuditReport(CertificateMixin, APIView):
           type: string
           paramType: form
     """
-    #permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
     def post(self, request, start, end):
         try:
             startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
@@ -807,8 +806,7 @@ class CreateAuditReport(CertificateMixin, APIView):
                 'error': 'Invalid date parameters'
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        #user = request.user
-        user = User.objects.get(first_name='Ram')
+        user = request.user
         try:
             profile = Profile.objects.get(user=user)
         except Profile.DoesNotExist:
