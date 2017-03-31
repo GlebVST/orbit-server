@@ -1,6 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
 from cStringIO import StringIO
+from hashids import Hashids
 import os
 import hashlib
 import logging
@@ -484,6 +485,7 @@ class UploadDocumentSerializer(serializers.Serializer):
         method, which then appear in validated_data:
             user: User instance
         """
+        hashgen = Hashids(salt=settings.DOCUMENT_HASHIDS_SALT, min_length=10)
         newDoc = validated_data['document'] # UploadedFile (or subclass)
         fileName = validated_data.get('name', '')
         logger.debug('uploaded filename: {0}'.format(fileName))
@@ -526,6 +528,8 @@ class UploadDocumentSerializer(serializers.Serializer):
         )
         # Save the file, and save the model instance
         instance.document.save(docName.lower(), newDoc, save=True)
+        instance.referenceId = 'document' + hashgen.encode(instance.pk)
+        instance.save(update_fields=('referenceId',))
         # Save thumbnail instance
         if thumbMd5:
             thumbName = thumbMd5 + fileExt
@@ -544,6 +548,8 @@ class UploadDocumentSerializer(serializers.Serializer):
             memory_file.seek(0)
             cf = ContentFile(memory_file.getvalue()) # Create a ContentFile from the memory_file
             thumb_instance.document.save(thumbName.lower(), cf, save=True)
+            thumb_instance.referenceId = 'document' + hashgen.encode(thumb_instance.pk)
+            thumb_instance.save(update_fields=('referenceId',))
         return instance
 
 # Serializer for the combined fields of Entry + SRCme
@@ -741,7 +747,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
             'needs_ad_block'
         )
 
-class CertificateSerializer(serializers.ModelSerializer):
+class CertificateReadSerializer(serializers.ModelSerializer):
     url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
     class Meta:
         model = Certificate
@@ -754,3 +760,20 @@ class CertificateSerializer(serializers.ModelSerializer):
             'credits',
             'created'
         )
+        read_only_fields = ('referenceId', 'url', 'name', 'startDate', 'endDate', 'credits')
+
+
+class AuditReportReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Certificate
+        fields = (
+            'referenceId',
+            'name',
+            'startDate',
+            'endDate',
+            'saCredits',
+            'otherCredits',
+            'data',
+            'created'
+        )
+        read_only_fields = ('referenceId', 'url', 'name', 'startDate', 'endDate', 'saCredits','otherCredits','data')

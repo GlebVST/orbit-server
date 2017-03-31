@@ -1,18 +1,22 @@
 from __future__ import unicode_literals
 import braintree
+from collections import namedtuple
 from datetime import datetime
-from decimal import Decimal
+from dateutil.relativedelta import *
 import pytz
 import uuid
-from dateutil.relativedelta import *
+from urlparse import urlparse
 from django.conf import settings
 from django.contrib.auth.models import User, Group
+from django.contrib.postgres.fields import JSONField
 from django.db import models
-from django.db.models import Count, Sum
+from django.db.models import Prefetch, Count, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 
 from common.appconstants import (
+    MAX_URL_LENGTH,
+    SELF_REPORTED_AUTHORITY,
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
@@ -170,6 +174,10 @@ class Profile(models.Model):
             return True
         return False
 
+    def getFullNameAndDegree(self):
+        degrees = self.degrees.all()
+        degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
+        return u"{0} {1}, {2}".format(self.firstName, self.lastName, degree_str)
 
 class CustomerManager(models.Manager):
     def findBtCustomer(self, customer):
@@ -356,6 +364,12 @@ class Document(models.Model):
     is_thumb = models.BooleanField(default=False, help_text='True if the file is an image thumbnail')
     set_id = models.CharField(max_length=36, blank=True, help_text='Used to group an image and its thumbnail into a set')
     is_certificate = models.BooleanField(default=False, help_text='True if file is a certificate (if so, will be shared in audit report)')
+    referenceId = models.CharField(max_length=255,
+        null=True,
+        blank=True,
+        unique=True,
+        default=None,
+        help_text='alphanum unique key generated from the document id')
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -364,15 +378,22 @@ class Document(models.Model):
 
 # Base class for all feed entries (contains fields common to all entry types)
 # A entry belongs to a user, and is defined by an activityDate and a description.
+
+AuditReportResult = namedtuple('AuditReportResult',
+    'saEntries brcmeEntries otherSrCmeEntries saCmeTotal otherCmeTotal creditSumByTag'
+)
+
 class EntryManager(models.Manager):
 
-    def partitionBySACme(self, user, startDate, endDate):
+    def prepareDataForAuditReport(self, user, startDate, endDate):
         """
         Filter entries by user and activityDate range, and order by activityDate desc.
-        Then, partition the qset into:
+        Partition the qset into:
             saEntries: entries with tag=CMETAG_SACME
-            otherEntries: non SA-CME entries
-        Returns (saEntries, otherEntries)
+            The non SA-CME entries are further partitioned into:
+            brcmeEntries: entries with entryType=ENTRYTYPE_BRCME
+            otherSrCmeEntries: non SA-CME entries (sr-cme only)
+        Returns AuditReportResult
         """
         satag = CmeTag.objects.get(name=CMETAG_SACME)
         filter_kwargs = dict(
@@ -381,20 +402,50 @@ class EntryManager(models.Manager):
             activityDate__lte=endDate,
             valid=True
         )
+        p_docs = Prefetch('documents',
+            queryset=Document.objects.filter(user=user, is_certificate=True, is_thumb=False).order_by('-created'),
+            to_attr='cert_docs'
+        )
         qset = self.model.objects \
-            .select_related('entryType') \
+            .select_related('entryType', 'sponsor') \
             .filter(**filter_kwargs) \
-            .prefetch_related('tags') \
+            .exclude(entryType__name=ENTRYTYPE_NOTIFICATION) \
+            .prefetch_related('tags', p_docs) \
             .order_by('-activityDate')
-        saEntries = []
-        otherEntries = []
+        saEntries = []  # list of Entry instances having CMETAG_SACME in their tags
+        brcmeEntries = []
+        otherSrCmeEntries = []
+        creditSumByTag = {}
+        otherCmeTotal = 0
         for m in qset:
             tagids = set([t.pk for t in m.tags.all()])
             if satag.pk in tagids:
                 saEntries.append(m)
             else:
-                otherEntries.append(m)
-        return (saEntries, otherEntries)
+                if m.entryType.name == ENTRYTYPE_BRCME:
+                    brcmeEntries.append(m)
+                    credits = m.brcme.credits
+                else:
+                    otherSrCmeEntries.append(m)
+                    credits = m.srcme.credits
+                otherCmeTotal += credits
+            # add credits to creditSumByTag
+            for t in m.tags.all():
+                if t.pk == satag.pk: continue
+                creditSumByTag[t.name] = creditSumByTag.setdefault(t.name, 0) + credits
+        # sum credit totals
+        saCmeTotal = sum([m.srcme.credits for m in saEntries])
+        print('saCmeTotal: {0}'.format(saCmeTotal))
+        print('otherCmeTotal: {0}'.format(otherCmeTotal))
+        res = AuditReportResult(
+            saEntries=saEntries,
+            brcmeEntries=brcmeEntries,
+            otherSrCmeEntries=otherSrCmeEntries,
+            saCmeTotal=saCmeTotal,
+            otherCmeTotal=otherCmeTotal,
+            creditSumByTag=creditSumByTag
+        )
+        return res
 
     def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
@@ -472,7 +523,29 @@ class Entry(models.Model):
     def formatTags(self):
         """Returns a comma-separated string of self.tags ordered by tag name"""
         names = [t.name for t in self.tags.all()]  # should use default ordering on CmeTag model
-        return ', '.join(names)
+        return u', '.join(names)
+
+    def formatNonSATags(self):
+        """Returns a comma-separated string of self.tags ordered by tag name excluding SA-CME"""
+        names = [t.name for t in self.tags.all() if t.name != CMETAG_SACME]  # should use default ordering on CmeTag model
+        return u', '.join(names)
+
+    def getCertDocReferenceId(self):
+        """This expects attr cert_docs:list from prefetch_related.
+        This is used by the CreateAuditReport view
+        Returns referenceId for the first item in the list or empty str
+        """
+        if self.cert_docs:
+            return self.cert_docs[0].referenceId
+        return u''
+
+    def getCertifyingAuthority(self):
+        """If sponsor, use sponsor name, else
+        use SELF_REPORTED_AUTHORITY
+        """
+        if self.sponsor:
+            return self.sponsor.name
+        return SELF_REPORTED_AUTHORITY
 
     class Meta:
         verbose_name_plural = 'Entries'
@@ -557,6 +630,9 @@ class BrowserCme(models.Model):
     def __str__(self):
         return self.url
 
+    def formatActivity(self):
+        res = urlparse(self.url)
+        return res.netloc + ' - ' + self.pageTitle
 
 @python_2_unicode_compatible
 class UserFeedback(models.Model):
@@ -904,6 +980,7 @@ class UserSubscription(models.Model):
 def certificate_document_path(instance, filename):
     return '{0}/uid_{1}/{2}'.format(settings.CERTIFICATE_MEDIA_BASEDIR, instance.user.id, filename)
 
+# BrowserCme certificate - generated file
 @python_2_unicode_compatible
 class Certificate(models.Model):
     user = models.ForeignKey(User,
@@ -925,3 +1002,117 @@ class Certificate(models.Model):
 
     def __str__(self):
         return self.name
+
+    def getAccessUrl(self):
+        """Returns the front-end URL to access this certificate"""
+        return "https://{0}/certificate/{1}".format(settings.DOMAIN_REFERENCE, self.referenceId)
+
+def audit_report_document_path(instance, filename):
+    return '{0}/uid_{1}/{2}'.format(settings.AUDIT_REPORT_MEDIA_BASEDIR, instance.user.id, filename)
+
+# Audit Report - raw data for the report is saved in JSONField
+@python_2_unicode_compatible
+class AuditReport(models.Model):
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True
+    )
+    certificate = models.ForeignKey(Certificate,
+        on_delete=models.PROTECT,
+        null=True,
+        db_index=True,
+        help_text='BrowserCme Certificate generated for the same date range'
+    )
+    referenceId = models.CharField(max_length=64,
+        null=True,
+        blank=True,
+        unique=True,
+        default=None,
+        help_text='alphanum unique key generated from the pk')
+    name = models.CharField(max_length=255, help_text='Name/title of the report')
+    startDate = models.DateTimeField()
+    endDate = models.DateTimeField()
+    saCredits = models.DecimalField(max_digits=6, decimal_places=2, help_text='Calculated number of SA-CME credits')
+    otherCredits = models.DecimalField(max_digits=6, decimal_places=2, help_text='Calculated number of other credits')
+    data = JSONField()
+    created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.referenceId
+
+
+#
+# plugin models - managed by plugin_server project
+#
+@python_2_unicode_compatible
+# Host names of allowed websites.
+class AllowedHost(models.Model):
+    id = models.AutoField(primary_key=True)
+    hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
+    created = models.DateTimeField(auto_now_add=True, blank=True)
+    modified = models.DateTimeField(auto_now=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_allowedhost'
+
+    def __str__(self):
+        return self.hostname
+
+@python_2_unicode_compatible
+class AllowedUrl(models.Model):
+    id = models.AutoField(primary_key=True)
+    host = models.ForeignKey(AllowedHost,
+        on_delete=models.CASCADE,
+        db_index=True
+    )
+    eligible_site = models.ForeignKey(EligibleSite,
+        on_delete=models.CASCADE,
+        db_index=True)
+    url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
+    valid = models.BooleanField(default=True)
+    page_title = models.TextField(blank=True)
+    doi = models.CharField(max_length=100, blank=True,
+        help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
+    created = models.DateTimeField(auto_now_add=True, blank=True)
+    modified = models.DateTimeField(auto_now=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_allowedurl'
+
+    def __str__(self):
+        return self.url
+
+# Requests made by plugin users for new AllowedUrl entries
+@python_2_unicode_compatible
+class RequestedUrl(models.Model):
+    id = models.AutoField(primary_key=True)
+    url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
+    valid = models.NullBooleanField(default=None)
+    users = models.ManyToManyField(User, through='WhitelistRequest')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_requestedurl'
+
+    def __str__(self):
+        return self.url
+
+# User-RequestedUrl association
+@python_2_unicode_compatible
+class WhitelistRequest(models.Model):
+    id = models.AutoField(primary_key=True)
+    req_url = models.ForeignKey(RequestedUrl, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_whitelistrequest'
+        unique_together = ('req_url', 'user')
+
+    def __str__(self):
+        return '{0}-{1}'.format(self.user, self.req_url.url)

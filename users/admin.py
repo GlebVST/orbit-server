@@ -1,34 +1,37 @@
 from django.contrib import admin
+from django.db.models import Count
 from .models import *
 
 class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'created')
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created')
+    list_display = ('id', 'name', 'created')
 
 class CmeTagAdmin(admin.ModelAdmin):
-    list_display = ('name', 'priority', 'description', 'created')
+    list_display = ('id', 'name', 'priority', 'description', 'created')
 
 class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'verified', 'npiNumber', 'country', 'inviter', 'cmeDuedate', 'modified')
+    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'verified', 'npiNumber', 'country', 'cmeDuedate', 'modified')
     list_filter = ('country','verified')
-    list_select_related = ('country','inviter')
+    list_select_related = ('country',)
     search_fields = ['npiNumber', 'lastName']
 
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'customerId', 'balance', 'modified')
+    list_display = ('user', 'customerId', 'created')
     search_fields = ['customerId',]
 
 class SponsorAdmin(admin.ModelAdmin):
-    list_display = ('name', 'url', 'logo_url', 'modified')
+    list_display = ('id', 'name', 'url', 'logo_url', 'modified')
 
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'activityDate', 'redeemed', 'expireDate', 'url')
+    list_select_related = ('user',)
     list_filter = ('redeemed',)
+    ordering = ('-activityDate',)
 
 class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
@@ -40,33 +43,74 @@ class DocumentAdmin(admin.ModelAdmin):
 class EntryAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'entryType', 'activityDate', 'valid', 'description', 'created')
     list_filter = ('entryType', 'valid')
+    list_select_related = ('user',)
     raw_id_fields = ('documents',)
+    ordering = ('-created',)
 
 class EligibleSiteAdmin(admin.ModelAdmin):
     list_display = ('id', 'domain_name', 'domain_title', 'example_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
     list_filter = ('is_valid_expurl', 'needs_ad_block')
+    ordering = ('domain_name',)
 
 
 class UserFeedbackAdmin(admin.ModelAdmin):
-    list_display = ('user', 'hasBias', 'hasUnfairContent', 'created')
+    list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'created')
     list_filter = ('hasBias', 'hasUnfairContent')
+    ordering = ('-created',)
 
 class SubscriptionPlanAdmin(admin.ModelAdmin):
-    list_display = ('planId', 'name', 'price', 'trialDays', 'billingCycleMonths', 'active', 'modified')
+    list_display = ('id', 'planId', 'name', 'price', 'trialDays', 'billingCycleMonths', 'active', 'modified')
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
-    list_display = ('subscriptionId', 'user', 'plan', 'status', 'display_status', 
+    list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
         'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle',
         'created', 'modified')
     list_select_related = ('user','plan')
     list_filter = ('status', 'display_status')
+    ordering = ('-modified',)
 
 class CertificateAdmin(admin.ModelAdmin):
-    list_display = ('user', 'referenceId', 'name', 'startDate', 'endDate', 'credits', 'created')
+    list_display = ('id', 'user', 'referenceId', 'name', 'startDate', 'endDate', 'credits', 'created')
     list_select_related = ('user',)
     search_fields = ['referenceId',]
+    ordering = ('-created',)
+
+class AuditReportAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'referenceId', 'name', 'startDate', 'endDate', 'saCredits', 'otherCredits', 'created')
+    list_select_related = ('user',)
+    search_fields = ['referenceId',]
+    ordering = ('-created',)
+
+#
+# plugin models
+#
+class AllowedHostAdmin(admin.ModelAdmin):
+    list_display = ('id', 'hostname', 'created', 'modified')
+    ordering = ('-modified',)
+
+class AllowedUrlAdmin(admin.ModelAdmin):
+    list_display = ('id', 'host', 'url', 'eligible_site', 'valid', 'created')
+    list_select_related = ('host', 'eligible_site')
+    list_filter = ('host',)
+    ordering = ('-modified',)
+
+class RequestedUrlAdmin(admin.ModelAdmin):
+    list_display = ('id', 'url', 'valid', 'num_users', 'created')
+    raw_id_fields = ('users',)
+    readonly_fields = ('num_users',)
+    ordering = ('-created',)
+
+    def get_queryset(self, request):
+        qs = super(RequestedUrlAdmin, self).get_queryset(request)
+        return qs.annotate(num_users=Count('users'))
+
+    def num_users(self, obj):
+        return obj.num_users
+    num_users.short_description = 'Number of users who requested it'
+    num_users.admin_order_field = 'num_users'
 
 
+admin.site.register(AuditReport, AuditReportAdmin)
 admin.site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
 admin.site.register(Certificate, CertificateAdmin)
 admin.site.register(CmeTag, CmeTagAdmin)
@@ -83,3 +127,9 @@ admin.site.register(Sponsor, SponsorAdmin)
 admin.site.register(UserFeedback, UserFeedbackAdmin)
 admin.site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin.site.register(UserSubscription, UserSubscriptionAdmin)
+#
+# plugin models
+#
+admin.site.register(AllowedHost, AllowedHostAdmin)
+admin.site.register(AllowedUrl, AllowedUrlAdmin)
+admin.site.register(RequestedUrl, RequestedUrlAdmin)

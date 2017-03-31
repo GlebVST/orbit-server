@@ -176,12 +176,6 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/1.10/ref/settings/#databases
-#DATABASES = {
-#    'default': {
-#        'ENGINE': 'django.db.backends.sqlite3',
-#        'NAME': os.path.join(BASE_DIR, 'db.sqlite3')
-#    }
-#}
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -346,9 +340,11 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_FROM = 'mission-control@orbitcme.com'
 EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
-DOMAIN_REFERENCE = 'test1.orbitcme.com'
+DOMAIN_REFERENCE = 'test1.orbitcme.com'  # TODO: make this an environment var
 # used for error reporting
 SERVER_EMAIL = EMAIL_FROM
 
 
 HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
+DOCUMENT_HASHIDS_SALT = 'random AlVkkUk2Z14FCTXu1pC32pUYm3T6uYSEYZY9ZtOLVNEJ'
+REPORT_HASHIDS_SALT = 'random AjMAVYQgiOgeS4Kwijb6ejHTzsMNsqvsauMIooVlxkOA'

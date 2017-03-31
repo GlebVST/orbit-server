@@ -38,15 +38,10 @@ for font_file in glob('{0}/fonts/*.ttf'.format(settings.PDF_TEMPLATES_DIR)):
     FONT_CHARACTER_TABLES[font_name] = ttf.face.charToGlyph.keys()
     pdfmetrics.registerFont(TTFont(font_name, font_file))
 
-def makeCmeCertOverlay(verified, referenceId, certificateName, numCredits, startDate, endDate, issued):
+def makeCmeCertOverlay(verified, certificate):
     """This file is overlaid on the template certificate.
         verified: bool  verified vs. participation
-        referenceId: str unique lookup ID for this certificate
-        certificateName:str
-        numCredits: Decimal - number of credits earned in date range
-        startDate: datetime - start date of numCredits total
-        endDate: datetime - end date of numCredits total
-        issued: datetime - date of certificate issue
+        certificate: Certificate instance
     Returns StringIO object
     """
     overlayBuffer = StringIO.StringIO()
@@ -77,14 +72,14 @@ def makeCmeCertOverlay(verified, referenceId, certificateName, numCredits, start
         0.1, 0.1, 0.1)
     styleOpenSansLight.alignment = TA_LEFT
 
-    paragraph = Paragraph(certificateName, styleOpenSans)
+    paragraph = Paragraph(certificate.name, styleOpenSans)
     paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
     paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
 
     # dates
     paragraph = Paragraph("{0} - {1}".format(
-        DateFormat(startDate).format('d F Y'),
-        DateFormat(endDate).format('d F Y')),
+        DateFormat(certificate.startDate).format('d F Y'),
+        DateFormat(certificate.endDate).format('d F Y')),
         styleOpenSansLight)
     paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
     paragraph.drawOn(pdfCanvas, 12.2 * mm, 65 * mm)
@@ -92,18 +87,18 @@ def makeCmeCertOverlay(verified, referenceId, certificateName, numCredits, start
     # credits
     styleOpenSans.fontSize = 14
     creditText = CREDIT_TEXT_VERIFIED if verified else CREDIT_TEXT_PARTICIPATION
-    paragraph = Paragraph("{0} {1}".format(numCredits, creditText), styleOpenSans)
+    paragraph = Paragraph("{0} {1}".format(certificate.credits, creditText), styleOpenSans)
     paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
     paragraph.drawOn(pdfCanvas, 12.2 * mm, 53.83 * mm)
 
     # issued
     styleOpenSans.fontSize = 9
-    paragraph = Paragraph("Issued: {0}".format(DateFormat(issued).format('d F Y')), styleOpenSans)
+    paragraph = Paragraph("Issued: {0}".format(DateFormat(certificate.created).format('d F Y')), styleOpenSans)
     paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
     paragraph.drawOn(pdfCanvas, 12.2 * mm, 12 * mm)
 
-    # Link to this certificate using referenceId
-    certUrl = "https://{0}/certificate/{1}".format(settings.DOMAIN_REFERENCE, referenceId)
+    # Link to this certificate
+    certUrl = certificate.getAccessUrl()
     paragraph = Paragraph(certUrl, styleOpenSans)
     paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
     paragraph.drawOn(pdfCanvas, 127.5 * mm, 12 * mm)
@@ -113,7 +108,7 @@ def makeCmeCertOverlay(verified, referenceId, certificateName, numCredits, start
         styleOpenSansLight.fontSize = 7
         styleOpenSansLight.textColor = colors.Color(
             0.3, 0.3, 0.3)
-        participationText = PARTICIPATION_TEXT_TEMPLATE.substitute({'numCredits': numCredits})
+        participationText = PARTICIPATION_TEXT_TEMPLATE.substitute({'numCredits': certificate.credits})
         paragraph = Paragraph(participationText, styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
         paragraph.drawOn(pdfCanvas, 12.2 * mm, 24 * mm)

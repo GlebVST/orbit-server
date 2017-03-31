@@ -1,6 +1,8 @@
+import calendar
 from datetime import datetime
 from hashids import Hashids
 import logging
+from operator import itemgetter
 from pprint import pprint
 from smtplib import SMTPException
 
@@ -16,6 +18,7 @@ from django.utils import timezone
 from rest_framework import generics, permissions, status, serializers
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
@@ -522,6 +525,40 @@ class DeleteDocument(APIView):
             return Response(context, status=status.HTTP_200_OK)
 
 
+class AccessDocumentOrCert(APIView):
+    """
+    This view expects a reference ID to lookup a Document or Certificate
+    in the db. The response returns a timed URL that allows public access
+    to the file (stored on S3).
+    parameters:
+        - name: referenceId
+          description: unique ID of document/certificate
+          required: true
+          type: string
+          paramType: query
+    """
+    permission_classes = (permissions.AllowAny,)
+    def get(self, request, referenceId):
+        try:
+            if referenceId.startswith('document'):
+                document = Document.objects.get(referenceId=referenceId)
+                out_serializer = DocumentReadSerializer(document)
+            else:
+                certificate = Certificate.objects.get(referenceId=referenceId)
+                out_serializer = CertificateReadSerializer(certificate)
+        except Certificate.DoesNotExist:
+            context = {
+                'error': 'Invalid certificate ID or not found'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        except Document.DoesNotExist:
+            context = {
+                'error': 'Invalid document ID or not found'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        return Response(out_serializer.data, status=status.HTTP_200_OK)
+
+
 
 # User Feedback
 class UserFeedbackList(generics.ListCreateAPIView):
@@ -612,12 +649,53 @@ class CmeAggregateStats(APIView):
 #
 # PDF
 #
-class CreateCmeCertificatePdf(APIView):
+class CertificateMixin(object):
+    """Mixin to create Browser-Cme certificate PDF file, upload
+    to S3 and save model instance.
+    Returns: Certificate instance
+    """
+    def makeCertificate(self, profile, startdt, enddt, cmeTotal):
+        """
+        profile: Profile instance for user
+        startdt: datetime - startDate
+        enddt: datetime - endDate
+        cmeTotal: float - total credits in date range
+        """
+        user = profile.user
+        degrees = profile.degrees.all()
+        # does user have PERM_PRINT_BRCME_CERT
+        can_print_cert = hasUserSubscriptionPerm(user, PERM_PRINT_BRCME_CERT)
+        if can_print_cert:
+            certificateName = profile.getFullNameAndDegree()
+        else:
+            certificateName = SAMPLE_CERTIFICATE_NAME
+        certificate = Certificate(
+            name = certificateName,
+            startDate = startdt,
+            endDate = enddt,
+            credits = cmeTotal,
+            user=user
+        )
+        certificate.save()
+        hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
+        certificate.referenceId = hashgen.encode(certificate.pk)
+        isVerified = any(d.isVerifiedForCme() for d in degrees)
+        # create StringIO buffer containing pdf overlay
+        overlayBuffer = makeCmeCertOverlay(isVerified, certificate)
+        output = makeCmeCertificate(overlayBuffer, isVerified) # str
+        cf = ContentFile(output) # Create a ContentFile from the output
+        # Save file (upload to S3) and re-save model instance
+        certificate.document.save("{0}.pdf".format(certificate.referenceId), cf, save=True)
+        overlayBuffer.close()
+        return certificate
+
+
+class CreateCmeCertificatePdf(CertificateMixin, APIView):
     """
     This view expects a start date and end date in UNIX epoch format
     (number of seconds since 1970/1/1) as URL parameters. It calculates
-    the total CME credit for the time period for the current
-    user, generates certificate record with PDF printout and stores that on S3
+    the total Browser-Cme credits for the time period for the user,
+    generates certificate PDF file, and uploads it to S3.
 
     parameters:
         - name: start
@@ -655,49 +733,14 @@ class CreateCmeCertificatePdf(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # get total cme credits earned by user in date range
         browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt)
-        ##srCmeTotal = Entry.objects.sumSRCme(request.user, startdt, enddt)
         cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
                 'error': 'No CME credits earned in this date range.'
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        # prepare data for cert
-        degrees = profile.degrees.all()
-        # does user have PERM_PRINT_BRCME_CERT
-        can_print_cert = hasUserSubscriptionPerm(request.user, PERM_PRINT_BRCME_CERT)
-        if can_print_cert:
-            degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
-            certificateName = "{0} {1}, {2}".format(profile.firstName, profile.lastName, degree_str)
-        else:
-            certificateName = SAMPLE_CERTIFICATE_NAME
-        certificate = Certificate(
-            name = certificateName,
-            startDate = startdt,
-            endDate = enddt,
-            credits = cmeTotal,
-            user=request.user
-        )
-        certificate.save()
-        hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
-        certificate.referenceId = hashgen.encode(certificate.id)
-        isVerified = any(d.isVerifiedForCme() for d in degrees)
-        # create StringIO buffer containing pdf overlay
-        overlayBuffer = makeCmeCertOverlay(
-            isVerified,
-            certificate.referenceId,
-            certificateName,
-            cmeTotal,
-            startdt,
-            enddt,
-            certificate.created
-        )
-        output = makeCmeCertificate(overlayBuffer, isVerified) # str
-        cf = ContentFile(output) # Create a ContentFile from the output
-        # Save file (upload to S3) and re-save model instance
-        certificate.document.save("{0}.pdf".format(certificate.referenceId), cf, save=True)
-        overlayBuffer.close()
-        out_serializer = CertificateSerializer(certificate)
+        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal)
+        out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -722,5 +765,167 @@ class AccessCmeCertificate(APIView):
                 'error': 'Invalid certificate ID or not found'
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        out_serializer = CertificateSerializer(certificate)
+        out_serializer = CertificateReadSerializer(certificate)
+        return Response(out_serializer.data, status=status.HTTP_200_OK)
+
+#
+# Audit Report
+#
+class CreateAuditReport(CertificateMixin, APIView):
+    """
+    This view expects a start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1) as URL parameters.
+    It generates an Audit Report for the date range, and uploads to S3.
+    If user has earned browserCme credits in the date range, it also
+    generates a Certificate that is associated with the report.
+
+    parameters:
+        - name: start
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: end
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+    """
+    #permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+    def post(self, request, start, end):
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+            if startdt >= enddt:
+                context = {
+                    'error': 'Start date must be prior to End Date.'
+                }
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        #user = request.user
+        user = User.objects.get(first_name='Ram')
+        try:
+            profile = Profile.objects.get(user=user)
+        except Profile.DoesNotExist:
+            context = {
+                'error': 'Invalid user. No profile found.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # get total self-reported cme credits earned by user in date range
+        srCmeTotal = Entry.objects.sumSRCme(user, startdt, enddt)
+        # get total Browser-cme credits earned by user in date range
+        browserCmeTotal = Entry.objects.sumBrowserCme(user, startdt, enddt)
+        cmeTotal = srCmeTotal + browserCmeTotal
+        if cmeTotal == 0:
+            context = {
+                'error': 'No CME credits earned in this date range.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        certificate = None
+        if browserCmeTotal > 0:
+            certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal)
+        report = self.makeReport(profile, startdt, enddt, certificate)
+        context = {
+            'success': True,
+            'referenceId': report.referenceId
+        }
+        return Response(context, status=status.HTTP_201_CREATED)
+
+    def makeReport(self, profile, startdt, enddt, certificate):
+        user = profile.user
+        can_print_report = hasUserSubscriptionPerm(user, PERM_PRINT_AUDIT_REPORT)
+        if can_print_report:
+            reportName = profile.getFullNameAndDegree()
+        else:
+            reportName = SAMPLE_CERTIFICATE_NAME
+        brcmeCertReferenceId = certificate.referenceId if certificate else None
+        # get AuditReportResult
+        res = Entry.objects.prepareDataForAuditReport(user, startdt, enddt)
+        saEvents = [{
+            'id': m.pk,
+            'entryType': m.entryType.name,
+            'date': calendar.timegm(m.activityDate.timetuple()),
+            'credit': float(m.srcme.credits),
+            'tags': m.formatNonSATags(),
+            'authority': m.getCertifyingAuthority(),
+            'activity': m.description,
+            'referenceId': m.getCertDocReferenceId()
+        } for m in res.saEntries]
+        brcmeEvents = [{
+            'id': m.pk,
+            'entryType': m.entryType.name,
+            'date': calendar.timegm(m.activityDate.timetuple()),
+            'credit': float(m.brcme.credits),
+            'tags': m.formatTags(),
+            'authority': m.getCertifyingAuthority(),
+            'activity': m.brcme.formatActivity(),
+            'referenceId': brcmeCertReferenceId
+        } for m in res.brcmeEntries]
+        srcmeEvents = [{
+            'id': m.pk,
+            'entryType': m.entryType.name,
+            'date': calendar.timegm(m.activityDate.timetuple()),
+            'credit': float(m.srcme.credits),
+            'tags': m.formatTags(),
+            'authority': m.getCertifyingAuthority(),
+            'activity': m.description,
+            'referenceId': m.getCertDocReferenceId()
+        } for m in res.otherSrCmeEntries]
+        creditSumByTagList = sorted(
+            [{'name': k, 'total': float(v)} for k,v in res.creditSumByTag.items()],
+            key=itemgetter('name')
+        )
+        report_data = {
+            'saEvents': saEvents,
+            'otherEvents': brcmeEvents+srcmeEvents,
+            'saCmeTotal': res.saCmeTotal,
+            'otherCmeTotal': res.otherCmeTotal,
+            'creditSumByTag': creditSumByTagList
+        }
+        ##pprint(report_data)
+        # create AuditReport instance
+        report = AuditReport(
+            user=user,
+            name = reportName,
+            startDate = startdt,
+            endDate = enddt,
+            saCredits = res.saCmeTotal,
+            otherCredits = res.otherCmeTotal,
+            certificate=certificate,
+            data=JSONRenderer().render(report_data)
+        )
+        report.save()
+        hashgen = Hashids(salt=settings.REPORT_HASHIDS_SALT, min_length=10)
+        report.referenceId = hashgen.encode(report.pk)
+        report.save(update_fields=('referenceId',))
+        return report
+
+
+class AccessAuditReport(APIView):
+    """
+    This view expects a report reference ID to lookup an AuditReport
+    in the db. The response returns a timed URL that allows public access
+    to the file (stored on S3).
+    parameters:
+        - name: referenceId
+          description: unique report ID
+          required: true
+          type: string
+          paramType: query
+    """
+    permission_classes = (permissions.AllowAny,)
+    def get(self, request, referenceId):
+        try:
+            report = AuditReport.objects.get(referenceId=referenceId)
+        except AuditReport.DoesNotExist:
+            context = {
+                'error': 'Invalid report ID or not found'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        out_serializer = AuditReportReadSerializer(report)
         return Response(out_serializer.data, status=status.HTTP_200_OK)
