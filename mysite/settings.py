@@ -308,8 +308,20 @@ LOGGING = {
             'maxBytes': 2**18,
             'backupCount':5
         },
+        'psa_rotfile': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'req_fmt',
+            'filename': os.path.join(LOG_DIR, 'psa.log'),
+            'maxBytes': 2**18,
+            'backupCount':5
+        },
     },
     'loggers': {
+        'django.security.DisallowedHost': {
+            'handlers': ['null',], # do not send email about Invalid HTTP_HOST header error
+            'propagate': False,
+        },
         'django.request': {
             'handlers': ['mail_admins'],
             'level': 'ERROR',
@@ -320,12 +332,12 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': True,
         },
-        'psa-pipeline': {
-            'handlers': ['gen_rotfile', 'mail_admins'],
+        'psa': {
+            'handlers': ['psa_rotfile', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },
-        'serializers': {
+        'gen': {
             'handlers': ['gen_rotfile', 'mail_admins',],
             'level': 'DEBUG',
             'propagate': True,

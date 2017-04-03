@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+import logging
 import braintree
 from collections import namedtuple
 from datetime import datetime
@@ -13,6 +14,8 @@ from django.db import models
 from django.db.models import Prefetch, Count, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+
+logger = logging.getLogger('gen.models')
 
 from common.appconstants import (
     MAX_URL_LENGTH,
@@ -110,6 +113,10 @@ class PracticeSpecialty(models.Model):
     def __str__(self):
         return self.name
 
+    def formatTags(self):
+        return ", ".join([t.name for t in self.cmeTags.all()])
+    formatTags.short_description = "cmeTags"
+
     class Meta:
         verbose_name_plural = 'Practice Specialties'
 
@@ -178,6 +185,10 @@ class Profile(models.Model):
         degrees = self.degrees.all()
         degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
         return u"{0} {1}, {2}".format(self.firstName, self.lastName, degree_str)
+
+    def formatDegrees(self):
+        return ", ".join([d.abbrev for d in self.degrees.all()])
+    formatDegrees.short_description = "Primary Role"
 
 class CustomerManager(models.Manager):
     def findBtCustomer(self, customer):
@@ -417,35 +428,39 @@ class EntryManager(models.Manager):
         otherSrCmeEntries = []
         creditSumByTag = {}
         otherCmeTotal = 0
-        for m in qset:
-            tagids = set([t.pk for t in m.tags.all()])
-            if satag.pk in tagids:
-                saEntries.append(m)
-            else:
-                if m.entryType.name == ENTRYTYPE_BRCME:
-                    brcmeEntries.append(m)
-                    credits = m.brcme.credits
+        try:
+            for m in qset:
+                tagids = set([t.pk for t in m.tags.all()])
+                if satag.pk in tagids:
+                    saEntries.append(m)
                 else:
-                    otherSrCmeEntries.append(m)
-                    credits = m.srcme.credits
-                otherCmeTotal += credits
-            # add credits to creditSumByTag
-            for t in m.tags.all():
-                if t.pk == satag.pk: continue
-                creditSumByTag[t.name] = creditSumByTag.setdefault(t.name, 0) + credits
-        # sum credit totals
-        saCmeTotal = sum([m.srcme.credits for m in saEntries])
-        #print('saCmeTotal: {0}'.format(saCmeTotal))
-        #print('otherCmeTotal: {0}'.format(otherCmeTotal))
-        res = AuditReportResult(
-            saEntries=saEntries,
-            brcmeEntries=brcmeEntries,
-            otherSrCmeEntries=otherSrCmeEntries,
-            saCmeTotal=saCmeTotal,
-            otherCmeTotal=otherCmeTotal,
-            creditSumByTag=creditSumByTag
-        )
-        return res
+                    if m.entryType.name == ENTRYTYPE_BRCME:
+                        brcmeEntries.append(m)
+                        credits = m.brcme.credits
+                    else:
+                        otherSrCmeEntries.append(m)
+                        credits = m.srcme.credits
+                    otherCmeTotal += credits
+                # add credits to creditSumByTag
+                for t in m.tags.all():
+                    if t.pk == satag.pk: continue
+                    creditSumByTag[t.name] = creditSumByTag.setdefault(t.name, 0) + credits
+            # sum credit totals
+            saCmeTotal = sum([m.srcme.credits for m in saEntries])
+        except Exception:
+            logger.exception('prepareDataForAuditReport exception')
+        else:
+            #logger.debug('saCmeTotal: {0}'.format(saCmeTotal))
+            #logger.debug('otherCmeTotal: {0}'.format(otherCmeTotal))
+            res = AuditReportResult(
+                saEntries=saEntries,
+                brcmeEntries=brcmeEntries,
+                otherSrCmeEntries=otherSrCmeEntries,
+                saCmeTotal=saCmeTotal,
+                otherCmeTotal=otherCmeTotal,
+                creditSumByTag=creditSumByTag
+            )
+            return res
 
     def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
@@ -636,6 +651,7 @@ class BrowserCme(models.Model):
 
 @python_2_unicode_compatible
 class UserFeedback(models.Model):
+    SNIPPET_MAX_CHARS = 80
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         db_index=True
@@ -643,13 +659,22 @@ class UserFeedback(models.Model):
     message = models.CharField(max_length=500)
     hasBias = models.BooleanField(default=False)
     hasUnfairContent = models.BooleanField(default=False)
+    reviewed = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.message
+
+    def message_snippet(self):
+        if len(self.message) > UserFeedback.SNIPPET_MAX_CHARS:
+            return self.message[0:UserFeedBack.SNIPPET_MAX_CHARS] + '...'
+        return self.message
+    message_snippet.short_description = "Message Snippet"
+
     class Meta:
         verbose_name_plural = 'User Feedback'
+
 
 @python_2_unicode_compatible
 class EligibleSite(models.Model):
@@ -906,7 +931,7 @@ class UserSubscriptionManager(models.Manager):
         """
         collection = braintree.Subscription.search(braintree.SubscriptionSearch.plan_id == planId)
         for subs in collection.items:
-            print('subscriptionId:{0} status:{1} start:{2} end:{3}.'.format(
+            logger.debug('subscriptionId:{0} status:{1} start:{2} end:{3}.'.format(
                 subs.subscriptionId,
                 subs.status,
                 subs.billing_period_start_date,

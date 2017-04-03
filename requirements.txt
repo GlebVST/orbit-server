@@ -1,4 +1,4 @@
-appdirs==1.4.0
+appdirs==1.4.3
 argon2-cffi==16.3.0
 boto3==1.4.4
 botocore==1.5.21
@@ -30,11 +30,11 @@ psycopg2==2.7.1
 pycparser==2.17
 Pygments==2.1.3
 PyJWT==1.4.2
-pyparsing==2.1.10
+pyparsing==2.2.0
 PyPDF2==1.26.0
 python-dateutil==2.6.0
 python-openid==2.2.5
-pytz==2016.10
+pytz==2017.2
 reportlab==3.4.0
 requests==2.13.0
 requests-oauthlib==0.8.0

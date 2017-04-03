@@ -4,7 +4,7 @@ from hashids import Hashids
 from django.conf import settings
 from .models import Profile, Customer
 
-logger = logging.getLogger('psa-pipeline')
+logger = logging.getLogger('psa.pipeline')
 
 def save_profile(backend, user, response, *args, **kwargs):
     """Save Profile and Customer models for the user"""

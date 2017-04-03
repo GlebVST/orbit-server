@@ -15,7 +15,7 @@ from rest_framework import serializers
 from common.viewutils import newUuid, md5_uploaded_file
 from .models import *
 
-logger = logging.getLogger('serializers')
+logger = logging.getLogger('gen.srl')
 
 class DegreeSerializer(serializers.ModelSerializer):
     class Meta:

@@ -6,7 +6,11 @@ class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'created')
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'created')
+    list_display = ('id', 'name', 'formatTags', 'created')
+
+    def get_queryset(self, request):
+        qs = super(PracticeSpecialtyAdmin, self).get_queryset(request)
+        return qs.prefetch_related('cmeTags')
 
 class CmeTagAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'priority', 'description', 'created')
@@ -15,10 +19,13 @@ class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'contactEmail', 'verified', 'npiNumber', 'country', 'cmeDuedate', 'modified')
-    list_filter = ('country','verified')
-    list_select_related = ('country',)
+    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'contactEmail', 'verified', 'npiNumber', 'cmeDuedate', 'modified')
+    list_filter = ('verified',)
     search_fields = ['npiNumber', 'lastName']
+
+    def get_queryset(self, request):
+        qs = super(ProfileAdmin, self).get_queryset(request)
+        return qs.prefetch_related('degrees')
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'customerId', 'created')
@@ -54,9 +61,22 @@ class EligibleSiteAdmin(admin.ModelAdmin):
 
 
 class UserFeedbackAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'created')
-    list_filter = ('hasBias', 'hasUnfairContent')
+    list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')
+    list_filter = ('reviewed', 'hasBias', 'hasUnfairContent')
     ordering = ('-created',)
+    actions = ['mark_reviewed', 'clear_reviewed',]
+
+    def mark_reviewed(self, request, queryset):
+        rows_updated = queryset.update(reviewed=True)
+        self.message_user(request, "Number of rows updated: %s" % rows_updated)
+    mark_reviewed.short_description = "Mark selected rows as reviewed"
+
+    def clear_reviewed(self, request, queryset):
+        rows_updated = queryset.update(reviewed=False)
+        self.message_user(request, "Number of rows updated: %s" % rows_updated)
+    clear_reviewed.short_description = "Clear reviewed flag of selected rows"
+
+
 
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ('id', 'planId', 'name', 'price', 'trialDays', 'billingCycleMonths', 'active', 'modified')

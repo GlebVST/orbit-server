@@ -17,7 +17,7 @@ from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
 from .serializers import ProfileSerializer, CmeTagSerializer
 
-logger = logging.getLogger('app.auth')
+logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
 
 def ss_login(request):

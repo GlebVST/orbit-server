@@ -828,11 +828,17 @@ class CreateAuditReport(CertificateMixin, APIView):
         if browserCmeTotal > 0:
             certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal)
         report = self.makeReport(profile, startdt, enddt, certificate)
-        context = {
-            'success': True,
-            'referenceId': report.referenceId
-        }
-        return Response(context, status=status.HTTP_201_CREATED)
+        if report is None:
+            context = {
+                'error': 'There was an error in creating this Audit Report.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            context = {
+                'success': True,
+                'referenceId': report.referenceId
+            }
+            return Response(context, status=status.HTTP_201_CREATED)
 
     def makeReport(self, profile, startdt, enddt, certificate):
         user = profile.user
@@ -844,6 +850,8 @@ class CreateAuditReport(CertificateMixin, APIView):
         brcmeCertReferenceId = certificate.referenceId if certificate else None
         # get AuditReportResult
         res = Entry.objects.prepareDataForAuditReport(user, startdt, enddt)
+        if not res:
+            return None
         saEvents = [{
             'id': m.pk,
             'entryType': m.entryType.name,
