@@ -1030,7 +1030,7 @@ class Certificate(models.Model):
 
     def getAccessUrl(self):
         """Returns the front-end URL to access this certificate"""
-        return "https://{0}/certificate/{1}".format(settings.DOMAIN_REFERENCE, self.referenceId)
+        return "https://{0}/certificate/{1}".format(settings.SERVER_HOSTNAME, self.referenceId)
 
 def audit_report_document_path(instance, filename):
     return '{0}/uid_{1}/{2}'.format(settings.AUDIT_REPORT_MEDIA_BASEDIR, instance.user.id, filename)

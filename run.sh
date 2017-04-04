@@ -1,8 +1,4 @@
 #!/bin/bash
 
-export ORBIT_FB_AUTH_KEY='1776659095889974'
-export ORBIT_FB_AUTH_SECRET='9b2adb659a3b997a175effd966fadaf2'
-export ORBIT_BRAINTREE_MERCHID='t28ddtcm54g4bwz7'
-export ORBIT_BRAINTREE_PUBLIC_KEY='kk74vmzk9ywqm78r'
-export ORBIT_BRAINTREE_PRIVATE_KEY='4b5e607d2bde311bf85216f21c7c6da2'
+# manage.py expects a .env file in the same dir which contains the settings environ.
 python manage.py runserver

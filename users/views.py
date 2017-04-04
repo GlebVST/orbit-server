@@ -171,7 +171,7 @@ class VerifyProfileEmail(APIView):
         ctx = {
             'profile': user.profile,
             'customer': customer,
-            'domain': settings.DOMAIN_REFERENCE
+            'domain': settings.SERVER_HOSTNAME
         }
         message = get_template('email/verification.html').render(Context(ctx))
         msg = EmailMessage(subject, message, to=[user.profile.contactEmail], from_email=from_email)

@@ -33,7 +33,9 @@ ADMINS = [
     ('Faria Chowdhury', 'faria.chowdhury@gmail.com'),
 ]
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', '192.168.0.37', 'test1.orbitcme.com']
+SERVER_HOSTNAME = os.environ['ORBIT_SERVER_HOSTNAME']  # e.g. test1.orbitcme.com
+
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', SERVER_HOSTNAME]
 
 # This value used by various expiration-related settings
 APP_EXPIRE_SECONDS = 86400*30  # 30 days
@@ -60,9 +62,9 @@ INSTALLED_APPS = [
 SESSION_COOKIE_AGE = APP_EXPIRE_SECONDS
 
 # django-storages AWS S3
-AWS_ACCESS_KEY_ID = os.environ.get('ORBIT_AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.environ.get('ORBIT_AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = os.environ.get('ORBIT_AWS_S3_BUCKET_NAME')
+AWS_ACCESS_KEY_ID = os.environ['ORBIT_AWS_ACCESS_KEY_ID']
+AWS_SECRET_ACCESS_KEY = os.environ['ORBIT_AWS_SECRET_ACCESS_KEY']
+AWS_STORAGE_BUCKET_NAME = os.environ['ORBIT_AWS_S3_BUCKET_NAME']
 AWS_QUERYSTRING_AUTH = True
 AWS_QUERYSTRING_EXPIRE = APP_EXPIRE_SECONDS
 AWS_DEFAULT_ACL = 'private'
@@ -79,17 +81,17 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 3145728  # 1024*1024*3
 # Braintree sandbox environment vars
 braintree.Configuration.configure(
     braintree.Environment.Sandbox,
-    merchant_id=os.environ.get('ORBIT_BRAINTREE_MERCHID'),
-    public_key=os.environ.get('ORBIT_BRAINTREE_PUBLIC_KEY'),
-    private_key=os.environ.get('ORBIT_BRAINTREE_PRIVATE_KEY')
+    merchant_id=os.environ['ORBIT_BRAINTREE_MERCHID'],
+    public_key=os.environ['ORBIT_BRAINTREE_PUBLIC_KEY'],
+    private_key=os.environ['ORBIT_BRAINTREE_PRIVATE_KEY']
 )
 
 #
 # PSA
 #
 # PSA environment vars
-SOCIAL_AUTH_FACEBOOK_KEY = os.environ.get('ORBIT_FB_AUTH_KEY')
-SOCIAL_AUTH_FACEBOOK_SECRET = os.environ.get('ORBIT_FB_AUTH_SECRET')
+SOCIAL_AUTH_FACEBOOK_KEY = os.environ['ORBIT_FB_AUTH_KEY']
+SOCIAL_AUTH_FACEBOOK_SECRET = os.environ['ORBIT_FB_AUTH_SECRET']
 if not DEBUG:
     SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
 SOCIAL_AUTH_STRATEGY = 'social_django.strategy.DjangoStrategy'
@@ -179,10 +181,10 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('ORBIT_DB_NAME'),
-        'USER': os.environ.get('ORBIT_DB_USER'),
-        'PASSWORD': os.environ.get('ORBIT_DB_PASSWORD'),
-        'HOST': os.environ.get('ORBIT_DB_HOST')
+        'NAME':     os.environ['ORBIT_DB_NAME'],
+        'USER':     os.environ['ORBIT_DB_USER'],
+        'PASSWORD': os.environ['ORBIT_DB_PASSWORD'],
+        'HOST':     os.environ['ORBIT_DB_HOST']
     }
 }
 
@@ -352,7 +354,6 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_FROM = 'mission-control@orbitcme.com'
 EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
-DOMAIN_REFERENCE = os.environ.get('ORBIT_DOMAIN_REFERENCE', 'test1.orbitcme.com')
 # used for error reporting
 SERVER_EMAIL = EMAIL_FROM
 
