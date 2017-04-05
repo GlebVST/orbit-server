@@ -3,7 +3,7 @@ from datetime import datetime
 from hashids import Hashids
 import logging
 from operator import itemgetter
-from pprint import pprint
+from urlparse import urlparse
 from smtplib import SMTPException
 
 import pytz
@@ -570,12 +570,31 @@ class UserFeedbackList(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+
 # Eligible Site
 class EligibleSiteList(generics.ListCreateAPIView):
     queryset = EligibleSite.objects.all().order_by('domain_title','created')
     serializer_class = EligibleSiteSerializer
     pagination_class = LongPagination
     permission_classes = (IsContentAdminOrAny,)
+
+    def perform_create(self, serializer, format=None):
+        """Validate domain_name against example_url.netloc
+        """
+        data = self.request.data
+        domain_name = data.get('domain_name', '').lstrip('http://').lstrip('https://')
+        example_url = data.get('example_url', '')
+        if example_url:
+            # check domain_name
+            res = urlparse(example_url)
+            netloc = res.netloc
+            if not domain_name.startswith(res.netloc):
+                error_msg = "The domain of the example_url must be contained in the user-specified domain_name"
+                return serializers.ValidationError(error_msg)
+        with transaction.atomic():
+            # create EligibleSite, AllowedHost, AllowedUrl
+            instance = serializer.save(domain_name=domain_name)
+
 
 class EligibleSiteDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = EligibleSite.objects.all()

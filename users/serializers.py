@@ -7,7 +7,7 @@ import hashlib
 import logging
 import mimetypes
 from PIL import Image
-from pprint import pprint
+from urlparse import urlparse, urldefrag
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.utils import timezone
@@ -746,6 +746,29 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
             'specialties',
             'needs_ad_block'
         )
+
+    def create(self, validated_data):
+        """Create EligibleSite instance
+        Add example_url.netloc to AllowedHost
+        Add example_url to AllowedUrl
+        """
+        instance = super(EligibleSiteSerializer, self).create(validated_data)
+        example_url = urldefrag(validated_data['example_url'])[0]
+        res = urlparse(example_url)
+        netloc = res.netloc
+        # create AllowedHost
+        host, created = AllowedHost.objects.get_or_create(hostname=netloc)
+        # create AllowedUrl
+        allowed_url, created = AllowedUrl.objects.get_or_create(
+            host=host,
+            eligible_site=instance,
+            url=example_url,
+            page_title=validated_data.get('example_title')
+        )
+        if created:
+            logger.info('EligibleSite: new AllowedUrl: {0.url}'.format(allowed_url))
+        return instance
+
 
 class CertificateReadSerializer(serializers.ModelSerializer):
     url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)

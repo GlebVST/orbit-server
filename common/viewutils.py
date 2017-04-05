@@ -28,12 +28,6 @@ class JsonResponseMixin(object):
         resp = JSONResponse(context, **response_kwargs)
         return resp
 
-def parseUriDomain(url):
-    parsed_uri = urlparse(url)
-    domain = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
-    print(domain)
-    return domain
-
 def getUrlLastPart(url):
     output = urlparse(url.strip('/')) # strip any trailing slash
     last_part = output.path.rpartition('/')[-1]
