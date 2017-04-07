@@ -1101,6 +1101,7 @@ class AllowedUrl(models.Model):
         help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
     set_id = models.CharField(max_length=500, blank=True,
         help_text='Used to group a set of URLs that point to the same resource')
+    content_type = models.CharField(max_length=100, blank=True, help_text='page content_type')
     created = models.DateTimeField(auto_now_add=True, blank=True)
     modified = models.DateTimeField(auto_now=True, blank=True)
 

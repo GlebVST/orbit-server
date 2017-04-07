@@ -33,8 +33,8 @@ ADMINS = [
     ('Faria Chowdhury', 'faria.chowdhury@gmail.com'),
 ]
 
+# Note: This value should match the X_FORWARDED_HOST in the nginx conf file.
 SERVER_HOSTNAME = os.environ['ORBIT_SERVER_HOSTNAME']  # e.g. test1.orbitcme.com
-
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', SERVER_HOSTNAME]
 
 # This value used by various expiration-related settings
