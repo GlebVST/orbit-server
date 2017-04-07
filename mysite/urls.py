@@ -39,6 +39,9 @@ payment_patterns = [
 ]
 
 api_patterns = [
+    # ping test
+    url(r'^ping/?$', views.PingTest.as_view(), name='ping-pong'),
+
     # AUTH
     url(r'^auth/status/?$', auth_views.auth_status, name='get-auth-status'),
     # client gets fb access token and exchanges it for internal token, and login user

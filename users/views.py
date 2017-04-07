@@ -32,6 +32,14 @@ from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate, SAMPLE_CERTIFICAT
 
 logger = logging.getLogger('api.views')
 
+class PingTest(APIView):
+    """Test api server response"""
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request, format=None):
+        context = {'success': True}
+        return Response(context, status=status.HTTP_200_OK)
+
 # Country
 class CountryList(generics.ListCreateAPIView):
     queryset = Country.objects.all().order_by('id')
