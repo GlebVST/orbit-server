@@ -12,10 +12,15 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 
 import os
 import braintree
+from django.core.exceptions import ImproperlyConfigured
 from distutils.util import strtobool
 import logging
 # python-social-auth settings
 from psa_config import *
+
+ENV_DEV = 'dev'
+ENV_STAGE = 'stage'
+ENV_PROD = 'prod'
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,15 +31,29 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 's*l=k=*e@(jj2t6hk1er_g!6g5ztxp+n@90+@a1$nqn*(7mw(d'
 
+def get_environment_variable(var_name):
+    """Attempt to get key from os.environ, or raise ImproperlyConfigured exception"""
+    try:
+        return os.environ[var_name]
+    except KeyError:
+        raise ImproperlyConfigured('The {0} environment variable is not set'.format(var_name))
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = bool(strtobool(os.environ.get('ORBIT_SERVER_DEBUG', 'false')))
 
+ENV_TYPE = get_environment_variable('ORBIT_ENV_TYPE')
+if not ENV_TYPE in (ENV_DEV, ENV_PROD, ENV_STAGE):
+    raise ImproperlyConfigured('Invalid value for ORBIT_ENV_TYPE.')
+DEBUG = True if ENV_TYPE == ENV_DEV else False
+
 ADMINS = [
-    ('Faria Chowdhury', 'faria.chowdhury@gmail.com'),
+    ('Faria Chowdhury',   'faria.chowdhury@gmail.com'),
+    ('Max Hwang'          'mch@codeabovelab.com'),
+    ('Gleb Starodubstev', 'gleb@codeabovelab.com')
 ]
 
 # Note: This value should match the X_FORWARDED_HOST in the nginx conf file.
-SERVER_HOSTNAME = os.environ['ORBIT_SERVER_HOSTNAME']  # e.g. test1.orbitcme.com
+SERVER_HOSTNAME = get_environment_variable('ORBIT_SERVER_HOSTNAME')  # e.g. test1.orbitcme.com
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', SERVER_HOSTNAME]
 
 # This value used by various expiration-related settings
@@ -60,11 +79,12 @@ INSTALLED_APPS = [
 
 # Session
 SESSION_COOKIE_AGE = APP_EXPIRE_SECONDS
+SESSION_COOKIE_SECURE = False if ENV_TYPE == ENV_DEV else True # stage/prod must use https
 
 # django-storages AWS S3
-AWS_ACCESS_KEY_ID = os.environ['ORBIT_AWS_ACCESS_KEY_ID']
-AWS_SECRET_ACCESS_KEY = os.environ['ORBIT_AWS_SECRET_ACCESS_KEY']
-AWS_STORAGE_BUCKET_NAME = os.environ['ORBIT_AWS_S3_BUCKET_NAME']
+AWS_ACCESS_KEY_ID = get_environment_variable('ORBIT_AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = get_environment_variable('ORBIT_AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = get_environment_variable('ORBIT_AWS_S3_BUCKET_NAME')
 AWS_QUERYSTRING_AUTH = True
 AWS_QUERYSTRING_EXPIRE = APP_EXPIRE_SECONDS
 AWS_DEFAULT_ACL = 'private'
@@ -81,17 +101,17 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 3145728  # 1024*1024*3
 # Braintree sandbox environment vars
 braintree.Configuration.configure(
     braintree.Environment.Sandbox,
-    merchant_id=os.environ['ORBIT_BRAINTREE_MERCHID'],
-    public_key=os.environ['ORBIT_BRAINTREE_PUBLIC_KEY'],
-    private_key=os.environ['ORBIT_BRAINTREE_PRIVATE_KEY']
+    merchant_id=get_environment_variable('ORBIT_BRAINTREE_MERCHID'),
+    public_key=get_environment_variable('ORBIT_BRAINTREE_PUBLIC_KEY'),
+    private_key=get_environment_variable('ORBIT_BRAINTREE_PRIVATE_KEY')
 )
 
 #
 # PSA
 #
 # PSA environment vars
-SOCIAL_AUTH_FACEBOOK_KEY = os.environ['ORBIT_FB_AUTH_KEY']
-SOCIAL_AUTH_FACEBOOK_SECRET = os.environ['ORBIT_FB_AUTH_SECRET']
+SOCIAL_AUTH_FACEBOOK_KEY = get_environment_variable('ORBIT_FB_AUTH_KEY')
+SOCIAL_AUTH_FACEBOOK_SECRET = get_environment_variable('ORBIT_FB_AUTH_SECRET')
 if not DEBUG:
     SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
 SOCIAL_AUTH_STRATEGY = 'social_django.strategy.DjangoStrategy'
@@ -181,10 +201,10 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME':     os.environ['ORBIT_DB_NAME'],
-        'USER':     os.environ['ORBIT_DB_USER'],
-        'PASSWORD': os.environ['ORBIT_DB_PASSWORD'],
-        'HOST':     os.environ['ORBIT_DB_HOST']
+        'NAME':     get_environment_variable('ORBIT_DB_NAME'),
+        'USER':     get_environment_variable('ORBIT_DB_USER'),
+        'PASSWORD': get_environment_variable('ORBIT_DB_PASSWORD'),
+        'HOST':     get_environment_variable('ORBIT_DB_HOST')
     }
 }
 

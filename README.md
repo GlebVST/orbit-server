@@ -17,6 +17,7 @@ The following keys are expected in the .env file which is read by manage.py and 
 
 #### Django project
 
+ * ORBIT_ENV_TYPE         - one of: dev/stage/prod.  Use prod for production, stage for test, dev for development.
  * ORBIT_SERVER_HOSTNAME  - hostname of the server (e.g. test1.orbitcme.com)
  * ORBIT_SERVER_DEBUG     - true in development only, false otherwise.
 
