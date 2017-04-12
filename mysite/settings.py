@@ -98,9 +98,11 @@ MEDIA_URL = "http://%s.s3.amazonaws.com/" % AWS_STORAGE_BUCKET_NAME
 # The maximum size (in bytes) that an upload will be before it gets streamed to the file system
 FILE_UPLOAD_MAX_MEMORY_SIZE = 3145728  # 1024*1024*3
 
-# Braintree sandbox environment vars
+# Braintree Configuration
+# Note: the credentials must be valid for the selected BRAINTREE_ENV else get AuthenticationError
+BRAINTREE_ENV = braintree.Environment.Production if ENV_TYPE == ENV_PROD else braintree.Environment.Sandbox
 braintree.Configuration.configure(
-    braintree.Environment.Sandbox,
+    BRAINTREE_ENV,
     merchant_id=get_environment_variable('ORBIT_BRAINTREE_MERCHID'),
     public_key=get_environment_variable('ORBIT_BRAINTREE_PUBLIC_KEY'),
     private_key=get_environment_variable('ORBIT_BRAINTREE_PRIVATE_KEY')

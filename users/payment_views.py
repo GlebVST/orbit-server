@@ -32,7 +32,7 @@ logger = logging.getLogger('api.shop')
 # https://developers.braintreepayments.com/start/hello-server/python
 class GetToken(JsonResponseMixin, APIView):
     """
-    This endpoint returns a Braintree Client Token.
+    Returns a Client Token.
 
     """
     def get(self, request, *args, **kwargs):
@@ -43,7 +43,7 @@ class GetToken(JsonResponseMixin, APIView):
 
 class GetPaymentMethods(JsonResponseMixin, APIView):
     """
-    This endpoint returns a list of existing payment methods from the Braintree Customer (if any).
+    Returns a list of existing payment methods from the Customer vault (if any).
 
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
@@ -156,8 +156,8 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
 
 class NewSubscription(JsonResponseMixin, APIView):
     """
-    This view expects a JSON object from the POST with Braintree transaction details.
-    Example JSON when using existing customer payment method with token obtained from BT Vault:
+    This view expects a JSON object in the POST data:
+    Example JSON when using existing customer payment method with token obtained from Vault:
         {"plan-id":1,"payment-method-token":"5wfrrp", "do-trial":0}
 
     Example JSON when using a new payment method with a Nonce prepared on client:
@@ -183,6 +183,7 @@ class NewSubscription(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'Payment Nonce or Method Token is required'
             }
+            logError(logger, request, context['message'])
             return self.render_to_json_response(context, status_code=400)
         do_trial = userdata.get('do-trial', 1)
         if do_trial not in (0, 1):
@@ -190,6 +191,7 @@ class NewSubscription(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'do-trial value must be either 0 or 1'
             }
+            logError(logger, request, context['message'])
             return self.render_to_json_response(context, status_code=400)
         # If user has had a prior subscription, do_trial must be 0
         if do_trial:
@@ -199,6 +201,8 @@ class NewSubscription(JsonResponseMixin, APIView):
                     'success': False,
                     'message': 'Renewing subscription is not permitted a trial period.'
                 }
+                message = context['message'] + ' last_subscription id: {0}'.format(last_subscription.pk)
+                logError(logger, request, message)
                 return self.render_to_json_response(context, status_code=400)
         # plan pk (primary_key of plan in db)
         planPk = userdata.get('plan-id', None)
@@ -207,6 +211,7 @@ class NewSubscription(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'Plan Id is required (pk)'
             }
+            logError(logger, request, context['message'])
             return self.render_to_json_response(context, status_code=400)
         try:
             plan = SubscriptionPlan.objects.get(pk=planPk)
@@ -217,7 +222,7 @@ class NewSubscription(JsonResponseMixin, APIView):
             }
             return self.render_to_json_response(context, status_code=400)
         subs_params = {
-            'plan_id': plan.planId # planId must exist in Braintree Control Panel
+            'plan_id': plan.planId # planId must exist in BT Control Panel
         }
         if not do_trial:
             subs_params['trial_duration'] = 0  # subscription starts immediately
@@ -230,12 +235,15 @@ class NewSubscription(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'Local Customer object not found for user.'
             }
+            logError(logger, request, context['message'])
             return self.render_to_json_response(context, status_code=400)
         except braintree.exceptions.not_found_error.NotFoundError:
             context = {
                 'success': False,
                 'message': 'BT Customer object not found.'
             }
+            message = context['message'] + ' customerId: {0}'.format(customer.customerId)
+            logError(logger, request, message)
             return self.render_to_json_response(context, status_code=400)
 
         if payment_nonce:
@@ -288,7 +296,7 @@ class SwitchTrialToActive(JsonResponseMixin, APIView):
     """
     This view cancels the user's Trial subscription, and creates a new
     Active subscription.
-    Example JSON when using existing customer payment method with token obtained from BT Vault:
+    Example JSON when using existing customer payment method with token obtained from Vault:
         {"payment-method-token":"5wfrrp"}
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
@@ -332,7 +340,7 @@ class SwitchTrialToActive(JsonResponseMixin, APIView):
 class CancelSubscription(JsonResponseMixin, APIView):
     """
     This view expects a JSON object from the POST:
-    {"subscription-id": braintree subscriptionid to cancel}
+    {"subscription-id": BT subscriptionid to cancel}
     If the subscription Id is valid:
         If the subscription is in UI_TRIAL:
             call terminalCancelBtSubscription
@@ -359,6 +367,8 @@ class CancelSubscription(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'UserSubscription local object not found.'
             }
+            message = context['message'] + ' BT subscriptionId: {0}'.format(subscriptionId)
+            logError(logger, request, message)
             return self.render_to_json_response(context, status_code=400)
         # check current status
         if user_subs.display_status not in (UserSubscription.UI_ACTIVE, UserSubscription.UI_TRIAL):
@@ -405,7 +415,7 @@ class CancelSubscription(JsonResponseMixin, APIView):
 class ResumeSubscription(JsonResponseMixin, APIView):
     """
     This view expects a JSON object from the POST:
-    {"subscription-id": braintree subscriptionid to cancel}
+    {"subscription-id": BT subscriptionid to cancel}
     If the subscription Id is valid and it is in UI_ACTIVE_CANCELED:
             call reactivateBtSubscription
     """
@@ -429,6 +439,8 @@ class ResumeSubscription(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'UserSubscription local object not found.'
             }
+            message = context['message'] + ' BT subscriptionId: {0}'.format(subscriptionId)
+            logError(logger, request, message)
             return self.render_to_json_response(context, status_code=400)
         # check current status
         if user_subs.display_status != UserSubscription.UI_ACTIVE_CANCELED:
