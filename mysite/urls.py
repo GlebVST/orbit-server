@@ -26,17 +26,14 @@ from rest_framework import response, schemas
 from rest_framework.renderers import CoreJSONRenderer
 from rest_framework_swagger.renderers import OpenAPIRenderer
 
-auth_patterns = [
-    # site login via server-side fb login (for testing only)
-    url(r'^ss-login/?$', auth_views.ss_login, name='ss-login'),
-    url(r'^ss-login-error/?$', auth_views.ss_login_error, name='ss-login-error'),
-    url(r'^ss-home/?$', auth_views.ss_home, name='ss-home'),
-    url(r'^ss-logout/?$', auth_views.ss_logout, name='ss-logout'),
-]
-
-payment_patterns = [
-    url(r'^test-form/$', payment_views.TestForm.as_view(), name='payment-test-form'),
-]
+if settings.ENV_TYPE != settings.ENV_PROD:
+    auth_patterns = [
+        # site login via server-side fb login (for testing only)
+        url(r'^ss-login/?$', auth_views.ss_login, name='ss-login'),
+        url(r'^ss-login-error/?$', auth_views.ss_login_error, name='ss-login-error'),
+        url(r'^ss-home/?$', auth_views.ss_home, name='ss-home'),
+        url(r'^ss-logout/?$', auth_views.ss_logout, name='ss-logout'),
+    ]
 
 api_patterns = [
     # ping test
@@ -105,10 +102,13 @@ api_patterns = [
     url(r'^dashboard/audit-report/(?P<referenceId>\w+)/?$', views.AccessAuditReport.as_view()),
     url(r'^dashboard/access-document/(?P<referenceId>\w+)/?$', views.AccessDocumentOrCert.as_view()),
 
-    # debug
-    url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
-    url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
 ]
+if settings.ENV_TYPE != settings.ENV_PROD:
+    # debug
+    api_patterns.extend([
+        url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
+        url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
+    ])
 
 # Custom view to render Swagger UI consuming only /api/ endpoints
 @api_view()
@@ -122,23 +122,22 @@ def swagger_view(request):
 
 
 urlpatterns = [
-    # Swagger
-    url(r'^api-docs/', swagger_view, name='api-docs'),
     # api
     url(r'^api/v1/', include(api_patterns)),
-    # auth
-    url(r'auth/', include(auth_patterns)),
-    # payment
-    url(r'payment/', include(payment_patterns)),
     # Django admin interface
     url(r'^admin/', admin.site.urls),
-    # direct use of oauth2_provider (no psa). Useful for admin users who are not associated with any social account.
-    url(r'^o/', include('oauth2_provider.urls', namespace='oauth2_provider')),
-    # login for the drf browsable api
-    # http://www.django-rest-framework.org/tutorial/4-authentication-and-permissions/
-    #url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
-    # PSA
-    url(r'', include('social_django.urls', namespace='social')),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-# Note: the helper to serve media files only works in debug mode.
-# https://docs.djangoproject.com/en/1.10/howto/static-files/#serving-files-uploaded-by-a-user-during-development
+]
+if settings.ENV_TYPE != settings.ENV_PROD:
+    urlpatterns.extend([
+        # Swagger
+        url(r'^api-docs/', swagger_view, name='api-docs'),
+        # server-side fb login
+        url(r'auth/', include(auth_patterns)),
+        # direct use of oauth2_provider (no psa). Used for testing
+        url(r'^o/', include('oauth2_provider.urls', namespace='oauth2_provider')),
+    ])
+
+# PSA
+urlpatterns.append(
+    url(r'', include('social_django.urls', namespace='social'))
+)

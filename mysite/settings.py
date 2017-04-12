@@ -38,12 +38,12 @@ def get_environment_variable(var_name):
     except KeyError:
         raise ImproperlyConfigured('The {0} environment variable is not set'.format(var_name))
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = bool(strtobool(os.environ.get('ORBIT_SERVER_DEBUG', 'false')))
 
 ENV_TYPE = get_environment_variable('ORBIT_ENV_TYPE')
 if not ENV_TYPE in (ENV_DEV, ENV_PROD, ENV_STAGE):
     raise ImproperlyConfigured('Invalid value for ORBIT_ENV_TYPE.')
+
+# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True if ENV_TYPE == ENV_DEV else False
 
 ADMINS = [
@@ -54,7 +54,10 @@ ADMINS = [
 
 # Note: This value should match the X_FORWARDED_HOST in the nginx conf file.
 SERVER_HOSTNAME = get_environment_variable('ORBIT_SERVER_HOSTNAME')  # e.g. test1.orbitcme.com
+SERVER_IP = os.environ.get('ORBIT_SERVER_IP_ADDR', '')
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', SERVER_HOSTNAME]
+if SERVER_IP:
+    ALLOWED_HOSTS.append(SERVER_IP)
 
 # This value used by various expiration-related settings
 APP_EXPIRE_SECONDS = 86400*30  # 30 days

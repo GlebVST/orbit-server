@@ -222,9 +222,9 @@ class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 # SubscriptionPlanPublic : for AllowAny
+# Note: plan in db must be in sync with the plan defined in the BT Control Panel
 class SubscriptionPlanPublic(APIView):
-    """This expects a single annual plan in the db which
-    must be in agreement with the Braintree Control Panel.
+    """Returns the info for the single annual plan.
     """
     permission_classes = (permissions.AllowAny,)
 
