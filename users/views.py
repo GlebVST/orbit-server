@@ -32,6 +32,7 @@ from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate, SAMPLE_CERTIFICAT
 
 logger = logging.getLogger('api.views')
 
+
 class PingTest(APIView):
     """Test api server response"""
     permission_classes = (permissions.AllowAny,)
@@ -133,12 +134,16 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
 
 class VerifyProfile(APIView):
     """This view expects the lookup-id in the JSON object for the POST.
-    It finds the user linked to the customerId and sets their profile.verified flag to True. If user not found, return success=False.
     Example JSON:
-        {"lookup-id": customerId string}
+        {"lookup-id": string}
     """
     permission_classes = (permissions.AllowAny,)
     def post(self, request, *args, **kwargs):
+        """
+        Find the user by customerId=lookupId and set their
+            profile.verified flag to True.
+        If user not found, return success=False.
+        """
         userdata = request.data
         lookupId = userdata.get('lookup-id', None)
         if not lookupId:
@@ -155,6 +160,8 @@ class VerifyProfile(APIView):
                 'success': False,
                 'message': 'Invalid Lookup Id.'
             }
+            message = context['message'] + ' ' + lookupId
+            logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         else:
             # set verified to True
@@ -248,8 +255,8 @@ class BrowserCmeOfferPagination(PageNumberPagination):
 
 class BrowserCmeOfferList(generics.ListAPIView):
     """
-    Find the top N un-redeemed and unexpired offers order by expireDate
-    (earliest first) for the authenticated user.
+    Find the top N un-redeemed and unexpired offers order by expireDate desc
+    (latest first) for the authenticated user.
     """
     serializer_class = BrowserCmeOfferSerializer
     pagination_class = BrowserCmeOfferPagination
@@ -262,7 +269,7 @@ class BrowserCmeOfferList(generics.ListAPIView):
             user=user,
             expireDate__gt=now,
             redeemed=False
-            ).select_related('sponsor').order_by('expireDate')
+            ).select_related('sponsor').order_by('-expireDate')
 
 
 #
@@ -523,6 +530,8 @@ class DeleteDocument(APIView):
                 'success': False,
                 'message': 'Invalid Document Id list.'
             }
+            message = context['message'] + ' : ' + ", ".join(doc_pks)
+            logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         else:
             for instance in qset:
@@ -536,8 +545,7 @@ class DeleteDocument(APIView):
 class AccessDocumentOrCert(APIView):
     """
     This view expects a reference ID to lookup a Document or Certificate
-    in the db. The response returns a timed URL that allows public access
-    to the file (stored on S3).
+    in the db. The response returns a timed URL to access the file.
     parameters:
         - name: referenceId
           description: unique ID of document/certificate
@@ -558,11 +566,15 @@ class AccessDocumentOrCert(APIView):
             context = {
                 'error': 'Invalid certificate ID or not found'
             }
+            message = context['error'] + ': ' + referenceId
+            logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         except Document.DoesNotExist:
             context = {
                 'error': 'Invalid document ID or not found'
             }
+            message = context['error'] + ': ' + referenceId
+            logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         return Response(out_serializer.data, status=status.HTTP_200_OK)
 
@@ -619,7 +631,7 @@ class CmeAggregateStats(APIView):
     (number of seconds since 1970/1/1) as URL parameters. It calculates
     the total SRCme and BrowserCme for the time period for the current
     user, and also the total by tag.
-    
+
     parameters:
         - name: start
           description: seconds since epoch
@@ -647,6 +659,8 @@ class CmeAggregateStats(APIView):
             context = {
                 'error': 'Invalid date parameters'
             }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         try:
             profile = Profile.objects.get(user=request.user)
@@ -654,6 +668,7 @@ class CmeAggregateStats(APIView):
             context = {
                 'error': 'Invalid user. No profile found.'
             }
+            logWarning(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         user_tags = profile.cmeTags.all()
         satag = CmeTag.objects.get(name=CMETAG_SACME)
@@ -750,6 +765,8 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             context = {
                 'error': 'Invalid date parameters'
             }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         try:
             profile = Profile.objects.get(user=request.user)
@@ -757,6 +774,7 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             context = {
                 'error': 'Invalid user. No profile found.'
             }
+            logWarning(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # get total cme credits earned by user in date range
         browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt)
@@ -765,6 +783,7 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             context = {
                 'error': 'No CME credits earned in this date range.'
             }
+            logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal)
         out_serializer = CertificateReadSerializer(certificate)
@@ -774,8 +793,7 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
 class AccessCmeCertificate(APIView):
     """
     This view expects a certificate reference ID to lookup a Certificate
-    in the db. The response returns a timed URL that allows public access
-    to the file (stored on S3).
+    in the db. The response returns a timed URL to access the file.
     parameters:
         - name: referenceId
           description: unique certificate ID
@@ -791,6 +809,7 @@ class AccessCmeCertificate(APIView):
             context = {
                 'error': 'Invalid certificate ID or not found'
             }
+            logWarning(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_200_OK)
@@ -832,6 +851,8 @@ class CreateAuditReport(CertificateMixin, APIView):
             context = {
                 'error': 'Invalid date parameters'
             }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         user = request.user
         try:
@@ -840,6 +861,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             context = {
                 'error': 'Invalid user. No profile found.'
             }
+            logWarning(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # get total self-reported cme credits earned by user in date range
         srCmeTotal = Entry.objects.sumSRCme(user, startdt, enddt)
@@ -850,6 +872,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             context = {
                 'error': 'No CME credits earned in this date range.'
             }
+            logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         certificate = None
         if browserCmeTotal > 0:
@@ -859,6 +882,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             context = {
                 'error': 'There was an error in creating this Audit Report.'
             }
+            logWarning(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         else:
             context = {
@@ -942,8 +966,7 @@ class CreateAuditReport(CertificateMixin, APIView):
 class AccessAuditReport(APIView):
     """
     This view expects a report reference ID to lookup an AuditReport
-    in the db. The response returns a timed URL that allows public access
-    to the file (stored on S3).
+    in the db. The response returns a timed URL to access the file.
     parameters:
         - name: referenceId
           description: unique report ID
@@ -959,6 +982,7 @@ class AccessAuditReport(APIView):
             context = {
                 'error': 'Invalid report ID or not found'
             }
+            logWarning(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         out_serializer = AuditReportReadSerializer(report)
         return Response(out_serializer.data, status=status.HTTP_200_OK)

@@ -32,7 +32,7 @@ class CustomerAdmin(admin.ModelAdmin):
     search_fields = ['customerId',]
 
 class SponsorAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'url', 'logo_url', 'modified')
+    list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
 
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'activityDate', 'redeemed', 'expireDate', 'url')

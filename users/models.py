@@ -293,7 +293,7 @@ class Customer(models.Model):
         primary_key=True
     )
     customerId = models.UUIDField(unique=True, editable=False, default=uuid.uuid4,
-        help_text='Used for Braintree customerId')
+        help_text='Used for BT customerId')
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -305,6 +305,7 @@ class Customer(models.Model):
 # Sponsors for entries in feed
 @python_2_unicode_compatible
 class Sponsor(models.Model):
+    abbrev = models.CharField(max_length=10, unique=True)
     name = models.CharField(max_length=200, unique=True)
     url = models.URLField(max_length=1000, blank=True, help_text='Link to website of sponsor')
     logo_url = models.URLField(max_length=1000, help_text='Link to logo of sponsor')

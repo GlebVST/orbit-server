@@ -204,7 +204,7 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
 class SponsorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sponsor
-        fields = ('id', 'name', 'logo_url')
+        fields = ('id', 'abbrev', 'name', 'logo_url')
 
 class EntryTypeSerializer(serializers.ModelSerializer):
     class Meta:
