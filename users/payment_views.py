@@ -19,6 +19,7 @@ from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasS
 from rest_framework import permissions, status
 from rest_framework.views import APIView
 from rest_framework.parsers import JSONParser
+from rest_framework.response import Response
 # proj
 from common.viewutils import JsonResponseMixin
 from common.logutils import *
@@ -38,9 +39,8 @@ class GetToken(APIView):
             'token': braintree.ClientToken.generate()
         }
         return Response(context, status=status.HTTP_200_OK)
-        ##return self.render_to_json_response(context)
 
-class GetPaymentMethods(JsonResponseMixin, APIView):
+class GetPaymentMethods(APIView):
     """
     Returns a list of existing payment methods from the Customer vault (if any).
 
@@ -55,18 +55,18 @@ class GetPaymentMethods(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'Local Customer object not found for user.'
             }
-            return self.render_to_json_response(context, status_code=400)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         except braintree.exceptions.not_found_error.NotFoundError:
             context = {
                 'success': False,
                 'message': 'BT Customer object not found.'
             }
-            return self.render_to_json_response(context, status_code=400)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return self.render_to_json_response(results)
+            return Response(results, status=status.HTTP_200_OK)
 
 
-class UpdatePaymentToken(JsonResponseMixin, APIView):
+class UpdatePaymentToken(APIView):
     """
     This view updates the existing payment_token for a
     customer using a new nonce (e.g. to update an expired
@@ -96,7 +96,7 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'Payment Nonce is required.'
             }
-            return self.render_to_json_response(context, status_code=400)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # get customer object from database
         try:
             customer = Customer.objects.get(user=request.user)
@@ -106,13 +106,13 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'Local Customer object not found for user.'
             }
-            return self.render_to_json_response(context, status_code=400)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         except braintree.exceptions.not_found_error.NotFoundError:
             context = {
                 'success': False,
                 'message': 'BT Customer object not found.'
             }
-            return self.render_to_json_response(context, status_code=400)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # Get existing tokens for customer
         tokens = [m.token for m in bc.payment_methods]
         num_tokens = len(tokens)
@@ -121,7 +121,7 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'BT Customer has no existing tokens to update.'
             }
-            return self.render_to_json_response(context, status_code=400)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         if num_tokens == 1:
             payment_token = tokens[0]
         elif payment_token is None:
@@ -130,13 +130,13 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
                 'success': False,
                 'message': 'BT Customer has multiple existing tokens. Request must specify the token to update.'
             }
-            return self.render_to_json_response(context, status_code=400)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         elif payment_token not in tokens:
             context = {
                 'success': False,
                 'message': 'Invalid Payment Token - does not exist for Customer.'
             }
-            return self.render_to_json_response(context, status_code=400)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # Update Customer
         result = Customer.objects.updatePaymentMethod(customer, payment_nonce, payment_token)
         context = {
@@ -146,10 +146,10 @@ class UpdatePaymentToken(JsonResponseMixin, APIView):
             context['message'] = 'UpdatePaymentToken: Customer vault update failed.'
             message = 'UpdatePaymentToken: Customer vault update failed. Result message: {0.message}'.format(result)
             logError(logger, request, message)
-            return self.render_to_json_response(context, status_code=400)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         else:
             logInfo(logger, request, 'UpdatePaymentToken complete')
-            return self.render_to_json_response(context)
+            return Response(context, status=status.HTTP_200_OK)
 
 
 
