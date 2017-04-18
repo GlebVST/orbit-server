@@ -30,16 +30,15 @@ TPL_DIR = 'users'
 logger = logging.getLogger('api.shop')
 
 # https://developers.braintreepayments.com/start/hello-server/python
-class GetToken(JsonResponseMixin, APIView):
-    """
-    Returns a Client Token.
-
+class GetToken(APIView):
+    """Returns Client Token.
     """
     def get(self, request, *args, **kwargs):
         context = {
             'token': braintree.ClientToken.generate()
         }
-        return self.render_to_json_response(context)
+        return Response(context, status=status.HTTP_200_OK)
+        ##return self.render_to_json_response(context)
 
 class GetPaymentMethods(JsonResponseMixin, APIView):
     """

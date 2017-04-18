@@ -44,14 +44,3 @@ def md5_uploaded_file(f):
 
 def newUuid():
     return uuid.uuid4()
-
-# http://stackoverflow.com/questions/4581789/how-do-i-get-user-ip-address-in-django
-def getClientIp(request):
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
-
-

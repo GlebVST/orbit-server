@@ -163,20 +163,17 @@ def login_via_token(request, backend, access_token):
     user = request.backend.do_auth(access_token)
     if user:
         auth_login(request, user)
-        logDebug(logger, request, 'auth_login')
         token = new_access_token(user)
         context = make_login_context(user, token)
-        if remote_addr:
-            logDebug(logger, request, 'login from ip: ' + remote_addr)
+        logDebug(logger, request, 'login from ip: ' + remote_addr)
         return render_to_json_response(context)
     else:
         context = {
             'success': False,
             'message': 'User authentication failed'
         }
-        if remote_addr:
-            msg = context['message'] + ' from ip: ' + remote_addr
-            logDebug(logger, request, msg)
+        msg = context['message'] + ' from ip: ' + remote_addr
+        logDebug(logger, request, msg)
         return render_to_json_response(context, status_code=status.HTTP_400_BAD_REQUEST)
 
 

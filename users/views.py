@@ -15,7 +15,7 @@ from django.template import Context
 from django.template.loader import get_template
 from django.utils import timezone
 
-from rest_framework import generics, permissions, status, serializers
+from rest_framework import generics, exceptions, permissions, status, serializers
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.renderers import JSONRenderer
@@ -33,8 +33,17 @@ from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate, SAMPLE_CERTIFICAT
 logger = logging.getLogger('api.views')
 
 
+class LogValidationErrorMixin(object):
+    def handle_exception(self, exc):
+        response = super(LogValidationErrorMixin, self).handle_exception(exc)
+        if response is not None and isinstance(exc, exceptions.ValidationError):
+            #logWarning(logger, self.request, exc.get_full_details())
+            message = "ValidationError: {0}".format(exc.detail)
+            logError(logger, self.request, message)
+        return response
+
 class PingTest(APIView):
-    """Test api server response"""
+    """ping test response"""
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request, format=None):
@@ -289,7 +298,7 @@ class FeedList(generics.ListAPIView):
         user = self.request.user
         return Entry.objects.filter(user=user, valid=True).select_related('entryType','sponsor').order_by('-created')
 
-class FeedEntryDetail(generics.RetrieveDestroyAPIView):
+class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
     serializer_class = EntryReadSerializer
     permission_classes = (CanViewFeed, IsOwnerOrAuthenticated, TokenHasReadWriteScope)
 
@@ -331,7 +340,7 @@ class TagsMixin(object):
             tag_ids = tags.split(",") # convert "1,2" to [1,2]
             form_data['tags'] = tag_ids
 
-class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
+class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
     """
     Create a BrowserCme Entry in the user's feed.
     This action redeems the BrowserCmeOffer specified in the
@@ -369,7 +378,7 @@ class CreateBrowserCme(TagsMixin, generics.CreateAPIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 
-class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
+class UpdateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.UpdateAPIView):
     """
     Update a BrowserCme Entry in the user's feed.
     This action does not change the credits earned from the original creation.
@@ -397,7 +406,7 @@ class UpdateBrowserCme(TagsMixin, generics.UpdateAPIView):
 
 
 
-class CreateSRCme(TagsMixin, generics.CreateAPIView):
+class CreateSRCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
     """
     Create SRCme Entry in the user's feed.
     """
@@ -418,7 +427,7 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
         if num_docs:
             qset = Document.objects.filter(user=user, pk__in=doc_ids)
             if qset.count() != num_docs:
-                logInfo(logger, request, 'CreateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
+                logWarning(logger, request, 'CreateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
                 raise serializers.ValidationError('Invalid documentId(s) specified for user.')
         with transaction.atomic():
             srcme = serializer.save(user=user)
@@ -436,7 +445,7 @@ class CreateSRCme(TagsMixin, generics.CreateAPIView):
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
 
-class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
+class UpdateSRCme(LogValidationErrorMixin, TagsMixin, generics.UpdateAPIView):
     """
     Update an existing SRCme Entry in the user's feed.
     """
@@ -457,7 +466,7 @@ class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
         if num_docs:
             qset = Document.objects.filter(user=user, pk__in=doc_ids)
             if qset.count() != num_docs:
-                logInfo(logger, request, 'UpdateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
+                logWarning(logger, request, 'UpdateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
                 raise serializers.ValidationError('Invalid documentId(s) specified for user.')
         with transaction.atomic():
             srcme = serializer.save(user=user)
@@ -477,7 +486,7 @@ class UpdateSRCme(TagsMixin, generics.UpdateAPIView):
         return Response(out_serializer.data)
 
 
-class CreateDocument(generics.CreateAPIView):
+class CreateDocument(LogValidationErrorMixin, generics.CreateAPIView):
     serializer_class = UploadDocumentSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     parser_classes = (MultiPartParser,FormParser,)
@@ -592,7 +601,7 @@ class UserFeedbackList(generics.ListCreateAPIView):
 
 
 # Eligible Site
-class EligibleSiteList(generics.ListCreateAPIView):
+class EligibleSiteList(LogValidationErrorMixin, generics.ListCreateAPIView):
     queryset = EligibleSite.objects.all().order_by('domain_title','created')
     serializer_class = EligibleSiteSerializer
     pagination_class = LongPagination
@@ -610,7 +619,7 @@ class EligibleSiteList(generics.ListCreateAPIView):
             netloc = res.netloc
             if not domain_name.startswith(res.netloc):
                 error_msg = "The domain of the example_url must be contained in the user-specified domain_name"
-                return serializers.ValidationError(error_msg)
+                raise serializers.ValidationError(error_msg, code='domain_name')
         with transaction.atomic():
             # create EligibleSite, AllowedHost, AllowedUrl
             instance = serializer.save(domain_name=domain_name)
