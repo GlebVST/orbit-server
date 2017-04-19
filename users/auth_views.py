@@ -2,14 +2,14 @@ import os
 import logging
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
-from django.shortcuts import render, redirect
+from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from social_django.utils import psa
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 # proj
-from common.viewutils import render_to_json_response
 from common.logutils import *
 import common.appconstants as appconstants
 # app
@@ -113,9 +113,9 @@ def make_login_context(user, token):
 @permission_classes((AllowAny,))
 def auth_status(request):
     """
-    This view checks if there is a user session already (given OAuth token for example)
-    and if yes just return a user info with a previously generated token.
-    If no user session yet - will respond with 401 status so client will have to login.
+    This checks if there is a user session already (given OAuth token for example)
+    and if yes return user info with a previously generated token.
+    If no user session yet - respond with 401 status so client has to login.
 
     """
     user = request.user
@@ -124,16 +124,16 @@ def auth_status(request):
             'success': False,
             'message': 'User not authenticated'
         }
-        return render_to_json_response(context, status_code=status.HTTP_401_UNAUTHORIZED)
+        return Response(context, status=status.HTTP_401_UNAUTHORIZED)
     token = get_access_token(user)
     if not token:
         context = {
             'success': False,
             'message': 'User not authenticated'
         }
-        return render_to_json_response(context, status_code=status.HTTP_401_UNAUTHORIZED)
+        return Response(context, status=status.HTTP_401_UNAUTHORIZED)
     context = make_login_context(user, token)
-    return render_to_json_response(context)
+    return Response(context, status=status.HTTP_200_OK)
 
 
 # http://psa.matiasaguirre.net/docs/use_cases.html#signup-by-oauth-access-token
@@ -150,7 +150,7 @@ def login_via_token(request, backend, access_token):
 
     parameters:
         - name: access_token
-          description: Facebook token obtained via external means like Javascript SDK
+          description: provider access token obtained via external means like Javascript SDK
           required: true
           type: string
           paramType: form
@@ -166,7 +166,7 @@ def login_via_token(request, backend, access_token):
         token = new_access_token(user)
         context = make_login_context(user, token)
         logDebug(logger, request, 'login from ip: ' + remote_addr)
-        return render_to_json_response(context)
+        return Response(context, status=status.HTTP_200_OK)
     else:
         context = {
             'success': False,
@@ -174,7 +174,7 @@ def login_via_token(request, backend, access_token):
         }
         msg = context['message'] + ' from ip: ' + remote_addr
         logDebug(logger, request, msg)
-        return render_to_json_response(context, status_code=status.HTTP_400_BAD_REQUEST)
+        return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view()
@@ -186,4 +186,4 @@ def logout_via_token(request):
         delete_access_token(request.user, token.get('access_token'))
         auth_logout(request)
     context = {'success': True}
-    return render_to_json_response(context)
+    return Response(context, status=status.HTTP_200_OK)

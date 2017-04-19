@@ -1,32 +1,8 @@
 """Common utility functions"""
-import logging
-import datetime
-import decimal
 import hashlib
-import json
 import uuid
 from urlparse import urlparse
-from django.http import HttpResponse
-from rest_framework.renderers import JSONRenderer
 
-class JSONResponse(HttpResponse):
-    def __init__(self, context, **kwargs):
-        content=JSONRenderer().render(context)
-        kwargs['content_type'] ='application/json'
-        super(JSONResponse, self).__init__(content, **kwargs)
-
-# used by function views
-def render_to_json_response(context, status_code=200, **response_kwargs):
-    response_kwargs['status'] = status_code
-    resp = JSONResponse(context, **response_kwargs)
-    return resp
-
-# used by non-DRF cb views
-class JsonResponseMixin(object):
-    def render_to_json_response(self, context, status_code=200, **response_kwargs):
-        response_kwargs['status'] = status_code
-        resp = JSONResponse(context, **response_kwargs)
-        return resp
 
 def getUrlLastPart(url):
     output = urlparse(url.strip('/')) # strip any trailing slash
