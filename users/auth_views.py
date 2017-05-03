@@ -1,10 +1,14 @@
 import os
+import json
 import logging
+from auth0.v3.authentication import GetToken, Users
+from django.conf import settings
+from django.contrib.auth import  authenticate
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
-from social_django.utils import psa
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -20,11 +24,18 @@ from .serializers import ProfileSerializer, CmeTagSerializer
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
 
+CALLBACK_URL = 'http://localhost:8000/auth/auth0-cb-login' # used for server-side login only
+
 def ss_login(request):
     msg = "host: {0}".format(request.get_host())
     # to test if nginx passes correct host to django
     logDebug(logger, request, msg)
-    return render(request, os.path.join(TPL_DIR, 'login.html'))
+    context = {
+        'AUTH0_CLIENTID': settings.AUTH0_CLIENTID,
+        'AUTH0_DOMAIN': settings.AUTH0_DOMAIN,
+        'CALLBACK_URL': CALLBACK_URL
+    }
+    return render(request, os.path.join(TPL_DIR, 'login.html'), context)
 
 def ss_login_error(request):
     return render(request, os.path.join(TPL_DIR, 'login_error.html'))
@@ -37,12 +48,49 @@ def ss_logout(request):
     auth_logout(request)
     return render(request, os.path.join(TPL_DIR, 'logged_out.html'))
 
+# Used by ss-login only
+def login_via_code(request):
+    """
+    This view expects a query parameter called code.
+    Server logs in the user, and returns user info, and internal access_token
+
+    """
+    code = request.GET.get('code')
+    if not code:
+        return HttpResponse(status=400)
+    remote_addr = request.META.get('REMOTE_ADDR')
+    get_token = GetToken(settings.AUTH0_DOMAIN)
+    auth0_users = Users(settings.AUTH0_DOMAIN)
+    token = get_token.authorization_code(
+        settings.AUTH0_CLIENTID,
+        settings.AUTH0_SECRET,
+        code,
+        CALLBACK_URL
+    )
+    user_info = auth0_users.userinfo(token['access_token'])
+    user_info_dict = json.loads(user_info)
+    logInfo(logger, request, 'user_id: {user_id} email:{email}'.format(**user_info_dict))
+    user = authenticate(user_info=user_info_dict) # must specify the keyword user_info
+    if user:
+        auth_login(request, user)
+        token = new_access_token(user)
+        logDebug(logger, request, 'login from ip: ' + remote_addr)
+        return redirect('ss-home')
+    else:
+        context = {
+            'success': False,
+            'message': 'User authentication failed'
+        }
+        msg = context['message'] + ' from ip: ' + remote_addr
+        logDebug(logger, request, msg)
+        return HttpResponse(status=400)
+
+
 def serialize_user(user):
     return {
         'id': user.pk,
+        'email': user.email,
         'username': user.username,
-        'first_name': user.first_name,
-        'last_name': user.last_name
     }
 
 def serialize_customer(customer):
@@ -136,36 +184,31 @@ def auth_status(request):
     return Response(context, status=status.HTTP_200_OK)
 
 
-# http://psa.matiasaguirre.net/docs/use_cases.html#signup-by-oauth-access-token
-# Client passes fb access token as url parameter.
-# Server logs in the user, and returns user info, and internal access_token
-@psa('social:complete')
 @api_view()
 @permission_classes((AllowAny,))
-def login_via_token(request, backend, access_token):
+def login_via_token(request, access_token):
     """
-    This view expects an access_token parameter as part of the URL.
-    request.backend and request.strategy will be loaded with the current
-    backend and strategy.
+    This view expects an auth0 access_token parameter as part of the URL.
+    Server logs in the user, and returns user info, and internal access_token.
 
     parameters:
         - name: access_token
-          description: provider access token obtained via external means like Javascript SDK
+          description: auth0 access token obtained via external means like Javascript SDK
           required: true
           type: string
           paramType: form
-
     """
-    inviteId = request.GET.get('inviteid', None)
-    if inviteId:
-        request.backend.strategy.session_set('inviteid', inviteId)
     remote_addr = request.META.get('REMOTE_ADDR')
-    user = request.backend.do_auth(access_token)
+    auth0_users = Users(settings.AUTH0_DOMAIN)
+    user_info = auth0_users.userinfo(access_token) # return str as json
+    user_info_dict = json.loads(user_info) # create dict
+    logInfo(logger, request, 'user_id: {user_id} email:{email}'.format(**user_info_dict))
+    user = authenticate(user_info=user_info_dict) # must specify the keyword user_info
     if user:
         auth_login(request, user)
         token = new_access_token(user)
-        context = make_login_context(user, token)
         logDebug(logger, request, 'login from ip: ' + remote_addr)
+        context = make_login_context(user, token)
         return Response(context, status=status.HTTP_200_OK)
     else:
         context = {
@@ -175,7 +218,6 @@ def login_via_token(request, backend, access_token):
         msg = context['message'] + ' from ip: ' + remote_addr
         logDebug(logger, request, msg)
         return Response(context, status=status.HTTP_400_BAD_REQUEST)
-
 
 @api_view()
 @permission_classes((IsAuthenticated,))

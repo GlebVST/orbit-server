@@ -21,10 +21,11 @@ The following keys are expected in the .env file which is read by manage.py and 
  * ORBIT_SERVER_HOSTNAME  - hostname of the server (e.g. test1.orbitcme.com)
  * ORBIT_SERVER_IP_ADDR   - (optional) if set, is added to ALLOWED_HOSTS
 
-#### FB Login
+#### Auth0 Login
 
- * ORBIT_FB_AUTH_KEY
- * ORBIT_FB_AUTH_SECRET
+ * ORBIT_AUTH0_CLIENTID
+ * ORBIT_AUTH0_SECRET
+ * ORBIT_AUTH0_DOMAIN
 
 #### Braintree
 

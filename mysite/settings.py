@@ -13,10 +13,7 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 import os
 import braintree
 from django.core.exceptions import ImproperlyConfigured
-from distutils.util import strtobool
 import logging
-# python-social-auth settings
-from psa_config import *
 
 ENV_DEV = 'dev'
 ENV_STAGE = 'stage'
@@ -74,7 +71,6 @@ INSTALLED_APPS = [
     'corsheaders',
     'oauth2_provider',
     'rest_framework',
-    'social_django',
     'storages',
     'users.apps.UsersConfig',
     'rest_framework_swagger'
@@ -112,37 +108,16 @@ braintree.Configuration.configure(
 )
 
 #
-# PSA
+# Auth0
 #
-# PSA environment vars
-SOCIAL_AUTH_FACEBOOK_KEY = get_environment_variable('ORBIT_FB_AUTH_KEY')
-SOCIAL_AUTH_FACEBOOK_SECRET = get_environment_variable('ORBIT_FB_AUTH_SECRET')
-if not DEBUG:
-    SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
-SOCIAL_AUTH_STRATEGY = 'social_django.strategy.DjangoStrategy'
-SOCIAL_AUTH_STORAGE = 'social_django.models.DjangoStorage'
-# PSA auth backends
+# environment vars
+AUTH0_CLIENTID = get_environment_variable('ORBIT_AUTH0_CLIENTID')
+AUTH0_SECRET = get_environment_variable('ORBIT_AUTH0_SECRET')
+AUTH0_DOMAIN = get_environment_variable('ORBIT_AUTH0_DOMAIN')
+
 AUTHENTICATION_BACKENDS = (
-    # Facebook OAuth2
-    'social_core.backends.facebook.FacebookAppOAuth2',
-    'social_core.backends.facebook.FacebookOAuth2',
-    # Django
+    'users.auth_backends.Auth0Backend',
     'django.contrib.auth.backends.ModelBackend',
-)
-SOCIAL_AUTH_FIELDS_STORED_IN_SESSION = ['inviteid',]
-# PSA pipeline
-SOCIAL_AUTH_PIPELINE = (
-    'social_core.pipeline.social_auth.social_details',
-    'social_core.pipeline.social_auth.social_uid',
-    'social_core.pipeline.social_auth.auth_allowed',
-    'social_core.pipeline.social_auth.social_user',
-    'social_core.pipeline.user.get_username',
-    'social_core.pipeline.user.create_user',
-    'users.pipeline.save_profile',  # user profile/customer objects
-    'social_core.pipeline.social_auth.associate_user',
-    'social_core.pipeline.social_auth.load_extra_data',
-    'social_core.pipeline.user.user_details',
-    #'social_core.pipeline.debug.debug'   # may be causing broken pipe errors in runserver
 )
 
 #
@@ -190,9 +165,6 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                # PSA
-                'social_django.context_processors.backends',
-                'social_django.context_processors.login_redirect',
             ],
         },
     },
@@ -335,14 +307,6 @@ LOGGING = {
             'maxBytes': 2**18,
             'backupCount':5
         },
-        'psa_rotfile': {
-            'level': 'DEBUG',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'formatter': 'req_fmt',
-            'filename': os.path.join(LOG_DIR, 'psa.log'),
-            'maxBytes': 2**18,
-            'backupCount':5
-        },
     },
     'loggers': {
         'django.security.DisallowedHost': {
@@ -356,11 +320,6 @@ LOGGING = {
         },
         'api': {
             'handlers': ['req_rotfile', 'gen_rotfile', 'mail_admins',],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
-        'psa': {
-            'handlers': ['psa_rotfile', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },

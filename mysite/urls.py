@@ -28,8 +28,9 @@ from rest_framework_swagger.renderers import OpenAPIRenderer
 
 if settings.ENV_TYPE != settings.ENV_PROD:
     auth_patterns = [
-        # site login via server-side fb login (for testing only)
+        # site login via server-side login (for testing only)
         url(r'^ss-login/?$', auth_views.ss_login, name='ss-login'),
+        url(r'^auth0-cb-login/?$', auth_views.login_via_code, name='login-via-code'),
         url(r'^ss-login-error/?$', auth_views.ss_login_error, name='ss-login-error'),
         url(r'^ss-home/?$', auth_views.ss_home, name='ss-home'),
         url(r'^ss-logout/?$', auth_views.ss_logout, name='ss-logout'),
@@ -41,8 +42,8 @@ api_patterns = [
 
     # AUTH
     url(r'^auth/status/?$', auth_views.auth_status, name='get-auth-status'),
-    # client gets fb access token and exchanges it for internal token, and login user
-    url(r'^auth/login/(?P<backend>[^/]+)/(?P<access_token>[^/]+)/?$', auth_views.login_via_token, name='login-via-token'),
+    # client gets access token and exchanges it for internal token, and login user
+    url(r'^auth/login/(?P<access_token>[^/]+)/?$', auth_views.login_via_token, name='login-via-token'),
     # client requests to revoke internal token and logout user
     url(r'^auth/logout/?$', auth_views.logout_via_token, name='logout-via-token'),
 
@@ -131,13 +132,8 @@ if settings.ENV_TYPE != settings.ENV_PROD:
     urlpatterns.extend([
         # Swagger
         url(r'^api-docs/', swagger_view, name='api-docs'),
-        # server-side fb login
+        # server-side login
         url(r'auth/', include(auth_patterns)),
-        # direct use of oauth2_provider (no psa). Used for testing
+        # direct use of oauth2_provider. Used for testing
         url(r'^o/', include('oauth2_provider.urls', namespace='oauth2_provider')),
     ])
-
-# PSA
-urlpatterns.append(
-    url(r'', include('social_django.urls', namespace='social'))
-)
