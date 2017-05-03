@@ -24,7 +24,8 @@ from .serializers import ProfileSerializer, CmeTagSerializer
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
 
-CALLBACK_URL = 'http://localhost:8000/auth/auth0-cb-login' # used for server-side login only
+# Used in development and to allow access to Swagger UI.
+CALLBACK_URL = 'http://localhost:8000/auth/auth0-cb-login' # used by login_via_code for server-side login only
 
 def ss_login(request):
     msg = "host: {0}".format(request.get_host())
@@ -75,7 +76,7 @@ def login_via_code(request):
         auth_login(request, user)
         token = new_access_token(user)
         logDebug(logger, request, 'login from ip: ' + remote_addr)
-        return redirect('ss-home')
+        return redirect('api-docs')
     else:
         context = {
             'success': False,
@@ -83,15 +84,19 @@ def login_via_code(request):
         }
         msg = context['message'] + ' from ip: ' + remote_addr
         logDebug(logger, request, msg)
-        return HttpResponse(status=400)
+        return redirect('ss-login-error')
 
 
-def serialize_user(user):
-    return {
+def serialize_user(user, auth0_user_info=None):
+    data = {
         'id': user.pk,
         'email': user.email,
         'username': user.username,
     }
+    if auth0_user_info and 'picture' in auth0_user_info:
+        data['pictureUrl'] = auth0_user_info['picture']
+    return data
+
 
 def serialize_customer(customer):
     return {
@@ -136,7 +141,13 @@ def serialize_cmetag(tag):
     s = CmeTagSerializer(tag)
     return s.data
 
-def make_login_context(user, token):
+def make_login_context(user, token, auth0_user_info=None):
+    """Create context dict for response.
+    Args:
+        user: User instance
+        token: dict - internal access token details
+        auth0_user_info: dict  (passed by login_via_token)
+    """
     customer = Customer.objects.get(user=user)
     profile = Profile.objects.get(user=user)
     user_subs = UserSubscription.objects.getLatestSubscription(user)
@@ -146,7 +157,7 @@ def make_login_context(user, token):
     context = {
         'success': True,
         'token': token,
-        'user': serialize_user(user),
+        'user': serialize_user(user, auth0_user_info),
         'profile': serialize_profile(profile),
         'customer': serialize_customer(customer),
         'sacmetag': serialize_cmetag(sacme_tag),
@@ -180,7 +191,7 @@ def auth_status(request):
             'message': 'User not authenticated'
         }
         return Response(context, status=status.HTTP_401_UNAUTHORIZED)
-    context = make_login_context(user, token)
+    context = make_login_context(token, user)
     return Response(context, status=status.HTTP_200_OK)
 
 
@@ -208,7 +219,7 @@ def login_via_token(request, access_token):
         auth_login(request, user)
         token = new_access_token(user)
         logDebug(logger, request, 'login from ip: ' + remote_addr)
-        context = make_login_context(user, token)
+        context = make_login_context(token, user, user_info_dict)
         return Response(context, status=status.HTTP_200_OK)
     else:
         context = {

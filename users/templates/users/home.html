@@ -6,6 +6,7 @@
     <h4>Your ID is: {{ user.profile.socialId }}.</h4>
     <h4>Your last_login was: {{ user.last_login|date:"r" }}.</h4>
     <h4>Your date_joined is: {{ user.date_joined|date:"r" }}.</h4>
+    <p><a href="{% url 'api-docs' %}">Swagger Testing</a></p>
     <p><a href="{% url 'ss-logout' %}">Logout</a></p>
 </div>
 {% endblock %}
