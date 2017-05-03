@@ -87,15 +87,12 @@ def login_via_code(request):
         return redirect('ss-login-error')
 
 
-def serialize_user(user, auth0_user_info=None):
-    data = {
+def serialize_user(user):
+    return {
         'id': user.pk,
         'email': user.email,
-        'username': user.username,
+        'username': user.username
     }
-    if auth0_user_info and 'picture' in auth0_user_info:
-        data['pictureUrl'] = auth0_user_info['picture']
-    return data
 
 
 def serialize_customer(customer):
@@ -141,12 +138,11 @@ def serialize_cmetag(tag):
     s = CmeTagSerializer(tag)
     return s.data
 
-def make_login_context(user, token, auth0_user_info=None):
+def make_login_context(token, user):
     """Create context dict for response.
     Args:
-        user: User instance
         token: dict - internal access token details
-        auth0_user_info: dict  (passed by login_via_token)
+        user: User instance
     """
     customer = Customer.objects.get(user=user)
     profile = Profile.objects.get(user=user)
@@ -157,7 +153,7 @@ def make_login_context(user, token, auth0_user_info=None):
     context = {
         'success': True,
         'token': token,
-        'user': serialize_user(user, auth0_user_info),
+        'user': serialize_user(user),
         'profile': serialize_profile(profile),
         'customer': serialize_customer(customer),
         'sacmetag': serialize_cmetag(sacme_tag),
@@ -219,7 +215,7 @@ def login_via_token(request, access_token):
         auth_login(request, user)
         token = new_access_token(user)
         logDebug(logger, request, 'login from ip: ' + remote_addr)
-        context = make_login_context(token, user, user_info_dict)
+        context = make_login_context(token, user)
         return Response(context, status=status.HTTP_200_OK)
     else:
         context = {

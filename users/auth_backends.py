@@ -21,6 +21,7 @@ class Auth0Backend(object):
         user_id = user_info['user_id']
         email = user_info['email']
         email_verified = user_info.get('email_verified', False)
+        picture = user_info.get('picture', '')
         try:
             user = User.objects.get(username=email) # the unique constraint is on the username field in the users table
         except User.DoesNotExist:
@@ -33,10 +34,9 @@ class Auth0Backend(object):
                 profile.socialId = user_id
                 hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
                 profile.inviteId = hashgen.encode(user.pk)
-                # copy email if it is a gmail address
-                if email.endswith('gmail.com'):
-                    profile.contactEmail = email
-                    profile.verified = email_verified
+                if picture:
+                    profile.pictureUrl = picture
+                profile.verified = email_verified
                 profile.save()
                 # create local customer object
                 customer = Customer(user=user)

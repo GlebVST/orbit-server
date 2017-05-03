@@ -150,7 +150,8 @@ class Profile(models.Model):
     description = models.TextField(blank=True, help_text='About me')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     inviteId = models.CharField(max_length=36, unique=True)
-    socialId = models.CharField(max_length=64, blank=True, help_text='FB social auth ID')
+    socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
+    pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
     cmeTags = models.ManyToManyField(CmeTag, related_name='profiles', blank=True)
     degrees = models.ManyToManyField(Degree, blank=True) # TODO: switch to single ForeignKey
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
