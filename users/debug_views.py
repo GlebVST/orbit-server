@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -43,7 +43,6 @@ class MakeNotification(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
-        # create reward entry for feed test
         now = timezone.now()
         activityDate = now - timedelta(seconds=10)
         expireDate = now + timedelta(days=10)
@@ -62,6 +61,37 @@ class MakeNotification(APIView):
         context = {
             'success': True,
             'id': entry.pk,
+        }
+        return Response(context, status=status.HTTP_201_CREATED)
+
+MESSAGE_DESCRIPTION = """
+This is [an example][id_foo] reference-style link.
+
+Here is some *styled text*.
+[id_foo]: http://example.com/  "Page Title Here"
+"""
+
+class MakePinnedMessage(APIView):
+    """
+    Create a test PinnedMessage for the user. The description field
+    contains Markdown syntax.
+    Reference: https://daringfireball.net/projects/markdown/syntax
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, format=None):
+        now = timezone.now()
+        startDate = datetime(now.year, now.month, now.day, tzinfo=now.tzinfo)
+        expireDate = now + timedelta(days=30)
+        message = PinnedMessage.objects.create(
+            user=request.user,
+            startDate=startDate,
+            expireDate=expireDate,
+            title='Created for test',
+            description=MESSAGE_DESCRIPTION
+        )
+        context = {
+            'success': True,
+            'id': message.pk,
         }
         return Response(context, status=status.HTTP_201_CREATED)
 

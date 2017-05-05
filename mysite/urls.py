@@ -93,6 +93,8 @@ api_patterns = [
     url(r'^feed/upload-document/?$', views.CreateDocument.as_view()),
     url(r'^feed/delete-document/?$', views.DeleteDocument.as_view()),
 
+    # pinned message
+    url(r'^pinned-message/?$', views.PinnedMessageDetail.as_view()),
     # user feedback (list/create)
     url(r'^feedback/?$', views.UserFeedbackList.as_view()),
     # dashboard
@@ -108,6 +110,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
     # debug
     api_patterns.extend([
         url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
+        url(r'^debug/make-pinned-message/?$', debug_views.MakePinnedMessage.as_view()),
         url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
     ])
 

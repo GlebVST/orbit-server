@@ -709,6 +709,12 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
         )
 
 
+class PinnedMessageSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    class Meta:
+        model = PinnedMessage
+        fields = ('id', 'user', 'title', 'description', 'startDate', 'expireDate')
+
 class UserFeedbackSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     class Meta:

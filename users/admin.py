@@ -59,6 +59,11 @@ class EligibleSiteAdmin(admin.ModelAdmin):
     list_filter = ('is_valid_expurl', 'needs_ad_block')
     ordering = ('domain_name',)
 
+class PinnedMessageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'title', 'startDate', 'expireDate')
+    list_select_related = ('user',)
+    date_hierarchy = 'startDate'
+    ordering = ('-created',)
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')
@@ -141,6 +146,7 @@ admin.site.register(Document, DocumentAdmin)
 admin.site.register(EligibleSite, EligibleSiteAdmin)
 admin.site.register(Entry, EntryAdmin)
 admin.site.register(EntryType, EntryTypeAdmin)
+admin.site.register(PinnedMessage, PinnedMessageAdmin)
 admin.site.register(Profile, ProfileAdmin)
 admin.site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin.site.register(Sponsor, SponsorAdmin)

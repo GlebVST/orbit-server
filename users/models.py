@@ -577,7 +577,7 @@ class Entry(models.Model):
             (PERM_PRINT_BRCME_CERT, 'Can print/share BrowserCme certificate'),
         )
 
-# Notification entry (message to user in feed)
+# Notification entry (in-feed message to user)
 @python_2_unicode_compatible
 class Notification(models.Model):
     entry = models.OneToOneField(Entry,
@@ -676,6 +676,32 @@ class UserFeedback(models.Model):
 
     class Meta:
         verbose_name_plural = 'User Feedback'
+
+# Pinned Messages (different from in-feed Notification).
+# Message is pinned and exactly 0 or 1 active Message exists for a user at any given time.
+class PinnedMessageManager(models.Manager):
+    def getLatestForUser(self, user):
+        now = timezone.now()
+        qset = PinnedMessage.objects.filter(user=user, startDate__lte=now, expireDate__gt=now).order_by('-created')
+        if qset.exists():
+            return qset[0]
+
+@python_2_unicode_compatible
+class PinnedMessage(models.Model):
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True
+    )
+    title = models.CharField(max_length=200)
+    description = models.CharField(max_length=1000)
+    startDate = models.DateTimeField()
+    expireDate = models.DateTimeField(default=ACTIVE_OFFDATE)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = PinnedMessageManager()
+
+    def __str__(self):
+        return self.title
 
 
 @python_2_unicode_compatible

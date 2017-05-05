@@ -45,6 +45,4 @@ requests-oauthlib==0.8.0
 s3transfer==0.1.10
 simplejson==3.10.0
 six==1.10.0
-social-auth-app-django==1.1.0
-social-auth-core==1.2.0
 uritemplate==3.0.0

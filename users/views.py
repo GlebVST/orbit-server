@@ -588,6 +588,22 @@ class AccessDocumentOrCert(APIView):
         return Response(out_serializer.data, status=status.HTTP_200_OK)
 
 
+class PinnedMessageDetail(APIView):
+    """Finds the latest active PinnedMessage for the user, and returns the info. Value is None if none exists.
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def serialize_and_render(self, message):
+        context = {'message': None}
+        if message:
+            s = PinnedMessageSerializer(message)
+            context['message'] = s.data
+        return Response(context, status=status.HTTP_200_OK)
+
+    def get(self, request, format=None):
+        message = PinnedMessage.objects.getLatestForUser(request.user)
+        return self.serialize_and_render(message)
+
 
 # User Feedback
 class UserFeedbackList(generics.ListCreateAPIView):
