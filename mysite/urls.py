@@ -13,11 +13,11 @@ Including another URLconf
     1. Import the include() function: from django.conf.urls import url, include
     2. Add a URL to urlpatterns:  url(r'^blog/', include('blog.urls'))
 """
-from django.contrib import admin
 from django.conf.urls import url, include
 from django.conf import settings
 from django.conf.urls.static import static
 from users import views, auth_views, debug_views, payment_views
+from users.admin import admin_site
 from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
 from rest_framework.authentication import SessionAuthentication
@@ -129,7 +129,7 @@ urlpatterns = [
     # api
     url(r'^api/v1/', include(api_patterns)),
     # Django admin interface
-    url(r'^admin/', admin.site.urls),
+    url(r'^admin/', admin_site.urls),
 ]
 if settings.ENV_TYPE != settings.ENV_PROD:
     urlpatterns.extend([

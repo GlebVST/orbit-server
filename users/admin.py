@@ -135,27 +135,38 @@ class RequestedUrlAdmin(admin.ModelAdmin):
     num_users.admin_order_field = 'num_users'
 
 
-admin.site.register(AuditReport, AuditReportAdmin)
-admin.site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
-admin.site.register(Certificate, CertificateAdmin)
-admin.site.register(CmeTag, CmeTagAdmin)
-admin.site.register(Country, CountryAdmin)
-admin.site.register(Customer, CustomerAdmin)
-admin.site.register(Degree, DegreeAdmin)
-admin.site.register(Document, DocumentAdmin)
-admin.site.register(EligibleSite, EligibleSiteAdmin)
-admin.site.register(Entry, EntryAdmin)
-admin.site.register(EntryType, EntryTypeAdmin)
-admin.site.register(PinnedMessage, PinnedMessageAdmin)
-admin.site.register(Profile, ProfileAdmin)
-admin.site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
-admin.site.register(Sponsor, SponsorAdmin)
-admin.site.register(UserFeedback, UserFeedbackAdmin)
-admin.site.register(SubscriptionPlan, SubscriptionPlanAdmin)
-admin.site.register(UserSubscription, UserSubscriptionAdmin)
+# http://stackoverflow.com/questions/32612400/auto-register-django-auth-models-using-custom-admin-site
+class MyAdminSite(admin.AdminSite):
+    site_header = "Orbit Site administration"
+    site_url = None
+
+    def __init__(self, *args, **kwargs):
+        super(MyAdminSite, self).__init__(*args, **kwargs)
+        self._registry.update(admin.site._registry)
+
+admin_site = MyAdminSite()
+# register models
+admin_site.register(AuditReport, AuditReportAdmin)
+admin_site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
+admin_site.register(Certificate, CertificateAdmin)
+admin_site.register(CmeTag, CmeTagAdmin)
+admin_site.register(Country, CountryAdmin)
+admin_site.register(Customer, CustomerAdmin)
+admin_site.register(Degree, DegreeAdmin)
+admin_site.register(Document, DocumentAdmin)
+admin_site.register(EligibleSite, EligibleSiteAdmin)
+admin_site.register(Entry, EntryAdmin)
+admin_site.register(EntryType, EntryTypeAdmin)
+admin_site.register(PinnedMessage, PinnedMessageAdmin)
+admin_site.register(Profile, ProfileAdmin)
+admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
+admin_site.register(Sponsor, SponsorAdmin)
+admin_site.register(UserFeedback, UserFeedbackAdmin)
+admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
+admin_site.register(UserSubscription, UserSubscriptionAdmin)
 #
 # plugin models
 #
-admin.site.register(AllowedHost, AllowedHostAdmin)
-admin.site.register(AllowedUrl, AllowedUrlAdmin)
-admin.site.register(RequestedUrl, RequestedUrlAdmin)
+admin_site.register(AllowedHost, AllowedHostAdmin)
+admin_site.register(AllowedUrl, AllowedUrlAdmin)
+admin_site.register(RequestedUrl, RequestedUrlAdmin)
