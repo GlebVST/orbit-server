@@ -149,6 +149,8 @@ class Profile(models.Model):
     jobTitle = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True, help_text='About me')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
+    npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
+    npiLastName = models.CharField(max_length=30, blank=True, help_text='Last name from NPI Registry')
     inviteId = models.CharField(max_length=36, unique=True)
     socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
     pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
@@ -696,6 +698,8 @@ class PinnedMessage(models.Model):
     description = models.CharField(max_length=1000)
     startDate = models.DateTimeField()
     expireDate = models.DateTimeField(default=ACTIVE_OFFDATE)
+    launch_url = models.URLField(max_length=1000,
+        help_text='A URL within the given domain')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = PinnedMessageManager()

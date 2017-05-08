@@ -122,6 +122,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             'socialId',
             'pictureUrl',
             'npiNumber',
+            'npiFirstName',
+            'npiLastName',
             'cmeTags',
             'degrees',
             'specialties',
@@ -713,7 +715,15 @@ class PinnedMessageSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     class Meta:
         model = PinnedMessage
-        fields = ('id', 'user', 'title', 'description', 'startDate', 'expireDate')
+        fields = (
+            'id',
+            'user',
+            'title',
+            'description',
+            'startDate',
+            'expireDate',
+            'launch_url'
+        )
 
 class UserFeedbackSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
