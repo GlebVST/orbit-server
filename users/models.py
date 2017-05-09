@@ -694,6 +694,11 @@ class PinnedMessage(models.Model):
         on_delete=models.CASCADE,
         db_index=True
     )
+    sponsor = models.ForeignKey(Sponsor,
+        on_delete=models.PROTECT,
+        null=True,
+        db_index=True
+    )
     title = models.CharField(max_length=200)
     description = models.CharField(max_length=1000)
     startDate = models.DateTimeField()

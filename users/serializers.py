@@ -713,6 +713,8 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
 
 class PinnedMessageSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
+    sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
+    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True)
     class Meta:
         model = PinnedMessage
         fields = (
@@ -722,7 +724,9 @@ class PinnedMessageSerializer(serializers.ModelSerializer):
             'description',
             'startDate',
             'expireDate',
-            'launch_url'
+            'launch_url',
+            'sponsorId',
+            'logo_url'
         )
 
 class UserFeedbackSerializer(serializers.ModelSerializer):

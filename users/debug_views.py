@@ -65,16 +65,18 @@ class MakeNotification(APIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 MESSAGE_DESCRIPTION = """
-This is [an example][id_foo] reference-style link.
+This month in Expeditions, we're exploring the application of machine learning
+to dermatology in work from the Berkeley Artificial Intelligence Research Lab.
+Click [here][id_foo] for a related press release.
 
-Here is some *styled text*.
-[id_foo]: http://example.com/  "Page Title Here"
+
+[id_foo]: http://bair.berkeley.edu/ "BAIR"
 """
 
 class MakePinnedMessage(APIView):
     """
-    Create a test PinnedMessage for the user. The description field
-    contains Markdown syntax.
+    Create a test PinnedMessage for the user.
+    The description field may contain Markdown syntax.
     Reference: https://daringfireball.net/projects/markdown/syntax
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
@@ -86,8 +88,9 @@ class MakePinnedMessage(APIView):
             user=request.user,
             startDate=startDate,
             expireDate=expireDate,
-            title='Created for test',
-            description=MESSAGE_DESCRIPTION
+            title='Expeditions: Artificial Intelligence in Healthcare',
+            description=MESSAGE_DESCRIPTION,
+            sponsor_id=1
         )
         context = {
             'success': True,

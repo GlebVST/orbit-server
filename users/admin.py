@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.db.models import Count
 from .models import *
@@ -59,11 +60,17 @@ class EligibleSiteAdmin(admin.ModelAdmin):
     list_filter = ('is_valid_expurl', 'needs_ad_block')
     ordering = ('domain_name',)
 
+class PinnedMessageForm(forms.ModelForm):
+    title = forms.CharField(widget=forms.TextInput(attrs={'size': 80}))
+    description = forms.CharField(widget=forms.Textarea(attrs={'cols': 80, 'rows': 5}))
+
 class PinnedMessageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'title', 'startDate', 'expireDate')
+    list_display = ('id', 'user', 'title', 'startDate', 'expireDate', 'sponsor')
     list_select_related = ('user',)
     date_hierarchy = 'startDate'
     ordering = ('-created',)
+    form = PinnedMessageForm
+
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')
