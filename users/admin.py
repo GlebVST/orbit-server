@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.db.models import Count
+from pagedown.widgets import AdminPagedownWidget
 from .models import *
 
 class DegreeAdmin(admin.ModelAdmin):
@@ -62,7 +63,8 @@ class EligibleSiteAdmin(admin.ModelAdmin):
 
 class PinnedMessageForm(forms.ModelForm):
     title = forms.CharField(widget=forms.TextInput(attrs={'size': 80}))
-    description = forms.CharField(widget=forms.Textarea(attrs={'cols': 80, 'rows': 5}))
+    #description = forms.CharField(widget=forms.Textarea(attrs={'cols': 80, 'rows': 5}))
+    description = forms.CharField(widget=AdminPagedownWidget())
 
 class PinnedMessageAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'title', 'startDate', 'expireDate', 'sponsor')

@@ -73,7 +73,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'storages',
     'users.apps.UsersConfig',
-    'rest_framework_swagger'
+    'rest_framework_swagger',
+    'pagedown'
 ]
 
 # Session

@@ -704,7 +704,7 @@ class PinnedMessage(models.Model):
     startDate = models.DateTimeField()
     expireDate = models.DateTimeField(default=ACTIVE_OFFDATE)
     launch_url = models.URLField(max_length=1000,
-        help_text='A URL within the given domain')
+        help_text='A URL for the Launch button')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = PinnedMessageManager()
