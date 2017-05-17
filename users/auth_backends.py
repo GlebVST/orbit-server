@@ -51,6 +51,25 @@ class Auth0Backend(object):
                         logger.error('braintree.Customer.create failed. Result message: {0.message}'.format(result))
                 except:
                     logger.exception('braintree.Customer.create exception')
+        else:
+            profile = user.profile
+            # profile.socialId must match user_id
+            if profile.socialId != user_id:
+                # We expect only one method of login (e.g. user/pass via auth0 provider), so only 1 socialId per user.
+                # If this changes in the future, we need multiple socialIds per user.
+                logger.warning('user_id {0} does not match profile.socialId: {1} for user email: {2}'.format(user_id, profile.socialId, user.email))
+            saveProfile = False
+            # Check update verified
+            if email_verified != profile.verified:
+                profile.verified = email_verified
+                logger.info('Update email_verified for {0}'.format(user_id))
+                saveProfile = True
+            # Check update picture
+            if picture and profile.pictureUrl != picture:
+                profile.pictureUrl = picture
+                saveProfile = True
+            if saveProfile:
+                profile.save()
         return user
 
     def get_user(self, user_id):

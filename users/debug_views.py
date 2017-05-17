@@ -90,7 +90,8 @@ class MakePinnedMessage(APIView):
             expireDate=expireDate,
             title='Expeditions: Artificial Intelligence in Healthcare',
             description=MESSAGE_DESCRIPTION,
-            sponsor_id=1
+            sponsor_id=1,
+            launch_url='https://docs.google.com/'
         )
         context = {
             'success': True,
