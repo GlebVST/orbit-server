@@ -943,8 +943,8 @@ class UserSubscriptionManager(models.Manager):
             user_subs.status = subscription.status
             if subscription.status == self.model.ACTIVE:
                 user_subs.display_status = self.model.UI_ACTIVE
-            elif subscription.status == self.models.PASTDUE:
-                user_subs.display_status = self.models.UI_SUSPENDED
+            elif subscription.status == self.model.PASTDUE:
+                user_subs.display_status = self.model.UI_SUSPENDED
             startDate = subscription.billing_period_start_date
             endDate = subscription.billing_period_end_date
             if startDate:
