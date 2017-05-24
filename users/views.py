@@ -141,6 +141,20 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
     serializer_class = ProfileSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
+
+class SetProfileAccessedTour(APIView):
+    """This view sets the accessedTour flag on the user's profile.
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, *args, **kwargs):
+        profile = request.user.profile
+        if not profile.accessedTour:
+            profile.accessedTour = True
+            profile.save()
+        context = {'success': True}
+        return Response(context, status=status.HTTP_200_OK)
+
+
 class VerifyProfile(APIView):
     """This view expects the lookup-id in the JSON object for the POST.
     Example JSON:

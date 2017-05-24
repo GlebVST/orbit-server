@@ -157,7 +157,8 @@ class Profile(models.Model):
     cmeTags = models.ManyToManyField(CmeTag, related_name='profiles', blank=True)
     degrees = models.ManyToManyField(Degree, blank=True) # TODO: switch to single ForeignKey
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
-    verified = models.BooleanField(default=False)
+    verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
+    accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
     cmeDuedate = models.DateTimeField(null=True, help_text='Due date for CME requirements fulfillment')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)

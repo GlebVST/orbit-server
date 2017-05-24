@@ -54,6 +54,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     pictureUrl = serializers.ReadOnlyField()
     inviteId = serializers.ReadOnlyField()
     verified = serializers.ReadOnlyField()
+    accessedTour = serializers.ReadOnlyField()
     cmeTags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -85,9 +86,9 @@ class ProfileSerializer(serializers.ModelSerializer):
         """
         if not obj.country:
             return False
-        if not obj.specialties.count():
+        if not obj.specialties.exists():
             return False
-        if not obj.degrees.count():
+        if not obj.degrees.exists():
             return False
         if not obj.user.subscriptions.exists():
             return False
@@ -128,6 +129,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'degrees',
             'specialties',
             'verified',
+            'accessedTour',
             'cmeDuedate',
             'isNPIComplete',
             'isSignupComplete',
