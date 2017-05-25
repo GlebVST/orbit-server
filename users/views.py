@@ -159,7 +159,7 @@ class SetProfileAccessedTour(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         profile = request.user.profile
         bool_value = bool(value)
-        if profile.accessedTour != bool_value
+        if profile.accessedTour != bool_value:
             profile.accessedTour = bool_value
             profile.save()
         context = {'success': True}
