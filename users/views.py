@@ -143,13 +143,24 @@ class ProfileDetail(generics.RetrieveUpdateAPIView):
 
 
 class SetProfileAccessedTour(APIView):
-    """This view sets the accessedTour flag on the user's profile.
+    """This view sets/clears the accessedTour flag on the user's profile.
+    Example JSON in the POST data:
+        {"value": 0 or 1}
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):
+        value = request.data.get('value', None)
+        if value not in (0, 1):
+            context = {
+                'success': False,
+                'message': 'value must be either 0 or 1'
+            }
+            logError(logger, request, context['message'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         profile = request.user.profile
-        if not profile.accessedTour:
-            profile.accessedTour = True
+        bool_value = bool(value)
+        if profile.accessedTour != bool_value
+            profile.accessedTour = bool_value
             profile.save()
         context = {'success': True}
         return Response(context, status=status.HTTP_200_OK)
