@@ -646,7 +646,34 @@ class UserFeedbackList(generics.ListCreateAPIView):
         return UserFeedback.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        """Create UserFeedback instance and send EmailMessage"""
+        instance = serializer.save(user=self.request.user)
+        user = self.request.user
+        profile = user.profile
+        from_email = settings.EMAIL_FROM
+        to_email = [settings.FEEDBACK_RECIPIENT_EMAIL,]
+        if profile.lastName:
+            username = profile.getFullNameAndDegree()
+            userinfo = username + ' ' + user.email
+        else:
+            username = user.email
+            userinfo = username
+        subject = 'Feedback from {0} on {1:%m/%d %H:%M}'.format(username, instance.asLocalTz())
+        if settings.ENV_TYPE != settings.ENV_PROD:
+            envtype = '[{0}] '.format(settings.ENV_TYPE)
+            subject = envtype + subject
+        # create EmailMessage
+        ctx = {
+            'userinfo': userinfo,
+            'message': instance
+        }
+        message = get_template('email/feedback.html').render(Context(ctx))
+        msg = EmailMessage(subject, message, to=to_email, from_email=from_email)
+        msg.content_subtype = 'html'
+        try:
+            msg.send()
+        except SMTPException as e:
+            logException(logger, request, 'UserFeedback send email failed.')
 
 
 # Eligible Site

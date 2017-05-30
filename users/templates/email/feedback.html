@@ -1,0 +1,8 @@
+{% load tz %}
+<div class="message-body">{{ message.message|linebreaks }}</div>
+<p><em>From:</em> {{ userinfo }}</p>
+<p><em>hasBias:</em> {{ message.hasBias|yesno }}</p>
+<p><em>hasUnfairContent:</em> {{ message.hasUnfairContent|yesno }}</p>
+{% timezone "America/Los_Angeles" %}
+<p><em>Date:</em> {{ message.created|date:"r" }}</p>
+{% endtimezone %}

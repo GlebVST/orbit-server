@@ -186,6 +186,9 @@ class Profile(models.Model):
             return True
         return False
 
+    def getFullName(self):
+        return u"{0} {1}".format(self.firstName, self.lastName)
+
     def getFullNameAndDegree(self):
         degrees = self.degrees.all()
         degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
@@ -677,6 +680,10 @@ class UserFeedback(models.Model):
             return self.message[0:UserFeedBack.SNIPPET_MAX_CHARS] + '...'
         return self.message
     message_snippet.short_description = "Message Snippet"
+
+    def asLocalTz(self):
+        tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
+        return self.created.astimezone(tz)
 
     class Meta:
         verbose_name_plural = 'User Feedback'
