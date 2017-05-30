@@ -4,6 +4,7 @@ import braintree
 from collections import namedtuple
 from datetime import datetime
 from dateutil.relativedelta import *
+from decimal import Decimal
 import pytz
 import uuid
 from urlparse import urlparse
@@ -748,12 +749,20 @@ class SubscriptionPlan(models.Model):
     price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
     trialDays = models.IntegerField(default=0, help_text='Trial period in days')
     billingCycleMonths = models.IntegerField(default=12, help_text='Billing Cycle in months')
+    discountPrice = models.DecimalField(max_digits=6, decimal_places=2, help_text='discounted price in USD')
     active = models.BooleanField(default=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.planId
+
+    def monthlyPrice(self):
+        return self.price/Decimal('12.0')
+
+    def discountMonthlyPrice(self):
+        return self.discountPrice/Decimal('12.0')
+
 
 # User Subscription
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions

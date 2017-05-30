@@ -642,15 +642,16 @@ class SRCmeFormSerializer(serializers.Serializer):
         return instance
 
 
+DISPLAY_PRICE_AS_MONTHLY = True
+
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0.01'))
+    discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
     displayMonthlyPrice = serializers.SerializerMethodField()
 
     def get_displayMonthlyPrice(self, obj):
-        """Returns True if the price should be divided by 12 to be displayed as a monthly price.
-        2017-02-28: changed to False per Ram
-        """
-        return False
+        """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
+        return DISPLAY_PRICE_AS_MONTHLY
 
     class Meta:
         model = SubscriptionPlan
@@ -659,6 +660,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'planId',
             'name',
             'price',
+            'discountPrice',
             'trialDays',
             'billingCycleMonths',
             'displayMonthlyPrice',
@@ -672,15 +674,15 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
     displayMonthlyPrice = serializers.SerializerMethodField()
 
     def get_displayMonthlyPrice(self, obj):
-        """Returns True if the price should be divided by 12 to be displayed as a monthly price.
-        2017-02-28: changed to False per Ram
-        """
-        return False
+        """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
+        return DISPLAY_PRICE_AS_MONTHLY
 
     class Meta:
         model = SubscriptionPlan
         fields = (
+            'name',
             'price',
+            'discountPrice',
             'displayMonthlyPrice',
             'trialDays',
         )

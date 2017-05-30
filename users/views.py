@@ -253,7 +253,7 @@ class CustomerDetail(generics.RetrieveAPIView):
 
 # SubscriptionPlan : new payment model
 class SubscriptionPlanList(generics.ListCreateAPIView):
-    queryset = SubscriptionPlan.objects.all().order_by('created')
+    queryset = SubscriptionPlan.objects.filter(active=True).order_by('created')
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
@@ -263,8 +263,16 @@ class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 # SubscriptionPlanPublic : for AllowAny
-# Note: plan in db must be in sync with the plan defined in the BT Control Panel
-class SubscriptionPlanPublic(APIView):
+class SubscriptionPlanPublic(generics.ListAPIView):
+    """Returns a list of available plans using the SubscriptionPlanPublicSerializer
+    Note: plans in db must be in sync with the plans defined in the BT Control Panel
+    """
+    queryset = SubscriptionPlan.objects.filter(active=True).order_by('created')
+    serializer_class = SubscriptionPlanPublicSerializer
+    permission_classes = (permissions.AllowAny,)
+
+# obsolete. remove after client stops using it
+class OldSubscriptionPlanPublic(APIView):
     """Returns the info for the single annual plan.
     """
     permission_classes = (permissions.AllowAny,)
@@ -277,7 +285,7 @@ class SubscriptionPlanPublic(APIView):
         return Response(context, status=status.HTTP_200_OK)
 
     def get(self, request, format=None):
-        qset = SubscriptionPlan.objects.filter(active=True)
+        qset = SubscriptionPlan.objects.filter(active=True).order_by('created')
         plan = qset[0] if qset.exists() else None
         return self.serialize_and_render(plan)
 

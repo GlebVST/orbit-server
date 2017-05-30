@@ -341,7 +341,8 @@ EMAIL_FROM = 'mission-control@orbitcme.com'
 EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
 # used for error reporting
 SERVER_EMAIL = EMAIL_FROM
-
+# recipient for user feedback
+FEEDBACK_RECIPIENT_EMAIL = 'feedback@orbitcme.com'
 
 HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
 DOCUMENT_HASHIDS_SALT = 'random AlVkkUk2Z14FCTXu1pC32pUYm3T6uYSEYZY9ZtOLVNEJ'

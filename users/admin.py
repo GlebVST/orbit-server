@@ -93,8 +93,8 @@ class UserFeedbackAdmin(admin.ModelAdmin):
 
 
 class SubscriptionPlanAdmin(admin.ModelAdmin):
-    list_display = ('id', 'planId', 'name', 'price', 'trialDays', 'billingCycleMonths', 'active', 'modified')
-
+    list_display = ('id', 'planId', 'name', 'price', 'monthlyPrice', 'discountPrice', 'discountMonthlyPrice', 'trialDays', 'billingCycleMonths', 'active', 'modified')
+    
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
         'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle',
