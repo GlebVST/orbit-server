@@ -127,7 +127,9 @@ def serialize_subscription(user_subs):
         'bt_status': user_subs.status,
         'display_status': user_subs.display_status,
         'billingStartDate': user_subs.billingStartDate,
-        'billingEndDate': user_subs.billingEndDate
+        'billingEndDate': user_subs.billingEndDate,
+        'plan_id': user_subs.plan.pk,
+        'plan_name': user_subs.plan.name
     }
 
 def serialize_profile(profile):
