@@ -650,9 +650,8 @@ class UserFeedbackList(generics.ListCreateAPIView):
         instance = serializer.save(user=self.request.user)
         user = self.request.user
         profile = user.profile
-        #from_email = settings.EMAIL_FROM
-        from_email = settings.FEEDBACK_RECIPIENT_EMAIL
-        to_email = ['faria.chowdhury@gmail.com', settings.FEEDBACK_RECIPIENT_EMAIL,]
+        from_email = settings.EMAIL_FROM
+        to_email = [settings.FEEDBACK_RECIPIENT_EMAIL,]
         if profile.lastName:
             username = profile.getFullNameAndDegree()
             userinfo = username + ' ' + user.email

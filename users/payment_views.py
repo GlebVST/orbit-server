@@ -269,8 +269,9 @@ class NewSubscription(APIView):
             payment_token = tokens[0]
         # Update params for subscription
         subs_params['payment_method_token'] = payment_token
-        # Create the subscription
-        result, user_subs = UserSubscription.objects.createBtSubscription(request.user, plan, subs_params)
+        # Create the subscription and transaction record
+        with transaction.atomic():
+            result, user_subs = UserSubscription.objects.createBtSubscription(request.user, plan, subs_params)
         context = {'success': result.is_success}
         if not result.is_success:
             context['message'] = 'Create Subscription failed.'
@@ -315,7 +316,8 @@ class SwitchTrialToActive(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
         # Cancel old subscription and create new Active subscription
-        result, user_subs = UserSubscription.objects.switchTrialToActive(last_subscription, payment_token)
+        with transaction.atomic():
+            result, user_subs = UserSubscription.objects.switchTrialToActive(last_subscription, payment_token)
         context = {'success': result.is_success}
         if not result.is_success:
             context['message'] = 'Create Subscription failed.'

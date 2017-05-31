@@ -94,7 +94,9 @@ class UserFeedbackAdmin(admin.ModelAdmin):
 
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ('id', 'planId', 'name', 'price', 'monthlyPrice', 'discountPrice', 'discountMonthlyPrice', 'trialDays', 'billingCycleMonths', 'active', 'modified')
-    
+    ordering = ('-created',)
+
+
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
         'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle',
@@ -102,6 +104,13 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
     list_select_related = ('user','plan')
     list_filter = ('status', 'display_status')
     ordering = ('-modified',)
+
+
+class SubscriptionTransactionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'transactionId', 'subscription', 'amount', 'status', 'created', 'modified')
+    raw_id_fields = ('subscription',)
+    ordering = ('-modified',)
+
 
 class CertificateAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'referenceId', 'name', 'startDate', 'endDate', 'credits', 'created')
@@ -173,6 +182,7 @@ admin_site.register(Sponsor, SponsorAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
+admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 #
 # plugin models
 #

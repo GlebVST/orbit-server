@@ -762,7 +762,7 @@ class SubscriptionPlan(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.planId
+        return self.name
 
     def monthlyPrice(self):
         return self.price/Decimal('12.0')
@@ -805,7 +805,9 @@ class UserSubscriptionManager(models.Manager):
 
     def createBtSubscription(self, user, plan, subs_params):
         """Create Braintree subscription using the given params
-        and create user_subs object in local db
+        In local db:
+            Create new UserSubscription instance
+            Create new SubscriptionTransaction instance (if exists)
         Returns (Braintree result object, UserSubscription object)
         """
         user_subs = None
@@ -844,6 +846,15 @@ class UserSubscriptionManager(models.Manager):
                 billingEndDate=endDate,
                 billingCycle=result.subscription.current_billing_cycle
             )
+            # create SubscriptionTransaction object in database
+            result_transactions = result.subscription.transactions # list
+            if len(result_transactions):
+                t = result_transactions[0]
+                subs_trans = SubscriptionTransaction.objects.create(
+                        subscription=user_subs,
+                        transactionId=t.id,
+                        amount=t.amount,
+                        status=t.status)
         return (result, user_subs)
 
     def makeActiveCanceled(self, user_subs):
@@ -1055,6 +1066,23 @@ class UserSubscription(models.Model):
 
     def __str__(self):
         return self.subscriptionId
+
+@python_2_unicode_compatible
+class SubscriptionTransaction(models.Model):
+    transactionId = models.CharField(max_length=36, unique=True)
+    subscription = models.ForeignKey(UserSubscription,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='transactions',
+    )
+    amount = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
+    status = models.CharField(max_length=200, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.transactionId
+
 
 def certificate_document_path(instance, filename):
     return '{0}/uid_{1}/{2}'.format(settings.CERTIFICATE_MEDIA_BASEDIR, instance.user.id, filename)
