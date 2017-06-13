@@ -293,6 +293,17 @@ class CustomerManager(models.Manager):
             raise ValueError('Customer has multiple payment tokens.')
         return result
 
+    def getDateFromExpiry(self, expiry):
+        """Given expiry string mm/yyyy from payment method,
+        construct and return a datetime object for the end
+        of that month. It assumes the card expires at the
+        end of the month.
+        """
+        expiry_mm, expiry_yyyy = expiry.split('/')
+        start_dt = datetime(int(expiry_yyyy), int(expiry_mm), 1, tzinfo=pytz.utc)
+        # last day of the month, 23:59:59 utc
+        end_dt = start_dt + relativedelta(day=1, months=+1, seconds=-1)
+        return endt_dt
 
 @python_2_unicode_compatible
 class Customer(models.Model):
@@ -850,12 +861,19 @@ class UserSubscriptionManager(models.Manager):
             result_transactions = result.subscription.transactions # list
             if len(result_transactions):
                 t = result_transactions[0]
+                card_type = t.credit_card.get('card_type')
+                card_last4 = t.credit_card.get('last_4')
                 subs_trans = SubscriptionTransaction.objects.create(
                         subscription=user_subs,
                         transactionId=t.id,
+                        proc_auth_code=t.processor_authorization_code,
+                        proc_response_code=t.processor_response_code,
                         amount=t.amount,
-                        status=t.status)
+                        status=t.status,
+                        card_type=card_type,
+                        card_last4=card_last4)
         return (result, user_subs)
+
 
     def makeActiveCanceled(self, user_subs):
         """
@@ -959,34 +977,59 @@ class UserSubscriptionManager(models.Manager):
             return (cancel_result, user_subs)
 
 
-    def checkTrialToActive(self, user_subs):
+    def updateSubscriptionFromBt(self, user_subs, bt_subs):
+        """Update UserSubscription instance from braintree Subscription object
+        This always updates user_subs.status and billingCycle from BT object,
+        and always saves the model instance.
         """
-            Check if user_subs is out of trial period.
+        user_subs.status = bt_subs.status
+        if bt_subs.status == self.model.ACTIVE:
+            user_subs.display_status = self.model.UI_ACTIVE
+        elif bt_subs.status == self.model.PASTDUE:
+            user_subs.display_status = self.model.UI_SUSPENDED
+        startDate = bt_subs.billing_period_start_date
+        endDate = bt_subs.billing_period_end_date
+        if startDate:
+            startDate = makeAwareDatetime(startDate)
+            if user_subs.billingStartDate != startDate:
+                user_subs.billingStartDate = startDate
+        if endDate:
+            endDate = makeAwareDatetime(endDate)
+            if user_subs.billingEndDate != endDate:
+                user_subs.billingEndDate = endDate
+        user_subs.billingCycle = bt_subs.current_billing_cycle
+        user_subs.save()
+
+
+    def checkTrialToActive(self, user_subs):
+        """Check if user_subs is out of trial period.
             Returns: bool if user_subs was saved with new data from bt subscription.
         """
         today = timezone.now()
         saved = False
         if user_subs.display_status == self.model.UI_TRIAL and (today > user_subs.billingFirstDate):
-            subscription = braintree.Subscription.find(user_subs.subscriptionId)
-            user_subs.status = subscription.status
-            if subscription.status == self.model.ACTIVE:
-                user_subs.display_status = self.model.UI_ACTIVE
-            elif subscription.status == self.model.PASTDUE:
-                user_subs.display_status = self.model.UI_SUSPENDED
-            startDate = subscription.billing_period_start_date
-            endDate = subscription.billing_period_end_date
-            if startDate:
-                startDate = makeAwareDatetime(startDate)
-                if user_subs.billingStartDate != startDate:
-                    user_subs.billingStartDate = startDate
-            if endDate:
-                endDate = makeAwareDatetime(endDate)
-                if user_subs.billingEndDate != endDate:
-                    user_subs.billingEndDate = endDate
-            user_subs.billingCycle = subscription.current_billing_cycle
-            user_subs.save()
-            saved = True
+            try:
+                bt_subs = braintree.Subscription.find(user_subs.subscriptionId)
+            except braintree.exceptions.not_found_error.NotFoundError:
+                logger.error('checkTrialToActive: subscriptionId:{0.subscriptionId} for user {0.user} not found in Braintree.'.format(user_subs))
+            else:
+                self.updateSubscriptionFromBt(user_subs, bt_subs)
+                saved = True
         return saved
+
+    def updateLatestUserSubsAndTransactions(self, user):
+        """Get the latest UserSubscription for the given user
+        from the local db and update it from BT. Also update
+        transactions for the user_subs.
+        """
+        user_subs = self.getLatestSubscription(user)
+        if not user_subs:
+            return
+        bt_subs = self.findBtSubscription(user_subs.subscriptionId)
+        if user_subs.status != bt_subs.status or user_subs.billingCycle != bt_subs.current_billing_cycle:
+            self.updateSubscriptionFromBt(user_subs, bt_subs)
+        SubscriptionTransaction.objects.updateTransactionsFromBtSubs(user_subs, bt_subs)
+
 
     def searchBtSubscriptionsByPlan(self, planId):
         """Search Braintree subscriptions by plan.
@@ -1060,12 +1103,62 @@ class UserSubscription(models.Model):
     billingStartDate = models.DateTimeField(null=True, blank=True, help_text='Braintree billing_period_start_date - regardless of status')
     billingEndDate = models.DateTimeField(null=True, blank=True, help_text='Braintree billing_period_end_date - regardless of status')
     billingCycle = models.PositiveIntegerField(default=1, help_text='Braintree current_billing_cycle')
+    remindRenewSent = models.BooleanField(default=False, help_text='set to True upon sending of auto-renewal reminder via email')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = UserSubscriptionManager()
 
     def __str__(self):
         return self.subscriptionId
+
+
+class SubscriptionTransactionManager(models.Manager):
+    def findBtTransaction(self, transaction):
+        """transaction: SubscriptionTransaction instance from db
+        Returns: Braintree Transaction object / None in case of
+            braintree.exceptions.not_found_error.NotFoundError
+        """
+        try:
+            t = braintree.Transaction.find(str(transaction.transactionId))
+        except braintree.exceptions.not_found_error.NotFoundError:
+            return None
+        else:
+            return t
+
+    def updateTransactionsFromBtSubs(self, user_subs, bt_subs):
+        """Update SubscriptionTransaction(s) from braintree Subscription object"""
+        for t in bt_subs.transactions:
+            # does SubscriptionTransaction instance exist in db
+            qset = SubscriptionTransaction.objects.filter(transactionId=t.id)
+            if qset.exists():
+                m = qset[0]
+                doSave = False
+                if m.status != t.status:
+                    m.status = t.status
+                    doSave = True
+                if m.proc_auth_code != t.processor_authorization_code:
+                    m.proc_auth_code = t.processor_authorization_code
+                    doSave = True
+                if m.proc_response_code != t.processor_response_code:
+                    m.proc_response_code = t.processor_response_code
+                    doSave = True
+                if doSave:
+                    m.save()
+                    logger.info('Updated transaction {0.transactionId} from BT.'.format(m))
+            else:
+                # create new
+                card_type = t.credit_card.get('card_type')
+                card_last4 = t.credit_card.get('last_4')
+                m = SubscriptionTransaction.objects.create(
+                        subscription=user_subs,
+                        transactionId=t.id,
+                        proc_auth_code=t.processor_authorization_code,
+                        proc_response_code=t.processor_response_code,
+                        amount=t.amount,
+                        status=t.status,
+                        card_type=card_type,
+                        card_last4=card_last4)
+                logger.info('Created transaction {0.transactionId} from BT.'.format(m))
 
 @python_2_unicode_compatible
 class SubscriptionTransaction(models.Model):
@@ -1077,8 +1170,14 @@ class SubscriptionTransaction(models.Model):
     )
     amount = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
     status = models.CharField(max_length=200, blank=True)
+    card_type = models.CharField(max_length=100, blank=True)
+    card_last4 = models.CharField(max_length=4, blank=True)
+    proc_auth_code = models.CharField(max_length=10, blank=True, help_text='processor_authorization_code')
+    proc_response_code = models.CharField(max_length=4, blank=True, help_text='processor_response_code')
+    receipt_sent = models.BooleanField(default=False, help_text='set to True on sending of receipt via email')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = SubscriptionTransactionManager()
 
     def __str__(self):
         return self.transactionId

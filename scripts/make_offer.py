@@ -7,7 +7,6 @@ from common import viewutils
 from random import randint
 
 urls = (
-    'https://radiopaedia.org/cases/traumatic-direct-caroticocavernous-fistula',
     'https://radiopaedia.org/articles/meningioma',
     'https://radiopaedia.org/articles/lung-cancer-3',
     'https://radiopaedia.org/articles/15t-vs-3t',
@@ -17,11 +16,8 @@ urls = (
     'https://radiopaedia.org/articles/endocrine-tumours-of-the-pancreas',
     'https://radiopaedia.org/articles/pancreatic-trauma-1',
     'https://radiopaedia.org/articles/pancreatic-lipomatosis',
+    'https://radiopaedia.org/articles/18q-syndrome',
     'https://radiopaedia.org/articles/oesophageal-stricture',
-    'http://www.mdcalc.com/cha2ds2-vasc-score-atrial-fibrillation-stroke-risk/',
-    'http://www.mdcalc.com/creatinine-clearance-cockcroft-gault-equation/',
-    'http://www.mdcalc.com/wells-criteria-pulmonary-embolism/',
-    'http://www.mdcalc.com/sirs-sepsis-septic-shock-criteria/'
 )
 
 def getUser(firstName=None, lastName=None, email=None):
@@ -44,11 +40,12 @@ def getUser(firstName=None, lastName=None, email=None):
 def makeOffers(user):
     sponsor = Sponsor.objects.get(name=SPONSOR_BRCME)
     now = timezone.now()
-    t1 = now - timedelta(days=20)
-    for url in urls:
+    num_urls = len(urls)
+    t1 = now - timedelta(days=num_urls)
+    for j, url in enumerate(urls):
         urlname = viewutils.getUrlLastPart(url)
-        activityDate = t1 + timedelta(days=1)
-        expireDate = activityDate + timedelta(days=60)
+        activityDate = t1 + timedelta(days=j)
+        expireDate = activityDate + timedelta(days=90)
         offer = BrowserCmeOffer.objects.create(
             user=user,
             activityDate=activityDate,
@@ -58,7 +55,7 @@ def makeOffers(user):
             credits=0.5,
             sponsor=sponsor
         )
-        print user.username, urlname, offer.pk
+        print user.username, urlname, offer.pk, activityDate.strftime('%Y-%m-%d')
 
 def redeemOffers(user):
     """Redeem unexpired offers and create BrowserCme entries in feed"""
@@ -94,4 +91,4 @@ def redeemOffers(user):
             )
             offer.redeemed = True
             offer.save()
-            print('Entry {0} credits {1} tag:{2}'.format(entry.pk, brcme.credits, rtag.name))
+            print('Entry {0.pk} tag:{1.name}'.format(entry, rtag))

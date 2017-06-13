@@ -99,16 +99,18 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
-        'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle',
+        'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle', 'remindRenewSent',
         'created', 'modified')
     list_select_related = ('user','plan')
-    list_filter = ('status', 'display_status')
+    list_filter = ('status', 'display_status', 'remindRenewSent')
     ordering = ('-modified',)
 
 
 class SubscriptionTransactionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'transactionId', 'subscription', 'amount', 'status', 'created', 'modified')
+    list_display = ('id', 'transactionId', 'subscription', 'amount', 'status', 'card_type', 'card_last4', 'receipt_sent', 'created', 'modified')
+    list_select_related = ('subscription',)
     raw_id_fields = ('subscription',)
+    list_filter = ('receipt_sent',)
     ordering = ('-modified',)
 
 

@@ -1,0 +1,26 @@
+<p>${{ transaction.amount }} at Orbit</p>
+<p>{{ profile.getFullNameAndDegree }}</p>
+<p>Receipt ID: {{ transaction.transactionId }}</p>
+
+<table>
+    <tr>
+        <td>Plan</td>
+        <td>{{ plan_name }}</td>
+    </tr>
+    <tr>
+        <td>Amount</td>
+        <td>${{ transaction.amount }}</td>
+    </tr>
+    <tr>
+        <td>Date</td>
+        <td>{{ subscription.billingStartDate|date:"d M Y" }}</td>
+    </tr>
+    <tr>
+        <td>Card</td>
+        <td>{{ transaction.card_type }} ending in {{ transaction.card_last4 }}</td>
+    </tr>
+</table>
+
+<p>Your subscription to {{ plan_name }} will automatically renew on {{ subscription.billingEndDate|date:"d M Y" }}</p>
+
+<p>Have a question or need help? Send us an email at {{ support_email }}</p>

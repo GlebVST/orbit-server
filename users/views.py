@@ -9,7 +9,7 @@ from smtplib import SMTPException
 import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.core.mail import send_mail, EmailMessage
+from django.core.mail import EmailMessage
 from django.db import transaction
 from django.template import Context
 from django.template.loader import get_template
@@ -271,25 +271,6 @@ class SubscriptionPlanPublic(generics.ListAPIView):
     serializer_class = SubscriptionPlanPublicSerializer
     permission_classes = (permissions.AllowAny,)
 
-# obsolete. remove after client stops using it
-class OldSubscriptionPlanPublic(APIView):
-    """Returns the info for the single annual plan.
-    """
-    permission_classes = (permissions.AllowAny,)
-
-    def serialize_and_render(self, plan):
-        context = {'plan': None}
-        if plan:
-            s = SubscriptionPlanPublicSerializer(plan)
-            context['plan'] = s.data
-        return Response(context, status=status.HTTP_200_OK)
-
-    def get(self, request, format=None):
-        qset = SubscriptionPlan.objects.filter(active=True).order_by('created')
-        plan = qset[0] if qset.exists() else None
-        return self.serialize_and_render(plan)
-
-
 
 # custom pagination for BrowserCmeOfferList
 class BrowserCmeOfferPagination(PageNumberPagination):
@@ -297,8 +278,8 @@ class BrowserCmeOfferPagination(PageNumberPagination):
 
 class BrowserCmeOfferList(generics.ListAPIView):
     """
-    Find the top N un-redeemed and unexpired offers order by expireDate desc
-    (latest first) for the authenticated user.
+    Find the top N un-redeemed and unexpired offers order by modified desc
+    (latest modified first) for the authenticated user.
     """
     serializer_class = BrowserCmeOfferSerializer
     pagination_class = BrowserCmeOfferPagination
@@ -311,7 +292,7 @@ class BrowserCmeOfferList(generics.ListAPIView):
             user=user,
             expireDate__gt=now,
             redeemed=False
-            ).select_related('sponsor').order_by('-expireDate')
+            ).select_related('sponsor').order_by('-modified')
 
 
 #

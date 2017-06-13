@@ -1,7 +1,12 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from smtplib import SMTPException
 from django.contrib.auth.models import User
+from django.conf import settings
+from django.core.mail import EmailMessage
 from django.db import transaction
+from django.template import Context
+from django.template.loader import get_template
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser,MultiPartParser
@@ -99,3 +104,55 @@ class MakePinnedMessage(APIView):
         }
         return Response(context, status=status.HTTP_201_CREATED)
 
+class EmailSubscriptionReceipt(APIView):
+    """
+    Find the latest subscription transaction of the user
+    and email a receipt for it, and return success:True and
+    the transaction details.
+    If no transaction exists: return success:False
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, format=None):
+        user = request.user
+        #print('User: {0.pk} {0.email}'.format(user))
+        now = timezone.now()
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        if not user_subs:
+            context = {'success': False, 'message': 'User does not have a subscription.'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # does user_subs have associated payment transaction
+        qset = user_subs.transactions.all().order_by('-created')
+        if not qset.exists():
+            context = {
+                'success': False,
+                'message': 'The latest Subscription {0.pk} does not have a payment transaction in the database yet.'.format(user_subs)
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # else prepare context for email
+        subs_trans = qset[0]
+        plan_name = u'Orbit ' + user_subs.plan.name
+        subject = 'Your receipt for annual subscription to {0}'.format(plan_name)
+        from_email = settings.SUPPORT_EMAIL
+        ctx = {
+            'profile': user.profile,
+            'subscription': user_subs,
+            'transaction': subs_trans,
+            'plan_name': plan_name,
+            'support_email': settings.SUPPORT_EMAIL
+        }
+        message = get_template('email/receipt.html').render(Context(ctx))
+        msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
+        msg.content_subtype = 'html'
+        try:
+            msg.send()
+        except SMTPException as e:
+            logException(logger, request, 'EmailSubscriptionReceipt send email failed.')
+            context = {'success': False, 'message': 'Failure sending email'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        finally:
+            context = {
+                'success': True,
+                'message': 'A receipt was emailed to {0.email}'.format(user),
+                'transactionId': subs_trans.transactionId
+            }
+            return Response(context, status=status.HTTP_200_OK)

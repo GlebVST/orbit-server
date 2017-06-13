@@ -344,7 +344,7 @@ EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
 SERVER_EMAIL = EMAIL_FROM
 # recipient for user feedback
 FEEDBACK_RECIPIENT_EMAIL = 'feedback@orbitcme.com'
-#FEEDBACK_RECIPIENT_EMAIL = 'faria.chowdhury@gmail.com'
+SUPPORT_EMAIL = 'support@orbitcme.com'
 
 HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
 DOCUMENT_HASHIDS_SALT = 'random AlVkkUk2Z14FCTXu1pC32pUYm3T6uYSEYZY9ZtOLVNEJ'
