@@ -21,6 +21,7 @@ logger = logging.getLogger('gen.models')
 from common.appconstants import (
     MAX_URL_LENGTH,
     SELF_REPORTED_AUTHORITY,
+    AMA_PRA_CATEGORY_LABEL,
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
@@ -548,12 +549,13 @@ class Entry(models.Model):
     valid = models.BooleanField(default=True)
     tags = models.ManyToManyField(CmeTag, related_name='entries')
     documents = models.ManyToManyField(Document, related_name='entries')
+    ama_pra_catg = models.CharField(max_length=2, blank=True, help_text='AMA PRA Category')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = EntryManager()
 
     def __str__(self):
-        return '{0} on {1}'.format(self.entryType, self.activityDate)
+        return '{0.entryType} on {0.activityDate}'.format(self)
 
     def formatTags(self):
         """Returns a comma-separated string of self.tags ordered by tag name"""
@@ -564,6 +566,16 @@ class Entry(models.Model):
         """Returns a comma-separated string of self.tags ordered by tag name excluding SA-CME"""
         names = [t.name for t in self.tags.all() if t.name != CMETAG_SACME]  # should use default ordering on CmeTag model
         return u', '.join(names)
+
+    def formatPRACatgAndTags(self):
+        """If entry has ama_pra_catg, prepend category to tags
+        and return comma-separated string, else return formatTags().
+        """
+        if self.ama_pra_catg:
+            names = [AMA_PRA_CATEGORY_LABEL + self.ama_pra_catg,]
+            names.extend([t.name for t in self.tags.all()])
+            return u', '.join(names)
+        return self.formatTags()
 
     def getCertDocReferenceId(self):
         """This expects attr cert_docs:list from prefetch_related.
@@ -1227,6 +1239,7 @@ class AuditReport(models.Model):
         on_delete=models.PROTECT,
         null=True,
         db_index=True,
+        related_name='auditreports',
         help_text='BrowserCme Certificate generated for the same date range'
     )
     referenceId = models.CharField(max_length=64,

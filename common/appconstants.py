@@ -31,3 +31,10 @@ ALL_PERMS = (
 )
 
 SELF_REPORTED_AUTHORITY = u'Self Reported'
+# AMA Physician's Recognition Award (PRA) has 2 categories
+# Category 1: traditional/formal type of learning activity in mind.
+#   These requirements stipulate that the educational content of the activity must
+#   be specifically defined; this includes identification of the curriculum and the
+#   development of measurable educational objectives.
+# Category 2: activities that are self-designated/self-assessed. They do not need to be documented or verified by an external party.
+AMA_PRA_CATEGORY_LABEL = u'AMA PRA Category '

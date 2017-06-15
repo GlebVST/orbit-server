@@ -958,6 +958,10 @@ class CreateAuditReport(CertificateMixin, APIView):
             return Response(context, status=status.HTTP_201_CREATED)
 
     def makeReport(self, profile, startdt, enddt, certificate):
+        """
+        The brcmeEvents.tags value contains the AMA PRA Category 1 label
+        as the first tag.
+        """
         user = profile.user
         can_print_report = hasUserSubscriptionPerm(user, PERM_PRINT_AUDIT_REPORT)
         if can_print_report:
@@ -984,7 +988,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             'entryType': m.entryType.name,
             'date': calendar.timegm(m.activityDate.timetuple()),
             'credit': float(m.brcme.credits),
-            'tags': m.formatTags(),
+            'tags': m.formatPRACatgAndTags(),
             'authority': m.getCertifyingAuthority(),
             'activity': m.brcme.formatActivity(),
             'referenceId': brcmeCertReferenceId

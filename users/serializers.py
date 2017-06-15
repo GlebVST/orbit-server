@@ -386,6 +386,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             sponsor=offer.sponsor,
             activityDate=offer.activityDate,
             description=validated_data.get('description'),
+            ama_pra_catg='1',  # AMA PRA Category 1
             user=validated_data.get('user')
         )
         # associate tags with saved entry
