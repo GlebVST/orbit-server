@@ -81,10 +81,10 @@ class Degree(models.Model):
         abbrev = self.abbrev
         return abbrev == DEGREE_MD or abbrev == DEGREE_DO
 
-# CME tag types (SA-CME, Breast, etc)
+# CME tag types (SA-CME tag has priority=1)
 @python_2_unicode_compatible
 class CmeTag(models.Model):
-    name= models.CharField(max_length=20, unique=True)
+    name= models.CharField(max_length=40, unique=True)
     priority = models.IntegerField(
         default=0,
         help_text='Used for non-alphabetical sort.'
@@ -109,6 +109,7 @@ class PracticeSpecialty(models.Model):
         related_name='specialties',
         help_text='Eligible cmeTags for this specialty'
     )
+    is_abms_board = models.BooleanField(default=False, help_text='True if this is an ABMS Board/General Cert')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 

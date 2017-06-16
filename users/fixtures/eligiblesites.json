@@ -1,0 +1,57 @@
+[
+{
+  "model": "users.eligiblesite",
+  "pk": 1,
+  "fields": {
+    "domain_name": "radiopaedia.org",
+    "domain_title": "Radiopaedia Articles",
+    "example_url": "https://radiopaedia.org/articles/15t-vs-3t",
+    "example_title": "1.5T vs 3T",
+    "is_valid_expurl": true,
+    "description": "Signal to Noise ratio",
+    "needs_ad_block": true,
+    "created": "2017-02-24T18:58:54.412Z",
+    "modified": "2017-06-16T00:58:14.860Z",
+    "specialties": [
+      19
+    ]
+  }
+},
+{
+  "model": "users.eligiblesite",
+  "pk": 2,
+  "fields": {
+    "domain_name": "www.ncbi.nlm.nih.gov",
+    "domain_title": "NCBI NIH PubMed",
+    "example_url": "https://www.ncbi.nlm.nih.gov/pubmed/7621768",
+    "example_title": "EEG monitoring during endovascular embolization of cerebral arteriovenous malformations.",
+    "is_valid_expurl": true,
+    "description": "PubMed - NCBI",
+    "needs_ad_block": false,
+    "created": "2017-06-05T20:33:18.211Z",
+    "modified": "2017-06-16T00:59:01.460Z",
+    "specialties": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ]
+  }
+}
+]

@@ -3,18 +3,261 @@
   "model": "users.practicespecialty",
   "pk": 1,
   "fields": {
-    "name": "Radiology",
-    "created": "2016-11-26T08:35:06.830Z",
-    "modified": "2016-11-26T08:35:06.830Z"
+    "name": "Allergy and Immunology",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:21.241Z",
+    "modified": "2017-06-15T23:39:21.241Z",
+    "cmeTags": [
+      3
+    ]
   }
 },
 {
   "model": "users.practicespecialty",
   "pk": 2,
   "fields": {
-    "name": "Neurology",
-    "created": "2016-11-26T09:38:04.070Z",
-    "modified": "2016-11-26T09:38:04.070Z"
+    "name": "Anesthesiology",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:21.669Z",
+    "modified": "2017-06-15T23:39:21.669Z",
+    "cmeTags": [
+      4
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 3,
+  "fields": {
+    "name": "Colon and Rectal Surgery",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:22.190Z",
+    "modified": "2017-06-15T23:39:22.190Z",
+    "cmeTags": [
+      5
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 4,
+  "fields": {
+    "name": "Dermatology",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:22.638Z",
+    "modified": "2017-06-15T23:39:22.638Z",
+    "cmeTags": [
+      6
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 5,
+  "fields": {
+    "name": "Emergency Medicine",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:23.057Z",
+    "modified": "2017-06-15T23:39:23.057Z",
+    "cmeTags": [
+      7
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 6,
+  "fields": {
+    "name": "Family Medicine",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:23.474Z",
+    "modified": "2017-06-15T23:39:23.474Z",
+    "cmeTags": [
+      8
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 7,
+  "fields": {
+    "name": "Internal Medicine",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:23.906Z",
+    "modified": "2017-06-15T23:39:23.906Z",
+    "cmeTags": [
+      9
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 8,
+  "fields": {
+    "name": "Medical Genetics and Genomics",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:24.327Z",
+    "modified": "2017-06-15T23:39:24.327Z",
+    "cmeTags": [
+      10
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 9,
+  "fields": {
+    "name": "Neurological Medicine",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:24.764Z",
+    "modified": "2017-06-15T23:39:24.764Z",
+    "cmeTags": [
+      11
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 10,
+  "fields": {
+    "name": "Obstetrics and Gynecology",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:25.199Z",
+    "modified": "2017-06-15T23:39:25.199Z",
+    "cmeTags": [
+      12
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 11,
+  "fields": {
+    "name": "Opthalmology",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:25.632Z",
+    "modified": "2017-06-15T23:39:25.632Z",
+    "cmeTags": [
+      13
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 12,
+  "fields": {
+    "name": "Orthopaedic Surgery",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:26.069Z",
+    "modified": "2017-06-15T23:39:26.069Z",
+    "cmeTags": [
+      14
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 13,
+  "fields": {
+    "name": "Otolaryngology",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:26.494Z",
+    "modified": "2017-06-15T23:39:26.495Z",
+    "cmeTags": [
+      15
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 14,
+  "fields": {
+    "name": "Pathology",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:27.163Z",
+    "modified": "2017-06-15T23:39:27.163Z",
+    "cmeTags": [
+      16
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 15,
+  "fields": {
+    "name": "Pediatrics",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:27.590Z",
+    "modified": "2017-06-15T23:39:27.590Z",
+    "cmeTags": [
+      17
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 16,
+  "fields": {
+    "name": "Physical Medicine and Rehabilitation",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:28.013Z",
+    "modified": "2017-06-15T23:39:28.013Z",
+    "cmeTags": [
+      18
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 17,
+  "fields": {
+    "name": "Preventive Medicine",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:28.448Z",
+    "modified": "2017-06-15T23:39:28.448Z",
+    "cmeTags": [
+      19
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 18,
+  "fields": {
+    "name": "Psychiatry and Neurology",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:28.880Z",
+    "modified": "2017-06-15T23:39:28.880Z",
+    "cmeTags": [
+      20
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 19,
+  "fields": {
+    "name": "Radiology",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:29.307Z",
+    "modified": "2017-06-15T23:39:29.307Z",
+    "cmeTags": [
+      2,
+      21
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 20,
+  "fields": {
+    "name": "Surgery",
+    "is_abms_board": true,
+    "created": "2017-06-15T23:39:29.809Z",
+    "modified": "2017-06-15T23:39:29.809Z",
+    "cmeTags": [
+      22
+    ]
   }
 }
 ]

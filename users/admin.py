@@ -8,7 +8,8 @@ class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'created')
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'formatTags', 'created')
+    list_display = ('id', 'name', 'is_abms_board', 'formatTags', 'created')
+    list_filter = ('is_abms_board',)
 
     def get_queryset(self, request):
         qs = super(PracticeSpecialtyAdmin, self).get_queryset(request)

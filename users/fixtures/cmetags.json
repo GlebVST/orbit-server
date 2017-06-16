@@ -20,5 +20,225 @@
     "created": "2016-11-26T08:27:38.058Z",
     "modified": "2016-11-26T08:27:38.058Z"
   }
+},
+{
+  "model": "users.cmetag",
+  "pk": 3,
+  "fields": {
+    "name": "Allergy and Immunology",
+    "priority": 0,
+    "description": "Allergy and Immunology",
+    "created": "2017-06-15T23:34:15.226Z",
+    "modified": "2017-06-15T23:34:15.226Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 4,
+  "fields": {
+    "name": "Anesthesiology",
+    "priority": 0,
+    "description": "Anesthesiology",
+    "created": "2017-06-15T23:34:15.390Z",
+    "modified": "2017-06-15T23:34:15.390Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 5,
+  "fields": {
+    "name": "Colon and Rectal Surgery",
+    "priority": 0,
+    "description": "Colon and Rectal Surgery",
+    "created": "2017-06-15T23:34:15.546Z",
+    "modified": "2017-06-15T23:34:15.546Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 6,
+  "fields": {
+    "name": "Dermatology",
+    "priority": 0,
+    "description": "Dermatology",
+    "created": "2017-06-15T23:34:15.704Z",
+    "modified": "2017-06-15T23:34:15.704Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 7,
+  "fields": {
+    "name": "Emergency Medicine",
+    "priority": 0,
+    "description": "Emergency Medicine",
+    "created": "2017-06-15T23:34:15.862Z",
+    "modified": "2017-06-15T23:34:15.862Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 8,
+  "fields": {
+    "name": "Family Medicine",
+    "priority": 0,
+    "description": "Family Medicine",
+    "created": "2017-06-15T23:34:16.023Z",
+    "modified": "2017-06-15T23:34:16.023Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 9,
+  "fields": {
+    "name": "Internal Medicine",
+    "priority": 0,
+    "description": "Internal Medicine",
+    "created": "2017-06-15T23:34:16.182Z",
+    "modified": "2017-06-15T23:34:16.182Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 10,
+  "fields": {
+    "name": "Medical Genetics and Genomics",
+    "priority": 0,
+    "description": "Medical Genetics and Genomics",
+    "created": "2017-06-15T23:34:16.727Z",
+    "modified": "2017-06-15T23:34:16.727Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 11,
+  "fields": {
+    "name": "Neurological Medicine",
+    "priority": 0,
+    "description": "Neurological Medicine",
+    "created": "2017-06-15T23:34:17.669Z",
+    "modified": "2017-06-15T23:34:17.669Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 12,
+  "fields": {
+    "name": "Obstetrics and Gynecology",
+    "priority": 0,
+    "description": "Obstetrics and Gynecology",
+    "created": "2017-06-15T23:34:17.852Z",
+    "modified": "2017-06-15T23:34:17.853Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 13,
+  "fields": {
+    "name": "Opthalmology",
+    "priority": 0,
+    "description": "Opthalmology",
+    "created": "2017-06-15T23:34:18.008Z",
+    "modified": "2017-06-15T23:34:18.008Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 14,
+  "fields": {
+    "name": "Orthopaedic Surgery",
+    "priority": 0,
+    "description": "Orthopaedic Surgery",
+    "created": "2017-06-15T23:34:18.167Z",
+    "modified": "2017-06-15T23:34:18.167Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 15,
+  "fields": {
+    "name": "Otolaryngology",
+    "priority": 0,
+    "description": "Otolaryngology",
+    "created": "2017-06-15T23:34:18.328Z",
+    "modified": "2017-06-15T23:34:18.328Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 16,
+  "fields": {
+    "name": "Pathology",
+    "priority": 0,
+    "description": "Pathology",
+    "created": "2017-06-15T23:34:18.505Z",
+    "modified": "2017-06-15T23:34:18.505Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 17,
+  "fields": {
+    "name": "Pediatrics",
+    "priority": 0,
+    "description": "Pediatrics",
+    "created": "2017-06-15T23:34:18.666Z",
+    "modified": "2017-06-15T23:34:18.666Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 18,
+  "fields": {
+    "name": "Physical Medicine and Rehabilitation",
+    "priority": 0,
+    "description": "Physical Medicine and Rehabilitation",
+    "created": "2017-06-15T23:34:18.824Z",
+    "modified": "2017-06-15T23:34:18.824Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 19,
+  "fields": {
+    "name": "Preventive Medicine",
+    "priority": 0,
+    "description": "Preventive Medicine",
+    "created": "2017-06-15T23:34:19.005Z",
+    "modified": "2017-06-15T23:34:19.006Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 20,
+  "fields": {
+    "name": "Psychiatry and Neurology",
+    "priority": 0,
+    "description": "Psychiatry and Neurology",
+    "created": "2017-06-15T23:34:19.160Z",
+    "modified": "2017-06-15T23:34:19.160Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 21,
+  "fields": {
+    "name": "Radiology",
+    "priority": 0,
+    "description": "Radiology",
+    "created": "2017-06-15T23:34:19.423Z",
+    "modified": "2017-06-15T23:34:19.423Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 22,
+  "fields": {
+    "name": "Surgery",
+    "priority": 0,
+    "description": "Surgery",
+    "created": "2017-06-15T23:34:19.587Z",
+    "modified": "2017-06-15T23:34:19.587Z"
+  }
 }
 ]
