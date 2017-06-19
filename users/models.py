@@ -573,7 +573,7 @@ class Entry(models.Model):
         and return comma-separated string, else return formatTags().
         """
         if self.ama_pra_catg:
-            names = [AMA_PRA_CATEGORY_LABEL + self.ama_pra_catg,]
+            names = [AMA_PRA_CATEGORY_LABEL + self.ama_pra_catg + ' Credit',]
             names.extend([t.name for t in self.tags.all()])
             return u', '.join(names)
         return self.formatTags()
