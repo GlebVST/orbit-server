@@ -114,6 +114,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/make-pinned-message/?$', debug_views.MakePinnedMessage.as_view()),
         url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
         url(r'^debug/email-receipt/?$', debug_views.EmailSubscriptionReceipt.as_view()),
+        url(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view()),
     ])
 
 # Custom view to render Swagger UI consuming only /api/ endpoints

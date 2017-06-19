@@ -104,18 +104,17 @@ class MakePinnedMessage(APIView):
         }
         return Response(context, status=status.HTTP_201_CREATED)
 
+
 class EmailSubscriptionReceipt(APIView):
     """
     Find the latest subscription transaction of the user
-    and email a receipt for it, and return success:True and
-    the transaction details.
+    and email a receipt for it, and return success:True and the transactionId.
     If no transaction exists: return success:False
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         user = request.user
         #print('User: {0.pk} {0.email}'.format(user))
-        now = timezone.now()
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         if not user_subs:
             context = {'success': False, 'message': 'User does not have a subscription.'}
@@ -125,13 +124,13 @@ class EmailSubscriptionReceipt(APIView):
         if not qset.exists():
             context = {
                 'success': False,
-                'message': 'The latest Subscription {0.pk} does not have a payment transaction in the database yet.'.format(user_subs)
+                'message': 'The UserSubscription {0.pk} does not have a payment transaction in the database yet.'.format(user_subs)
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # else prepare context for email
         subs_trans = qset[0]
         plan_name = u'Orbit ' + user_subs.plan.name
-        subject = 'Your receipt for annual subscription to {0}'.format(plan_name)
+        subject = u'Your receipt for annual subscription to {0}'.format(plan_name)
         from_email = settings.SUPPORT_EMAIL
         ctx = {
             'profile': user.profile,
@@ -154,6 +153,61 @@ class EmailSubscriptionReceipt(APIView):
             context = {
                 'success': True,
                 'message': 'A receipt was emailed to {0.email}'.format(user),
+                'transactionId': subs_trans.transactionId
+            }
+            return Response(context, status=status.HTTP_200_OK)
+
+class EmailSubscriptionPaymentFailure(APIView):
+    """
+    Find the latest subscription transaction of the user
+    and send a payment failure email for it, and return success:True and the transactionId.
+    If no transaction exists: return success:False
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, format=None):
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        if not user_subs:
+            context = {'success': False, 'message': 'User does not have a subscription.'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # does user_subs have associated payment transaction
+        qset = user_subs.transactions.all().order_by('-created')
+        if not qset.exists():
+            context = {
+                'success': False,
+                'message': 'The UserSubscription {0.pk} does not have a payment transaction in the database yet.'.format(user_subs)
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # else prepare context for email
+        subs_trans = qset[0]
+        subject = u'Your Orbit Invoice Payment Failed [#{0.transactionId}]'.format(subs_trans)
+        from_email = settings.SUPPORT_EMAIL
+        username = None
+        if user.profile.firstName:
+            username = user.profile.firstName
+        elif user.profile.npiFirstName:
+            username = user.profile.npiFirstName
+        else:
+            username = user.email
+        ctx = {
+            'username': username,
+            'transaction': subs_trans,
+            'server_hostname': settings.SERVER_HOSTNAME,
+            'support_email': settings.SUPPORT_EMAIL
+        }
+        message = get_template('email/payment_failed.html').render(Context(ctx))
+        msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
+        msg.content_subtype = 'html'
+        try:
+            msg.send()
+        except SMTPException as e:
+            logException(logger, request, 'EmailSubscriptionPaymentFailure send email failed.')
+            context = {'success': False, 'message': 'Failure sending email'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        finally:
+            context = {
+                'success': True,
+                'message': 'A payment failure notice was emailed to {0.email}'.format(user),
                 'transactionId': subs_trans.transactionId
             }
             return Response(context, status=status.HTTP_200_OK)
