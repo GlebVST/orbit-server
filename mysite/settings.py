@@ -309,6 +309,14 @@ LOGGING = {
             'maxBytes': 2**18,
             'backupCount':5
         },
+        'mgmt_rotfile': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'verbose',
+            'filename': os.path.join(LOG_DIR, 'mgmt.log'),
+            'maxBytes': 2**18,
+            'backupCount':3
+        },
     },
     'loggers': {
         'django.security.DisallowedHost': {
@@ -327,6 +335,11 @@ LOGGING = {
         },
         'gen': {
             'handlers': ['gen_rotfile', 'mail_admins',],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'mgmt': {
+            'handlers': ['mgmt_rotfile', 'mail_admins',],
             'level': 'DEBUG',
             'propagate': True,
         },

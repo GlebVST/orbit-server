@@ -1034,6 +1034,7 @@ class UserSubscriptionManager(models.Manager):
         """Get the latest UserSubscription for the given user
         from the local db and update it from BT. Also update
         transactions for the user_subs.
+        Returns: (pks of transactions_created, pks of transactions_updated)
         """
         user_subs = self.getLatestSubscription(user)
         if not user_subs:
@@ -1041,7 +1042,7 @@ class UserSubscriptionManager(models.Manager):
         bt_subs = self.findBtSubscription(user_subs.subscriptionId)
         if user_subs.status != bt_subs.status or user_subs.billingCycle != bt_subs.current_billing_cycle:
             self.updateSubscriptionFromBt(user_subs, bt_subs)
-        SubscriptionTransaction.objects.updateTransactionsFromBtSubs(user_subs, bt_subs)
+        return SubscriptionTransaction.objects.updateTransactionsFromBtSubs(user_subs, bt_subs)
 
 
     def searchBtSubscriptionsByPlan(self, planId):
@@ -1140,6 +1141,8 @@ class SubscriptionTransactionManager(models.Manager):
 
     def updateTransactionsFromBtSubs(self, user_subs, bt_subs):
         """Update SubscriptionTransaction(s) from braintree Subscription object"""
+        created = []
+        updated = []
         for t in bt_subs.transactions:
             # does SubscriptionTransaction instance exist in db
             qset = SubscriptionTransaction.objects.filter(transactionId=t.id)
@@ -1158,6 +1161,7 @@ class SubscriptionTransactionManager(models.Manager):
                 if doSave:
                     m.save()
                     logger.info('Updated transaction {0.transactionId} from BT.'.format(m))
+                    updated.append(m.pk)
             else:
                 # create new
                 card_type = t.credit_card.get('card_type')
@@ -1172,9 +1176,36 @@ class SubscriptionTransactionManager(models.Manager):
                         card_type=card_type,
                         card_last4=card_last4)
                 logger.info('Created transaction {0.transactionId} from BT.'.format(m))
+                created.append(m.pk)
+        return (created, updated)
+
 
 @python_2_unicode_compatible
 class SubscriptionTransaction(models.Model):
+    # status values
+    # https://developers.braintreepayments.com/reference/general/statuses
+    # The processor authorized the transaction. Not yet submitted for settlement
+    AUTHORIZED = 'authorized'
+    # The transaction spent too much time in the Authorized status and was marked as expired.
+    AUTHORIZATION_EXPIRED = 'authorization_expired'
+    # Processor did not authorize the transaction. The processor response code has information about why the transaction was declined.
+    PROCESSOR_DECLINED = 'processor_declined'
+    # The gateway rejected the transaction b/c fraud checks failed
+    GATEWAY_REJECTED = 'gateway_rejected'
+    # An error occurred when sending the transaction to the processor.
+    FAILED = 'failed'
+    # The transaction was voided. You can void transactions when the status is Authorized or Submitted for Settlement. After the transaction has been settled, you will have to refund the transaction instead.
+    VOIDED = 'voided'
+    # The transaction has been submitted for settlement and will be included in the next settlement batch. Settlement happens nightly - the exact time depends on the processor.
+    SUBMITTED_FOR_SETTLEMENT = 'submitted_for_settlement'
+    # The transaction is in the process of being settled. This is a transitory state. A transaction cannot be voided once it reaches Settling status, but can be refunded.
+    SETTLING = 'settling'
+    # The transaction has been settled.
+    SETTLED = 'settled'
+    # The processor settlement response code may have more information about why the transaction was declined.
+    SETTLEMENT_DECLINED = 'settlement_declined'
+
+    # fields
     transactionId = models.CharField(max_length=36, unique=True)
     subscription = models.ForeignKey(UserSubscription,
         on_delete=models.CASCADE,
@@ -1188,6 +1219,7 @@ class SubscriptionTransaction(models.Model):
     proc_auth_code = models.CharField(max_length=10, blank=True, help_text='processor_authorization_code')
     proc_response_code = models.CharField(max_length=4, blank=True, help_text='processor_response_code')
     receipt_sent = models.BooleanField(default=False, help_text='set to True on sending of receipt via email')
+    failure_alert_sent = models.BooleanField(default=False, help_text='set to True on sending of payment failure alert via email')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionTransactionManager()
@@ -1195,6 +1227,20 @@ class SubscriptionTransaction(models.Model):
     def __str__(self):
         return self.transactionId
 
+    def canSendReceipt(self):
+        return self.status in (
+                SubscriptionTransaction.SUBMITTED_FOR_SETTLEMENT,
+                SubscriptionTransaction.SETTLING,
+                SubscriptionTransaction.SETTLED
+            )
+
+    def canSendFailureAlert(self):
+        return self.status in (
+                SubscriptionTransaction.AUTHORIZATION_EXPIRED,
+                SubscriptionTransaction.FAILED,
+                SubscriptionTransaction.GATEWAY_REJECTED,
+                SubscriptionTransaction.PROCESSOR_DECLINED
+            )
 
 def certificate_document_path(instance, filename):
     return '{0}/uid_{1}/{2}'.format(settings.CERTIFICATE_MEDIA_BASEDIR, instance.user.id, filename)
