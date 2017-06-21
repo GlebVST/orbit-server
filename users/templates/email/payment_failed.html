@@ -337,18 +337,82 @@
                 <tbody>
                 <tr>
                     <td align="center" style="border: 0; margin: 0; padding: 0;">
-                        Dear {{ username }}, 
-                        It looks like your invoice payment for ${{ transaction.amount }} didn't go through.
-                        Click <a href="https://{{ server_hostname }}">here</a> to try a different card, or please
-                        call your credit card company.
-                        We're excited for you to launch into Orbit and begin your journey with us soon.
-                        The Orbit Team
+                        <table border="0" cellpadding="0" cellspacing="0" class="width" width="500">
+                            <tbody>
+                            <tr>
+                                <td class="temp-padding" style="border: 0; margin: 0; padding: 0; mso-line-height-rule: exactly; font-size: 1px; line-height: 1px;">
+                                    <div class="clear" style="height: 1px; width: 20px;"></div>
+                                </td>
+                                <td style="border: 0; margin: 0; padding: 0; mso-line-height-rule: exactly; font-size: 1px; line-height: 1px;" width="460">
+                                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                        <tbody>
+
+                                        <!-- title -->
+                                        <tr>
+                                            <td colspan="5" height="12" style="border: 0; margin: 0; padding: 0; mso-line-height-rule: exactly; font-size: 1px; line-height: 1px;">
+                                                <div class="clear" style="height: 12px; width: 1px;">&nbsp;</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="summary-item">
+                                            <td class="summary-padding" style="border: 0; margin: 0; padding: 0; font-size: 1px; line-height: 1px;" width="1">
+                                                <div class="clear" style="height: 1px; width: 1px;"></div>
+                                            </td>
+                                            <td align="left" colspan="3" class="font-small" style="border: 0; margin: 0; padding: 0; font-size: 1px; line-height: 1px; color: #77858c; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 400; text-align: center; line-height: 20px;" width="100%">
+                                                Houston, we have a problem...
+                                            </td>
+                                            <td class="summary-padding" style="border: 0; margin: 0; padding: 0; font-size: 1px; line-height: 1px;" width="1">
+                                                <div class="clear" style="height: 1px; width: 1px;"></div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="5" height="12" style="border: 0; margin: 0; padding: 0; font-size: 1px; line-height: 1px; mso-line-height-rule: exactly; border-bottom: 1px solid #eaeff2;">
+                                                <div class="clear" style="height: 12px; width: 1px;">&nbsp;</div>
+                                            </td>
+                                        </tr>
+                                        <!-- /title -->
+
+                                        <!-- item -->
+                                        <tr>
+                                            <td colspan="5" height="11" style="border: 0; margin: 0; padding: 0; font-size: 1px; line-height: 1px; mso-line-height-rule: exactly; border-top: 1px solid #eaeff2;">
+                                                <div class="clear" style="height: 11px; width: 1px;">&nbsp;</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="summary-item">
+                                            <td class="summary-padding" style="border: 0; margin: 0; padding: 0; font-size: 1px; line-height: 1px;" width="1">
+                                                <div class="clear" style="height: 1px; width: 1px;"></div>
+                                            </td>
+                                            <td colspan="3" align="left" class="font-medium" style="border: 0; margin: 0; padding: 0; font-size: 1px; line-height: 1px; color: #292e31; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: normal; line-height: 17px;" width="100%">
+                                                <span style="border: 0; margin: 0; padding: 0;">Dear {{ username }},
+                                                    <br /><br />Looks like your invoice payment for ${{ transaction.amount }} didn't go through. <a href="https://{{ server_hostname }}/subscription" style="color: #008cdd; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; text-decoration: none;">Click here</a> to try a different card, or please
+                                                    call your credit card company. We're excited for you to launch into Orbit and begin your journey with us soon.
+                                                    <br /><br /><br /><br />The Orbit Team</span>
+                                            </td>
+                                            <td class="summary-padding" style="border: 0; margin: 0; padding: 0; font-size: 1px; line-height: 1px;" width="1">
+                                                <div class="clear" style="height: 1px; width: 1px;"></div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="5" height="12" style="border: 0; margin: 0; padding: 0; font-size: 1px; line-height: 1px; mso-line-height-rule: exactly;">
+                                                <div class="clear" style="height: 12px; width: 1px;">&nbsp;</div>
+                                            </td>
+                                        </tr>
+                                        <!-- /item -->
+
+
+                                        </tbody>
+                                    </table>
+                                </td>
+                                <td class="temp-padding" style="border: 0; margin: 0; padding: 0; mso-line-height-rule: exactly; font-size: 1px; line-height: 1px;">
+                                    <div class="clear" style="height: 1px; width: 20px;"></div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
                     </td>
                 </tr>
                 </tbody>
             </table>
             <!-- /summary -->
-
 
             <!-- help -->
             <table border="0" cellpadding="0" cellspacing="0" width="100%">
