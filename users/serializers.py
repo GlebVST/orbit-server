@@ -672,6 +672,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
 
 class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
+    discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     displayMonthlyPrice = serializers.SerializerMethodField()
 
     def get_displayMonthlyPrice(self, obj):
