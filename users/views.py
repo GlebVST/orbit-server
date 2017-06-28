@@ -679,7 +679,10 @@ class EligibleSiteList(LogValidationErrorMixin, generics.ListCreateAPIView):
             res = urlparse(example_url)
             msg = "Example_url netloc: {0}. Cleaned domain_name: {1}".format(res.netloc, domain_name)
             logInfo(logger, self.request, msg)
-            if not domain_name.startswith(res.netloc):
+            netloc = res.netloc
+            if netloc.startswith('www.') and not domain_name.startswith('www.'):
+                netloc = netloc[4:]
+            if not domain_name.startswith(netloc):
                 error_msg = "The domain of the example_url must be contained in the user-specified domain_name"
                 raise serializers.ValidationError(error_msg, code='domain_name')
         with transaction.atomic():
