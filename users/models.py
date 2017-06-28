@@ -104,12 +104,19 @@ class PracticeSpecialty(models.Model):
     """Names of practice specialties.
     """
     name = models.CharField(max_length=100, unique=True)
+    parent = models.ForeignKey('self',
+        null=True,
+        on_delete=models.CASCADE,
+        db_index=True,
+        help_text='If this entry is a sub-specialty, then specify its GeneralCert parent.'
+    )
     cmeTags = models.ManyToManyField(CmeTag,
         blank=True,
         related_name='specialties',
         help_text='Eligible cmeTags for this specialty'
     )
     is_abms_board = models.BooleanField(default=False, help_text='True if this is an ABMS Board/General Cert')
+    is_primary = models.BooleanField(default=False, help_text='True if this is a Primary Specialty Certificate')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
