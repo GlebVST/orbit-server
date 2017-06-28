@@ -668,17 +668,20 @@ class EligibleSiteList(LogValidationErrorMixin, generics.ListCreateAPIView):
         """Pre-process domain_name before saving.
         """
         data = self.request.data
-        domain_name = data.get('domain_name', '').lstrip('http://').lstrip('https://')
+        domain_name = data.get('domain_name', '')
+        if domain_name.startswith('http://'):
+            domain_name = domain_name[7:]
+        elif domain_name.startswith('https://'):
+            domain_name = domain_name[8:]
         example_url = data.get('example_url', '')
         if example_url:
             # check domain_name
             res = urlparse(example_url)
-            netloc = res.netloc
             msg = "Example_url netloc: {0}. Cleaned domain_name: {1}".format(res.netloc, domain_name)
             logInfo(logger, self.request, msg)
-            #if not domain_name.startswith(res.netloc):
-            #    error_msg = "The domain of the example_url must be contained in the user-specified domain_name"
-            #    raise serializers.ValidationError(error_msg, code='domain_name')
+            if not domain_name.startswith(res.netloc):
+                error_msg = "The domain of the example_url must be contained in the user-specified domain_name"
+                raise serializers.ValidationError(error_msg, code='domain_name')
         with transaction.atomic():
             # create EligibleSite, AllowedHost, AllowedUrl
             instance = serializer.save(domain_name=domain_name)
