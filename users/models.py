@@ -1322,6 +1322,7 @@ class AuditReport(models.Model):
 class AllowedHost(models.Model):
     id = models.AutoField(primary_key=True)
     hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
+    accept_query_keys = models.TextField(blank=True, default='', help_text='accepted keys in url query')
     created = models.DateTimeField(auto_now_add=True, blank=True)
     modified = models.DateTimeField(auto_now=True, blank=True)
 

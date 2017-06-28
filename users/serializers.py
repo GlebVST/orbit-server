@@ -780,7 +780,9 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
         res = urlparse(example_url)
         netloc = res.netloc
         # create AllowedHost
-        host, created = AllowedHost.objects.get_or_create(hostname=netloc)
+        host, created = AllowedHost.objects.get_or_create(hostname=netloc, accept_query_keys='')
+        if created:
+            logger.info('EligibleSite: new AllowedHost: {0}'.format(netloc))
         # create AllowedUrl
         allowed_url, created = AllowedUrl.objects.get_or_create(
             host=host,
