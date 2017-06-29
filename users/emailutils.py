@@ -17,7 +17,7 @@ def sendReceiptEmail(user, user_subs, subs_trans):
         'subscription': user_subs,
         'transaction': subs_trans,
         'plan_name': plan_name,
-        'plan_price': user_subs.plan.price,
+        'plan_monthly_price': user_subs.plan.monthlyPrice(),
         'support_email': settings.SUPPORT_EMAIL
     }
     message = get_template('email/receipt.html').render(Context(ctx))

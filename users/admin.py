@@ -38,10 +38,10 @@ class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
 
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'activityDate', 'redeemed', 'expireDate', 'url')
+    list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'modified')
     list_select_related = ('user',)
     list_filter = ('redeemed',)
-    ordering = ('-activityDate',)
+    ordering = ('-modified',)
 
 class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
@@ -135,7 +135,7 @@ class AllowedHostAdmin(admin.ModelAdmin):
     ordering = ('-modified',)
 
 class AllowedUrlAdmin(admin.ModelAdmin):
-    list_display = ('id', 'host', 'url', 'eligible_site', 'valid', 'created')
+    list_display = ('id', 'eligible_site', 'url', 'set_id', 'modified')
     list_select_related = ('host', 'eligible_site')
     list_filter = ('host',)
     ordering = ('-modified',)
