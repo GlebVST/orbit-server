@@ -356,7 +356,7 @@ class BrowserCmeOffer(models.Model):
         db_index=True
     )
     activityDate = models.DateTimeField()
-    url = models.URLField(max_length=500)
+    url = models.URLField(max_length=500, db_index=True)
     pageTitle = models.TextField(blank=True)
     expireDate = models.DateTimeField()
     redeemed = models.BooleanField(default=False)
@@ -1348,6 +1348,7 @@ class AllowedUrl(models.Model):
     page_title = models.TextField(blank=True)
     doi = models.CharField(max_length=100, blank=True,
         help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
+    pmid = models.CharField(max_length=20, blank=True, help_text='PubMed Identifier (PMID)')
     set_id = models.CharField(max_length=500, blank=True,
         help_text='Used to group a set of URLs that point to the same resource')
     content_type = models.CharField(max_length=100, blank=True, help_text='page content_type')
