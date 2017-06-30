@@ -46,6 +46,10 @@ The following keys are expected in the .env file which is read by manage.py and 
  * ORBIT_AWS_SECRET_ACCESS_KEY
  * ORBIT_AWS_S3_BUCKET_NAME
 
+#### LogDNA
+
+ * ORBIT_LOGDNA_API_KEY
+
 Note: AWS SES credentials are currently hard-coded in settings.py.
 
 

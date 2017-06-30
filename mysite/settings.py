@@ -321,8 +321,6 @@ LOGGING = {
             'maxBytes': 2**18,
             'backupCount':3
         },
-        'logdna': {
-        }
     },
     'loggers': {
         'django.security.DisallowedHost': {
