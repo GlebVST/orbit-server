@@ -14,6 +14,7 @@ import os
 import braintree
 from django.core.exceptions import ImproperlyConfigured
 import logging
+from logdna import LogDNAHandler
 
 ENV_DEV = 'dev'
 ENV_STAGE = 'stage'
@@ -251,6 +252,9 @@ SWAGGER_SETTINGS = {
 #
 # logging configuration.
 #
+LOGDNA_API_KEY = get_environment_variable('ORBIT_LOGDNA_API_KEY')
+# custom handler for LogDNA
+LOGDNA_HANDLER = LogDNAHandler(LOGDNA_API_KEY, {'hostname': SERVER_HOSTNAME, 'app': ENV_TYPE})
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 LOGGING = {
     'version': 1,
@@ -317,6 +321,8 @@ LOGGING = {
             'maxBytes': 2**18,
             'backupCount':3
         },
+        'logdna': {
+        }
     },
     'loggers': {
         'django.security.DisallowedHost': {

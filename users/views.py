@@ -31,6 +31,7 @@ from .permissions import *
 from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate, SAMPLE_CERTIFICATE_NAME
 
 logger = logging.getLogger('api.views')
+configureLogDNA(logger)
 
 
 class LogValidationErrorMixin(object):

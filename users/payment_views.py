@@ -23,6 +23,7 @@ from .models import *
 TPL_DIR = 'users'
 
 logger = logging.getLogger('api.shop')
+configureLogDNA(logger)
 
 # https://developers.braintreepayments.com/start/hello-server/python
 class GetToken(APIView):

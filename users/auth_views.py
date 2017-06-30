@@ -22,6 +22,7 @@ from .models import *
 from .serializers import ProfileSerializer, CmeTagSerializer
 
 logger = logging.getLogger('api.auth')
+configureLogDNA(logger)
 TPL_DIR = 'users'
 
 # Used in development and to allow access to Swagger UI.

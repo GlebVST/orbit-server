@@ -1,5 +1,9 @@
 """logging function wrapper to pass request.user to the LogRecord"""
 import logging
+from django.conf import settings
+
+def configureLogDNA(logger):
+    logger.addHandler(settings.LOGDNA_HANDLER)
 
 def logDebug(logger, request, message):
     logger.debug(message, extra={'requser': request.user})
