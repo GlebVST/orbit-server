@@ -240,5 +240,60 @@
     "created": "2017-06-15T23:34:19.587Z",
     "modified": "2017-06-15T23:34:19.587Z"
   }
+},
+{
+  "model": "users.cmetag",
+  "pk": 23,
+  "fields": {
+    "name": "Radiation Oncology",
+    "priority": 0,
+    "description": "Radiation Oncology",
+    "created": "2017-06-21T16:55:44.203Z",
+    "modified": "2017-06-21T16:55:44.203Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 24,
+  "fields": {
+    "name": "Nuclear Medicine",
+    "priority": 0,
+    "description": "Nuclear Medicine",
+    "created": "2017-06-27T23:11:36.628Z",
+    "modified": "2017-06-27T23:11:36.628Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 25,
+  "fields": {
+    "name": "Plastic Surgery",
+    "priority": 0,
+    "description": "Plastic Surgery",
+    "created": "2017-06-27T23:12:49.121Z",
+    "modified": "2017-06-27T23:12:49.121Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 26,
+  "fields": {
+    "name": "Thoracic Surgery",
+    "priority": 0,
+    "description": "Thoracic Surgery",
+    "created": "2017-06-27T23:14:33.291Z",
+    "modified": "2017-06-27T23:14:33.291Z"
+  }
+},
+{
+  "model": "users.cmetag",
+  "pk": 27,
+  "fields": {
+    "name": "Urology",
+    "priority": 0,
+    "description": "Urology",
+    "created": "2017-06-27T23:14:47.894Z",
+    "modified": "2017-06-27T23:14:47.894Z"
+  }
 }
 ]

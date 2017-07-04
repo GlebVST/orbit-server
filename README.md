@@ -50,8 +50,12 @@ The following keys are expected in the .env file which is read by manage.py and 
 
  * ORBIT_LOGDNA_API_KEY
 
-Note: AWS SES credentials are currently hard-coded in settings.py.
+#### [optional] Auth0 non-interactive client with permission to access the Auth0 management API
 
+ * ORBIT_AUTH0_MGMT_CLIENTID
+ * ORBIT_AUTH0_MGMT_CLIENT_SECRET
+
+Note: AWS SES credentials are currently hard-coded in settings.py.
 
 ## Scripts
 

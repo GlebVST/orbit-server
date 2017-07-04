@@ -4,7 +4,9 @@
   "pk": 1,
   "fields": {
     "name": "Allergy and Immunology",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:21.241Z",
     "modified": "2017-06-15T23:39:21.241Z",
     "cmeTags": [
@@ -17,7 +19,9 @@
   "pk": 2,
   "fields": {
     "name": "Anesthesiology",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:21.669Z",
     "modified": "2017-06-15T23:39:21.669Z",
     "cmeTags": [
@@ -30,7 +34,9 @@
   "pk": 3,
   "fields": {
     "name": "Colon and Rectal Surgery",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:22.190Z",
     "modified": "2017-06-15T23:39:22.190Z",
     "cmeTags": [
@@ -43,7 +49,9 @@
   "pk": 4,
   "fields": {
     "name": "Dermatology",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:22.638Z",
     "modified": "2017-06-15T23:39:22.638Z",
     "cmeTags": [
@@ -56,7 +64,9 @@
   "pk": 5,
   "fields": {
     "name": "Emergency Medicine",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:23.057Z",
     "modified": "2017-06-15T23:39:23.057Z",
     "cmeTags": [
@@ -69,7 +79,9 @@
   "pk": 6,
   "fields": {
     "name": "Family Medicine",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:23.474Z",
     "modified": "2017-06-15T23:39:23.474Z",
     "cmeTags": [
@@ -82,7 +94,9 @@
   "pk": 7,
   "fields": {
     "name": "Internal Medicine",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:23.906Z",
     "modified": "2017-06-15T23:39:23.906Z",
     "cmeTags": [
@@ -95,7 +109,9 @@
   "pk": 8,
   "fields": {
     "name": "Medical Genetics and Genomics",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:24.327Z",
     "modified": "2017-06-15T23:39:24.327Z",
     "cmeTags": [
@@ -108,7 +124,9 @@
   "pk": 9,
   "fields": {
     "name": "Neurological Medicine",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:24.764Z",
     "modified": "2017-06-15T23:39:24.764Z",
     "cmeTags": [
@@ -121,7 +139,9 @@
   "pk": 10,
   "fields": {
     "name": "Obstetrics and Gynecology",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:25.199Z",
     "modified": "2017-06-15T23:39:25.199Z",
     "cmeTags": [
@@ -134,7 +154,9 @@
   "pk": 11,
   "fields": {
     "name": "Opthalmology",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:25.632Z",
     "modified": "2017-06-15T23:39:25.632Z",
     "cmeTags": [
@@ -147,7 +169,9 @@
   "pk": 12,
   "fields": {
     "name": "Orthopaedic Surgery",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:26.069Z",
     "modified": "2017-06-15T23:39:26.069Z",
     "cmeTags": [
@@ -160,7 +184,9 @@
   "pk": 13,
   "fields": {
     "name": "Otolaryngology",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:26.494Z",
     "modified": "2017-06-15T23:39:26.495Z",
     "cmeTags": [
@@ -173,7 +199,9 @@
   "pk": 14,
   "fields": {
     "name": "Pathology",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:27.163Z",
     "modified": "2017-06-15T23:39:27.163Z",
     "cmeTags": [
@@ -186,7 +214,9 @@
   "pk": 15,
   "fields": {
     "name": "Pediatrics",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:27.590Z",
     "modified": "2017-06-15T23:39:27.590Z",
     "cmeTags": [
@@ -199,7 +229,9 @@
   "pk": 16,
   "fields": {
     "name": "Physical Medicine and Rehabilitation",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:28.013Z",
     "modified": "2017-06-15T23:39:28.013Z",
     "cmeTags": [
@@ -212,7 +244,9 @@
   "pk": 17,
   "fields": {
     "name": "Preventive Medicine",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:28.448Z",
     "modified": "2017-06-15T23:39:28.448Z",
     "cmeTags": [
@@ -225,7 +259,9 @@
   "pk": 18,
   "fields": {
     "name": "Psychiatry and Neurology",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:28.880Z",
     "modified": "2017-06-15T23:39:28.880Z",
     "cmeTags": [
@@ -238,7 +274,9 @@
   "pk": 19,
   "fields": {
     "name": "Radiology",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:29.307Z",
     "modified": "2017-06-15T23:39:29.307Z",
     "cmeTags": [
@@ -252,11 +290,73 @@
   "pk": 20,
   "fields": {
     "name": "Surgery",
+    "parent": null,
     "is_abms_board": true,
+    "is_primary": false,
     "created": "2017-06-15T23:39:29.809Z",
     "modified": "2017-06-15T23:39:29.809Z",
     "cmeTags": [
       22
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 21,
+  "fields": {
+    "name": "Radiation Oncology",
+    "parent": 19,
+    "is_abms_board": false,
+    "is_primary": true,
+    "created": "2017-06-21T16:55:11.468Z",
+    "modified": "2017-06-28T00:23:03.399Z",
+    "cmeTags": [
+      23
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 22,
+  "fields": {
+    "name": "Nuclear Medicine",
+    "parent": null,
+    "is_abms_board": true,
+    "is_primary": false,
+    "created": "2017-06-27T23:19:24.688Z",
+    "modified": "2017-06-27T23:19:24.688Z",
+    "cmeTags": [
+      24
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 23,
+  "fields": {
+    "name": "Plastic Surgery",
+    "parent": null,
+    "is_abms_board": true,
+    "is_primary": false,
+    "created": "2017-06-27T23:20:34.462Z",
+    "modified": "2017-06-27T23:20:34.462Z",
+    "cmeTags": [
+      25
+    ]
+  }
+},
+{
+  "model": "users.practicespecialty",
+  "pk": 24,
+  "fields": {
+    "name": "Thoracic Surgery",
+    "parent": null,
+    "is_abms_board": true,
+    "is_primary": false,
+    "created": "2017-06-27T23:21:01.593Z",
+    "modified": "2017-06-27T23:21:01.593Z",
+    "cmeTags": [
+      26
     ]
   }
 }

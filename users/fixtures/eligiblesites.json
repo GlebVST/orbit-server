@@ -4,14 +4,14 @@
   "pk": 1,
   "fields": {
     "domain_name": "radiopaedia.org",
-    "domain_title": "Radiopaedia Articles",
-    "example_url": "https://radiopaedia.org/articles/15t-vs-3t",
-    "example_title": "1.5T vs 3T",
+    "domain_title": "Radiopaedia",
+    "example_url": "https://radiopaedia.org/articles/appendicitis",
+    "example_title": "ex.) appendicitis",
     "is_valid_expurl": true,
-    "description": "Signal to Noise ratio",
+    "description": "Any article page from Radiopaedia is eligible for Browser CME. Radiopaedia has become the world's most comprehensive wiki on clinical imaging. The site validates content through expert peer review.",
     "needs_ad_block": true,
     "created": "2017-02-24T18:58:54.412Z",
-    "modified": "2017-06-16T00:58:14.860Z",
+    "modified": "2017-06-30T19:27:56.911Z",
     "specialties": [
       19
     ]
@@ -24,12 +24,12 @@
     "domain_name": "www.ncbi.nlm.nih.gov",
     "domain_title": "NCBI NIH PubMed",
     "example_url": "https://www.ncbi.nlm.nih.gov/pubmed/7621768",
-    "example_title": "EEG monitoring during endovascular embolization of cerebral arteriovenous malformations.",
+    "example_title": "ex.) Signal quality of endovascular electroencephalography",
     "is_valid_expurl": true,
-    "description": "PubMed - NCBI",
+    "description": "Abstracts on Pubmed are eligible for Browser CME. Pubmed is the world's repository for peer-reviewed scientific abstracts.",
     "needs_ad_block": false,
     "created": "2017-06-05T20:33:18.211Z",
-    "modified": "2017-06-16T00:59:01.460Z",
+    "modified": "2017-06-28T01:54:26.874Z",
     "specialties": [
       1,
       2,
@@ -51,6 +51,78 @@
       18,
       19,
       20
+    ]
+  }
+},
+{
+  "model": "users.eligiblesite",
+  "pk": 3,
+  "fields": {
+    "domain_name": "pubs.rsna.org/toc/radiology/current",
+    "domain_title": "Radiology (RSNA)",
+    "example_url": "http://pubs.rsna.org/doi/abs/10.1148/radiol.2017161659",
+    "example_title": "ex.) Guidelines for Management of Incidental Pulmonary Nodules Detected on CT Images: From the Fleischner Society 2017",
+    "is_valid_expurl": true,
+    "description": "Either abstracts or articles from the RSNA journal Radiology are eligible for Browser CME. Radiology provides primary research articles and consensus guidelines that resonate with radiology.",
+    "needs_ad_block": false,
+    "created": "2017-06-28T01:39:12.535Z",
+    "modified": "2017-06-28T01:52:49.392Z",
+    "specialties": [
+      19
+    ]
+  }
+},
+{
+  "model": "users.eligiblesite",
+  "pk": 4,
+  "fields": {
+    "domain_name": "pubs.rsna.org/toc/radiographics/current",
+    "domain_title": "Radiographics (RSNA)",
+    "example_url": "http://pubs.rsna.org/doi/abs/10.1148/radiographics.21.6.g01nv211409",
+    "example_title": "ex.) Imaging the Endometrium: Disease and Normal Variants",
+    "is_valid_expurl": true,
+    "description": "Either abstracts or articles from the RSNA journal Radiographics are eligible for Browser CME. Radiographics provides vivid and comprehensive reviews, accessible to radiologists at all levels.",
+    "needs_ad_block": false,
+    "created": "2017-06-28T01:44:33.989Z",
+    "modified": "2017-06-28T01:57:13.099Z",
+    "specialties": [
+      19
+    ]
+  }
+},
+{
+  "model": "users.eligiblesite",
+  "pk": 5,
+  "fields": {
+    "domain_name": "ajronline.org",
+    "domain_title": "AJR (ARRS)",
+    "example_url": "http://www.ajronline.org/doi/abs/10.2214/AJR.11.8081",
+    "example_title": "Cerebral Edema",
+    "is_valid_expurl": true,
+    "description": "Abstracts and journal articles in AJR are eligible for Browser CME. The American Journal of Roentgenology (ARRS) includes an equal parts review articles and original research in radiology.",
+    "needs_ad_block": false,
+    "created": "2017-06-28T02:41:11.246Z",
+    "modified": "2017-06-28T02:41:11.246Z",
+    "specialties": [
+      19
+    ]
+  }
+},
+{
+  "model": "users.eligiblesite",
+  "pk": 5,
+  "fields": {
+    "domain_name": "ejradiology.com",
+    "domain_title": "European Journal of Radiology",
+    "example_url": "http://www.ejradiology.com/article/S0720-048X(11)00645-0/abstract",
+    "example_title": "ex.) Clinical applications of 7 T MRI in the brain",
+    "is_valid_expurl": true,
+    "description": "Abstracts and articles in the European Journal of Radiology are eligible for Browser CME. The European Journal of Radiology focuses on broadly radiology, including predominantly original research and some review articles.",
+    "needs_ad_block": false,
+    "created": "2017-06-28T02:59:15.203Z",
+    "modified": "2017-06-28T02:59:28.582Z",
+    "specialties": [
+      19
     ]
   }
 }
