@@ -40,7 +40,8 @@ class LogValidationErrorMixin(object):
         if response is not None and isinstance(exc, exceptions.ValidationError):
             #logWarning(logger, self.request, exc.get_full_details())
             message = "ValidationError: {0}".format(exc.detail)
-            logError(logger, self.request, message)
+            #logError(logger, self.request, message)
+            logWarning(logger, self.request, message)
         return response
 
 class PingTest(APIView):
@@ -299,6 +300,7 @@ class BrowserCmeOfferList(generics.ListAPIView):
 #
 # FEED
 #
+
 class FeedListPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
@@ -433,8 +435,10 @@ class CreateSRCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
         return SRCme.objects.filter(user=user).select_related('entry')
 
     def perform_create(self, serializer, format=None):
-        """If documents is specified, verify that document.user
-        is request.user, else raise ValidationError.
+        """
+        1. If documents is specified, verify that document.user
+            is request.user, else raise ValidationError.
+        2. Validate creditType
         """
         user = self.request.user
         doc_ids = self.request.data.get('documents', [])
@@ -442,8 +446,11 @@ class CreateSRCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
         if num_docs:
             qset = Document.objects.filter(user=user, pk__in=doc_ids)
             if qset.count() != num_docs:
-                logWarning(logger, request, 'CreateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
                 raise serializers.ValidationError('Invalid documentId(s) specified for user.')
+        # validate creditType (enable code after ui changes)
+        #creditType = self.request.data.get('creditType', '')
+        #if creditType != Entry.CREDIT_CATEGORY_1 or creditType != Entry.CREDIT_OTHER:
+        #    raise serializers.ValidationError('Invalid creditType.')
         with transaction.atomic():
             srcme = serializer.save(user=user)
         return srcme
@@ -997,7 +1004,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             'entryType': m.entryType.name,
             'date': calendar.timegm(m.activityDate.timetuple()),
             'credit': float(m.brcme.credits),
-            'tags': m.formatPRACatgAndTags(),
+            'tags': m.formatCreditTypeAndTags(),
             'authority': m.getCertifyingAuthority(),
             'activity': m.brcme.formatActivity(),
             'referenceId': brcmeCertReferenceId
@@ -1007,7 +1014,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             'entryType': m.entryType.name,
             'date': calendar.timegm(m.activityDate.timetuple()),
             'credit': float(m.srcme.credits),
-            'tags': m.formatTags(),
+            'tags': m.formatCreditTypeAndTags(),
             'authority': m.getCertifyingAuthority(),
             'activity': m.description,
             'referenceId': m.getCertDocReferenceId()

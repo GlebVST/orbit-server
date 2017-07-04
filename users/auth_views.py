@@ -165,6 +165,10 @@ def make_login_context(token, user):
     context['subscription'] = serialize_subscription(user_subs) if user_subs else None
     context['allowTrial'] = user_subs is None  # allow a trial period if user has never had a subscription
     context['permissions'] = serialize_permissions(user, user_subs)
+    context['creditTypes'] = [
+        dict(value=Entry.CREDIT_CATEGORY_1, label=Entry.CREDIT_CATEGORY_1_LABEL, needs_tm=True),
+        dict(value=Entry.CREDIT_OTHER, label=Entry.CREDIT_OTHER_LABEL, needs_tm=False)
+    ]
     return context
 
 @api_view()

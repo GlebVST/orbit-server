@@ -308,6 +308,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
         allow_null=True
     )
     documents = DocumentReadSerializer(many=True, required=False)
+    creditType = serializers.ReadOnlyField(source='ama_pra_catg')
     extra = serializers.SerializerMethodField()
 
     def get_extra(self, obj):
@@ -331,6 +332,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'description',
             'tags',
             'documents',
+            'creditType',
             'extra',
             'sponsorId',
             'logo_url',
@@ -386,7 +388,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             sponsor=offer.sponsor,
             activityDate=offer.activityDate,
             description=validated_data.get('description'),
-            ama_pra_catg='1',  # AMA PRA Category 1
+            ama_pra_catg=Entry.CREDIT_CATEGORY_1,
             user=validated_data.get('user')
         )
         # associate tags with saved entry
@@ -552,6 +554,7 @@ class SRCmeFormSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     activityDate = serializers.DateTimeField()
     description = serializers.CharField(max_length=500)
+    creditType = serializers.CharField(max_length=2)
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
@@ -571,6 +574,7 @@ class SRCmeFormSerializer(serializers.Serializer):
             'id',
             'activityDate',
             'description',
+            'creditType',
             'credits',
             'tags',
             'documents'
@@ -584,10 +588,12 @@ class SRCmeFormSerializer(serializers.Serializer):
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_SRCME)
         user = validated_data['user']
+        creditType = validated_data.get('creditType', Entry.CREDIT_CATEGORY_1)
         entry = Entry(
             entryType=etype,
             activityDate=validated_data.get('activityDate'),
             description=validated_data.get('description'),
+            ama_pra_catg=creditType,
             user=user
         )
         entry.save()
@@ -611,6 +617,7 @@ class SRCmeFormSerializer(serializers.Serializer):
         entry = instance.entry
         entry.activityDate = validated_data.get('activityDate', entry.activityDate)
         entry.description = validated_data.get('description', entry.description)
+        entry.ama_pra_catg = validated_data.get('creditType', entry.ama_pra_catg)
         entry.save()  # updates modified timestamp
         # if tags key is present: replace old with new (wholesale)
         if 'tags' in validated_data:

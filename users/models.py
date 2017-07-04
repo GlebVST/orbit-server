@@ -539,6 +539,12 @@ class EntryManager(models.Manager):
 
 @python_2_unicode_compatible
 class Entry(models.Model):
+    CREDIT_CATEGORY_1 = u'1'
+    CREDIT_CATEGORY_1_LABEL = AMA_PRA_CATEGORY_LABEL + u'1 Credit'
+    CREDIT_OTHER = u'0'
+    CREDIT_OTHER_LABEL = u'Other' # choice label in form
+    CREDIT_OTHER_TAGNAME = u'non-Category 1 Credit' # in audit report
+    # fields
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         db_index=True
@@ -575,13 +581,22 @@ class Entry(models.Model):
         names = [t.name for t in self.tags.all() if t.name != CMETAG_SACME]  # should use default ordering on CmeTag model
         return u', '.join(names)
 
-    def formatPRACatgAndTags(self):
+    def formatCreditType(self):
+        """The CREDIT_OTHER is formatted for the audit report"""
+        if self.ama_pra_catg == Entry.CREDIT_CATEGORY_1:
+            return Entry.CREDIT_CATEGORY_1_LABEL
+        if self.ama_pra_catg == Entry.CREDIT_OTHER:
+            return Entry.CREDIT_OTHER_TAGNAME
+        return u''
+
+    def formatCreditTypeAndTags(self):
         """If entry has ama_pra_catg, prepend category to tags
         and return comma-separated string, else return formatTags().
         """
-        if self.ama_pra_catg:
-            names = [AMA_PRA_CATEGORY_LABEL + self.ama_pra_catg + ' Credit',]
-            names.extend([t.name for t in self.tags.all()])
+        credit_type = self.formatCreditType()
+        if credit_type:
+            names = [t.name for t in self.tags.all()]
+            names.insert(0, credit_type)
             return u', '.join(names)
         return self.formatTags()
 
