@@ -367,32 +367,39 @@ class BRCmeCreateSerializer(serializers.Serializer):
             'tags'
         )
 
-    def validate(self, data):
-        """Check offer is not expired"""
-        offer = data.get('offerId', None)
-        logger.debug('validate offer: {0}'.format(offer.pk))
-        if offer is not None and hasattr(offer, 'expireDate') and (offer.expireDate < timezone.now()):
-            return serializers.ValidationError('The offerId {0} has already expired'.format(offer.pk))
-        return data
-
     def create(self, validated_data):
         """Create parent Entry and BrowserCme instances.
         Note: this expects that View has passed the following
         keys to serializer.save which then appear in validated_data:
             user: User instance
+        2017-07-05: If offer.eligible_site is associated with only 1 PracSpec,
+        and this specialty is contained in user.specialties, then add its
+        named cmeTag to the tags for this entry.
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
         offer = validated_data['offerId']
+        user=validated_data.get('user')
         entry = Entry.objects.create(
             entryType=etype,
             sponsor=offer.sponsor,
             activityDate=offer.activityDate,
             description=validated_data.get('description'),
             ama_pra_catg=Entry.CREDIT_CATEGORY_1,
-            user=validated_data.get('user')
+            user=user
         )
         # associate tags with saved entry
         tag_ids = validated_data.get('tags', [])
+        num_specialties = offer.eligible_site.specialties.count()
+        if num_specialties == 1:
+            spec = offer.eligible_site.specialties.first()
+            if user.profile.specialties.filter(pk=spec.pk).exists():
+                try:
+                    spec_tag = CmeTag.objects.get(name=spec.name)
+                except CmeTag.DoesNotExist:
+                    pass
+                else:
+                    if spec_tag.pk not in tag_ids:
+                        tag_ids.append(spec_tag.pk)
         if tag_ids:
             entry.tags.set(tag_ids)
         # Using parent entry, create BrowserCme instance

@@ -343,6 +343,32 @@ class Sponsor(models.Model):
     def __str__(self):
         return self.name
 
+
+@python_2_unicode_compatible
+class EligibleSite(models.Model):
+    """Eligible (or white-listed) domains that will be recognized by the plugin.
+    To start, we will have a manual system for translating data in this model
+    into the AllowedUrl model.
+    """
+    domain_name = models.CharField(max_length=100,
+        help_text='wikipedia.org')
+    domain_title = models.CharField(max_length=300,
+        help_text='e.g. Wikipedia Anatomy Pages')
+    example_url = models.URLField(max_length=1000,
+        help_text='A URL within the given domain')
+    example_title = models.CharField(max_length=300, blank=True,
+        help_text='Label for the example URL')
+    is_valid_expurl = models.BooleanField(default=True, help_text='Is example_url a valid URL')
+    description = models.CharField(max_length=500, blank=True)
+    specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
+    needs_ad_block = models.BooleanField(default=False)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.domain_title
+
+
 # Browser CME offer
 # An offer for a user is generated based on the user's plugin activity.
 @python_2_unicode_compatible
@@ -355,6 +381,10 @@ class BrowserCmeOffer(models.Model):
         on_delete=models.PROTECT,
         db_index=True
     )
+    eligible_site = models.ForeignKey(EligibleSite,
+        on_delete=models.CASCADE,
+        related_name='offers',
+        db_index=True)
     activityDate = models.DateTimeField()
     url = models.URLField(max_length=500, db_index=True)
     pageTitle = models.TextField(blank=True)
@@ -767,30 +797,6 @@ class PinnedMessage(models.Model):
     def __str__(self):
         return self.title
 
-
-@python_2_unicode_compatible
-class EligibleSite(models.Model):
-    """Eligible (or white-listed) domains that will be recognized by the plugin.
-    To start, we will have a manual system for translating data in this model
-    into the AllowedUrl model.
-    """
-    domain_name = models.CharField(max_length=100,
-        help_text='wikipedia.org')
-    domain_title = models.CharField(max_length=300,
-        help_text='e.g. Wikipedia Anatomy Pages')
-    example_url = models.URLField(max_length=1000,
-        help_text='A URL within the given domain')
-    example_title = models.CharField(max_length=300, blank=True,
-        help_text='Label for the example URL')
-    is_valid_expurl = models.BooleanField(default=True, help_text='Is example_url a valid URL')
-    description = models.CharField(max_length=500, blank=True)
-    specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
-    needs_ad_block = models.BooleanField(default=False)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.domain_title
 
 # Recurring Billing Plans
 # https://developers.braintreepayments.com/guides/recurring-billing/plans

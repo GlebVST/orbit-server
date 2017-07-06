@@ -80,7 +80,7 @@ class LongPagination(PageNumberPagination):
 
 # PracticeSpecialty - list only
 class PracticeSpecialtyList(generics.ListAPIView):
-    queryset = PracticeSpecialty.objects.all().order_by('name')
+    queryset = PracticeSpecialty.objects.filter(is_abms_board=True).order_by('name')
     serializer_class = PracticeSpecialtyListSerializer
     pagination_class = LongPagination
     permission_classes = (IsContentAdminOrAny,)
