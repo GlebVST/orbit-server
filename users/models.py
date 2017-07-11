@@ -106,6 +106,7 @@ class PracticeSpecialty(models.Model):
     name = models.CharField(max_length=100, unique=True)
     parent = models.ForeignKey('self',
         null=True,
+        blank=True,
         on_delete=models.CASCADE,
         db_index=True,
         help_text='If this entry is a sub-specialty, then specify its GeneralCert parent.'
@@ -169,7 +170,7 @@ class Profile(models.Model):
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
-    cmeDuedate = models.DateTimeField(null=True, help_text='Due date for CME requirements fulfillment')
+    cmeDuedate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -388,6 +389,7 @@ class BrowserCmeOffer(models.Model):
     activityDate = models.DateTimeField()
     url = models.URLField(max_length=500, db_index=True)
     pageTitle = models.TextField(blank=True)
+    suggestedDescr = models.TextField(blank=True, default='')
     expireDate = models.DateTimeField()
     redeemed = models.BooleanField(default=False)
     credits = models.DecimalField(max_digits=5, decimal_places=2,
@@ -1370,6 +1372,7 @@ class AllowedUrl(models.Model):
     doi = models.CharField(max_length=100, blank=True,
         help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
     pmid = models.CharField(max_length=20, blank=True, help_text='PubMed Identifier (PMID)')
+    pmcid = models.CharField(max_length=20, blank=True, help_text='PubMedCentral Identifier (PMCID)')
     set_id = models.CharField(max_length=500, blank=True,
         help_text='Used to group a set of URLs that point to the same resource')
     content_type = models.CharField(max_length=100, blank=True, help_text='page content_type')
