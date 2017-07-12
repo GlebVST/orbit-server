@@ -265,7 +265,7 @@ LOGGING = {
         },
         'verbose': {
             '()': 'django.utils.log.ServerFormatter',
-            'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(lineno)-6s: %(message)s',
+            'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(process)d %(thread)d %(lineno)-6s: %(message)s',
         },
         # requires extra context key: requser (request.user)
         'req_fmt': {
