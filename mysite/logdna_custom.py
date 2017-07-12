@@ -15,7 +15,7 @@ class LogDNAHandlerCustom(LogDNAHandler):
             if resp.status_code != 200:
                 logger.warn('Error logging to LogDNA: HTTP {} - {}'.format(resp.status_code, resp.content))
             else:
-                logger.debug('Sent LogDNA API request: HTTP {} - {}'.format(resp.status_code, resp.content))
+                logger.info('Sent LogDNA API request: HTTP {} - {}'.format(resp.status_code, resp.content))
             self.buf = []
             self.bufByteLength = 0
             if self.flusher:

@@ -334,7 +334,7 @@ LOGGING = {
     },
     'loggers': {
         'logdna': {
-            'handlers': ['console'],
+            'handlers': ['gen_rotfile'],
             'level': 'DEBUG',
         },
         'django.security.DisallowedHost': {
