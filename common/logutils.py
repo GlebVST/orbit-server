@@ -1,5 +1,4 @@
 """logging function wrapper to pass request.user to the LogRecord"""
-from django.forms.models import model_to_dict
 
 # logdna meta object
 def getMeta(request):
@@ -7,7 +6,7 @@ def getMeta(request):
         return {}
     return {
         'meta': {
-            'remote_user': model_to_dict(request.user) if request.user.is_authenticated else 'Anonymous',
+            'remote_user': request.user.username if request.user.is_authenticated else 'Anonymous',
             'remote_addr': request.META.get('REMOTE_ADDR'),
             'proxies': request.META.get('HTTP_X_FORWARDED_FOR')
         }
