@@ -14,6 +14,7 @@ import os
 import braintree
 from django.core.exceptions import ImproperlyConfigured
 import logging
+from logging.handlers import SysLogHandler
 from logdna import LogDNAHandler
 
 ENV_DEV = 'dev'
@@ -283,8 +284,8 @@ LOGGING = {
     'handlers': {
         # custom handler for LogDNA
         'logdna': {
-            'level':  DEBUG,
-            'class': 'logdna.LogDNAHandler',
+            'level':  'DEBUG',
+            'class': 'mysite.logdna_custom.LogDNAHandlerCustom',
             'token': get_environment_variable('ORBIT_LOGDNA_API_KEY'),
             'options' : {
                 'hostname': SERVER_HOSTNAME,
@@ -332,6 +333,10 @@ LOGGING = {
         },
     },
     'loggers': {
+        'logdna': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
         'django.security.DisallowedHost': {
             'handlers': ['null',], # do not send email about Invalid HTTP_HOST header error
             'propagate': False,

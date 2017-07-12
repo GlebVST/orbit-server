@@ -8,7 +8,7 @@ def getMeta(request):
         'meta': {
             'remote_user': request.user.username if request.user.is_authenticated else 'Anonymous',
             'remote_addr': request.META.get('REMOTE_ADDR'),
-            'proxies': request.META.get('HTTP_X_FORWARDED_FOR')
+            'proxies': request.META.get('X_FORWARDED_FOR')
         }
     }
 
