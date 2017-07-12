@@ -253,8 +253,6 @@ SWAGGER_SETTINGS = {
 # logging configuration.
 #
 LOGDNA_API_KEY = get_environment_variable('ORBIT_LOGDNA_API_KEY')
-# custom handler for LogDNA
-LOGDNA_HANDLER = LogDNAHandler(LOGDNA_API_KEY, {'hostname': SERVER_HOSTNAME, 'app': ENV_TYPE})
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 LOGGING = {
     'version': 1,
@@ -283,6 +281,17 @@ LOGGING = {
         },
     },
     'handlers': {
+        # custom handler for LogDNA
+        'logdna': {
+            'level':  DEBUG,
+            'class': 'logdna.LogDNAHandler',
+            'token': get_environment_variable('ORBIT_LOGDNA_API_KEY'),
+            'options' : {
+                'hostname': SERVER_HOSTNAME,
+                'app': ENV_TYPE,
+                'index_meta': True
+            }
+        },
         'null': {
             'level': 'DEBUG',
             'class': 'logging.NullHandler'
@@ -333,17 +342,17 @@ LOGGING = {
             'propagate': True,
         },
         'api': {
-            'handlers': ['req_rotfile', 'gen_rotfile', 'mail_admins',],
+            'handlers': ['req_rotfile', 'gen_rotfile', 'mail_admins', 'logdna'],
             'level': 'DEBUG',
             'propagate': True,
         },
         'gen': {
-            'handlers': ['gen_rotfile', 'mail_admins',],
+            'handlers': ['gen_rotfile', 'mail_admins', 'logdna'],
             'level': 'DEBUG',
             'propagate': True,
         },
         'mgmt': {
-            'handlers': ['mgmt_rotfile', 'mail_admins',],
+            'handlers': ['mgmt_rotfile', 'mail_admins', 'logdna'],
             'level': 'DEBUG',
             'propagate': True,
         },
