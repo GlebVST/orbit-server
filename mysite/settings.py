@@ -265,7 +265,8 @@ LOGGING = {
         },
         'verbose': {
             '()': 'django.utils.log.ServerFormatter',
-            'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(process)d %(thread)d %(lineno)-6s: %(message)s',
+            #'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(process)d %(thread)d %(lineno)-6s: %(message)s',
+            'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(lineno)-6s: %(message)s',
         },
         # requires extra context key: requser (request.user)
         'req_fmt': {
@@ -335,7 +336,7 @@ LOGGING = {
     'loggers': {
         'logdna': {
             'handlers': ['gen_rotfile'],
-            'level': 'DEBUG',
+            'level': 'WARNING',
         },
         'django.security.DisallowedHost': {
             'handlers': ['null',], # do not send email about Invalid HTTP_HOST header error
@@ -347,17 +348,17 @@ LOGGING = {
             'propagate': True,
         },
         'api': {
-            'handlers': ['req_rotfile', 'gen_rotfile', 'mail_admins', 'logdna'],
+            'handlers': ['req_rotfile', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },
         'gen': {
-            'handlers': ['gen_rotfile', 'mail_admins', 'logdna'],
+            'handlers': ['gen_rotfile', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },
         'mgmt': {
-            'handlers': ['mgmt_rotfile', 'mail_admins', 'logdna'],
+            'handlers': ['mgmt_rotfile', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },

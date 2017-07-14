@@ -140,19 +140,31 @@ class ProfileSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """
         If any new specialties added, then check for new cmeTags.
-            Note: this only adds new tags to profile, it does not remove
-            any old tags b/c they can be associated with user's feed entries
-            and hence needed by the Dashboard.
+        If a specialty is removed, then remove its cmeTags if not assigned to
+        any entry made by the user.
         """
+        user = instance.user
         upd_cmetags = False
         pracSpecs = validated_data.get('specialties', [])
+        curSpecs = set([ps for ps in instance.specialties.all()])
+        newSpecs = set([ps for ps in pracSpecs])
+        newly_added_specs = newSpecs.difference(curSpecs)
+        del_specs = curSpecs.difference(newSpecs)
         tag_ids = set([t.pk for t in instance.cmeTags.all()])
-        for ps in pracSpecs:
-            logger.debug(ps.name)
+        for ps in del_specs:
+            logger.info('User {0.email} : remove ps: {1.name}'.format(user, ps))
+            for t in ps.cmeTags.all():
+                num_entries = t.entries.filter(user=user).count()
+                if num_entries == 0 and t.pk in tag_ids:
+                    tag_ids.remove(t.pk)
+                    logger.info('Del profile.cmeTag: {0}'.format(t))
+                    upd_cmetags = True
+        for ps in newly_added_specs:
+            logger.info('User {0.email} : Add ps: {1.name}'.format(user, ps))
             for t in ps.cmeTags.all():
                 if t.pk not in tag_ids:
                     tag_ids.add(t.pk)
-                    logger.debug('New profile.cmeTag: {0}'.format(t))
+                    logger.info('New profile.cmeTag: {0}'.format(t))
                     upd_cmetags = True
         instance = super(ProfileSerializer, self).update(instance, validated_data)
         if upd_cmetags:
