@@ -1,17 +1,18 @@
 [
 {
   "model": "users.eligiblesite",
-  "pk": 1,
+  "pk": 3,
   "fields": {
     "domain_name": "radiopaedia.org",
     "domain_title": "Radiopaedia",
     "example_url": "https://radiopaedia.org/articles/appendicitis",
-    "example_title": "ex.) appendicitis",
+    "example_title": "appendicitis",
     "is_valid_expurl": true,
-    "description": "Any article page from Radiopaedia is eligible for Browser CME. Radiopaedia has become the world's most comprehensive wiki on clinical imaging. The site validates content through expert peer review.",
+    "description": "Any article page from Radiopaedia is eligible. Radiopaedia is the world's most comprehensive wiki on clinical imaging, with expert peer review.",
     "needs_ad_block": true,
+    "page_title_suffix": "| Radiology Reference Article | Radiopaedia.org",
     "created": "2017-02-24T18:58:54.412Z",
-    "modified": "2017-06-30T19:27:56.911Z",
+    "modified": "2017-07-17T08:09:15.908Z",
     "specialties": [
       19
     ]
@@ -19,17 +20,18 @@
 },
 {
   "model": "users.eligiblesite",
-  "pk": 2,
+  "pk": 40,
   "fields": {
-    "domain_name": "www.ncbi.nlm.nih.gov",
-    "domain_title": "NCBI NIH PubMed",
-    "example_url": "https://www.ncbi.nlm.nih.gov/pubmed/7621768",
-    "example_title": "ex.) Signal quality of endovascular electroencephalography",
+    "domain_name": "www.ncbi.nlm.nih.gov/pubmed",
+    "domain_title": "PubMed - NIH",
+    "example_url": "https://www.ncbi.nlm.nih.gov/pubmed/26735327",
+    "example_title": "Signal quality of endovascular electroencephalography",
     "is_valid_expurl": true,
-    "description": "Abstracts on Pubmed are eligible for Browser CME. Pubmed is the world's repository for peer-reviewed scientific abstracts.",
+    "description": "Abstracts on PubMed are eligible. Pubmed is the world\u2019s repository for peer-reviewed scientific abstracts.",
     "needs_ad_block": false,
+    "page_title_suffix": "- PubMed - NCBI",
     "created": "2017-06-05T20:33:18.211Z",
-    "modified": "2017-06-28T01:54:26.874Z",
+    "modified": "2017-07-17T07:36:37.656Z",
     "specialties": [
       1,
       2,
@@ -50,23 +52,27 @@
       17,
       18,
       19,
-      20
+      20,
+      24,
+      22,
+      23
     ]
   }
 },
 {
   "model": "users.eligiblesite",
-  "pk": 3,
+  "pk": 41,
   "fields": {
     "domain_name": "pubs.rsna.org/toc/radiology/current",
-    "domain_title": "Radiology (RSNA)",
+    "domain_title": "Radiology - RSNA",
     "example_url": "http://pubs.rsna.org/doi/abs/10.1148/radiol.2017161659",
-    "example_title": "ex.) Guidelines for Management of Incidental Pulmonary Nodules Detected on CT Images: From the Fleischner Society 2017",
+    "example_title": "Guidelines for Management of Incidental Pulmonary Nodules Detected on CT Images: From the Fleischner Society 2017",
     "is_valid_expurl": true,
-    "description": "Either abstracts or articles from the RSNA journal Radiology are eligible for Browser CME. Radiology provides primary research articles and consensus guidelines that resonate with radiology.",
+    "description": "Either abstracts or articles from Radiology are eligible. Radiology publishes primary research articles and consensus guidelines that resonate with radiology.",
     "needs_ad_block": false,
+    "page_title_suffix": "| Radiology",
     "created": "2017-06-28T01:39:12.535Z",
-    "modified": "2017-06-28T01:52:49.392Z",
+    "modified": "2017-07-17T07:36:58.632Z",
     "specialties": [
       19
     ]
@@ -74,17 +80,18 @@
 },
 {
   "model": "users.eligiblesite",
-  "pk": 4,
+  "pk": 42,
   "fields": {
     "domain_name": "pubs.rsna.org/toc/radiographics/current",
-    "domain_title": "Radiographics (RSNA)",
+    "domain_title": "Radiographics - RSNA",
     "example_url": "http://pubs.rsna.org/doi/abs/10.1148/radiographics.21.6.g01nv211409",
-    "example_title": "ex.) Imaging the Endometrium: Disease and Normal Variants",
+    "example_title": "Imaging the Endometrium: Disease and Normal Variants",
     "is_valid_expurl": true,
-    "description": "Either abstracts or articles from the RSNA journal Radiographics are eligible for Browser CME. Radiographics provides vivid and comprehensive reviews, accessible to radiologists at all levels.",
+    "description": "Abstracts and articles from Radiographics are eligible. Radiographics publishes vivid and comprehensive reviews, accessible to radiologists at all levels.",
     "needs_ad_block": false,
+    "page_title_suffix": "| RadioGraphics",
     "created": "2017-06-28T01:44:33.989Z",
-    "modified": "2017-06-28T01:57:13.099Z",
+    "modified": "2017-07-17T07:37:17.017Z",
     "specialties": [
       19
     ]
@@ -92,17 +99,18 @@
 },
 {
   "model": "users.eligiblesite",
-  "pk": 5,
+  "pk": 44,
   "fields": {
     "domain_name": "ajronline.org",
-    "domain_title": "AJR (ARRS)",
+    "domain_title": "AJR - American Journal of Roentgenology - ARRS",
     "example_url": "http://www.ajronline.org/doi/abs/10.2214/AJR.11.8081",
     "example_title": "Cerebral Edema",
     "is_valid_expurl": true,
-    "description": "Abstracts and journal articles in AJR are eligible for Browser CME. The American Journal of Roentgenology (ARRS) includes an equal parts review articles and original research in radiology.",
+    "description": "Abstracts and journal articles are eligible. The American Journal of Roentgenology (ARRS) includes equal parts review articles and original research in radiology.",
     "needs_ad_block": false,
+    "page_title_suffix": "(AJR)",
     "created": "2017-06-28T02:41:11.246Z",
-    "modified": "2017-06-28T02:41:11.246Z",
+    "modified": "2017-07-17T07:37:38.717Z",
     "specialties": [
       19
     ]
@@ -110,19 +118,80 @@
 },
 {
   "model": "users.eligiblesite",
-  "pk": 5,
+  "pk": 45,
   "fields": {
     "domain_name": "ejradiology.com",
     "domain_title": "European Journal of Radiology",
     "example_url": "http://www.ejradiology.com/article/S0720-048X(11)00645-0/abstract",
-    "example_title": "ex.) Clinical applications of 7 T MRI in the brain",
+    "example_title": "Clinical applications of 7 T MRI in the brain",
     "is_valid_expurl": true,
-    "description": "Abstracts and articles in the European Journal of Radiology are eligible for Browser CME. The European Journal of Radiology focuses on broadly radiology, including predominantly original research and some review articles.",
+    "description": "Abstracts and journal articles are eligible. The European Journal of Radiology publishes broadly in radiology, including predominantly original research and some review articles.",
     "needs_ad_block": false,
+    "page_title_suffix": "- European Journal of Radiology",
     "created": "2017-06-28T02:59:15.203Z",
-    "modified": "2017-06-28T02:59:28.582Z",
+    "modified": "2017-07-17T07:38:01.290Z",
     "specialties": [
       19
+    ]
+  }
+},
+{
+  "model": "users.eligiblesite",
+  "pk": 46,
+  "fields": {
+    "domain_name": "jacr.org",
+    "domain_title": "JACR - Journal of the American College of Radiology",
+    "example_url": "http://www.jacr.org/article/S1546-1440(10)00330-3/fulltext",
+    "example_title": "Managing Incidental Findings on Abdominal CT",
+    "is_valid_expurl": true,
+    "description": "Abstracts and journal articles are eligible. JACR publishes on the business and politics of radiology.",
+    "needs_ad_block": false,
+    "page_title_suffix": "- Journal of the American College of Radiology",
+    "created": "2017-07-04T03:32:52.648Z",
+    "modified": "2017-07-17T07:38:23.719Z",
+    "specialties": [
+      19
+    ]
+  }
+},
+{
+  "model": "users.eligiblesite",
+  "pk": 47,
+  "fields": {
+    "domain_name": "www.ncbi.nlm.nih.gov/pmc/",
+    "domain_title": "PubMed Central - NIH",
+    "example_url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4518723/",
+    "example_title": "Generalized analog thresholding for spike acquisition at ultralow sampling rates",
+    "is_valid_expurl": true,
+    "description": "Full-text articles on PubMed Central are eligible. PubMed Central is an extensive collection of open-access repository of peer-reviewed journal articles.",
+    "needs_ad_block": false,
+    "page_title_suffix": "",
+    "created": "2017-07-09T05:42:11.466Z",
+    "modified": "2017-07-09T05:47:02.428Z",
+    "specialties": [
+      1,
+      2,
+      3,
+      4,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      22,
+      23,
+      24,
+      5
     ]
   }
 }

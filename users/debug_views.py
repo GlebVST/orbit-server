@@ -8,6 +8,7 @@ from django.db import transaction
 from django.template import Context
 from django.template.loader import get_template
 from django.utils import timezone
+import pytz
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser,MultiPartParser
 from rest_framework.response import Response
@@ -23,20 +24,25 @@ from .serializers import *
 class MakeBrowserCmeOffer(APIView):
     """
     Create a test BrowserCmeOffer for the authenticated user.
+    Pick a random AllowedUrl for the url for the offer.
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         now = timezone.now()
-        activityDate = now - timedelta(days=1)
-        expireDate = now + timedelta(days=1)
-        url = 'https://radiopaedia.org/'
+        activityDate = now - timedelta(seconds=10)
+        expireDate = datetime(now.year+1, 1,1, tzinfo=pytz.utc)
+        aurl = AllowedUrl.objects.all().order_by('?')[0]
+        url = aurl.url
         pageTitle = 'Sample page title'
+        suggestedDescr = 'This is the suggested description'
         offer = BrowserCmeOffer.objects.create(
             user=request.user,
+            eligible_site=aurl.eligible_site,
+            url=aurl.url,
             activityDate=activityDate,
             expireDate=expireDate,
-            url=url,
             pageTitle=pageTitle,
+            suggestedDescr=suggestedDescr,
             credits=Decimal('0.5'),
             sponsor_id=1
         )
