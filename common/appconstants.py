@@ -38,3 +38,6 @@ SELF_REPORTED_AUTHORITY = u'Self Reported'
 #   development of measurable educational objectives.
 # Category 2: activities that are self-designated/self-assessed. They do not need to be documented or verified by an external party.
 AMA_PRA_CATEGORY_LABEL = u'AMA PRA Category '
+
+
+PINNED_MESSAGE_TITLE_PREFIX = u'Orbit Stories: '

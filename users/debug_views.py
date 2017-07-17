@@ -13,6 +13,8 @@ from rest_framework.parsers import FormParser,MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
+# proj
+from common.appconstants import PINNED_MESSAGE_TITLE_PREFIX
 # app
 from .models import *
 from .permissions import *
@@ -70,7 +72,7 @@ class MakeNotification(APIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 MESSAGE_DESCRIPTION = """
-This month in Expeditions, we're exploring the application of machine learning
+This month we're exploring the application of machine learning
 to dermatology in work from the Berkeley Artificial Intelligence Research Lab.
 Click [here][id_foo] for a related press release.
 
@@ -93,7 +95,7 @@ class MakePinnedMessage(APIView):
             user=request.user,
             startDate=startDate,
             expireDate=expireDate,
-            title='Expeditions: Artificial Intelligence in Healthcare',
+            title=PINNED_MESSAGE_TITLE_PREFIX + 'Artificial Intelligence in Healthcare',
             description=MESSAGE_DESCRIPTION,
             sponsor_id=1,
             launch_url='https://docs.google.com/'

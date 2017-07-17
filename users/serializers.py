@@ -187,6 +187,7 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
     activityDate = serializers.ReadOnlyField()
     url = serializers.ReadOnlyField()
     pageTitle = serializers.ReadOnlyField()
+    suggestedDescr = serializers.ReadOnlyField()
     expireDate = serializers.ReadOnlyField()
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
     sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
@@ -200,6 +201,7 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
             'activityDate',
             'url',
             'pageTitle',
+            'suggestedDescr',
             'expireDate',
             'credits',
             'sponsorId',

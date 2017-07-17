@@ -363,6 +363,7 @@ class EligibleSite(models.Model):
     description = models.CharField(max_length=500, blank=True)
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     needs_ad_block = models.BooleanField(default=False)
+    page_title_suffix = models.CharField(max_length=60, blank=True, default='', help_text='Common suffix for page titles')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
