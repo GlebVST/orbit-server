@@ -13,6 +13,9 @@ logger = logging.getLogger('gen.auth')
 # format of user_id: {identity provider id}|{unique id in the provider}
 
 # https://docs.djangoproject.com/en/1.10/topics/auth/customizing/
+# Notes from 1.11 release notes:
+#  authenticate() now passes a request argument to the authenticate() method of authentication backends.
+#  Support for methods that don’t accept request as the first positional argument will be removed in Django 2.1.
 class Auth0Backend(object):
     def authenticate(self, user_info):
         # check if this is an Auth0 authentication attempt

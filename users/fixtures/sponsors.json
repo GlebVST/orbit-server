@@ -3,11 +3,12 @@
   "model": "users.sponsor",
   "pk": 1,
   "fields": {
-    "name": "TUSM",
+    "abbrev": "TUSM",
+    "name": "Tufts University School of Medicine",
     "url": "http://medicine.tufts.edu",
     "logo_url": "https://s3.amazonaws.com/orbitcme-dev/logos/TUSM-logo-small.jpeg",
     "created": "2017-02-16T23:52:27.828Z",
-    "modified": "2017-02-16T23:53:52.254Z"
+    "modified": "2017-07-17T19:55:34.239Z"
   }
 }
 ]

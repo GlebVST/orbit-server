@@ -377,10 +377,12 @@ class EligibleSite(models.Model):
 class BrowserCmeOffer(models.Model):
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
+        related_name='offers',
         db_index=True
     )
     sponsor = models.ForeignKey(Sponsor,
         on_delete=models.PROTECT,
+        related_name='offers',
         db_index=True
     )
     eligible_site = models.ForeignKey(EligibleSite,
@@ -426,6 +428,7 @@ def entry_document_path(instance, filename):
 class Document(models.Model):
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
+        related_name='documents',
         db_index=True
     )
     document = models.FileField(upload_to=entry_document_path)
@@ -580,6 +583,7 @@ class Entry(models.Model):
     # fields
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
+        related_name='entries',
         db_index=True
     )
     entryType = models.ForeignKey(EntryType,
@@ -780,6 +784,7 @@ class PinnedMessageManager(models.Manager):
 class PinnedMessage(models.Model):
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
+        related_name='pinnedmessages',
         db_index=True
     )
     sponsor = models.ForeignKey(Sponsor,
@@ -1281,6 +1286,7 @@ def certificate_document_path(instance, filename):
 class Certificate(models.Model):
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
+        related_name='certificates',
         db_index=True
     )
     referenceId = models.CharField(max_length=64,
@@ -1311,6 +1317,7 @@ def audit_report_document_path(instance, filename):
 class AuditReport(models.Model):
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
+        related_name='auditreports',
         db_index=True
     )
     certificate = models.ForeignKey(Certificate,
