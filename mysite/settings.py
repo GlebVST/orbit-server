@@ -348,17 +348,17 @@ LOGGING = {
             'propagate': True,
         },
         'api': {
-            'handlers': ['req_rotfile', 'mail_admins'],
+            'handlers': ['req_rotfile', 'mail_admins', 'logdna'],
             'level': 'DEBUG',
             'propagate': True,
         },
         'gen': {
-            'handlers': ['gen_rotfile', 'mail_admins'],
+            'handlers': ['gen_rotfile', 'mail_admins', 'logdna'],
             'level': 'DEBUG',
             'propagate': True,
         },
         'mgmt': {
-            'handlers': ['mgmt_rotfile', 'mail_admins'],
+            'handlers': ['mgmt_rotfile', 'mail_admins', 'logdna'],
             'level': 'DEBUG',
             'propagate': True,
         },
