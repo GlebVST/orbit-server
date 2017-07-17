@@ -286,7 +286,7 @@ LOGGING = {
         # custom handler for LogDNA
         'logdna': {
             'level':  'DEBUG',
-            'class': 'mysite.logdna_custom.LogDNAHandlerCustom',
+            'class': 'logdna.LogDNAHandler',
             'token': get_environment_variable('ORBIT_LOGDNA_API_KEY'),
             'options' : {
                 'hostname': SERVER_HOSTNAME,
