@@ -286,7 +286,7 @@ LOGGING = {
         # custom handler for LogDNA
         'logdna': {
             'level':  'DEBUG',
-            'class': 'logdna.LogDNAHandler',
+            'class': 'mysite.logdna_c.LogDNAHandlerCustom',
             'token': get_environment_variable('ORBIT_LOGDNA_API_KEY'),
             'options' : {
                 'hostname': SERVER_HOSTNAME,
@@ -336,7 +336,7 @@ LOGGING = {
     'loggers': {
         'logdna': {
             'handlers': ['gen_rotfile'],
-            'level': 'WARNING',
+            'level': 'DEBUG',
         },
         'django.security.DisallowedHost': {
             'handlers': ['null',], # do not send email about Invalid HTTP_HOST header error
