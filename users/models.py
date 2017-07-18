@@ -739,7 +739,7 @@ class BrowserCme(models.Model):
 
     def formatActivity(self):
         res = urlparse(self.url)
-        return res.netloc + ' - ' + self.pageTitle
+        return res.netloc + ' - ' + self.entry.description
 
 @python_2_unicode_compatible
 class UserFeedback(models.Model):
