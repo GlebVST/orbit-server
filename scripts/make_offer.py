@@ -38,19 +38,20 @@ def getUser(firstName=None, lastName=None, email=None):
         print('User filter parameter is required.')
 
 def makeOffers(user):
-    sponsor = Sponsor.objects.get(name=SPONSOR_BRCME)
+    sponsor = Sponsor.objects.get(pk=1)
     now = timezone.now()
     num_urls = len(urls)
     t1 = now - timedelta(days=num_urls)
     for j, url in enumerate(urls):
         urlname = viewutils.getUrlLastPart(url)
         activityDate = t1 + timedelta(days=j)
-        expireDate = activityDate + timedelta(days=90)
+        expireDate = activityDate + timedelta(days=10)
         offer = BrowserCmeOffer.objects.create(
             user=user,
             activityDate=activityDate,
             url=url,
             pageTitle=urlname,
+            suggestedDescr=urlname,
             expireDate=expireDate,
             credits=0.5,
             sponsor=sponsor
