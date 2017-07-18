@@ -61,4 +61,5 @@ class LogDNAHandlerCustom(LogDNAHandler):
                 self.buf = self.buf + self.secondary
                 self.secondary = []
         except requests.exceptions.RequestException as e:
+            self.lock.release()
             logger.exception('Error in request to LogDNA: ' + str(e))
