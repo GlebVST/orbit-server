@@ -334,10 +334,10 @@ LOGGING = {
         },
     },
     'loggers': {
-        'logdna': {
-            'handlers': ['gen_rotfile'],
-            'level': 'DEBUG',
-        },
+        #'logdna': {
+        #    'handlers': ['gen_rotfile'],
+        #    'level': 'DEBUG',
+        #},
         'django.security.DisallowedHost': {
             'handlers': ['null',], # do not send email about Invalid HTTP_HOST header error
             'propagate': False,
@@ -348,17 +348,20 @@ LOGGING = {
             'propagate': True,
         },
         'api': {
-            'handlers': ['req_rotfile', 'mail_admins', 'logdna'],
+            #'handlers': ['req_rotfile', 'mail_admins', 'logdna'],
+            'handlers': ['req_rotfile', 'mail_admins',],
             'level': 'DEBUG',
             'propagate': True,
         },
         'gen': {
-            'handlers': ['gen_rotfile', 'mail_admins', 'logdna'],
+            #'handlers': ['gen_rotfile', 'mail_admins', 'logdna'],
+            'handlers': ['gen_rotfile', 'mail_admins',],
             'level': 'DEBUG',
             'propagate': True,
         },
         'mgmt': {
-            'handlers': ['mgmt_rotfile', 'mail_admins', 'logdna'],
+            #'handlers': ['mgmt_rotfile', 'mail_admins', 'logdna'],
+            'handlers': ['mgmt_rotfile', 'mail_admins',],
             'level': 'DEBUG',
             'propagate': True,
         },
