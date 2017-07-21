@@ -24,7 +24,7 @@ CERT_TEMPLATE_VERIFIED = 'cme-certificate-verified.pdf'
 CERT_TEMPLATE_PARTICIPATION = 'cme-certificate-participation.pdf'
 BLANK_FILE = 'blank.pdf'
 
-PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented in accordance with the Essential Areas <br/>and policies of the Accreditation Council for Continuing Medical Education through the joint providership Tufts University School of Medicine (TUSM) and <br/>Transcend Review, Inc. TUSM is accredited by the ACCME to provide continuing education for physicians.""")
+PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented <br/>in accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education<br/> through the joint providership Tufts University School of Medicine (TUSM) and Transcend Review, Inc. <br/>TUSM is accredited with commendation by the ACCME to provide continuing education for physicians.""")
 
 CREDIT_TEXT_VERIFIED = "<i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded"
 CREDIT_TEXT_PARTICIPATION = "Hours of Participation Awarded"
@@ -105,9 +105,10 @@ def makeCmeCertOverlay(verified, certificate):
 
     # Some extra text for participation
     if not verified:
-        styleOpenSansLight.fontSize = 7
+        styleOpenSansLight.fontSize = 10.5
+        styleOpenSansLight.leading = 15
         styleOpenSansLight.textColor = colors.Color(
-            0.3, 0.3, 0.3)
+            0.5, 0.5, 0.5)
         participationText = PARTICIPATION_TEXT_TEMPLATE.substitute({'numCredits': certificate.credits})
         paragraph = Paragraph(participationText, styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
