@@ -162,6 +162,12 @@ class Profile(models.Model):
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
     npiLastName = models.CharField(max_length=30, blank=True, help_text='Last name from NPI Registry')
+    npiType = models.IntegerField(
+        default=1,
+        blank=True,
+        choices=((1, 'Individual'), (2, 'Organization')),
+        help_text='Type 1 (Individual). Type 2 (Organization).'
+    )
     inviteId = models.CharField(max_length=36, unique=True)
     socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
     pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
@@ -175,7 +181,7 @@ class Profile(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.lastName
+        return '{0.firstName} {0.lastName}'.format(self)
 
     def shouldReqNPINumber(self):
         """

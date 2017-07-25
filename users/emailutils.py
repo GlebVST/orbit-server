@@ -1,6 +1,5 @@
 from django.conf import settings
 from django.core.mail import EmailMessage
-from django.template import Context
 from django.template.loader import get_template
 
 def sendReceiptEmail(user, user_subs, subs_trans):
@@ -20,7 +19,7 @@ def sendReceiptEmail(user, user_subs, subs_trans):
         'plan_monthly_price': user_subs.plan.monthlyPrice(),
         'support_email': settings.SUPPORT_EMAIL
     }
-    message = get_template('email/receipt.html').render(Context(ctx))
+    message = get_template('email/receipt.html').render(ctx)
     msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
     msg.content_subtype = 'html'
     msg.send()
@@ -46,7 +45,7 @@ def sendPaymentFailureEmail(user, subs_trans):
         'server_hostname': settings.SERVER_HOSTNAME,
         'support_email': settings.SUPPORT_EMAIL
     }
-    message = get_template('email/payment_failed.html').render(Context(ctx))
+    message = get_template('email/payment_failed.html').render(ctx)
     msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
     msg.content_subtype = 'html'
     msg.send()

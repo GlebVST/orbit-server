@@ -125,6 +125,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'npiNumber',
             'npiFirstName',
             'npiLastName',
+            'npiType',
             'cmeTags',
             'degrees',
             'specialties',

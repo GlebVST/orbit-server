@@ -5,7 +5,6 @@ from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.db import transaction
-from django.template import Context
 from django.template.loader import get_template
 from django.utils import timezone
 import pytz
@@ -148,7 +147,7 @@ class EmailSubscriptionReceipt(APIView):
             'plan_monthly_price': user_subs.plan.monthlyPrice(),
             'support_email': settings.SUPPORT_EMAIL
         }
-        message = get_template('email/receipt.html').render(Context(ctx))
+        message = get_template('email/receipt.html').render(ctx)
         msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
         msg.content_subtype = 'html'
         try:
@@ -203,7 +202,7 @@ class EmailSubscriptionPaymentFailure(APIView):
             'server_hostname': settings.SERVER_HOSTNAME,
             'support_email': settings.SUPPORT_EMAIL
         }
-        message = get_template('email/payment_failed.html').render(Context(ctx))
+        message = get_template('email/payment_failed.html').render(ctx)
         msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
         msg.content_subtype = 'html'
         try:

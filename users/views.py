@@ -11,7 +11,6 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.mail import EmailMessage
 from django.db import transaction
-from django.template import Context
 from django.template.loader import get_template
 from django.utils import timezone
 
@@ -222,7 +221,7 @@ class VerifyProfileEmail(APIView):
             'customer': customer,
             'domain': settings.SERVER_HOSTNAME
         }
-        message = get_template('email/verification.html').render(Context(ctx))
+        message = get_template('email/verification.html').render(ctx)
         msg = EmailMessage(subject, message, to=[user.profile.contactEmail], from_email=from_email)
         msg.content_subtype = 'html'
         try:
@@ -654,7 +653,7 @@ class UserFeedbackList(generics.ListCreateAPIView):
             'userinfo': userinfo,
             'message': instance
         }
-        message = get_template('email/feedback.html').render(Context(ctx))
+        message = get_template('email/feedback.html').render(ctx)
         msg = EmailMessage(subject, message, to=to_email, from_email=from_email)
         msg.content_subtype = 'html'
         try:

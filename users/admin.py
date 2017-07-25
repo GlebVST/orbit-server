@@ -23,7 +23,7 @@ class CountryAdmin(admin.ModelAdmin):
 
 class ProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'contactEmail', 'verified', 'npiNumber', 'cmeDuedate', 'modified')
-    list_filter = ('verified',)
+    list_filter = ('verified','npiType')
     search_fields = ['npiNumber', 'lastName']
 
     def get_queryset(self, request):
