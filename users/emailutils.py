@@ -1,6 +1,45 @@
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.template.loader import get_template
+from django.utils import timezone
+import pytz
+
+def sendNewUserReportEmail(profiles, email_to):
+    """Send report of new user signups. Info included:
+    email, getFullNameAndDegree, npiNumber, plan_name, subscriptionId
+    Can raise SMTPException
+    """
+    from .models import UserSubscription
+    from_email = settings.EMAIL_FROM
+    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
+    now = timezone.now()
+    subject = 'New User Accounts Report - {0:%b %d %Y}'.format(now.astimezone(tz))
+    if settings.ENV_TYPE != settings.ENV_PROD:
+        subject = u'[test-only] ' + subject
+    data = []
+    for p in profiles:
+        user = p.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        d = dict(
+            user_id=user.id,
+            email=user.email,
+            nameAndRole=p.getFullNameAndDegree(),
+            npiNumber=p.npiNumber,
+            npiType=p.npiType,
+            plan_name='',
+            subscriptionId=''
+        )
+        if user_subs:
+            d['plan_name'] = user_subs.plan.name
+            d['subscriptionId'] = user_subs.subscriptionId
+        data.append(d)
+    ctx = {
+        'data': data
+    }
+    message = get_template('email/new_user_report.html').render(ctx)
+    msg = EmailMessage(subject, message, to=[email_to], from_email=from_email)
+    msg.content_subtype = 'html'
+    msg.send()
 
 def sendReceiptEmail(user, user_subs, subs_trans):
     """Send EmailMessage receipt to user using receipt template

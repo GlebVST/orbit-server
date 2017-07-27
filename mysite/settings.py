@@ -380,6 +380,8 @@ SERVER_EMAIL = EMAIL_FROM
 # recipient for user feedback
 FEEDBACK_RECIPIENT_EMAIL = 'feedback@orbitcme.com'
 SUPPORT_EMAIL = 'support@orbitcme.com'
+SALES_EMAIL = 'sales@orbitcme.com'
+#SALES_EMAIL = 'faria.chowdhury@gmail.com'
 
 HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
 DOCUMENT_HASHIDS_SALT = 'random AlVkkUk2Z14FCTXu1pC32pUYm3T6uYSEYZY9ZtOLVNEJ'

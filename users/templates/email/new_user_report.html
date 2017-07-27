@@ -1,0 +1,25 @@
+<div>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Name</th>
+                <th>NpiNumber</th>
+                <th>Plan Name</th>
+                <th>SubscriptionId</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in data %}
+            <tr>
+                <td>{{ d.email }}</td>
+                <td>{{ d.nameAndRole|default:"Not provided" }}</td>
+                <td>{{ d.npiNumber }} {% if d.npiNumber %}({{ d.npiType }}){% endif %}</td>
+                <td>{{ d.plan_name|default:"" }}</td>
+                <td>{{ d.subscriptionId|default:"None" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p>Total number of new user signups in the past 24 hours: {{ data|length }}.</p>
+</div>
