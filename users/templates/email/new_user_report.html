@@ -1,3 +1,4 @@
+{% load tz %}
 <div>
     <table border="1" cellpadding="5" cellspacing="0">
         <thead>
@@ -21,5 +22,7 @@
             {% endfor %}
         </tbody>
     </table>
-    <p>Total number of new user signups in the past 24 hours: {{ data|length }}.</p>
+    {% timezone "America/Los_Angeles" %}
+    <p>Total number of new user signups going back 24 hours from {% now "r" %}: {{ data|length }}.</p>
+    {% endtimezone %}
 </div>

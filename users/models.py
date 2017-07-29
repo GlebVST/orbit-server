@@ -936,18 +936,21 @@ class UserSubscriptionManager(models.Manager):
         and their subscription is currently active and we have
         not reached billingEndDate.
         Model: set display_status to UI_ACTIVE_CANCELED.
-        Bt: set number_of_billing_cycles on the subscription.
+        Braintree:
+            1. Set never_expires = False
+            2. Set number_of_billing_cycles on the subscription to the current_billing_cycle.
         Once this number is reached, the subscription will expire.
         Can raise braintree.exceptions.not_found_error.NotFoundError
         Returns Braintree result object
         """
         subscription = braintree.Subscription.find(user_subs.subscriptionId)
         # When subscription passes the billing_period_end_date, the current_billing_cycle is incremented
+        # Set the max number of billing cycles. When billingEndDate is reached, the subscription will expire in braintree.
         curBillingCycle = subscription.current_billing_cycle
         if not curBillingCycle:
-            curBillingCycle = 0
-        # Set the max number of billing cycles. When this is reached, the subscription will expire in braintree.
-        numBillingCycles = curBillingCycle + 1
+            numBillingCycles = 1
+        else:
+            numBillingCycles = curBillingCycle
         result = braintree.Subscription.update(user_subs.subscriptionId, {
             'never_expires': False,
             'number_of_billing_cycles': numBillingCycles
