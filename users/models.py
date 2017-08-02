@@ -82,6 +82,13 @@ class Degree(models.Model):
         return abbrev == DEGREE_MD or abbrev == DEGREE_DO
 
 # CME tag types (SA-CME tag has priority=1)
+class CmeTagManager(models.Manager):
+    def getSpecTags(self):
+        pspecs = PracticeSpecialty.objects.all()
+        pnames = [p.name for p in pspecs]
+        tags = self.model.objects.filter(name__in=pnames)
+        return tags
+
 @python_2_unicode_compatible
 class CmeTag(models.Model):
     name= models.CharField(max_length=40, unique=True)
@@ -92,6 +99,7 @@ class CmeTag(models.Model):
     description = models.CharField(max_length=200, blank=True, help_text='Used for tooltip')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = CmeTagManager()
 
     def __str__(self):
         return self.name
@@ -351,6 +359,16 @@ class Sponsor(models.Model):
         return self.name
 
 
+class EligibleSiteManager(models.Manager):
+    def getSiteIdsForProfile(self, profile):
+        """Returns list of EligibleSite ids whose specialties intersect
+        with the profile's specialties
+        """
+        specids = [s.pk for s in profile.specialties.all()]
+        # need distinct here to weed out dups
+        esiteids = EligibleSite.objects.filter(specialties__in=specids).values_list('id', flat=True).distinct()
+        return esiteids
+
 @python_2_unicode_compatible
 class EligibleSite(models.Model):
     """Eligible (or white-listed) domains that will be recognized by the plugin.
@@ -369,9 +387,11 @@ class EligibleSite(models.Model):
     description = models.CharField(max_length=500, blank=True)
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     needs_ad_block = models.BooleanField(default=False)
+    all_specialties = models.BooleanField(default=False)
     page_title_suffix = models.CharField(max_length=60, blank=True, default='', help_text='Common suffix for page titles')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = EligibleSiteManager()
 
     def __str__(self):
         return self.domain_title
@@ -403,17 +423,42 @@ class BrowserCmeOffer(models.Model):
     redeemed = models.BooleanField(default=False)
     credits = models.DecimalField(max_digits=5, decimal_places=2,
         help_text='CME credits to be awarded upon redemption')
+    cmeTags = models.ManyToManyField(
+        CmeTag,
+        blank=True,
+        related_name='brcmeoffers',
+        through='OfferCmeTag',
+        help_text='Suggested tags (intersected with user cmeTags by UI)'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.url
+
+    def formatSuggestedTags(self):
+        return ", ".join([t.name for t in self.cmeTags.all()])
+    formatSuggestedTags.short_description = "suggestedTags"
+
     class Meta:
         verbose_name_plural = 'BrowserCME Offers'
         # list of (codename, human_readable_permission_name)
         permissions = (
             (PERM_VIEW_OFFER, 'Can view BrowserCmeOffer'),
         )
+
+# BrowserCmeOffer-CmeTag association
+@python_2_unicode_compatible
+class OfferCmeTag(models.Model):
+    offer = models.ForeignKey(BrowserCmeOffer, on_delete=models.CASCADE)
+    tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
+    created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return '{0.tag.name}'.format(self)
+
+    class Meta:
+        unique_together = ('offer','tag')
 
 # Extensible list of entry types that can appear in a user's feed
 @python_2_unicode_compatible

@@ -38,6 +38,7 @@ class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
 
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
+    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'formatSuggestedTags', 'modified')
     list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'modified')
     list_select_related = ('user','eligible_site')
     list_filter = ('redeemed','eligible_site','user')
@@ -60,7 +61,7 @@ class EntryAdmin(admin.ModelAdmin):
 class EligibleSiteAdmin(admin.ModelAdmin):
     #list_display = ('id', 'domain_name', 'domain_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
     list_display = ('id', 'domain_name', 'example_url', 'page_title_suffix', 'needs_ad_block', 'modified')
-    list_filter = ('is_valid_expurl', 'needs_ad_block')
+    list_filter = ('is_valid_expurl', 'needs_ad_block', 'all_specialties')
     ordering = ('domain_name',)
 
 class PinnedMessageForm(forms.ModelForm):

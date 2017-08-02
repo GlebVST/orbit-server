@@ -23,6 +23,6 @@
         </tbody>
     </table>
     {% timezone "America/Los_Angeles" %}
-    <p>Total number of new user signups going back 24 hours from {% now "r" %}: {{ data|length }}.</p>
+    <p>Total number of new user signups going back 24 hours from {% now "D, d N Y H:i e" %}: {{ data|length }}.</p>
     {% endtimezone %}
 </div>

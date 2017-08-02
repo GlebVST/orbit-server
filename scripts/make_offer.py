@@ -1,4 +1,5 @@
 import os
+import pytz
 from users.models import *
 from django.db import transaction
 from django.utils import timezone
@@ -6,19 +7,6 @@ from datetime import timedelta
 from common import viewutils
 from random import randint
 
-urls = (
-    'https://radiopaedia.org/articles/meningioma',
-    'https://radiopaedia.org/articles/lung-cancer-3',
-    'https://radiopaedia.org/articles/15t-vs-3t',
-    'https://radiopaedia.org/articles/mri-introduction',
-    'https://radiopaedia.org/articles/mr-physics',
-    'https://radiopaedia.org/articles/mri-safety',
-    'https://radiopaedia.org/articles/endocrine-tumours-of-the-pancreas',
-    'https://radiopaedia.org/articles/pancreatic-trauma-1',
-    'https://radiopaedia.org/articles/pancreatic-lipomatosis',
-    'https://radiopaedia.org/articles/18q-syndrome',
-    'https://radiopaedia.org/articles/oesophageal-stricture',
-)
 
 def getUser(firstName=None, lastName=None, email=None):
     filter_kwargs = {}
@@ -38,24 +26,46 @@ def getUser(firstName=None, lastName=None, email=None):
         print('User filter parameter is required.')
 
 def makeOffers(user):
+    NUM_OFFERS = 5
     sponsor = Sponsor.objects.get(pk=1)
+    # the EligibleSites appropriate for this user
+    esiteids = EligibleSite.objects.getSiteIdsForProfile(user.profile)
+    # exclude urls for which user already has un-redeemed un-expired offers waiting to be redeemed
     now = timezone.now()
-    num_urls = len(urls)
-    t1 = now - timedelta(days=num_urls)
-    for j, url in enumerate(urls):
+    exclude_urls = BrowserCmeOffer.objects.filter(
+        user=user,
+        redeemed=False,
+        eligible_site__in=esiteids,
+        expireDate__gte=now
+    ).values_list('url', flat=True).distinct()
+    print('Num exclude_urls: {0}'.format(len(exclude_urls))
+    aurls = AllowedUrl.objects.filter(eligible_site__in=esiteids).exclude(url__in=exclude_urls).order_by('?')[:NUM_OFFERS]
+
+    aurls = AllowedUrl.objects.filter(eligible_site=esite).exclude(url__in=exclude_urls).order_by('id')[:NUM_OFFERS]
+    num_aurls = aurls.count()
+    t1 = now - timedelta(days=num_aurls)
+    for j, aurl in enumerate(aurls):
+        url = aurl.url
         urlname = viewutils.getUrlLastPart(url)
         activityDate = t1 + timedelta(days=j)
-        expireDate = activityDate + timedelta(days=10)
-        offer = BrowserCmeOffer.objects.create(
-            user=user,
-            activityDate=activityDate,
-            url=url,
-            pageTitle=urlname,
-            suggestedDescr=urlname,
-            expireDate=expireDate,
-            credits=0.5,
-            sponsor=sponsor
-        )
+        expireDate = now + timedelta(days=2)
+        esite = aurl.eligible_site
+        specnames = [p.name for p in esite.specialties.all()]
+        spectags = CmeTag.objects.filter(name__in=specnames)
+        with transaction.atomic():
+            offer = BrowserCmeOffer.objects.create(
+                user=user,
+                eligible_site=esite,
+                activityDate=activityDate,
+                url=url,
+                pageTitle=urlname,
+                suggestedDescr=urlname,
+                expireDate=expireDate,
+                credits=0.5,
+                sponsor=sponsor
+            )
+            for t in spectags:
+                OfferCmeTag.objects.create(offer=offer, tag=t)
         print user.username, urlname, offer.pk, activityDate.strftime('%Y-%m-%d')
 
 def redeemOffers(user):

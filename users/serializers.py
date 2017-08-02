@@ -193,6 +193,11 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
     sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
     logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True)
+    cmeTags = serializers.PrimaryKeyRelatedField(
+        queryset=CmeTag.objects.all(),
+        many=True,
+        allow_null=True
+    )
 
     class Meta:
         model = BrowserCmeOffer
@@ -206,7 +211,8 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
             'expireDate',
             'credits',
             'sponsorId',
-            'logo_url'
+            'logo_url',
+            'cmeTags'
         )
 
 class SponsorSerializer(serializers.ModelSerializer):
@@ -786,6 +792,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
         allow_null=True
     )
     needs_ad_block = serializers.BooleanField(default=False)
+    all_specialties = serializers.BooleanField(default=False)
     class Meta:
         model = EligibleSite
         fields = (
@@ -796,6 +803,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
             'example_title',
             'description',
             'specialties',
+            'all_specialties',
             'needs_ad_block'
         )
 
