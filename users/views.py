@@ -991,6 +991,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             'entryType': m.entryType.name,
             'date': calendar.timegm(m.activityDate.timetuple()),
             'credit': float(m.srcme.credits),
+            'creditType': m.formatCreditType(),
             'tags': m.formatNonSATags(),
             'authority': m.getCertifyingAuthority(),
             'activity': m.description,
@@ -1001,7 +1002,8 @@ class CreateAuditReport(CertificateMixin, APIView):
             'entryType': m.entryType.name,
             'date': calendar.timegm(m.activityDate.timetuple()),
             'credit': float(m.brcme.credits),
-            'tags': m.formatCreditTypeAndTags(),
+            'creditType': m.formatCreditType(),
+            'tags': m.formatTags(),
             'authority': m.getCertifyingAuthority(),
             'activity': m.brcme.formatActivity(),
             'referenceId': brcmeCertReferenceId
@@ -1011,7 +1013,8 @@ class CreateAuditReport(CertificateMixin, APIView):
             'entryType': m.entryType.name,
             'date': calendar.timegm(m.activityDate.timetuple()),
             'credit': float(m.srcme.credits),
-            'tags': m.formatCreditTypeAndTags(),
+            'creditType': m.formatCreditType(),
+            'tags': m.formatTags(),
             'authority': m.getCertifyingAuthority(),
             'activity': m.description,
             'referenceId': m.getCertDocReferenceId()

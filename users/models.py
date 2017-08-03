@@ -677,16 +677,6 @@ class Entry(models.Model):
             return Entry.CREDIT_OTHER_TAGNAME
         return u''
 
-    def formatCreditTypeAndTags(self):
-        """If entry has ama_pra_catg, prepend category to tags
-        and return comma-separated string, else return formatTags().
-        """
-        credit_type = self.formatCreditType()
-        if credit_type:
-            names = [t.name for t in self.tags.all()]
-            names.insert(0, credit_type)
-            return u', '.join(names)
-        return self.formatTags()
 
     def getCertDocReferenceId(self):
         """This expects attr cert_docs:list from prefetch_related.
