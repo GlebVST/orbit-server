@@ -10,6 +10,7 @@ class DegreeAdmin(admin.ModelAdmin):
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'is_abms_board', 'formatTags', 'created')
     list_filter = ('is_abms_board',)
+    filter_horizontal = ('cmeTags',)
 
     def get_queryset(self, request):
         qs = super(PracticeSpecialtyAdmin, self).get_queryset(request)
@@ -25,6 +26,7 @@ class ProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'contactEmail', 'verified', 'npiNumber', 'cmeDuedate', 'modified')
     list_filter = ('verified','npiType')
     search_fields = ['npiNumber', 'lastName']
+    filter_horizontal = ('cmeTags',)
 
     def get_queryset(self, request):
         qs = super(ProfileAdmin, self).get_queryset(request)
@@ -37,12 +39,20 @@ class CustomerAdmin(admin.ModelAdmin):
 class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
 
+
+class OfferTagInline(admin.TabularInline):
+    model = OfferCmeTag
+
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
-    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'formatSuggestedTags', 'modified')
     list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'modified')
+    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
     list_select_related = ('user','eligible_site')
     list_filter = ('redeemed','eligible_site','user')
     ordering = ('-modified',)
+    inlines = [
+        OfferTagInline,
+    ]
+
 
 class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
@@ -63,6 +73,7 @@ class EligibleSiteAdmin(admin.ModelAdmin):
     list_display = ('id', 'domain_name', 'example_url', 'page_title_suffix', 'needs_ad_block', 'modified')
     list_filter = ('is_valid_expurl', 'needs_ad_block', 'all_specialties')
     ordering = ('domain_name',)
+    filter_horizontal = ('specialties',)
 
 class PinnedMessageForm(forms.ModelForm):
     title = forms.CharField(widget=forms.TextInput(attrs={'size': 80}))
