@@ -59,7 +59,7 @@ if SERVER_IP:
     ALLOWED_HOSTS.append(SERVER_IP)
 
 # This value used by various expiration-related settings
-APP_EXPIRE_SECONDS = 86400*30  # 30 days
+APP_EXPIRE_SECONDS = 86400*60  # 60 days
 
 # Application definition
 

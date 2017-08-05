@@ -825,7 +825,8 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
             host=host,
             eligible_site=instance,
             url=example_url,
-            page_title=validated_data.get('example_title')
+            page_title=validated_data.get('example_title'),
+            abstract=''
         )
         if created:
             logger.info('EligibleSite: new AllowedUrl: {0.url}'.format(allowed_url))
