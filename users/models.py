@@ -663,6 +663,7 @@ class Entry(models.Model):
         """Returns a comma-separated string of self.tags ordered by tag name"""
         names = [t.name for t in self.tags.all()]  # should use default ordering on CmeTag model
         return u', '.join(names)
+    formatTags.short_description = "CmeTags"
 
     def formatNonSATags(self):
         """Returns a comma-separated string of self.tags ordered by tag name excluding SA-CME"""
@@ -694,6 +695,10 @@ class Entry(models.Model):
         if self.sponsor:
             return self.sponsor.name
         return SELF_REPORTED_AUTHORITY
+
+    def getNumDocuments(self):
+        """Returns number of associated documents"""
+        return self.documents.all().count()
 
     class Meta:
         verbose_name_plural = 'Entries'

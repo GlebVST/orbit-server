@@ -16,7 +16,7 @@ Including another URLconf
 from django.conf.urls import url, include
 from django.conf import settings
 from django.conf.urls.static import static
-from users import views, auth_views, debug_views, payment_views
+from users import views, auth_views, debug_views, payment_views, admin_views
 from users.admin import admin_site
 from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
@@ -35,6 +35,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^ss-home/?$', auth_views.ss_home, name='ss-home'),
         url(r'^ss-logout/?$', auth_views.ss_logout, name='ss-logout'),
     ]
+
 
 api_patterns = [
     # ping test
@@ -106,6 +107,12 @@ api_patterns = [
     url(r'^dashboard/audit-report/(?P<referenceId>\w+)/?$', views.AccessAuditReport.as_view()),
     url(r'^dashboard/access-document/(?P<referenceId>\w+)/?$', views.AccessDocumentOrCert.as_view()),
 
+    # ADMIN views to see other users data
+    url(r'^admin/users/?$', admin_views.UserList.as_view()),
+    url(r'^admin/users/(?P<pk>[0-9]+)/?$', admin_views.UserDetail.as_view()),
+    # un-redeemed offers for user (redeemed appear in feed)
+    url(r'^admin/offers-for-user/(?P<pk>[0-9]+)/?$', admin_views.UserOfferList.as_view()),
+    url(r'^admin/feed-for-user/(?P<pk>[0-9]+)/?$', admin_views.UserFeedList.as_view()),
 ]
 if settings.ENV_TYPE != settings.ENV_PROD:
     # debug
@@ -116,6 +123,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/email-receipt/?$', debug_views.EmailSubscriptionReceipt.as_view()),
         url(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view()),
     ])
+
 
 # Custom view to render Swagger UI consuming only /api/ endpoints
 @api_view()
@@ -133,13 +141,13 @@ urlpatterns = [
     url(r'^api/v1/', include(api_patterns)),
     # Django admin interface
     url(r'^admin/', admin_site.urls),
+    # Swagger
+    url(r'^api-docs/', swagger_view, name='api-docs'),
+    # server-side login
+    url(r'auth/', include(auth_patterns)),
 ]
 if settings.ENV_TYPE != settings.ENV_PROD:
     urlpatterns.extend([
-        # Swagger
-        url(r'^api-docs/', swagger_view, name='api-docs'),
-        # server-side login
-        url(r'auth/', include(auth_patterns)),
         # direct use of oauth2_provider. Used for testing
         url(r'^o/', include('oauth2_provider.urls', namespace='oauth2_provider')),
     ])

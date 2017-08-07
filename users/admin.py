@@ -26,7 +26,7 @@ class ProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'contactEmail', 'verified', 'npiNumber', 'cmeDuedate', 'modified')
     list_filter = ('verified','npiType')
     search_fields = ['npiNumber', 'lastName']
-    filter_horizontal = ('cmeTags',)
+    filter_horizontal = ('cmeTags','specialties')
 
     def get_queryset(self, request):
         qs = super(ProfileAdmin, self).get_queryset(request)
@@ -63,10 +63,11 @@ class DocumentAdmin(admin.ModelAdmin):
 
 class EntryAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'entryType', 'activityDate', 'valid', 'description', 'created')
-    list_filter = ('entryType', 'valid')
+    list_filter = ('entryType', 'valid', 'user')
     list_select_related = ('user',)
     raw_id_fields = ('documents',)
     ordering = ('-created',)
+    filter_horizontal = ('tags',)
 
 class EligibleSiteAdmin(admin.ModelAdmin):
     #list_display = ('id', 'domain_name', 'domain_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
