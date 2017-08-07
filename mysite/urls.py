@@ -26,16 +26,14 @@ from rest_framework import response, schemas
 from rest_framework.renderers import CoreJSONRenderer
 from rest_framework_swagger.renderers import OpenAPIRenderer
 
-if settings.ENV_TYPE != settings.ENV_PROD:
-    auth_patterns = [
-        # site login via server-side login (for testing only)
-        url(r'^ss-login/?$', auth_views.ss_login, name='ss-login'),
-        url(r'^auth0-cb-login/?$', auth_views.login_via_code, name='login-via-code'),
-        url(r'^ss-login-error/?$', auth_views.ss_login_error, name='ss-login-error'),
-        url(r'^ss-home/?$', auth_views.ss_home, name='ss-home'),
-        url(r'^ss-logout/?$', auth_views.ss_logout, name='ss-logout'),
-    ]
-
+auth_patterns = [
+    # site login via server-side login (for testing only)
+    url(r'^ss-login/?$', auth_views.ss_login, name='ss-login'),
+    url(r'^auth0-cb-login/?$', auth_views.login_via_code, name='login-via-code'),
+    url(r'^ss-login-error/?$', auth_views.ss_login_error, name='ss-login-error'),
+    url(r'^ss-home/?$', auth_views.ss_home, name='ss-home'),
+    url(r'^ss-logout/?$', auth_views.ss_logout, name='ss-logout'),
+]
 
 api_patterns = [
     # ping test
