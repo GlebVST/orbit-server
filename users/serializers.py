@@ -40,74 +40,41 @@ class PracticeSpecialtyListSerializer(serializers.ModelSerializer):
 class PracticeSpecialtySerializer(serializers.ModelSerializer):
     cmeTags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
-        many=True,
-        allow_null=True
+        many=True
     )
     class Meta:
         model = PracticeSpecialty
         fields = ('id', 'name', 'cmeTags')
 
-
-class ProfileSerializer(serializers.ModelSerializer):
+# Note: cmeTags cannot be updated directly. The caller can update the specialties,
+# and the update method will handle setting the cmeTags based on the specialties.
+# The cmeTags field is read-only by default because we used nested serializer.
+# All keys listed in fields will be in the serialized representation of the
+# updated object returned by the endpoint.
+class UpdateProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
-    socialId = serializers.ReadOnlyField()
-    pictureUrl = serializers.ReadOnlyField()
-    inviteId = serializers.ReadOnlyField()
-    verified = serializers.ReadOnlyField()
-    accessedTour = serializers.ReadOnlyField()
-    cmeTags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
-        many=True,
-        allow_null=True
-    )
     degrees = serializers.PrimaryKeyRelatedField(
         queryset=Degree.objects.all(),
-        many=True,
-        allow_null=True
+        many=True
     )
     specialties = serializers.PrimaryKeyRelatedField(
         queryset=PracticeSpecialty.objects.all(),
-        many=True,
-        allow_null=True
+        many=True
     )
     country = serializers.PrimaryKeyRelatedField(
         queryset=Country.objects.all(),
         allow_null=True
     )
+    # use nested serializer to return list of objects
+    cmeTags = CmeTagSerializer(many=True, read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
 
     def get_isSignupComplete(self, obj):
-        """Signup is complete if the following fields are populated
-            1. Country is provided
-            2. One or more PracticeSpecialty
-            3. One or more Degree (now called primaryRole in UI, and only 1 selection allowed...)
-            4. user has saved a UserSubscription
-        """
-        if not obj.country:
-            return False
-        if not obj.specialties.exists():
-            return False
-        if not obj.degrees.exists():
-            return False
-        if not obj.user.subscriptions.exists():
-            return False
-        return True
+        return obj.isSignupComplete()
 
     def get_isNPIComplete(self, obj):
-        """
-        True: obj.shouldReqNPINumber is False
-        True: If obj.shouldReqNPINumber and npiNumber is non-blank.
-        False: If obj.shouldReqNPINumber and npiNumber is blank.
-        """
-        if obj.shouldReqNPINumber():
-            #print('shouldReqNPINumber is True!')
-            #print('npiNumber: {0}'.format(obj.npiNumber))
-            if obj.npiNumber:
-                return True
-            return False
-        #print('shouldReqNPINumber is False')
-        return True
+        return obj.isNPIComplete()
 
     class Meta:
         model = Profile
@@ -137,6 +104,16 @@ class ProfileSerializer(serializers.ModelSerializer):
             'created',
             'modified'
         )
+        read_only_fields = (
+            'cmeTags',
+            'inviteId',
+            'socialId',
+            'pictureUrl',
+            'verified',
+            'accessedTour',
+            'created',
+            'modified'
+        )
 
     def update(self, instance, validated_data):
         """
@@ -146,31 +123,84 @@ class ProfileSerializer(serializers.ModelSerializer):
         """
         user = instance.user
         upd_cmetags = False
-        pracSpecs = validated_data.get('specialties', [])
-        curSpecs = set([ps for ps in instance.specialties.all()])
-        newSpecs = set([ps for ps in pracSpecs])
-        newly_added_specs = newSpecs.difference(curSpecs)
-        del_specs = curSpecs.difference(newSpecs)
-        tag_ids = set([t.pk for t in instance.cmeTags.all()])
-        for ps in del_specs:
-            logger.info('User {0.email} : remove ps: {1.name}'.format(user, ps))
-            for t in ps.cmeTags.all():
-                num_entries = t.entries.filter(user=user).count()
-                if num_entries == 0 and t.pk in tag_ids:
-                    tag_ids.remove(t.pk)
-                    logger.info('Del profile.cmeTag: {0}'.format(t))
-                    upd_cmetags = True
-        for ps in newly_added_specs:
-            logger.info('User {0.email} : Add ps: {1.name}'.format(user, ps))
-            for t in ps.cmeTags.all():
-                if t.pk not in tag_ids:
-                    tag_ids.add(t.pk)
-                    logger.info('New profile.cmeTag: {0}'.format(t))
-                    upd_cmetags = True
-        instance = super(ProfileSerializer, self).update(instance, validated_data)
-        if upd_cmetags:
+        tag_ids = None
+        spec_key = 'specialties'
+        if spec_key in validated_data:
+            # need to check if key exists, because a PATCH request may not contain the spec_key
+            pracSpecs = validated_data[spec_key]
+            curSpecs = set([ps for ps in instance.specialties.all()])
+            newSpecs = set([ps for ps in pracSpecs])
+            newly_added_specs = newSpecs.difference(curSpecs)
+            del_specs = curSpecs.difference(newSpecs)
+            tag_ids = set([t.pk for t in instance.cmeTags.all()])
+            for ps in del_specs:
+                logger.info('User {0.email} : remove ps: {1.name}'.format(user, ps))
+                for t in ps.cmeTags.all():
+                    num_entries = t.entries.filter(user=user).count()
+                    if num_entries == 0 and t.pk in tag_ids:
+                        tag_ids.remove(t.pk)
+                        logger.info('Del profile.cmeTag: {0}'.format(t))
+                        upd_cmetags = True
+            for ps in newly_added_specs:
+                logger.info('User {0.email} : Add ps: {1.name}'.format(user, ps))
+                for t in ps.cmeTags.all():
+                    if t.pk not in tag_ids:
+                        tag_ids.add(t.pk)
+                        logger.info('New profile.cmeTag: {0}'.format(t))
+                        upd_cmetags = True
+        instance = super(UpdateProfileSerializer, self).update(instance, validated_data)
+        if upd_cmetags and (spec_key in validated_data):
             instance.cmeTags.set(list(tag_ids))
         return instance
+
+
+class ReadProfileSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source='user.id', read_only=True)
+    # Per request of GlebS: use nested serializer to return list of objects
+    cmeTags = CmeTagSerializer(many=True)
+    # degrees and specialties are list of pkeyids
+    degrees = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    specialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    country = serializers.PrimaryKeyRelatedField(read_only=True)
+    isSignupComplete = serializers.SerializerMethodField()
+    isNPIComplete = serializers.SerializerMethodField()
+
+    def get_isSignupComplete(self, obj):
+        return obj.isSignupComplete()
+
+    def get_isNPIComplete(self, obj):
+        return obj.isNPIComplete()
+
+    class Meta:
+        model = Profile
+        fields = (
+            'id',
+            'firstName',
+            'lastName',
+            'contactEmail',
+            'country',
+            'jobTitle',
+            'description',
+            'inviteId',
+            'socialId',
+            'pictureUrl',
+            'npiNumber',
+            'npiFirstName',
+            'npiLastName',
+            'npiType',
+            'cmeTags',
+            'degrees',
+            'specialties',
+            'verified',
+            'accessedTour',
+            'cmeDuedate',
+            'isNPIComplete',
+            'isSignupComplete',
+            'created',
+            'modified'
+        )
+        read_only_fields = fields
+
 
 class CustomerSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
@@ -182,22 +212,16 @@ class CustomerSerializer(serializers.ModelSerializer):
             'created',
             'modified'
         )
+        read_only_fields = fields
 
+# Entire offer is read-only because offers are created by the plugin server.
+# A separate serializer exists to redeem the offer (and create br-cme entry in the user's feed).
 class BrowserCmeOfferSerializer(serializers.ModelSerializer):
     userId = serializers.IntegerField(source='user.id', read_only=True)
-    activityDate = serializers.ReadOnlyField()
-    url = serializers.ReadOnlyField()
-    pageTitle = serializers.ReadOnlyField()
-    suggestedDescr = serializers.ReadOnlyField()
-    expireDate = serializers.ReadOnlyField()
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
     sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
     logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True)
-    cmeTags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
-        many=True,
-        allow_null=True
-    )
+    cmeTags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
         model = BrowserCmeOffer
@@ -214,6 +238,7 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
             'logo_url',
             'cmeTags'
         )
+        read_only_fields = fields
 
 class SponsorSerializer(serializers.ModelSerializer):
     class Meta:
@@ -323,11 +348,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
     entryType = serializers.StringRelatedField(read_only=True)
     sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
     logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True)
-    tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
-        many=True,
-        allow_null=True
-    )
+    tags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     documents = DocumentReadSerializer(many=True, required=False)
     creditType = serializers.ReadOnlyField(source='ama_pra_catg')
     extra = serializers.SerializerMethodField()
@@ -360,7 +381,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'created',
             'modified'
         )
-
+        read_only_fields = fields
 
 # Serializer for Create BrowserCme entry
 class BRCmeCreateSerializer(serializers.Serializer):
@@ -374,8 +395,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
         many=True,
-        required=False,
-        allow_null=True
+        required=False
     )
 
     class Meta:
@@ -444,8 +464,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
         many=True,
-        required=False,
-        allow_null=True
+        required=False
     )
 
     class Meta:
@@ -587,14 +606,12 @@ class SRCmeFormSerializer(serializers.Serializer):
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
-        required=False,
-        allow_null=True
+        required=False
     )
     documents = serializers.PrimaryKeyRelatedField(
         queryset=Document.objects.all(),
         many=True,
-        required=False,
-        allow_null=True
+        required=False
     )
 
     class Meta:
@@ -726,14 +743,8 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
 
 
 class UserSubscriptionSerializer(serializers.ModelSerializer):
-    subscriptionId = serializers.ReadOnlyField()
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     plan = serializers.PrimaryKeyRelatedField(read_only=True)
-    status = serializers.ReadOnlyField()
-    display_status = serializers.ReadOnlyField()
-    billingFirstDate = serializers.ReadOnlyField()
-    billingStartDate = serializers.ReadOnlyField()
-    billingEndDate = serializers.ReadOnlyField()
 
     class Meta:
         model = UserSubscription
@@ -750,7 +761,7 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
             'created',
             'modified'
         )
-
+        read_only_fields = fields
 
 PINNED_MESSAGE_LABEL = 'Self-Assessed CME'
 
@@ -788,8 +799,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(
         queryset=PracticeSpecialty.objects.all(),
         many=True,
-        required=False,
-        allow_null=True
+        required=False
     )
     needs_ad_block = serializers.BooleanField(default=False)
     all_specialties = serializers.BooleanField(default=False)

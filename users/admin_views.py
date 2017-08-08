@@ -1,14 +1,13 @@
-"""Read-only views to allow admin staff to view data for other users"""
+"""Read-only views to enable admin staff to view data for other users"""
 from django.utils import timezone
 from rest_framework import generics, exceptions, permissions, status, serializers
 from rest_framework.pagination import PageNumberPagination
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # app
 from .models import *
-from .serializers import *
-from .permissions import *
+from .serializers import CmeTagSerializer, DegreeSerializer, CountrySerializer, PracticeSpecialtyListSerializer
 
-class ReadProfileSerializer(serializers.ModelSerializer):
+class ReadProfileListSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id')
     email = serializers.EmailField(source='user.email')
 
@@ -26,21 +25,10 @@ class ReadProfileSerializer(serializers.ModelSerializer):
 class ReadProfileDetailSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id')
     email = serializers.EmailField(source='user.email')
-    cmeTags = serializers.StringRelatedField(
-        many=True,
-        allow_null=True
-    )
-    degrees = serializers.StringRelatedField(
-        many=True,
-        allow_null=True
-    )
-    specialties = serializers.StringRelatedField(
-        many=True,
-        allow_null=True
-    )
-    country = serializers.StringRelatedField(
-        allow_null=True
-    )
+    cmeTags = CmeTagSerializer(many=True)
+    degrees = DegreeSerializer(many=True)
+    specialties = PracticeSpecialtyListSerializer(many=True)
+    country = CountrySerializer()
     subscriptionStatus = serializers.SerializerMethodField()
 
     def get_subscriptionStatus(self, obj):
@@ -76,7 +64,7 @@ class ReadProfileDetailSerializer(serializers.ModelSerializer):
 
 class UserList(generics.ListAPIView):
     queryset = Profile.objects.all().order_by('-created')
-    serializer_class = ReadProfileSerializer
+    serializer_class = ReadProfileListSerializer
     permission_classes = (permissions.IsAdminUser, TokenHasReadWriteScope)
 
 class UserDetail(generics.RetrieveAPIView):
@@ -86,10 +74,7 @@ class UserDetail(generics.RetrieveAPIView):
 
 class ReadOfferSerializer(serializers.ModelSerializer):
     userId = serializers.IntegerField(source='user.id')
-    cmeTags = serializers.StringRelatedField(
-        many=True,
-        allow_null=True
-    )
+    cmeTags = serializers.StringRelatedField(many=True)
 
     class Meta:
         model = BrowserCmeOffer
@@ -120,7 +105,7 @@ class UserOfferList(generics.ListAPIView):
 
 # intended to be used by SerializerMethodField on ReadFeedSerializer
 class BRCmeSubSerializer(serializers.ModelSerializer):
-    offer = serializers.PrimaryKeyRelatedField(read_only=True)
+    offer = serializers.PrimaryKeyRelatedField(read_only=True) # must specifiy read_only despite also putting it read_only_fields
 
     class Meta:
         model = BrowserCme
@@ -147,11 +132,8 @@ class NotificationSubSerializer(serializers.ModelSerializer):
 
 class ReadFeedSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id')
-    entryType = serializers.StringRelatedField(read_only=True)
-    tags = serializers.StringRelatedField(
-        many=True,
-        allow_null=True
-    )
+    entryType = serializers.StringRelatedField()
+    tags = serializers.StringRelatedField(many=True)
     creditType = serializers.ReadOnlyField(source='formatCreditType')
     extra = serializers.SerializerMethodField()
     numDocuments = serializers.IntegerField(source='getNumDocuments')

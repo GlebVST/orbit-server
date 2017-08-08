@@ -126,18 +126,24 @@ class SponsorDetail(generics.RetrieveUpdateDestroyAPIView):
 
 # Profile
 # A list of profiles is readable by any authenticated user
-# A profile cannot be created from the API because it is created by the psa pipeline for each user.
+# A profile cannot be created from the API because it is created by the auth_backend
 class ProfileList(generics.ListAPIView):
-    queryset = Profile.objects.all().order_by('lastName').select_related('country')
-    serializer_class = ProfileSerializer
+    queryset = Profile.objects.all().order_by('-created').select_related('country')
+    serializer_class = ReadProfileSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
-# A profile is viewable by any authenticated user.
-# A profile can edited only by the owner from the API
+# A profile can be edited only by the owner from the API
 # A profile cannot be deleted from the API
-class ProfileDetail(generics.RetrieveUpdateAPIView):
+class ProfileUpdate(generics.UpdateAPIView):
+    """Note: This used to be a RetrieveUpdateAPIView but we need to use
+    different serializers for Retrieve vs. Update. Normally, this can be
+    done using get_serializer_class. But, it does not work when using
+    Swagger because Swagger calls get_serializer_class before a request
+    exists in order to determine the class.
+    Current fix is to just make this an Update-only view.
+    """
     queryset = Profile.objects.all().select_related('country')
-    serializer_class = ProfileSerializer
+    serializer_class = UpdateProfileSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
 

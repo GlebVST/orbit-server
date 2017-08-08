@@ -61,7 +61,7 @@ api_patterns = [
     url(r'^accounts/?$', views.CustomerList.as_view()),
     url(r'^accounts/(?P<pk>[0-9]+)/?$', views.CustomerDetail.as_view()),
     url(r'^profiles/?$', views.ProfileList.as_view()),
-    url(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileDetail.as_view()),
+    url(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileUpdate.as_view()),
     url(r'^profiles/verify/?$', views.VerifyProfile.as_view(), name='profile-verify'),
     url(r'^profiles/verify-email/?$', views.VerifyProfileEmail.as_view(), name='profile-verify-email'),
     url(r'^profiles/set-accessed-tour/?$', views.SetProfileAccessedTour.as_view(), name='profile-set-accessed-tour'),

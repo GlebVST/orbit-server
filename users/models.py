@@ -210,6 +210,37 @@ class Profile(models.Model):
             return True
         return False
 
+    def isNPIComplete(self):
+        """
+        True: obj.shouldReqNPINumber is False
+        True: If obj.shouldReqNPINumber and npiNumber is non-blank.
+        False: If obj.shouldReqNPINumber and npiNumber is blank.
+        """
+        if self.shouldReqNPINumber():
+            if self.npiNumber:
+                return True
+            return False
+        return True
+
+
+    def isSignupComplete(self):
+        """Signup is complete if the following fields are populated
+            1. Country is provided
+            2. One or more PracticeSpecialty
+            3. One or more Degree (now called primaryRole in UI, and only 1 selection is currently allowed)
+            4. user has saved a UserSubscription
+        """
+        if not self.country:
+            return False
+        if not self.specialties.exists():
+            return False
+        if not self.degrees.exists():
+            return False
+        if not self.user.subscriptions.exists():
+            return False
+        return True
+
+
     def getFullName(self):
         return u"{0} {1}".format(self.firstName, self.lastName)
 

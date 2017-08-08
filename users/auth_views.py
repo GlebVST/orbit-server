@@ -19,7 +19,7 @@ import common.appconstants as appconstants
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
-from .serializers import ProfileSerializer, CmeTagSerializer
+from .serializers import ReadProfileSerializer, CmeTagSerializer
 
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
@@ -133,7 +133,7 @@ def serialize_subscription(user_subs):
     }
 
 def serialize_profile(profile):
-    s = ProfileSerializer(profile)
+    s = ReadProfileSerializer(profile)
     return s.data
 
 def serialize_cmetag(tag):
@@ -159,7 +159,6 @@ def make_login_context(token, user):
         'profile': serialize_profile(profile),
         'customer': serialize_customer(customer),
         'sacmetag': serialize_cmetag(sacme_tag),
-        'cmetags': CmeTagSerializer(profile.cmeTags, many=True).data
     }
     context['subscription'] = serialize_subscription(user_subs) if user_subs else None
     context['allowTrial'] = user_subs is None  # allow a trial period if user has never had a subscription
