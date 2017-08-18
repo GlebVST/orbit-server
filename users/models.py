@@ -64,12 +64,52 @@ class Country(models.Model):
 
 
 @python_2_unicode_compatible
+class State(models.Model):
+    """Names of states/provinces within a country.
+    """
+    country = models.ForeignKey(Country,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='states',
+    )
+    name = models.CharField(max_length=100)
+    abbrev = models.CharField(max_length=5, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['country','name']
+        unique_together = (('country', 'name'), ('country', 'abbrev'))
+
+class DegreeManager(models.Manager):
+    def insertDegreeAfter(self, from_deg, abbrev, name):
+        """Insert new degree after the given from_deg
+        and update sort_order of the items that need to be shuffled down.
+        """
+        new_deg = None
+        # make a hole
+        post_degs = Degree.objects.filter(sort_order__gt=from_deg.sort_order).order_by('sort_order')
+        with transaction.atomic():
+            for m in post_degs:
+                m.sort_order += 1
+                m.save()
+            new_sort_order = from_deg.sort_order + 1
+            logger.info('Adding new Degree {0} at sort_order: {1}'.format(abbrev, new_sort_order))
+            new_deg = Degree.objects.create(abbrev=abbrev, name=name, sort_order=new_sort_order)
+        return new_deg
+
+@python_2_unicode_compatible
 class Degree(models.Model):
     """Names and abbreviations of professional degrees"""
     abbrev = models.CharField(max_length=7, unique=True)
     name = models.CharField(max_length=40)
+    sort_order = models.PositiveIntegerField(default=0)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = DegreeManager()
 
     def __str__(self):
         return self.abbrev
@@ -80,6 +120,9 @@ class Degree(models.Model):
         """
         abbrev = self.abbrev
         return abbrev == DEGREE_MD or abbrev == DEGREE_DO
+
+    class Meta:
+        ordering = ['sort_order',]
 
 # CME tag types (SA-CME tag has priority=1)
 class CmeTagManager(models.Manager):
@@ -176,6 +219,7 @@ class Profile(models.Model):
         choices=((1, 'Individual'), (2, 'Organization')),
         help_text='Type 1 (Individual). Type 2 (Organization).'
     )
+    nbcrnaId = models.CharField(max_length=20, blank=True, default='', help_text='NBCRNA ID for Nurse Anesthetists')
     inviteId = models.CharField(max_length=36, unique=True)
     socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
     pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
@@ -252,6 +296,28 @@ class Profile(models.Model):
     def formatDegrees(self):
         return ", ".join([d.abbrev for d in self.degrees.all()])
     formatDegrees.short_description = "Primary Role"
+
+
+class StateLicense(models.Model):
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        related_name='statelicenses',
+        db_index=True
+    )
+    state = models.ForeignKey(State,
+        on_delete=models.CASCADE,
+        related_name='statelicenses',
+        db_index=True
+    )
+    license_no = models.CharField(max_length=40, blank=True,
+            help_text='License number')
+    expiryDate = models.DateTimeField(null=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.license_no
+
 
 class CustomerManager(models.Manager):
     def findBtCustomer(self, customer):

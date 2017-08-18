@@ -22,8 +22,11 @@ class CmeTagAdmin(admin.ModelAdmin):
 class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
+class StateAdmin(admin.ModelAdmin):
+    list_display = ('id', 'country', 'name', 'abbrev', 'created')
+
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'contactEmail', 'verified', 'npiNumber', 'cmeDuedate', 'modified')
+    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'nbcrnaId', 'cmeDuedate', 'modified')
     list_filter = ('verified','npiType')
     search_fields = ['npiNumber', 'lastName']
     filter_horizontal = ('cmeTags','specialties')
@@ -35,6 +38,10 @@ class ProfileAdmin(admin.ModelAdmin):
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'customerId', 'created')
     search_fields = ['customerId',]
+
+class StateLicenseAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'state', 'license_no', 'created')
+    list_select_related = True
 
 class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
@@ -196,6 +203,7 @@ admin_site.register(PinnedMessage, PinnedMessageAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin_site.register(Sponsor, SponsorAdmin)
+admin_site.register(StateLicense, StateLicenseAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)

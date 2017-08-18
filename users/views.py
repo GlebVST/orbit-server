@@ -62,7 +62,7 @@ class CountryDetail(generics.RetrieveUpdateDestroyAPIView):
 
 # Degree
 class DegreeList(generics.ListCreateAPIView):
-    queryset = Degree.objects.all().order_by('id')
+    queryset = Degree.objects.all().order_by('sort_order')
     serializer_class = DegreeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
@@ -254,6 +254,30 @@ class CustomerDetail(generics.RetrieveAPIView):
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
     permission_classes = [IsOwnerOrAdmin, TokenHasReadWriteScope]
+
+# Current usage is for nurse state licenses
+class UserStateLicenseList(generics.ListCreateAPIView):
+    serializer_class = StateLicenseSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def get_queryset(self):
+        user = self.request.user
+        return StateLicense.objects.filter(user=user)
+
+    def perform_create(self, serializer, format=None):
+        user = self.request.user
+        instance = serializer.save(user=user)
+        return instance
+
+class UserStateLicenseDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = StateLicense.objects.all()
+    serializer_class = StateLicenseSerializer
+    permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
+
+    def perform_update(self, serializer, format=None):
+        user = self.request.user
+        instance = serializer.save(user=user)
+        return instance
 
 # SubscriptionPlan : new payment model
 class SubscriptionPlanList(generics.ListCreateAPIView):

@@ -5,8 +5,9 @@
   "fields": {
     "abbrev": "MD",
     "name": "Medical Doctor",
+    "sort_order": 1,
     "created": "2016-12-03T08:02:51.438Z",
-    "modified": "2016-12-03T08:02:51.438Z"
+    "modified": "2017-08-15T18:56:36.364Z"
   }
 },
 {
@@ -15,8 +16,9 @@
   "fields": {
     "abbrev": "DO",
     "name": "Doctor of Osteopathic Medicine",
+    "sort_order": 2,
     "created": "2016-12-03T08:02:51.438Z",
-    "modified": "2016-12-03T08:02:51.438Z"
+    "modified": "2017-08-15T18:56:36.524Z"
   }
 },
 {
@@ -25,8 +27,9 @@
   "fields": {
     "abbrev": "PA",
     "name": "Physician Assistant",
+    "sort_order": 3,
     "created": "2016-12-03T08:02:51.438Z",
-    "modified": "2016-12-03T08:02:51.438Z"
+    "modified": "2017-08-15T18:56:36.684Z"
   }
 },
 {
@@ -35,8 +38,9 @@
   "fields": {
     "abbrev": "PharmD",
     "name": "Doctor of Pharmacology",
+    "sort_order": 8,
     "created": "2016-12-03T08:02:51.438Z",
-    "modified": "2016-12-03T08:02:51.438Z"
+    "modified": "2017-08-17T03:09:12.052Z"
   }
 },
 {
@@ -45,8 +49,9 @@
   "fields": {
     "abbrev": "NP",
     "name": "Nurse Practitioner",
+    "sort_order": 5,
     "created": "2016-12-03T08:02:51.438Z",
-    "modified": "2016-12-03T08:02:51.438Z"
+    "modified": "2017-08-17T03:09:11.887Z"
   }
 },
 {
@@ -55,8 +60,9 @@
   "fields": {
     "abbrev": "CRNA",
     "name": "Certified Registered Nurse Anesthetist",
+    "sort_order": 6,
     "created": "2016-12-03T08:02:51.438Z",
-    "modified": "2016-12-03T08:02:51.438Z"
+    "modified": "2017-08-17T03:09:11.943Z"
   }
 },
 {
@@ -65,8 +71,9 @@
   "fields": {
     "abbrev": "RT",
     "name": "Radiologic Technologist",
+    "sort_order": 7,
     "created": "2016-12-03T08:02:51.438Z",
-    "modified": "2016-12-03T08:02:51.438Z"
+    "modified": "2017-08-17T03:09:11.998Z"
   }
 },
 {
@@ -75,8 +82,20 @@
   "fields": {
     "abbrev": "Other",
     "name": "Other",
+    "sort_order": 9,
     "created": "2016-12-03T08:02:51.438Z",
-    "modified": "2016-12-03T08:02:51.438Z"
+    "modified": "2017-08-15T18:57:41.271Z"
+  }
+},
+{
+  "model": "users.degree",
+  "pk": 9,
+  "fields": {
+    "abbrev": "RN",
+    "name": "Registered Nurse",
+    "sort_order": 4,
+    "created": "2017-08-15T18:58:15.157Z",
+    "modified": "2017-08-17T03:09:11.780Z"
   }
 }
 ]

@@ -20,17 +20,32 @@ logger = logging.getLogger('gen.srl')
 class DegreeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Degree
-        fields = ('id', 'abbrev', 'name')
+        fields = ('id', 'abbrev', 'name', 'sort_order')
 
 class CmeTagSerializer(serializers.ModelSerializer):
     class Meta:
         model = CmeTag
         fields = ('id', 'name', 'priority', 'description')
 
+class NestedStateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = State
+        fields = ('id', 'abbrev', 'name')
+
 class CountrySerializer(serializers.ModelSerializer):
+    states = NestedStateSerializer(many=True, read_only=True)
+
     class Meta:
         model = Country
-        fields = ('id', 'code', 'name')
+        fields = ('id', 'code', 'name', 'states')
+
+class StateSerializer(serializers.ModelSerializer):
+    country = serializers.PrimaryKeyRelatedField(queryset=Country.objects.all())
+
+    class Meta:
+        model = State
+        fields = ('id', 'country', 'abbrev', 'name')
 
 class PracticeSpecialtyListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -93,6 +108,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'npiFirstName',
             'npiLastName',
             'npiType',
+            'nbcrnaId',
             'cmeTags',
             'degrees',
             'specialties',
@@ -188,6 +204,7 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'npiFirstName',
             'npiLastName',
             'npiType',
+            'nbcrnaId',
             'cmeTags',
             'degrees',
             'specialties',
@@ -213,6 +230,14 @@ class CustomerSerializer(serializers.ModelSerializer):
             'modified'
         )
         read_only_fields = fields
+
+class StateLicenseSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all())
+    class Meta:
+        model = StateLicense
+        fields = ('id','user', 'state','license_no', 'expiryDate')
+
 
 # Entire offer is read-only because offers are created by the plugin server.
 # A separate serializer exists to redeem the offer (and create br-cme entry in the user's feed).
@@ -410,8 +435,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         """Create parent Entry and BrowserCme instances.
-        Note: this expects that View has passed the following
-        keys to serializer.save which then appear in validated_data:
+        Note: this expects the following keys in validated_data:
             user: User instance
         2017-07-05: If offer.eligible_site is associated with only 1 PracSpec,
         and this specialty is contained in user.specialties, then add its
@@ -859,14 +883,38 @@ class CertificateReadSerializer(serializers.ModelSerializer):
         read_only_fields = ('referenceId', 'url', 'name', 'startDate', 'endDate', 'credits')
 
 
+class StateLicenseSubSerializer(serializers.ModelSerializer):
+    state = serializers.StringRelatedField()
+    class Meta:
+        model = StateLicense
+        fields = ('state','license_no')
+
 class AuditReportReadSerializer(serializers.ModelSerializer):
     npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
+    nbcrnaId = serializers.ReadOnlyField(source='user.profile.nbcrnaId')
+    country = serializers.ReadOnlyField(source='user.profile.country.code')
+    degree = serializers.SerializerMethodField()
+    statelicense = serializers.SerializerMethodField()
+
+    def get_degree(self, obj):
+        return obj.user.profile.formatDegrees()
+
+    def get_statelicense(self, obj):
+        user = obj.user
+        if user.statelicenses.exists():
+            s =  StateLicenseSubSerializer(user.statelicenses.all()[0])
+            return s.data
+        return None
+
     class Meta:
         model = AuditReport
         fields = (
             'referenceId',
             'name',
             'npiNumber',
+            'country',
+            'degree',
+            'statelicense',
             'startDate',
             'endDate',
             'saCredits',
@@ -874,4 +922,4 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
             'data',
             'created'
         )
-        read_only_fields = ('referenceId', 'name', 'startDate', 'endDate', 'saCredits','otherCredits','data')
+        read_only_fields = fields

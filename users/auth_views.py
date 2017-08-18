@@ -19,13 +19,15 @@ import common.appconstants as appconstants
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
-from .serializers import ReadProfileSerializer, CmeTagSerializer
+from .serializers import ReadProfileSerializer, CmeTagSerializer, StateLicenseSerializer
 
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
 
 # Used in development and to allow access to Swagger UI.
 CALLBACK_URL = 'http://localhost:8000/auth/auth0-cb-login' # used by login_via_code for server-side login only
+if settings.ENV_TYPE == settings.ENV_PROD:
+    CALLBACK_URL = 'https://admin.orbitcme.com/auth/auth0-cb-login' # must be added to callback url for auth0 client settings
 
 def ss_login(request):
     msg = "host: {0}".format(request.get_host())
@@ -140,6 +142,10 @@ def serialize_cmetag(tag):
     s = CmeTagSerializer(tag)
     return s.data
 
+def serialize_statelicense(obj):
+    return StateLicenseSerializer(obj).data
+
+
 def make_login_context(token, user):
     """Create context dict for response.
     Args:
@@ -159,6 +165,7 @@ def make_login_context(token, user):
         'profile': serialize_profile(profile),
         'customer': serialize_customer(customer),
         'sacmetag': serialize_cmetag(sacme_tag),
+        'statelicense': None
     }
     context['subscription'] = serialize_subscription(user_subs) if user_subs else None
     context['allowTrial'] = user_subs is None  # allow a trial period if user has never had a subscription
@@ -167,6 +174,9 @@ def make_login_context(token, user):
         dict(value=Entry.CREDIT_CATEGORY_1, label=Entry.CREDIT_CATEGORY_1_LABEL, needs_tm=True),
         dict(value=Entry.CREDIT_OTHER, label=Entry.CREDIT_OTHER_LABEL, needs_tm=False)
     ]
+    # 2017-08-15: add single object for user state license if exist
+    if user.statelicenses.exists():
+        context['statelicense'] = serialize_statelicense(user.statelicenses.all()[0])
     return context
 
 @api_view()
