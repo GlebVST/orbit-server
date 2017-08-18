@@ -912,6 +912,7 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
             'referenceId',
             'name',
             'npiNumber',
+            'nbcrnaId',
             'country',
             'degree',
             'statelicense',
