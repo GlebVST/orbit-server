@@ -341,6 +341,7 @@ class FeedList(generics.ListAPIView):
         user = self.request.user
         return Entry.objects.filter(user=user, valid=True).select_related('entryType','sponsor').order_by('-created')
 
+
 class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
     serializer_class = EntryReadSerializer
     permission_classes = (CanViewFeed, IsOwnerOrAuthenticated, TokenHasReadWriteScope)
@@ -364,6 +365,25 @@ class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
                 logDebug(logger, request, 'Deleting document {0}'.format(doc))
                 doc.delete()
         return self.destroy(request, *args, **kwargs)
+
+
+class InvalidateEntry(generics.UpdateAPIView):
+    serializer_class = EntryReadSerializer
+    permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
+
+    def get_queryset(self):
+        user = self.request.user
+        return Entry.objects.filter(user=user, valid=True).select_related('entryType', 'sponsor')
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        msg = 'Invalidate entry {0}'.format(instance)
+        logInfo(logger, request, msg)
+        instance.valid = False
+        instance.save()
+        context = {'success': True}
+        return Response(context)
+
 
 class TagsMixin(object):
     """Mixin to handle the tags parameter in request.data
