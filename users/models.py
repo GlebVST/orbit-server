@@ -677,11 +677,12 @@ class EntryManager(models.Manager):
 
     def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
-        Total Srcme credits over the given time period for the given user.
+        Total valid Srcme credits over the given time period for the given user.
         Optional filter by specific tag (cmeTag object).
         Optional filter by untagged only. This arg cannot be specified together with tag.
         """
         filter_kwargs = dict(
+            valid=True,
             user=user,
             entryType__name=ENTRYTYPE_SRCME,
             activityDate__gte=startDate,
@@ -700,11 +701,12 @@ class EntryManager(models.Manager):
 
     def sumBrowserCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
-        Total BrowserCme credits over the given time period for the given user.
+        Total valid BrowserCme credits over the given time period for the given user.
         Optional filter by specific tag (cmeTag object).
         Optional filter by untagged only. This arg cannot be specified together with tag.
         """
         filter_kwargs = dict(
+            valid=True,
             entry__user=user,
             entry__activityDate__gte=startDate,
             entry__activityDate__lte=endDate
@@ -754,7 +756,7 @@ class Entry(models.Model):
     objects = EntryManager()
 
     def __str__(self):
-        return '{0.entryType} on {0.activityDate}'.format(self)
+        return '{0.entryType} of {0.activityDate}'.format(self)
 
     def formatTags(self):
         """Returns a comma-separated string of self.tags ordered by tag name"""
