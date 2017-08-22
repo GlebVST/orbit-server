@@ -221,10 +221,15 @@ def login_via_token(request, access_token):
           paramType: form
     """
     remote_addr = request.META.get('REMOTE_ADDR')
+    inviterId = request.GET.get('inviteid') # if present, this is the inviteId of the inviter
     auth0_users = Users(settings.AUTH0_DOMAIN)
     user_info = auth0_users.userinfo(access_token) # return str as json
     user_info_dict = json.loads(user_info) # create dict
-    logInfo(logger, request, 'user_id: {user_id} email:{email}'.format(**user_info_dict))
+    user_info_dict['inviterId'] = inviterId
+    msg = 'user_id:{user_id} email:{email}'.format(**user_info_dict)
+    if inviterId:
+        msg += " invitedBy:{inviterId}".format(**user_info_dict)
+    logInfo(logger, request, msg)
     user = authenticate(user_info=user_info_dict) # must specify the keyword user_info
     if user:
         auth_login(request, user)

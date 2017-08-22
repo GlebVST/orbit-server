@@ -8,7 +8,7 @@ from django.db import transaction
 from .models import Profile, Customer
 
 logger = logging.getLogger('gen.auth')
-
+HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890$!@#'
 # https://auth0.com/docs/user-profile/normalized
 # format of user_id: {identity provider id}|{unique id in the provider}
 
@@ -25,9 +25,12 @@ class Auth0Backend(object):
         email = user_info['email']
         email_verified = user_info.get('email_verified', False)
         picture = user_info.get('picture', '')
+        # optional key passed by login_via_token
+        inviterId = user_info.get('inviterId', None)
         try:
             user = User.objects.get(username=email) # the unique constraint is on the username field in the users table
         except User.DoesNotExist:
+            hashgen = Hashids(salt=settings.HASHIDS_SALT, alphabet=HASHIDS_ALPHABET, min_length=5)
             with transaction.atomic():
                 user = User.objects.create(
                     username=email,
@@ -35,11 +38,18 @@ class Auth0Backend(object):
                 )
                 profile = Profile(user=user)
                 profile.socialId = user_id
-                hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
                 profile.inviteId = hashgen.encode(user.pk)
                 if picture:
                     profile.pictureUrl = picture
                 profile.verified = email_verified
+                # Check for inviterId
+                if inviterId:
+                    qset = Profile.objects.filter(inviteId=inviterId)
+                    if qset.exists():
+                        profile.inviter = qset[0].user # inviter User
+                        logger.info('User {0.email} was invited by {1.email}'.format(user, profile.inviter))
+                    else:
+                        logger.warning('Invalid inviterId: {0}'.format(inviterId))
                 profile.save()
                 # create local customer object
                 customer = Customer(user=user)

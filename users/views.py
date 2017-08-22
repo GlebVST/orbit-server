@@ -316,11 +316,11 @@ class BrowserCmeOfferList(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         now = timezone.now()
-        return BrowserCmeOffer.objects.filter(
+        filter_kwargs = dict(
             user=user,
             expireDate__gt=now,
-            redeemed=False
-            ).select_related('sponsor').order_by('-modified')
+            redeemed=False)
+        return BrowserCmeOffer.objects.filter(**filter_kwargs).select_related('sponsor').order_by('-modified')
 
 
 #
@@ -379,8 +379,12 @@ class InvalidateEntry(generics.UpdateAPIView):
         instance = self.get_object()
         msg = 'Invalidate entry {0}'.format(instance)
         logInfo(logger, request, msg)
-        instance.valid = False
-        instance.save()
+        with transaction.atomic():
+            instance.valid = False
+            instance.save()
+            #if hasattr(instance, 'brcme'):
+            #    instance.brmce.offer.valid = False
+            #    instance.brcme.offer.save()
         context = {'success': True}
         return Response(context)
 
