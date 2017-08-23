@@ -706,7 +706,7 @@ class EntryManager(models.Manager):
         Optional filter by untagged only. This arg cannot be specified together with tag.
         """
         filter_kwargs = dict(
-            valid=True,
+            entry__valid=True,
             entry__user=user,
             entry__activityDate__gte=startDate,
             entry__activityDate__lte=endDate
