@@ -54,7 +54,7 @@ class BrowserCmeOfferAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'modified')
     #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
     list_select_related = ('user','eligible_site')
-    list_filter = ('redeemed','eligible_site','user')
+    list_filter = ('redeemed','eligible_site','user','valid')
     ordering = ('-modified',)
     inlines = [
         OfferTagInline,

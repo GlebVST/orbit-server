@@ -317,6 +317,7 @@ class BrowserCmeOfferList(generics.ListAPIView):
         user = self.request.user
         now = timezone.now()
         filter_kwargs = dict(
+            valid=True,
             user=user,
             expireDate__gt=now,
             redeemed=False)
@@ -382,9 +383,9 @@ class InvalidateEntry(generics.UpdateAPIView):
         with transaction.atomic():
             instance.valid = False
             instance.save()
-            #if hasattr(instance, 'brcme'):
-            #    instance.brmce.offer.valid = False
-            #    instance.brcme.offer.save()
+            if hasattr(instance, 'brcme'):
+                instance.brmce.offer.valid = False
+                instance.brcme.offer.save()
         context = {'success': True}
         return Response(context)
 

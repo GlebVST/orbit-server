@@ -224,7 +224,7 @@ class Profile(models.Model):
     socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
     pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
     cmeTags = models.ManyToManyField(CmeTag, related_name='profiles', blank=True)
-    degrees = models.ManyToManyField(Degree, blank=True) # TODO: switch to single ForeignKey
+    degrees = models.ManyToManyField(Degree, blank=True) # called primaryrole in UI
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
@@ -518,6 +518,7 @@ class BrowserCmeOffer(models.Model):
     suggestedDescr = models.TextField(blank=True, default='')
     expireDate = models.DateTimeField()
     redeemed = models.BooleanField(default=False)
+    valid = models.BooleanField(default=True)
     credits = models.DecimalField(max_digits=5, decimal_places=2,
         help_text='CME credits to be awarded upon redemption')
     cmeTags = models.ManyToManyField(
