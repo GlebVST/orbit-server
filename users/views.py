@@ -384,7 +384,7 @@ class InvalidateEntry(generics.UpdateAPIView):
             instance.valid = False
             instance.save()
             if hasattr(instance, 'brcme'):
-                instance.brmce.offer.valid = False
+                instance.brcme.offer.valid = False
                 instance.brcme.offer.save()
         context = {'success': True}
         return Response(context)
