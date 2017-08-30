@@ -1133,6 +1133,7 @@ class UserSubscriptionManager(models.Manager):
         Returns (Braintree result object, UserSubscription object)
         """
         user_subs = None
+        add_invitee_discount = False
         key = 'invitee_discount'
         if key in subs_params:
             add_invitee_discount = subs_params.pop(key)
@@ -1180,7 +1181,8 @@ class UserSubscriptionManager(models.Manager):
                 billingEndDate=endDate,
                 billingCycle=result.subscription.current_billing_cycle
             )
-            if add_invitee_discount:
+            if add_invitee_discount and not InvitationDiscount.objects.filter(invitee=user).exists():
+                # user can end/create subscription multiple times, but only add invitee once to InvitationDiscount.
                 InvitationDiscount.objects.create(
                     inviter=inviter,
                     invitee=user,
@@ -1302,6 +1304,13 @@ class UserSubscriptionManager(models.Manager):
             'trial_duration': 0,
             'payment_method_token': payment_token
         }
+        if user.profile.inviter:
+            qset = UserSubscription.objects.filter(user=user).exclude(pk=user_subs.pk)
+            if not qset.exists():
+                # User has no other subscription except this Trial which is to be canceled.
+                # Can apply invitee discount to the new Active subscription
+                subs_params['invitee_discount'] = invitee_discount
+                logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
         cancel_result = self.terminalCancelBtSubscription(user_subs)
         if cancel_result.is_success:
             # return (result, new_user_subs)
