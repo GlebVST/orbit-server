@@ -35,6 +35,12 @@ auth_patterns = [
     url(r'^ss-logout/?$', auth_views.ss_logout, name='ss-logout'),
 ]
 
+bt_patterns = [
+    # display payment form (for testing only)
+    url(r'^test-form/?$', payment_views.TestForm.as_view(), name='bt-test-form'),
+    url(r'^test-form-checkout/?$', payment_views.TestFormCheckout.as_view(), name='bt-test-form-checkout'),
+]
+
 api_patterns = [
     # ping test
     url(r'^ping/?$', views.PingTest.as_view(), name='ping-pong'),
@@ -123,6 +129,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
         url(r'^debug/email-receipt/?$', debug_views.EmailSubscriptionReceipt.as_view()),
         url(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view()),
+        url(r'^debug/invitation-discount/?$', debug_views.InvitationDiscountList.as_view()),
     ])
 
 
@@ -151,4 +158,6 @@ if settings.ENV_TYPE != settings.ENV_PROD:
     urlpatterns.extend([
         # direct use of oauth2_provider. Used for testing
         url(r'^o/', include('oauth2_provider.urls', namespace='oauth2_provider')),
+        # BT tests
+        url(r'^bt/', include(bt_patterns)),
     ])

@@ -10,23 +10,22 @@ console.debug(token);
 
 {% block content %}
 <div class="container">
-<h1>Payment Test</h1>
-<form id="checkout-form" action="/payment/checkout" method="post">
-  <div id="error-message"></div>
+    <h1>Test Form Checkout for {{ user }}. Now with csrf_token!</h1>
+    <form id="checkout-form" action="/bt/test-form-checkout/" method="post">{% csrf_token %}
+        <div id="error-message"></div>
 
-  <label for="card-number">Card Number</label>
-  <div class="hosted-field" id="card-number"></div>
+        <label for="card-number">Card Number</label>
+        <div class="hosted-field" id="card-number"></div>
 
-  <label for="cvv">CVV</label>
-  <div class="hosted-field" id="cvv"></div>
+        <label for="cvv">CVV</label>
+        <div class="hosted-field" id="cvv"></div>
 
-  <label for="expiration-date">Expiration Date</label>
-  <div class="hosted-field" id="expiration-date"></div>
+        <label for="expiration-date">Expiration Date</label>
+        <div class="hosted-field" id="expiration-date"></div>
 
-  <input type="hidden" name="payment-method-nonce">
-  <input type="hidden" name="point-purchase-option-id" value="1">
-  <input type="submit" value="Pay" disabled>
-</form>
+        <input type="hidden" name="payment-method-nonce">
+        <input type="submit" value="Submit" disabled>
+    </form>
 </div>
 {% endblock %}
 

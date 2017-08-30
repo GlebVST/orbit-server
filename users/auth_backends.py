@@ -8,7 +8,7 @@ from django.db import transaction
 from .models import Profile, Customer
 
 logger = logging.getLogger('gen.auth')
-HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890$!@#'
+HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
 # https://auth0.com/docs/user-profile/normalized
 # format of user_id: {identity provider id}|{unique id in the provider}
 

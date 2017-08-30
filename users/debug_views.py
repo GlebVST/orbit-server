@@ -235,3 +235,14 @@ class EmailSubscriptionPaymentFailure(APIView):
                 'transactionId': subs_trans.transactionId
             }
             return Response(context, status=status.HTTP_200_OK)
+
+
+class InvitationDiscountList(generics.ListAPIView):
+    """List of InvitationDiscounts for the current authenticated user as inviter"""
+    serializer_class = ReadInvitationDiscountSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def get_queryset(self):
+        user = self.request.user
+        return InvitationDiscount.objects.filter(inviter=user).select_related().order_by('-created')
+
