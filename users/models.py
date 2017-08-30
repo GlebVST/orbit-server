@@ -1019,6 +1019,12 @@ class InvitationDiscountManager(models.Manager):
             return float(totalAmount)
         return 0
 
+    def getNumCompletedForInviter(self, inviter):
+        """Get the total count of completed InvitationDiscounts for the given inviter 
+        Returns: int
+        """
+        return self.model.objects.filter(inviter=inviter, inviterDiscount__isnull=False).count()
+
 @python_2_unicode_compatible
 class InvitationDiscount(models.Model):
     invitee = models.OneToOneField(User,

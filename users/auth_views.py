@@ -173,11 +173,11 @@ def make_login_context(token, user):
     # 2017-08-15: add single object for user state license if exist
     if user.statelicenses.exists():
         context['statelicense'] = serialize_statelicense(user.statelicenses.all()[0])
-    # 2017-08-29: add latest InvitationDiscount for which user=inviter and total credit amount earned so far
-    latestInvDisc = InvitationDiscount.objects.getLatestForInviter(user)
-    if latestInvDisc:
+    # 2017-08-29: add total number of completed InvitationDiscount for which user=inviter and total inviter-discount amount earned so far
+    numCompleteInvites = InvitationDiscount.objects.getNumCompletedForInviter(user)
+    if numCompleteInvites:
         context['invitation'] = {
-            'latestInvitation': serialize_invitationDiscount(latestInvDisc),
+            'totalCompleteInvites': numCompleteInvites,
             'totalCredit': InvitationDiscount.objects.sumCreditForInviter(user)
         }
     return context
