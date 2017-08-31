@@ -1309,7 +1309,7 @@ class UserSubscriptionManager(models.Manager):
             if not qset.exists():
                 # User has no other subscription except this Trial which is to be canceled.
                 # Can apply invitee discount to the new Active subscription
-                subs_params['invitee_discount'] = invitee_discount
+                subs_params['invitee_discount'] = True
                 logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
         cancel_result = self.terminalCancelBtSubscription(user_subs)
         if cancel_result.is_success:
