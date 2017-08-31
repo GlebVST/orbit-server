@@ -493,6 +493,7 @@ class TestFormCheckout(View):
     Example JSON when using a new payment method with a Nonce prepared on client:
     {"payment-method-nonce":"cd36493e-f883-48c2-aef8-3789ee3569a9"}
     """
+    from django.http import JsonResponse
     def post(self, request, *args, **kwargs):
         context = {}
         userdata = request.POST.copy()
@@ -525,7 +526,7 @@ class TestFormCheckout(View):
             trans_status = result.transaction.status # don't call it status because it override DRF status
             context['status'] = trans_status
             context['transactionid'] = result.transaction.id
-            return Response(context, status=status.HTTP_200_OK)
+            return JsonResponse(context)
         else:
             if hasattr(result, 'transaction') and result.transaction is not None:
                 trans_status = result.transaction.status
@@ -540,4 +541,4 @@ class TestFormCheckout(View):
                         'code': error.code,
                         'message': error.message
                     })
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse(context, status=400)
