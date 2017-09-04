@@ -80,8 +80,8 @@ class Command(BaseCommand):
                         m.failure_alert_sent = True
                         m.save()
                         logger.info('Email payment_failure to {0.email} for transactionId {1.transactionId}'.format(user, m))
-            # finally, send emails for all settled transactions whose receipt_sent is False
-            qset = user_subs.transactions.filter(receipt_sent=False, status=SubscriptionTransaction.SETTLED)
+            # finally, send emails for all settled transactions whose receipt_sent is False and trans_type = sale
+            qset = user_subs.transactions.filter(receipt_sent=False, status=SubscriptionTransaction.SETTLED, trans_type=SubscriptionTransaction.TYPE_SALE)
             for m in qset:
                 try:
                     if settings.ENV_TYPE == settings.ENV_PROD:
