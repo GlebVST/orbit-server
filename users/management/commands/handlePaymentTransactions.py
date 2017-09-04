@@ -22,8 +22,8 @@ class Command(BaseCommand):
             if (user_subs.status == UserSubscription.CANCELED) or (user_subs.status == UserSubscription.EXPIRED):
                 continue
             bt_subs = UserSubscription.objects.findBtSubscription(user_subs.subscriptionId)
-            if user_subs.status != bt_subs.status or user_subs.billingCycle != bt_subs.current_billing_cycle:
-                logger.info('Updating subscriptionId: {0.subscriptionId}'.format(user_subs))
+            if user_subs.status != bt_subs.status or user_subs.billingCycle != bt_subs.current_billing_cycle or user_subs.nextBillingAmount != bt_subs.next_billing_period_amount:
+                logger.info('Updating subscriptionId: {0.subscriptionId} for user {0.user}'.format(user_subs))
                 UserSubscription.objects.updateSubscriptionFromBt(user_subs, bt_subs)
             # create and/or update transactions for this user_subs
             created, updated = SubscriptionTransaction.objects.updateTransactionsFromBtSubs(user_subs, bt_subs)
@@ -32,7 +32,10 @@ class Command(BaseCommand):
                 m = SubscriptionTransaction.objects.get(pk=t_pk)
                 if m.canSendReceipt():
                     try:
-                        sendReceiptEmail(user, user_subs, m)
+                        if settings.ENV_TYPE == settings.ENV_PROD:
+                            sendReceiptEmail(user, user_subs, m)
+                        else:
+                            logger.debug('mock sendReceiptEmail for transactionId: {0.transactionId}'.format(m))
                     except SMTPException as e:
                         logger.exception('Email receipt to {0.email} failed'.format(user))
                     else:
@@ -41,7 +44,10 @@ class Command(BaseCommand):
                         logger.info('Email receipt to {0.email} for transactionId {1.transactionId}'.format(user, m))
                 elif m.canSendFailureAlert():
                     try:
-                        sendPaymentFailureEmail(user, m)
+                        if settings.ENV_TYPE == settings.ENV_PROD:
+                            sendPaymentFailureEmail(user, m)
+                        else:
+                            logger.debug('mock sendPaymentFailureEmail for transactionId: {0.transactionId}'.format(m))
                     except:
                         logger.exception('Email payment_failure to {0.email} failed'.format(user))
                     else:
@@ -52,7 +58,10 @@ class Command(BaseCommand):
                 m = SubscriptionTransaction.objects.get(pk=t_pk)
                 if not m.receipt_sent and m.canSendReceipt():
                     try:
-                        sendReceiptEmail(user, user_subs, m)
+                        if settings.ENV_TYPE == settings.ENV_PROD:
+                            sendReceiptEmail(user, user_subs, m)
+                        else:
+                            logger.debug('mock sendReceiptEmail for transactionId: {0.transactionId}'.format(m))
                     except SMTPException as e:
                         logger.exception('Email receipt to {0.email} failed'.format(user))
                     else:
@@ -61,7 +70,10 @@ class Command(BaseCommand):
                         logger.info('Email receipt to {0.email} for transactionId {1.transactionId}'.format(user, m))
                 elif not m.failure_alert_sent and m.canSendFailureAlert():
                     try:
-                        sendPaymentFailureEmail(user, m)
+                        if settings.ENV_TYPE == settings.ENV_PROD:
+                            sendPaymentFailureEmail(user, m)
+                        else:
+                            logger.debug('mock sendPaymentFailureEmail for transactionId: {0.transactionId}'.format(m))
                     except:
                         logger.exception('Email payment_failure to {0.email} failed'.format(user))
                     else:
@@ -72,7 +84,10 @@ class Command(BaseCommand):
             qset = user_subs.transactions.filter(receipt_sent=False, status=SubscriptionTransaction.SETTLED)
             for m in qset:
                 try:
-                    sendReceiptEmail(user, user_subs, m)
+                    if settings.ENV_TYPE == settings.ENV_PROD:
+                        sendReceiptEmail(user, user_subs, m)
+                    else:
+                        logger.debug('mock sendReceiptEmail for transactionId: {0.transactionId}'.format(m))
                 except SMTPException as e:
                     logger.exception('Email receipt to {0.email} failed'.format(user))
                 else:

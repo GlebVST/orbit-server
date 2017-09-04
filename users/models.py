@@ -11,6 +11,7 @@ from urlparse import urlparse
 from django.conf import settings
 from django.contrib.auth.models import User, Group
 from django.contrib.postgres.fields import JSONField
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Prefetch, Count, Sum
 from django.utils import timezone
@@ -42,11 +43,24 @@ DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
 SPONSOR_BRCME = 'TUSM'
 ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
+INVITEE_DISCOUNT_TYPE = 'invitee'
+INVITER_DISCOUNT_TYPE = 'inviter'
+
+# maximum number of invites for which a discount is applied to the inviter's subscription.
+INVITER_MAX_NUM_DISCOUNT = 10
 
 def makeAwareDatetime(a_date, tzinfo=pytz.utc):
     """Convert <date> to <datetime> with timezone info"""
     return timezone.make_aware(
         datetime.combine(a_date, datetime.min.time()), tzinfo)
+
+def asLocalTz(dt):
+    """Args:
+        dt: aware datetime object
+    Returns dt in the LOCAL_TIME_ZONE
+    """
+    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
+    return dt.astimezone(tz)
 
 @python_2_unicode_compatible
 class Country(models.Model):
@@ -224,7 +238,7 @@ class Profile(models.Model):
     socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
     pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
     cmeTags = models.ManyToManyField(CmeTag, related_name='profiles', blank=True)
-    degrees = models.ManyToManyField(Degree, blank=True) # TODO: switch to single ForeignKey
+    degrees = models.ManyToManyField(Degree, blank=True) # called primaryrole in UI
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
@@ -518,6 +532,7 @@ class BrowserCmeOffer(models.Model):
     suggestedDescr = models.TextField(blank=True, default='')
     expireDate = models.DateTimeField()
     redeemed = models.BooleanField(default=False)
+    valid = models.BooleanField(default=True)
     credits = models.DecimalField(max_digits=5, decimal_places=2,
         help_text='CME credits to be awarded upon redemption')
     cmeTags = models.ManyToManyField(
@@ -677,11 +692,12 @@ class EntryManager(models.Manager):
 
     def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
-        Total Srcme credits over the given time period for the given user.
+        Total valid Srcme credits over the given time period for the given user.
         Optional filter by specific tag (cmeTag object).
         Optional filter by untagged only. This arg cannot be specified together with tag.
         """
         filter_kwargs = dict(
+            valid=True,
             user=user,
             entryType__name=ENTRYTYPE_SRCME,
             activityDate__gte=startDate,
@@ -700,11 +716,12 @@ class EntryManager(models.Manager):
 
     def sumBrowserCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
-        Total BrowserCme credits over the given time period for the given user.
+        Total valid BrowserCme credits over the given time period for the given user.
         Optional filter by specific tag (cmeTag object).
         Optional filter by untagged only. This arg cannot be specified together with tag.
         """
         filter_kwargs = dict(
+            entry__valid=True,
             entry__user=user,
             entry__activityDate__gte=startDate,
             entry__activityDate__lte=endDate
@@ -754,7 +771,7 @@ class Entry(models.Model):
     objects = EntryManager()
 
     def __str__(self):
-        return '{0.entryType} on {0.activityDate}'.format(self)
+        return '{0.entryType} of {0.activityDate}'.format(self)
 
     def formatTags(self):
         """Returns a comma-separated string of self.tags ordered by tag name"""
@@ -949,6 +966,100 @@ class PinnedMessage(models.Model):
         return self.title
 
 
+# A Discount must be created in the Braintree Control Panel, and synced with the db.
+@python_2_unicode_compatible
+class Discount(models.Model):
+    discountId = models.CharField(max_length=36, unique=True)
+    discountType = models.CharField(max_length=40, help_text='Discount Type: lowercased')
+    name = models.CharField(max_length=80)
+    amount = models.DecimalField(max_digits=5, decimal_places=2, help_text=' in USD')
+    numBillingCycles = models.IntegerField(default=1, help_text='Number of Billing Cycles')
+    activeForType = models.BooleanField(default=False, help_text='True if this is the active discount for its type')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        """Check that only 1 row has activeForType=True for a given discountType,
+        else raise ValidationError.
+        """
+        qset = Discount.objects.filter(discountType=self.discountType, activeForType=True)
+        if self.pk:
+            qset = qset.exclude(pk=self.pk)
+        if qset.exists():
+            raise ValidationError("Only 1 discount can have activeForType=True for its discountType: {0}".format(self.discountType))
+        else:
+            super(Discount, self).save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['discountType', '-created']
+
+# An invitee is given the invitee-discount once for the first billing cycle.
+# An inviter is given the inviter discount once for each invitee (upto $200 max) on the next billing cycle.
+class InvitationDiscountManager(models.Manager):
+    def getLatestForInviter(self, inviter):
+        """Return the last modified InvitationDiscount instance for the given inviter
+        or None if none exists
+        """
+        qset = self.model.objects.filter(inviter=inviter).select_related('invitee').order_by('-modified')
+        if qset.exists():
+            return qset[0]
+        return None
+
+    def sumCreditForInviter(self, inviter):
+        """Get sum of discount amount earned by the given inviter
+        Returns: float
+        """
+        qset = self.model.objects.filter(inviter=inviter, inviterDiscount__isnull=False, creditEarned=True).select_related('inviterDiscount')
+        data = qset.aggregate(total=Sum('inviterDiscount__amount'))
+        totalAmount = data['total']
+        if totalAmount:
+            return float(totalAmount)
+        return 0
+
+    def getNumCompletedForInviter(self, inviter):
+        """Get the total count of completed InvitationDiscounts for the given inviter 
+        Returns: int
+        """
+        return self.model.objects.filter(inviter=inviter, inviterDiscount__isnull=False).count()
+
+@python_2_unicode_compatible
+class InvitationDiscount(models.Model):
+    invitee = models.OneToOneField(User,
+        on_delete=models.CASCADE,
+        primary_key=True
+    )
+    inviter = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='inviters',
+    )
+    inviterDiscount = models.ForeignKey(Discount,
+        on_delete=models.CASCADE,
+        db_index=True,
+        null=True,
+        related_name='inviterdiscounts',
+        help_text='Set when inviter subscription has been updated with the discount'
+    )
+    inviteeDiscount = models.ForeignKey(Discount,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='inviteediscounts',
+    )
+    inviterBillingCycle = models.PositiveIntegerField(default=1,
+        help_text='Billing cycle of inviter at the time their subscription was updated.')
+    creditEarned = models.BooleanField(default=False,
+        help_text='True if inviter earns actual credit for this invitee as opposed to just karma.')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = InvitationDiscountManager()
+
+    def __str__(self):
+        return '{0.invitee} by {0.inviter}'.format(self)
+
+
 # Recurring Billing Plans
 # https://developers.braintreepayments.com/guides/recurring-billing/plans
 # A Plan must be created in the Braintree Control Panel, and synced with the db.
@@ -1011,9 +1122,30 @@ class UserSubscriptionManager(models.Manager):
         In local db:
             Create new UserSubscription instance
             Create new SubscriptionTransaction instance (if exists)
+        Args:
+            user: User instnace
+            plan: SubscriptionPlan instance
+            subs_params:dict w. keys
+                plan_id: BT planId of the plan
+                payment_method_token:str for the Customer
+                trial_duration:int (number of days of trial). If not given, uses plan default
+                invitee_discount:bool If True, will apply discount
         Returns (Braintree result object, UserSubscription object)
         """
         user_subs = None
+        add_invitee_discount = False
+        key = 'invitee_discount'
+        if key in subs_params:
+            add_invitee_discount = subs_params.pop(key)
+            inviter = user.profile.inviter
+            if add_invitee_discount and inviter is not None:
+                discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
+                # Add discounts:add key to subs_params
+                subs_params['discounts'] = {
+                    'add': [
+                        {"inherited_from_id": discount.discountId},
+                    ]
+                }
         result = braintree.Subscription.create(subs_params)
         if result.is_success:
             key = 'trial_duration'
@@ -1049,7 +1181,15 @@ class UserSubscriptionManager(models.Manager):
                 billingEndDate=endDate,
                 billingCycle=result.subscription.current_billing_cycle
             )
-            # create SubscriptionTransaction object in database
+            if add_invitee_discount and not InvitationDiscount.objects.filter(invitee=user).exists():
+                # user can end/create subscription multiple times, but only add invitee once to InvitationDiscount.
+                InvitationDiscount.objects.create(
+                    inviter=inviter,
+                    invitee=user,
+                    inviteeDiscount=discount
+                )
+
+            # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist
             result_transactions = result.subscription.transactions # list
             if len(result_transactions):
                 t = result_transactions[0]
@@ -1164,6 +1304,13 @@ class UserSubscriptionManager(models.Manager):
             'trial_duration': 0,
             'payment_method_token': payment_token
         }
+        if user.profile.inviter:
+            qset = UserSubscription.objects.filter(user=user).exclude(pk=user_subs.pk)
+            if not qset.exists():
+                # User has no other subscription except this Trial which is to be canceled.
+                # Can apply invitee discount to the new Active subscription
+                subs_params['invitee_discount'] = True
+                logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
         cancel_result = self.terminalCancelBtSubscription(user_subs)
         if cancel_result.is_success:
             # return (result, new_user_subs)
@@ -1174,9 +1321,9 @@ class UserSubscriptionManager(models.Manager):
 
     def updateSubscriptionFromBt(self, user_subs, bt_subs):
         """Update UserSubscription instance from braintree Subscription object
-        This always updates user_subs.status and billingCycle from BT object,
-        and always saves the model instance.
+        and save the model instance.
         """
+        billingAmount = user_subs.nextBillingAmount
         user_subs.status = bt_subs.status
         if bt_subs.status == self.model.ACTIVE:
             user_subs.display_status = self.model.UI_ACTIVE
@@ -1193,7 +1340,70 @@ class UserSubscriptionManager(models.Manager):
             if user_subs.billingEndDate != endDate:
                 user_subs.billingEndDate = endDate
         user_subs.billingCycle = bt_subs.current_billing_cycle
+        user_subs.nextBillingAmount = bt_subs.next_billing_period_amount
         user_subs.save()
+
+    def updateSubscriptionForInviterDiscount(self, user_subs, invDisc):
+        """Get the bt_subs for the given user_subs. If bt_subs
+        has no inviter discount, then add it, else increment the
+        quantity of the discount. Update the invDisc model instance
+        and set inviterDiscount and inviterBillingCycle.
+        Args:
+            user_subs: UserSubscription instance for the inviter
+            invDisc: InvitationDiscount instance
+        Returns: InvitationDiscount instance (either updated invDisc or the same instance)
+        """
+        bt_subs = self.findBtSubscription(user_subs.subscriptionId)
+        if not bt_subs:
+            logger.error('updateSubscriptionForInviterDiscount: BT subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs))
+            return (invDisc, False)
+        # Get the discount instance (discountId must match in BT)
+        discount = Discount.objects.get(discountType=INVITER_DISCOUNT_TYPE, activeForType=True)
+        add_new_discount = True
+        new_quantity = None
+        for d in bt_subs.discounts:
+            if d.id == discount.discountId:
+                add_new_discount = False
+                if d.quantity < INVITER_MAX_NUM_DISCOUNT:
+                    # Update existing row: increment quantity
+                    new_quantity = d.quantity + 1
+                else:
+                    logger.info('Inviter {0.user} has already earned  max discount quantity: {1}'.format(user_subs, INVITER_MAX_NUM_DISCOUNT))
+                break
+        subs_params = None
+        if add_new_discount:
+            subs_params = dict(discounts={'add': [
+                    {"inherited_from_id": discount.discountId},
+                ]})
+            logger.info('Add {0.discountId} to user_subs for {1.user}'.format(discount, user_subs))
+        elif new_quantity:
+            subs_params = dict(discounts={'update': [
+                    {
+                        "existing_id": discount.discountId,
+                        "quantity": new_quantity
+                    },
+                ]})
+            logger.info('Update quantity of {0.discountId} in user_subs for {1.user} to {2}'.format(discount, user_subs, new_quantity))
+        if subs_params:
+            # Update BT subscription
+            res = braintree.Subscription.update(user_subs.subscriptionId, subs_params)
+            if res.is_success:
+                # Set invitationDiscount.creditEarned
+                invDisc.creditEarned = True
+                invDisc.inviterDiscount = discount
+                invDisc.inviterBillingCycle = bt_subs.current_billing_cycle
+                invDisc.save()
+                return (invDisc, True)
+            else:
+                logger.error('Update BtSubscription for {0.user} failed. Result message: {1.message}'.format(user_subs, res))
+                # InvitationDiscount not updated
+                return (invDisc, False)
+        else:
+            # Update InvitationDiscount (karma only)
+            invDisc.inviterDiscount = discount
+            invDisc.inviterBillingCycle = bt_subs.current_billing_cycle
+            invDisc.save()
+            return (invDisc, True)
 
 
     def checkTrialToActive(self, user_subs):
@@ -1222,7 +1432,7 @@ class UserSubscriptionManager(models.Manager):
         if not user_subs:
             return
         bt_subs = self.findBtSubscription(user_subs.subscriptionId)
-        if user_subs.status != bt_subs.status or user_subs.billingCycle != bt_subs.current_billing_cycle:
+        if user_subs.status != bt_subs.status or user_subs.billingCycle != bt_subs.current_billing_cycle or user_subs.nextBillingAmount != bt_subs.next_billing_period_amount:
             self.updateSubscriptionFromBt(user_subs, bt_subs)
         return SubscriptionTransaction.objects.updateTransactionsFromBtSubs(user_subs, bt_subs)
 
@@ -1235,12 +1445,7 @@ class UserSubscriptionManager(models.Manager):
         """
         collection = braintree.Subscription.search(braintree.SubscriptionSearch.plan_id == planId)
         for subs in collection.items:
-            logger.debug('subscriptionId:{0} status:{1} start:{2} end:{3}.'.format(
-                subs.subscriptionId,
-                subs.status,
-                subs.billing_period_start_date,
-                subs.billing_period_end_date
-            ))
+            logger.debug('{0.subscriptionId}|{0.status}|cycle:{0.current_billing_cycle}|{0.billing_period_start_date}|{0.billing_period_end_date}|NextAmount: {0.next_billing_period_amount}'.format(subs))
         return collection
 
 @python_2_unicode_compatible
@@ -1298,7 +1503,13 @@ class UserSubscription(models.Model):
     billingFirstDate = models.DateTimeField(null=True, blank=True, help_text='Braintree first_bill_date')
     billingStartDate = models.DateTimeField(null=True, blank=True, help_text='Braintree billing_period_start_date - regardless of status')
     billingEndDate = models.DateTimeField(null=True, blank=True, help_text='Braintree billing_period_end_date - regardless of status')
-    billingCycle = models.PositiveIntegerField(default=1, help_text='Braintree current_billing_cycle')
+    billingCycle = models.PositiveIntegerField(default=1,
+        help_text='BT current_billing_cycle')
+    nextBillingAmount = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=0,
+        help_text=' BT next_billing_period_amount in USD')
     remindRenewSent = models.BooleanField(default=False, help_text='set to True upon sending of auto-renewal reminder via email')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)

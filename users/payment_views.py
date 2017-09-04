@@ -10,15 +10,16 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils import timezone
 from django.utils.decorators import method_decorator
-from django.views import generic
+from django.views import generic, View
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
-from rest_framework import permissions, status
+from rest_framework import generics, exceptions, permissions, status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
 # proj
 from common.logutils import *
 # app
 from .models import *
+from .serializers import ReadUserSubsSerializer, CreateUserSubsSerializer
 
 TPL_DIR = 'users'
 
@@ -148,19 +149,29 @@ class UpdatePaymentToken(APIView):
 
 
 
-class NewSubscription(APIView):
-    """
+class NewSubscription(generics.CreateAPIView):
+    """Create new subscription for the user
     This view expects a JSON object in the POST data:
-    Example JSON when using existing customer payment method with token obtained from Vault:
-        {"plan-id":1,"payment-method-token":"5wfrrp", "do-trial":0}
+    Example when using existing customer payment method with token obtained from Vault:
+        {"plan":1,"payment_method_token":"5wfrrp", "do_trial":0}
 
-    Example JSON when using a new payment method with a Nonce prepared on client:
-        {"plan-id":1,"payment-method-nonce":"cd36493e-f883-48c2-aef8-3789ee3569a9", "do-trial":0}
-    If do-trial == 0: the trial period is skipped and the subscription starts immediately.
-    If do-trial == 1 (or key not present), the trial period is activated. This is the default.
+    Example when using a new payment method with a Nonce prepared on client:
+        {"plan":1,"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9", "do_trial":0}
+    If a None is given, it takes precedence and will be saved to the Customer vault and converted into a token.
+    If do_trial == 0: the trial period is skipped and the subscription starts immediately.
+    If do_trial == 1 (or key not present), the trial period is activated. This is the default.
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def post(self, request, *args, **kwargs):
+    serializer_class = CreateUserSubsSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def perform_create(self, serializer, format=None):
+        user = self.request.user
+        with transaction.atomic():
+            result, user_subs = serializer.save(user=user)
+        return (result, user_subs)
+
+    def create(self, request, *args, **kwargs):
+        """Override method to handle custom input/output data structures"""
         # first check if user is allowed to create a new subscription
         if not UserSubscription.objects.allowNewSubscription(request.user):
             context = {
@@ -169,29 +180,27 @@ class NewSubscription(APIView):
             }
             logError(logger, request, context['message'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        userdata = request.data
-        # some basic validation for incoming parameters
-        payment_nonce = userdata.get('payment-method-nonce', None)
-        payment_token = userdata.get('payment-method-token', None)
-        if not payment_nonce and not payment_token:
-            context = {
-                'success': False,
-                'message': 'Payment Nonce or Method Token is required'
-            }
-            logError(logger, request, context['message'])
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        do_trial = userdata.get('do-trial', 1)
+        # form_data will be modified before passing it to serializer
+        form_data = request.data.copy()
+        payment_nonce = form_data.get('payment_method_nonce', None)
+        payment_token = form_data.get('payment_method_token', None)
+        trial_duration = form_data.get('trial_duration', None)
+        default_do_trial = 1 if trial_duration else 0
+        do_trial = form_data.get('do_trial', default_do_trial)
         if do_trial not in (0, 1):
             context = {
                 'success': False,
-                'message': 'do-trial value must be either 0 or 1'
+                'message': 'do_trial value must be either 0 or 1'
             }
             logError(logger, request, context['message'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
+        invitee_discount = False
+        # Get last subscription of User (if any)
+        last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
         # If user has had a prior subscription, do_trial must be 0
-        if do_trial:
-            last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
-            if last_subscription:
+        if last_subscription:
+            if do_trial:
                 context = {
                     'success': False,
                     'message': 'Renewing subscription is not permitted a trial period.'
@@ -199,28 +208,10 @@ class NewSubscription(APIView):
                 message = context['message'] + ' last_subscription id: {0}'.format(last_subscription.pk)
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        # plan pk (primary_key of plan in db)
-        planPk = userdata.get('plan-id', None)
-        if not planPk:
-            context = {
-                'success': False,
-                'message': 'Plan Id is required (pk)'
-            }
-            logError(logger, request, context['message'])
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            plan = SubscriptionPlan.objects.get(pk=planPk)
-        except ObjectDoesNotExist:
-            context = {
-                'success': False,
-                'message': 'Invalid Plan Id (pk)'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        subs_params = {
-            'plan_id': plan.planId # planId must exist in BT Control Panel
-        }
-        if not do_trial:
-            subs_params['trial_duration'] = 0  # subscription starts immediately
+        elif request.user.profile.inviter:
+            # User's first subscription. Can apply invitee discount
+            invitee_discount = True
+
         # get local customer object and braintree customer
         try:
             customer = Customer.objects.get(user=request.user)
@@ -240,13 +231,10 @@ class NewSubscription(APIView):
             message = context['message'] + ' customerId: {0}'.format(customer.customerId)
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-
+        # Convert nonce into token because it is required by subs
         if payment_nonce:
-            # We would only create a new subscription when there was no previous subscription or everything was cancelled
-            # so should be safe to make sure that user has no or just one payment method (can't be many).
+            # If user has multiple tokens, then delete their tokens
             Customer.objects.makeSureNoMultipleMethods(customer)
-
-            # First we need to update the Customer Vault to get a token
             try:
                 result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
             except ValueError, e:
@@ -254,7 +242,7 @@ class NewSubscription(APIView):
                     'success': False,
                     'message': str(e)
                 }
-                logException(logger, request, 'NewSubscription ValueError')
+                logException(logger, request, 'NewSubscription addOrUpdatePaymentMethod ValueError')
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             if not result.is_success:
                 context = {
@@ -267,24 +255,24 @@ class NewSubscription(APIView):
             bc2 = Customer.objects.findBtCustomer(customer)
             tokens = [m.token for m in bc2.payment_methods]
             payment_token = tokens[0]
-        # Update params for subscription
-        subs_params['payment_method_token'] = payment_token
-        # Create the subscription and transaction record
-        with transaction.atomic():
-            result, user_subs = UserSubscription.objects.createBtSubscription(request.user, plan, subs_params)
+        # finally update form_data for serializer
+        form_data['payment_method_token'] = payment_token
+        form_data['invitee_discount'] = invitee_discount
+        if not do_trial:
+            form_data['trial_duration'] = 0 # 0 days of trial. Subs starts immediately
+        print(form_data)
+        in_serializer = self.get_serializer(data=form_data)
+        in_serializer.is_valid(raise_exception=True)
+        result, user_subs = self.perform_create(in_serializer)
         context = {'success': result.is_success}
         if not result.is_success:
             context['message'] = 'Create Subscription failed.'
             message = 'NewSubscription: Create Subscription failed. Result message: {0.message}'.format(result)
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            context['subscriptionId'] = user_subs.subscriptionId
-            context['bt_status'] = user_subs.status
-            context['display_status'] = user_subs.display_status
-            context['billingStartDate'] = user_subs.billingStartDate
-            context['billingEndDate'] = user_subs.billingEndDate
-            logInfo(logger, request, 'NewSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
+        logInfo(logger, request, 'NewSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
+        out_serializer = ReadUserSubsSerializer(user_subs)
+        context['subscription'] = out_serializer.data
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -495,4 +483,62 @@ class TestForm(generic.TemplateView):
     def get_context_data(self, **kwargs):
         context = super(TestForm, self).get_context_data(**kwargs)
         context['token'] = braintree.ClientToken.generate()
+        context['user'] = self.request.user
         return context
+
+@method_decorator(login_required, name='dispatch')
+class TestFormCheckout(View):
+    """
+    This view expects a JSON object from the POST with Braintree transaction details.
+    Example JSON when using a new payment method with a Nonce prepared on client:
+    {"payment-method-nonce":"cd36493e-f883-48c2-aef8-3789ee3569a9"}
+    """
+    from django.http import JsonResponse
+    def post(self, request, *args, **kwargs):
+        context = {}
+        userdata = request.POST.copy()
+        pprint(userdata)
+        payment_nonce = userdata['payment-method-nonce']
+        # get customer object from database
+        customer = Customer.objects.get(user=request.user)
+        # prepare transaction details
+        transaction_params = {
+            "amount": 3,
+            "options": {
+                "submit_for_settlement": True
+            }
+        }
+        # new card payment - need to associate with the customer in Braintree's Vault on success
+        transaction_params.update({
+            "payment_method_nonce": payment_nonce,
+            "customer_id": str(customer.customerId),
+            "options": {
+                "store_in_vault_on_success": True
+            }
+        })
+        # https://developers.braintreepayments.com/reference/request/transaction/sale/python
+        # https://developers.braintreepayments.com/reference/response/transaction/python#result-object
+        result = braintree.Transaction.sale(transaction_params)
+        success = result.is_success # bool
+        pprint(result)
+        context['success'] = success
+        if success:
+            trans_status = result.transaction.status # don't call it status because it override DRF status
+            context['status'] = trans_status
+            context['transactionid'] = result.transaction.id
+            return JsonResponse(context)
+        else:
+            if hasattr(result, 'transaction') and result.transaction is not None:
+                trans_status = result.transaction.status
+                context['status'] = trans_status
+            else:
+                # validation error
+                context['status'] = 'validation_error'
+                context['validation_errors'] = []
+                for error in result.errors.deep_errors:
+                    context['validation_errors'].append({
+                        'attribute': error.attribute,
+                        'code': error.code,
+                        'message': error.message
+                    })
+            return JsonResponse(context, status=400)

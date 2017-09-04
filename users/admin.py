@@ -54,7 +54,7 @@ class BrowserCmeOfferAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'modified')
     #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
     list_select_related = ('user','eligible_site')
-    list_filter = ('redeemed','eligible_site','user')
+    list_filter = ('redeemed','eligible_site','user','valid')
     ordering = ('-modified',)
     inlines = [
         OfferTagInline,
@@ -113,6 +113,17 @@ class UserFeedbackAdmin(admin.ModelAdmin):
     clear_reviewed.short_description = "Clear reviewed flag of selected rows"
 
 
+class DiscountAdmin(admin.ModelAdmin):
+    list_display = ('id','discountType', 'activeForType', 'discountId','name','amount','numBillingCycles','created')
+    ordering = ('discountType', '-created',)
+
+
+class InvitationDiscountAdmin(admin.ModelAdmin):
+    list_display = ('invitee_id', 'invitee', 'inviteeDiscount', 'inviter', 'inviterDiscount', 'inviterBillingCycle', 'creditEarned', 'created')
+    list_select_related = True
+    list_filter = ('creditEarned',)
+    ordering = ('-created',)
+
 
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ('id', 'planId', 'name', 'price', 'monthlyPrice', 'discountPrice', 'discountMonthlyPrice', 'trialDays', 'billingCycleMonths', 'active', 'modified')
@@ -121,8 +132,8 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
-        'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle', 'remindRenewSent',
-        'created', 'modified')
+        'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle', 'nextBillingAmount',
+        'modified')
     list_select_related = ('user','plan')
     list_filter = ('status', 'display_status', 'remindRenewSent')
     ordering = ('-modified',)
@@ -195,10 +206,12 @@ admin_site.register(CmeTag, CmeTagAdmin)
 admin_site.register(Country, CountryAdmin)
 admin_site.register(Customer, CustomerAdmin)
 admin_site.register(Degree, DegreeAdmin)
+admin_site.register(Discount, DiscountAdmin)
 admin_site.register(Document, DocumentAdmin)
 admin_site.register(EligibleSite, EligibleSiteAdmin)
 admin_site.register(Entry, EntryAdmin)
 admin_site.register(EntryType, EntryTypeAdmin)
+admin_site.register(InvitationDiscount, InvitationDiscountAdmin)
 admin_site.register(PinnedMessage, PinnedMessageAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)

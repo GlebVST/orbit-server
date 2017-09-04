@@ -19,7 +19,7 @@ import common.appconstants as appconstants
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
-from .serializers import ReadProfileSerializer, CmeTagSerializer, StateLicenseSerializer
+from .serializers import ReadProfileSerializer, CmeTagSerializer, ReadUserSubsSerializer, StateLicenseSerializer, ReadInvitationDiscountSerializer
 
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
@@ -124,15 +124,8 @@ def serialize_permissions(user, user_subs):
     return perms
 
 def serialize_subscription(user_subs):
-    return {
-        'subscriptionId': user_subs.subscriptionId,
-        'bt_status': user_subs.status,
-        'display_status': user_subs.display_status,
-        'billingStartDate': user_subs.billingStartDate,
-        'billingEndDate': user_subs.billingEndDate,
-        'plan_id': user_subs.plan.pk,
-        'plan_name': user_subs.plan.name
-    }
+    s = ReadUserSubsSerializer(user_subs)
+    return s.data
 
 def serialize_profile(profile):
     s = ReadProfileSerializer(profile)
@@ -145,6 +138,8 @@ def serialize_cmetag(tag):
 def serialize_statelicense(obj):
     return StateLicenseSerializer(obj).data
 
+def serialize_invitationDiscount(obj):
+    return ReadInvitationDiscountSerializer(obj).data
 
 def make_login_context(token, user):
     """Create context dict for response.
@@ -165,7 +160,8 @@ def make_login_context(token, user):
         'profile': serialize_profile(profile),
         'customer': serialize_customer(customer),
         'sacmetag': serialize_cmetag(sacme_tag),
-        'statelicense': None
+        'statelicense': None,
+        'invitation': None
     }
     context['subscription'] = serialize_subscription(user_subs) if user_subs else None
     context['allowTrial'] = user_subs is None  # allow a trial period if user has never had a subscription
@@ -177,7 +173,15 @@ def make_login_context(token, user):
     # 2017-08-15: add single object for user state license if exist
     if user.statelicenses.exists():
         context['statelicense'] = serialize_statelicense(user.statelicenses.all()[0])
+    # 2017-08-29: add total number of completed InvitationDiscount for which user=inviter and total inviter-discount amount earned so far
+    numCompleteInvites = InvitationDiscount.objects.getNumCompletedForInviter(user)
+    if numCompleteInvites:
+        context['invitation'] = {
+            'totalCompleteInvites': numCompleteInvites,
+            'totalCredit': InvitationDiscount.objects.sumCreditForInviter(user)
+        }
     return context
+
 
 @api_view()
 @permission_classes((AllowAny,))
@@ -221,10 +225,15 @@ def login_via_token(request, access_token):
           paramType: form
     """
     remote_addr = request.META.get('REMOTE_ADDR')
+    inviterId = request.GET.get('inviteid') # if present, this is the inviteId of the inviter
     auth0_users = Users(settings.AUTH0_DOMAIN)
     user_info = auth0_users.userinfo(access_token) # return str as json
     user_info_dict = json.loads(user_info) # create dict
-    logInfo(logger, request, 'user_id: {user_id} email:{email}'.format(**user_info_dict))
+    user_info_dict['inviterId'] = inviterId
+    msg = 'user_id:{user_id} email:{email}'.format(**user_info_dict)
+    if inviterId:
+        msg += " invitedBy:{inviterId}".format(**user_info_dict)
+    logInfo(logger, request, msg)
     user = authenticate(user_info=user_info_dict) # must specify the keyword user_info
     if user:
         auth_login(request, user)

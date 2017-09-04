@@ -766,10 +766,11 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
         )
 
 
-class UserSubscriptionSerializer(serializers.ModelSerializer):
+class ReadUserSubsSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     plan = serializers.PrimaryKeyRelatedField(read_only=True)
-
+    plan_name = serializers.ReadOnlyField(source='plan.name')
+    bt_status = serializers.ReadOnlyField(source='status')
     class Meta:
         model = UserSubscription
         fields = (
@@ -777,7 +778,8 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
             'subscriptionId',
             'user',
             'plan',
-            'status',
+            'plan_name',
+            'bt_status',
             'display_status',
             'billingFirstDate',
             'billingStartDate',
@@ -786,6 +788,43 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
             'modified'
         )
         read_only_fields = fields
+
+
+class CreateUserSubsSerializer(serializers.Serializer):
+    plan = serializers.PrimaryKeyRelatedField(
+        queryset=SubscriptionPlan.objects.all())
+    payment_method_token = serializers.CharField(max_length=64)
+    invitee_discount = serializers.BooleanField()
+    trial_duration = serializers.IntegerField(required=False)
+
+    def save(self, **kwargs):
+        """This expects user passed in to kwargs
+        Call Manager method UserSubscription createBtSubscription
+        with the following parameters:
+            plan_id: BT planId of plan
+            payment_method_token:str for Customer
+            trial_duration:int number of days of trial (if not given, use plan default)
+            invitee_discount:bool - if True, add invitee discount
+        Returns: tuple (result object, UserSubscription instance)
+        """
+        user = kwargs['user']
+        print('user: {0}'.format(user))
+        validated_data = self.validated_data
+        plan = validated_data['plan']
+        payment_method_token = validated_data['payment_method_token']
+        invitee_discount = validated_data['invitee_discount']
+        subs_params = {
+            'plan_id': plan.planId,
+            'payment_method_token': payment_method_token,
+            'invitee_discount': invitee_discount
+        }
+        key = 'trial_duration'
+        if key in validated_data:
+            subs_params[key] = validated_data[key]
+        # Create the subscription and transaction record (transaction is handle from by perform_create)
+        return UserSubscription.objects.createBtSubscription(user, plan, subs_params)
+
+
 
 PINNED_MESSAGE_LABEL = 'Self-Assessed CME'
 
@@ -922,5 +961,41 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
             'otherCredits',
             'data',
             'created'
+        )
+        read_only_fields = fields
+
+
+class ReadInvitationDiscountSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source='invitee.id', read_only=True)
+    inviter = serializers.PrimaryKeyRelatedField(read_only=True)
+    inviteeEmail = serializers.ReadOnlyField(source='invitee.email')
+    inviteeFirstName = serializers.ReadOnlyField(source='invitee.profile.firstName')
+    inviteeLastName = serializers.ReadOnlyField(source='invitee.profile.lastName')
+    isComplete = serializers.SerializerMethodField()
+    creditAmount = serializers.SerializerMethodField()
+
+    def get_isComplete(self, obj):
+        """Instance is complete if inviterDiscount is set
+            (e.g. invitee begun Active subscription)
+        """
+        return obj.inviterDiscount is not None
+
+    def get_creditAmount(self, obj):
+        if obj.inviterDiscount and obj.creditEarned:
+            return obj.inviterDiscount.amount
+        return 0
+
+    class Meta:
+        model = UserFeedback
+        fields = (
+            'id',
+            'inviter',
+            'inviteeEmail',
+            'inviteeFirstName',
+            'inviteeLastName',
+            'isComplete',
+            'creditAmount',
+            'created',
+            'modified'
         )
         read_only_fields = fields

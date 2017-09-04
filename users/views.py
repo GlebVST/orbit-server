@@ -146,6 +146,31 @@ class ProfileUpdate(generics.UpdateAPIView):
     serializer_class = UpdateProfileSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
+class InviteIdLookup(APIView):
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request, *args, **kwargs):
+        lookupId = self.kwargs.get('inviteid')
+        if lookupId:
+            qset = Profile.objects.filter(inviteId=lookupId)
+            if qset.exists():
+                profile = qset[0]
+                if profile.firstName:
+                    username = profile.firstName
+                elif profile.lastName:
+                    username = profile.lastName
+                elif profile.npiFirstName:
+                    username = profile.npiFirstName
+                elif profile.npiLastName:
+                    username = profile.npiLastName
+                else:
+                    username = 'Your friend'
+                context = {
+                    'username': username
+                }
+                return Response(context, status=status.HTTP_200_OK)
+        return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+
 
 class SetProfileAccessedTour(APIView):
     """This view sets/clears the accessedTour flag on the user's profile.
@@ -316,11 +341,12 @@ class BrowserCmeOfferList(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         now = timezone.now()
-        return BrowserCmeOffer.objects.filter(
+        filter_kwargs = dict(
+            valid=True,
             user=user,
             expireDate__gt=now,
-            redeemed=False
-            ).select_related('sponsor').order_by('-modified')
+            redeemed=False)
+        return BrowserCmeOffer.objects.filter(**filter_kwargs).select_related('sponsor').order_by('-modified')
 
 
 #
@@ -340,6 +366,7 @@ class FeedList(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return Entry.objects.filter(user=user, valid=True).select_related('entryType','sponsor').order_by('-created')
+
 
 class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
     serializer_class = EntryReadSerializer
@@ -364,6 +391,29 @@ class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
                 logDebug(logger, request, 'Deleting document {0}'.format(doc))
                 doc.delete()
         return self.destroy(request, *args, **kwargs)
+
+
+class InvalidateEntry(generics.UpdateAPIView):
+    serializer_class = EntryReadSerializer
+    permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
+
+    def get_queryset(self):
+        user = self.request.user
+        return Entry.objects.filter(user=user, valid=True).select_related('entryType', 'sponsor')
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        msg = 'Invalidate entry {0}'.format(instance)
+        logInfo(logger, request, msg)
+        with transaction.atomic():
+            instance.valid = False
+            instance.save()
+            if hasattr(instance, 'brcme'):
+                instance.brcme.offer.valid = False
+                instance.brcme.offer.save()
+        context = {'success': True}
+        return Response(context)
+
 
 class TagsMixin(object):
     """Mixin to handle the tags parameter in request.data

@@ -35,6 +35,12 @@ auth_patterns = [
     url(r'^ss-logout/?$', auth_views.ss_logout, name='ss-logout'),
 ]
 
+bt_patterns = [
+    # display payment form (for testing only)
+    url(r'^test-form/?$', payment_views.TestForm.as_view(), name='bt-test-form'),
+    url(r'^test-form-checkout/?$', payment_views.TestFormCheckout.as_view(), name='bt-test-form-checkout'),
+]
+
 api_patterns = [
     # ping test
     url(r'^ping/?$', views.PingTest.as_view(), name='ping-pong'),
@@ -75,6 +81,7 @@ api_patterns = [
     url(r'^practice-specialties/(?P<pk>[0-9]+)/?$', views.PracticeSpecialtyDetail.as_view()),
     url(r'^user-state-licenses/?$', views.UserStateLicenseList.as_view()),
     url(r'^user-state-licenses/(?P<pk>[0-9]+)/?$', views.UserStateLicenseDetail.as_view()),
+    url(r'^invite-lookup/(?P<inviteid>[0-9A-Za-z!@]+)/?$', views.InviteIdLookup.as_view()),
 
     # Feed entry types, sponsors, eligibleSites for browserCme
     url(r'^entrytypes/?$', views.EntryTypeList.as_view()),
@@ -87,6 +94,7 @@ api_patterns = [
     # FEED
     url(r'^feed/?$', views.FeedList.as_view()),
     url(r'^feed/(?P<pk>[0-9]+)/?$', views.FeedEntryDetail.as_view()),
+    url(r'^feed/invalidate-entry/(?P<pk>[0-9]+)/?$', views.InvalidateEntry.as_view()),
     url(r'^feed/browser-cme-offers/?$', views.BrowserCmeOfferList.as_view()),
     url(r'^feed/browser-cme/?$', views.CreateBrowserCme.as_view()),
     url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', views.UpdateBrowserCme.as_view()),
@@ -122,6 +130,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
         url(r'^debug/email-receipt/?$', debug_views.EmailSubscriptionReceipt.as_view()),
         url(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view()),
+        url(r'^debug/invitation-discount/?$', debug_views.InvitationDiscountList.as_view()),
     ])
 
 
@@ -150,4 +159,6 @@ if settings.ENV_TYPE != settings.ENV_PROD:
     urlpatterns.extend([
         # direct use of oauth2_provider. Used for testing
         url(r'^o/', include('oauth2_provider.urls', namespace='oauth2_provider')),
+        # BT tests
+        url(r'^bt/', include(bt_patterns)),
     ])
