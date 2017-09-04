@@ -1195,10 +1195,11 @@ class UserSubscriptionManager(models.Manager):
                 t = result_transactions[0]
                 card_type = t.credit_card.get('card_type')
                 card_last4 = t.credit_card.get('last_4')
+                proc_auth_code=t.processor_authorization_code or ''
                 subs_trans = SubscriptionTransaction.objects.create(
                         subscription=user_subs,
                         transactionId=t.id,
-                        proc_auth_code=t.processor_authorization_code,
+                        proc_auth_code=proc_auth_code,
                         proc_response_code=t.processor_response_code,
                         amount=t.amount,
                         status=t.status,
@@ -1537,6 +1538,7 @@ class SubscriptionTransactionManager(models.Manager):
         created = []
         updated = []
         for t in bt_subs.transactions:
+            proc_auth_code=t.processor_authorization_code or '' # convert None to empty str for db
             # does SubscriptionTransaction instance exist in db
             qset = SubscriptionTransaction.objects.filter(transactionId=t.id)
             if qset.exists():
@@ -1545,8 +1547,8 @@ class SubscriptionTransactionManager(models.Manager):
                 if m.status != t.status:
                     m.status = t.status
                     doSave = True
-                if m.proc_auth_code != t.processor_authorization_code:
-                    m.proc_auth_code = t.processor_authorization_code
+                if m.proc_auth_code != proc_auth_code:
+                    m.proc_auth_code = proc_auth_code
                     doSave = True
                 if m.proc_response_code != t.processor_response_code:
                     m.proc_response_code = t.processor_response_code
@@ -1559,16 +1561,20 @@ class SubscriptionTransactionManager(models.Manager):
                 # create new
                 card_type = t.credit_card.get('card_type')
                 card_last4 = t.credit_card.get('last_4')
+                trans_type = t.type
+                if trans_type not in ('sale', 'credit'):
+                    logger.warning('Unrecognized transaction type: {0}'.format(trans_type))
                 m = SubscriptionTransaction.objects.create(
                         subscription=user_subs,
                         transactionId=t.id,
-                        proc_auth_code=t.processor_authorization_code,
+                        trans_type=trans_type,
+                        proc_auth_code=proc_auth_code,
                         proc_response_code=t.processor_response_code,
                         amount=t.amount,
                         status=t.status,
                         card_type=card_type,
                         card_last4=card_last4)
-                logger.info('Created transaction {0.transactionId} from BT.'.format(m))
+                logger.info('Created transaction {0.transactionId} type {0.trans_type} from BT.'.format(m))
                 created.append(m.pk)
         return (created, updated)
 
@@ -1613,6 +1619,7 @@ class SubscriptionTransaction(models.Model):
     proc_response_code = models.CharField(max_length=4, blank=True, help_text='processor_response_code')
     receipt_sent = models.BooleanField(default=False, help_text='set to True on sending of receipt via email')
     failure_alert_sent = models.BooleanField(default=False, help_text='set to True on sending of payment failure alert via email')
+    trans_type = models.CharField(max_length=10, default='sale', help_text='sale or credit. If credit, then amount was refunded')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionTransactionManager()
@@ -1620,15 +1627,23 @@ class SubscriptionTransaction(models.Model):
     def __str__(self):
         return self.transactionId
 
+    def isSale(self):
+        return self.trans_type == 'sale'
+
+    def isCredit(self):
+        return self.trans_type == 'credit'
+
     def canSendReceipt(self):
-        return self.status in (
+        """Can send sale receipt"""
+        return self.isSale() and self.status in (
                 SubscriptionTransaction.SUBMITTED_FOR_SETTLEMENT,
                 SubscriptionTransaction.SETTLING,
                 SubscriptionTransaction.SETTLED
             )
 
     def canSendFailureAlert(self):
-        return self.status in (
+        """Can send payment failure alert"""
+        return self.isSale() and self.status in (
                 SubscriptionTransaction.AUTHORIZATION_EXPIRED,
                 SubscriptionTransaction.FAILED,
                 SubscriptionTransaction.GATEWAY_REJECTED,

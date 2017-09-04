@@ -140,7 +140,7 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
 
 
 class SubscriptionTransactionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'transactionId', 'subscription', 'amount', 'status', 'card_type', 'card_last4', 'receipt_sent', 'created', 'modified')
+    list_display = ('id', 'transactionId', 'subscription', 'trans_type', 'amount', 'status', 'card_type', 'card_last4', 'receipt_sent', 'created', 'modified')
     list_select_related = ('subscription',)
     raw_id_fields = ('subscription',)
     list_filter = ('receipt_sent',)
