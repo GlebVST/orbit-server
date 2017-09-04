@@ -1,0 +1,30 @@
+[
+{
+  "model": "users.discount",
+  "pk": 1,
+  "fields": {
+    "discountId": "discount-invitee-0",
+    "discountType": "invitee",
+    "name": "Invitee promo",
+    "amount": "20.00",
+    "numBillingCycles": 1,
+    "activeForType": true,
+    "created": "2017-08-28T07:08:56.511Z",
+    "modified": "2017-08-28T07:08:56.511Z"
+  }
+},
+{
+  "model": "users.discount",
+  "pk": 2,
+  "fields": {
+    "discountId": "discount-inviter-0",
+    "discountType": "inviter",
+    "name": "Inviter promo",
+    "amount": "20.00",
+    "numBillingCycles": 1,
+    "activeForType": true,
+    "created": "2017-08-28T07:09:18.727Z",
+    "modified": "2017-08-28T07:09:18.727Z"
+  }
+}
+]
