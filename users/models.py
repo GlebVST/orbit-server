@@ -1327,7 +1327,11 @@ class UserSubscriptionManager(models.Manager):
         billingAmount = user_subs.nextBillingAmount
         user_subs.status = bt_subs.status
         if bt_subs.status == self.model.ACTIVE:
-            user_subs.display_status = self.model.UI_ACTIVE
+            today = timezone.now()
+            if (today > user_subs.billingFirstDate):
+                user_subs.display_status = self.model.UI_ACTIVE
+            else:
+                user_subs.display_status = self.model.UI_TRIAL
         elif bt_subs.status == self.model.PASTDUE:
             user_subs.display_status = self.model.UI_SUSPENDED
         startDate = bt_subs.billing_period_start_date
@@ -1562,7 +1566,7 @@ class SubscriptionTransactionManager(models.Manager):
                 card_type = t.credit_card.get('card_type')
                 card_last4 = t.credit_card.get('last_4')
                 trans_type = t.type
-                if trans_type not in ('sale', 'credit'):
+                if trans_type not in (SubscriptionTransaction.TYPE_SALE, SubscriptionTransaction.TYPE_CREDIT):
                     logger.warning('Unrecognized transaction type: {0}'.format(trans_type))
                 m = SubscriptionTransaction.objects.create(
                         subscription=user_subs,
@@ -1603,7 +1607,9 @@ class SubscriptionTransaction(models.Model):
     SETTLED = 'settled'
     # The processor settlement response code may have more information about why the transaction was declined.
     SETTLEMENT_DECLINED = 'settlement_declined'
-
+    # transaction types
+    TYPE_SALE = 'sale'
+    TYPE_CREDIT = 'credit'
     # fields
     transactionId = models.CharField(max_length=36, unique=True)
     subscription = models.ForeignKey(UserSubscription,
@@ -1628,10 +1634,10 @@ class SubscriptionTransaction(models.Model):
         return self.transactionId
 
     def isSale(self):
-        return self.trans_type == 'sale'
+        return self.trans_type == SubscriptionTransaction.TYPE_SALE
 
     def isCredit(self):
-        return self.trans_type == 'credit'
+        return self.trans_type == SubscriptionTransaction.TYPE_CREDIT
 
     def canSendReceipt(self):
         """Can send sale receipt"""
