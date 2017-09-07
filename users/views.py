@@ -919,6 +919,15 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
                     'error': 'Start date must be prior to End Date.'
                 }
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            # Sponsor mandate: if startdt < BRCME_MIN_START_DATE then clamp it
+            if startdt < BRCME_MIN_START_DATE:
+                startdt = BRCME_MIN_START_DATE
+                logDebug(logger, request, 'Clamping brcme startdate.')
+                if startdt >= enddt:
+                    context = {
+                        'error': 'No Browser-CME credits in this date range.'
+                    }
+                    return Response(context, status=status.HTTP_400_BAD_REQUEST)
         except ValueError:
             context = {
                 'error': 'Invalid date parameters'
@@ -939,7 +948,7 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
         cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
-                'error': 'No CME credits earned in this date range.'
+                'error': 'No Browser-CME credits earned in this date range.'
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
@@ -1005,6 +1014,15 @@ class CreateAuditReport(CertificateMixin, APIView):
                     'error': 'Start date must be prior to End Date.'
                 }
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            # Sponsor mandate: if startdt < BRCME_MIN_START_DATE then clamp it for brcme only
+            if startdt < BRCME_MIN_START_DATE:
+                brcme_startdt = BRCME_MIN_START_DATE
+                logDebug(logger, request, 'Clamping brcme startdate.')
+                if brcme_startdt >= enddt:
+                    logInfo(logger, request, 'Clamped startdate is not prior to enddate - omit certificate generation.')
+                    brcme_startdt = None # browserCmeTotal will not be calculated
+            else:
+                brcme_startdt = startdt
         except ValueError:
             context = {
                 'error': 'Invalid date parameters'
@@ -1024,7 +1042,10 @@ class CreateAuditReport(CertificateMixin, APIView):
         # get total self-reported cme credits earned by user in date range
         srCmeTotal = Entry.objects.sumSRCme(user, startdt, enddt)
         # get total Browser-cme credits earned by user in date range
-        browserCmeTotal = Entry.objects.sumBrowserCme(user, startdt, enddt)
+        if brcme_startdt:
+            browserCmeTotal = Entry.objects.sumBrowserCme(user, brcme_startdt, enddt)
+        else:
+            browserCmeTotal = 0
         cmeTotal = srCmeTotal + browserCmeTotal
         if cmeTotal == 0:
             context = {
@@ -1034,7 +1055,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         certificate = None
         if browserCmeTotal > 0:
-            certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal)
+            certificate = self.makeCertificate(profile, brcme_startdt, enddt, cmeTotal)
         report = self.makeReport(profile, startdt, enddt, certificate)
         if report is None:
             context = {

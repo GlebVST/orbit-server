@@ -1,4 +1,6 @@
 """Constants used by the apps in the Orbit project"""
+from datetime import datetime
+import pytz
 
 MAX_URL_LENGTH = 500
 
@@ -39,5 +41,7 @@ SELF_REPORTED_AUTHORITY = u'Self Reported'
 # Category 2: activities that are self-designated/self-assessed. They do not need to be documented or verified by an external party.
 AMA_PRA_CATEGORY_LABEL = u'AMA PRA Category '
 
+# Sponsor-mandated minium start date allowed for BrowserCme
+BRCME_MIN_START_DATE = datetime(2017,8,7,tzinfo=pytz.utc)
 
 PINNED_MESSAGE_TITLE_PREFIX = u'Orbit Stories: '
