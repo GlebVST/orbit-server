@@ -104,7 +104,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         return obj.isNPIComplete()
 
     def get_cmeTags(self, obj):
-        annotatedTags = self.getCmeTagsWithIsActive()
+        annotatedTags = obj.getCmeTagsWithIsActive()
         return [ProfileCmeTagSerializer(t).data for t in annotatedTags]
 
     class Meta:

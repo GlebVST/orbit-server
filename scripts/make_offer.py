@@ -26,7 +26,7 @@ def getUser(firstName=None, lastName=None, email=None):
         print('User filter parameter is required.')
 
 def makeOffers(user):
-    NUM_OFFERS = 5
+    NUM_OFFERS = 10
     sponsor = Sponsor.objects.get(pk=1)
     # the EligibleSites appropriate for this user
     esiteids = EligibleSite.objects.getSiteIdsForProfile(user.profile)
@@ -38,10 +38,8 @@ def makeOffers(user):
         eligible_site__in=esiteids,
         expireDate__gte=now
     ).values_list('url', flat=True).distinct()
-    print('Num exclude_urls: {0}'.format(len(exclude_urls))
+    print('Num exclude_urls: {0}'.format(len(exclude_urls)))
     aurls = AllowedUrl.objects.filter(eligible_site__in=esiteids).exclude(url__in=exclude_urls).order_by('?')[:NUM_OFFERS]
-
-    aurls = AllowedUrl.objects.filter(eligible_site=esite).exclude(url__in=exclude_urls).order_by('id')[:NUM_OFFERS]
     num_aurls = aurls.count()
     t1 = now - timedelta(days=num_aurls)
     for j, aurl in enumerate(aurls):
