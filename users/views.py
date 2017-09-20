@@ -23,7 +23,6 @@ from rest_framework.views import APIView
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
-from common.appconstants import BRCME_MIN_START_DATE
 # app
 from .models import *
 from .serializers import *
@@ -920,15 +919,6 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
                     'error': 'Start date must be prior to End Date.'
                 }
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
-            # Sponsor mandate: if startdt < BRCME_MIN_START_DATE then clamp it
-            if startdt < BRCME_MIN_START_DATE:
-                startdt = BRCME_MIN_START_DATE
-                logDebug(logger, request, 'Clamping brcme startdate.')
-                if startdt >= enddt:
-                    context = {
-                        'error': 'No Browser-CME credits in this date range.'
-                    }
-                    return Response(context, status=status.HTTP_400_BAD_REQUEST)
         except ValueError:
             context = {
                 'error': 'Invalid date parameters'
@@ -1015,15 +1005,7 @@ class CreateAuditReport(CertificateMixin, APIView):
                     'error': 'Start date must be prior to End Date.'
                 }
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
-            # Sponsor mandate: if startdt < BRCME_MIN_START_DATE then clamp it for brcme only
-            if startdt < BRCME_MIN_START_DATE:
-                brcme_startdt = BRCME_MIN_START_DATE
-                logDebug(logger, request, 'Clamping brcme startdate.')
-                if brcme_startdt >= enddt:
-                    logInfo(logger, request, 'Clamped startdate is not prior to enddate - omit certificate generation.')
-                    brcme_startdt = None # browserCmeTotal will not be calculated
-            else:
-                brcme_startdt = startdt
+            brcme_startdt = startdt
         except ValueError:
             context = {
                 'error': 'Invalid date parameters'

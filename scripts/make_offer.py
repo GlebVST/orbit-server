@@ -44,9 +44,16 @@ def makeOffers(user):
     t1 = now - timedelta(days=num_aurls)
     for j, aurl in enumerate(aurls):
         url = aurl.url
-        urlname = viewutils.getUrlLastPart(url)
+        print(url)
+        if not aurl.page_title:
+            urlname = viewutils.getUrlLastPart(url)
+            pageTitle = urlname
+            suggestedDescr = urlname
+        else:
+            pageTitle = aurl.page_title
+            suggestedDescr = aurl.page_title
         activityDate = t1 + timedelta(days=j)
-        expireDate = now + timedelta(days=2)
+        expireDate = now + timedelta(days=20)
         esite = aurl.eligible_site
         specnames = [p.name for p in esite.specialties.all()]
         spectags = CmeTag.objects.filter(name__in=specnames)
@@ -56,8 +63,8 @@ def makeOffers(user):
                 eligible_site=esite,
                 activityDate=activityDate,
                 url=url,
-                pageTitle=urlname,
-                suggestedDescr=urlname,
+                pageTitle=pageTitle,
+                suggestedDescr=suggestedDescr,
                 expireDate=expireDate,
                 credits=0.5,
                 sponsor=sponsor
