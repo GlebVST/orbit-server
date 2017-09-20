@@ -26,7 +26,7 @@ def getUser(firstName=None, lastName=None, email=None):
         print('User filter parameter is required.')
 
 def makeOffers(user):
-    NUM_OFFERS = 10
+    NUM_OFFERS = 3
     sponsor = Sponsor.objects.get(pk=1)
     # the EligibleSites appropriate for this user
     esiteids = EligibleSite.objects.getSiteIdsForProfile(user.profile)
@@ -71,7 +71,7 @@ def makeOffers(user):
             )
             for t in spectags:
                 OfferCmeTag.objects.create(offer=offer, tag=t)
-        print user.username, urlname, offer.pk, activityDate.strftime('%Y-%m-%d')
+        print user.username, pageTitle, offer.pk, activityDate.strftime('%Y-%m-%d')
 
 def redeemOffers(user):
     """Redeem unexpired offers and create BrowserCme entries in feed"""

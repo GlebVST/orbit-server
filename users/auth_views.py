@@ -19,7 +19,7 @@ import common.appconstants as appconstants
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
-from .serializers import ReadProfileSerializer, CmeTagSerializer, ReadUserSubsSerializer, StateLicenseSerializer, ReadInvitationDiscountSerializer
+from .serializers import ReadProfileSerializer, CmeTagSerializer, ActiveCmeTagSerializer, ReadUserSubsSerializer, StateLicenseSerializer, ReadInvitationDiscountSerializer
 
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
@@ -131,8 +131,8 @@ def serialize_profile(profile):
     s = ReadProfileSerializer(profile)
     return s.data
 
-def serialize_cmetag(tag):
-    s = CmeTagSerializer(tag)
+def serialize_active_cmetag(tag):
+    s = ActiveCmeTagSerializer(tag)
     return s.data
 
 def serialize_statelicense(obj):
@@ -159,7 +159,7 @@ def make_login_context(token, user):
         'user': serialize_user(user),
         'profile': serialize_profile(profile),
         'customer': serialize_customer(customer),
-        'sacmetag': serialize_cmetag(sacme_tag),
+        'sacmetag': serialize_active_cmetag(sacme_tag),
         'statelicense': None,
         'invitation': None
     }

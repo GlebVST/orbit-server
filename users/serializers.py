@@ -27,6 +27,18 @@ class CmeTagSerializer(serializers.ModelSerializer):
         model = CmeTag
         fields = ('id', 'name', 'priority', 'description')
 
+# Used by auth_view to serialize the SA-CME tag
+class ActiveCmeTagSerializer(serializers.ModelSerializer):
+    is_active = serializers.SerializerMethodField()
+
+    def get_is_active(self, obj):
+        return True
+
+    class Meta:
+        model = CmeTag
+        fields = ('id', 'name', 'priority', 'description', 'is_active')
+
+
 class NestedStateSerializer(serializers.ModelSerializer):
 
     class Meta:
