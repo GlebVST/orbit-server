@@ -27,6 +27,18 @@ class CmeTagSerializer(serializers.ModelSerializer):
         model = CmeTag
         fields = ('id', 'name', 'priority', 'description')
 
+# Used by auth_view to serialize the SA-CME tag
+class ActiveCmeTagSerializer(serializers.ModelSerializer):
+    is_active = serializers.SerializerMethodField()
+
+    def get_is_active(self, obj):
+        return True
+
+    class Meta:
+        model = CmeTag
+        fields = ('id', 'name', 'priority', 'description', 'is_active')
+
+
 class NestedStateSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -61,9 +73,22 @@ class PracticeSpecialtySerializer(serializers.ModelSerializer):
         model = PracticeSpecialty
         fields = ('id', 'name', 'cmeTags')
 
+# Used by ReadProfileSerializer and UpdateProfileSerializer
+# It expects extra attribute on model instance called is_active
+class ProfileCmeTagSerializer(serializers.ModelSerializer):
+    is_active = serializers.SerializerMethodField()
+
+    def get_is_active(self, obj):
+        """Expects attrib on obj: is_active:bool"""
+        return obj.is_active
+
+    class Meta:
+        model = CmeTag
+        fields = ('id', 'name', 'priority', 'description', 'is_active')
+
 # Note: cmeTags cannot be updated directly. The caller can update the specialties,
 # and the update method will handle setting the cmeTags based on the specialties.
-# The cmeTags field is read-only by default because we used nested serializer.
+# The cmeTags field is read-only by default because it is a SerializerMethodField.
 # All keys listed in fields will be in the serialized representation of the
 # updated object returned by the endpoint.
 class UpdateProfileSerializer(serializers.ModelSerializer):
@@ -80,8 +105,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         queryset=Country.objects.all(),
         allow_null=True
     )
-    # use nested serializer to return list of objects
-    cmeTags = CmeTagSerializer(many=True, read_only=True)
+    cmeTags = serializers.SerializerMethodField()
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
 
@@ -90,6 +114,10 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
 
     def get_isNPIComplete(self, obj):
         return obj.isNPIComplete()
+
+    def get_cmeTags(self, obj):
+        annotatedTags = obj.getCmeTagsWithIsActive()
+        return [ProfileCmeTagSerializer(t).data for t in annotatedTags]
 
     class Meta:
         model = Profile
@@ -172,8 +200,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
 
 class ReadProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
-    # Per request of GlebS: use nested serializer to return list of objects
-    cmeTags = CmeTagSerializer(many=True)
+    cmeTags = serializers.SerializerMethodField()
     # degrees and specialties are list of pkeyids
     degrees = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     specialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
@@ -186,6 +213,10 @@ class ReadProfileSerializer(serializers.ModelSerializer):
 
     def get_isNPIComplete(self, obj):
         return obj.isNPIComplete()
+
+    def get_cmeTags(self, obj):
+        annotatedTags = obj.getCmeTagsWithIsActive()
+        return [ProfileCmeTagSerializer(t).data for t in annotatedTags]
 
     class Meta:
         model = Profile

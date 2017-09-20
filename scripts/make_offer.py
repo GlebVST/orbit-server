@@ -26,7 +26,7 @@ def getUser(firstName=None, lastName=None, email=None):
         print('User filter parameter is required.')
 
 def makeOffers(user):
-    NUM_OFFERS = 5
+    NUM_OFFERS = 3
     sponsor = Sponsor.objects.get(pk=1)
     # the EligibleSites appropriate for this user
     esiteids = EligibleSite.objects.getSiteIdsForProfile(user.profile)
@@ -38,17 +38,22 @@ def makeOffers(user):
         eligible_site__in=esiteids,
         expireDate__gte=now
     ).values_list('url', flat=True).distinct()
-    print('Num exclude_urls: {0}'.format(len(exclude_urls))
+    print('Num exclude_urls: {0}'.format(len(exclude_urls)))
     aurls = AllowedUrl.objects.filter(eligible_site__in=esiteids).exclude(url__in=exclude_urls).order_by('?')[:NUM_OFFERS]
-
-    aurls = AllowedUrl.objects.filter(eligible_site=esite).exclude(url__in=exclude_urls).order_by('id')[:NUM_OFFERS]
     num_aurls = aurls.count()
     t1 = now - timedelta(days=num_aurls)
     for j, aurl in enumerate(aurls):
         url = aurl.url
-        urlname = viewutils.getUrlLastPart(url)
+        print(url)
+        if not aurl.page_title:
+            urlname = viewutils.getUrlLastPart(url)
+            pageTitle = urlname
+            suggestedDescr = urlname
+        else:
+            pageTitle = aurl.page_title
+            suggestedDescr = aurl.page_title
         activityDate = t1 + timedelta(days=j)
-        expireDate = now + timedelta(days=2)
+        expireDate = now + timedelta(days=20)
         esite = aurl.eligible_site
         specnames = [p.name for p in esite.specialties.all()]
         spectags = CmeTag.objects.filter(name__in=specnames)
@@ -58,15 +63,15 @@ def makeOffers(user):
                 eligible_site=esite,
                 activityDate=activityDate,
                 url=url,
-                pageTitle=urlname,
-                suggestedDescr=urlname,
+                pageTitle=pageTitle,
+                suggestedDescr=suggestedDescr,
                 expireDate=expireDate,
                 credits=0.5,
                 sponsor=sponsor
             )
             for t in spectags:
                 OfferCmeTag.objects.create(offer=offer, tag=t)
-        print user.username, urlname, offer.pk, activityDate.strftime('%Y-%m-%d')
+        print user.username, pageTitle, offer.pk, activityDate.strftime('%Y-%m-%d')
 
 def redeemOffers(user):
     """Redeem unexpired offers and create BrowserCme entries in feed"""

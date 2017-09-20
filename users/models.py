@@ -311,6 +311,18 @@ class Profile(models.Model):
         return ", ".join([d.abbrev for d in self.degrees.all()])
     formatDegrees.short_description = "Primary Role"
 
+    def getCmeTagsWithIsActive(self):
+        """Return list of cmeTag model instances annotated with is_active bool.
+        The tag has is_active=True if it is associated with any one of the
+        profile's current specialties, else is_active=False.
+        """
+        tags = self.cmeTags.all()
+        ps_pks = self.specialties.values_list('id', flat=True)
+        ps_tag_pks = CmeTag.objects.filter(specialties__in=ps_pks).values_list('id', flat=True).distinct()
+        for t in tags:
+            t.is_active = t.pk in ps_tag_pks
+        return tags
+
 
 class StateLicense(models.Model):
     user = models.ForeignKey(User,
