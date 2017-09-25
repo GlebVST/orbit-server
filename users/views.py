@@ -512,17 +512,23 @@ class CreateSRCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
 
     def perform_create(self, serializer, format=None):
         """
-        1. If documents is specified, verify that document.user
+        If documents is specified, verify that document.user
             is request.user, else raise ValidationError.
-        2. Validate creditType
         """
         user = self.request.user
         doc_ids = self.request.data.get('documents', [])
-        num_docs = len(doc_ids)
-        if num_docs:
-            qset = Document.objects.filter(user=user, pk__in=doc_ids)
-            if qset.count() != num_docs:
-                raise serializers.ValidationError('Invalid documentId(s) specified for user.')
+        for doc_id in doc_ids:
+            qset = Document.objects.filter(pk=doc_id)
+            if qset.exists():
+                doc = qset[0]
+                if doc.user != user:
+                    error_msg = 'CreateSRCme: The documentId {0} is not owned by user: {1}.'.format(doc_id, user)
+                    logWarning(logger, self.request, error_msg)
+                    raise serializers.ValidationError(error_msg)
+            else:
+                error_msg = 'CreateSRCme: Invalid documentId {0} - does not exist.'.format(doc_id)
+                logWarning(logger, self.request, error_msg)
+                raise serializers.ValidationError(error_msg)
         # validate creditType (enable code after ui changes)
         #creditType = self.request.data.get('creditType', '')
         #if creditType != Entry.CREDIT_CATEGORY_1 or creditType != Entry.CREDIT_OTHER:
@@ -560,12 +566,18 @@ class UpdateSRCme(LogValidationErrorMixin, TagsMixin, generics.UpdateAPIView):
         user = self.request.user
         # check documents
         doc_ids = self.request.data.get('documents', [])
-        num_docs = len(doc_ids)
-        if num_docs:
-            qset = Document.objects.filter(user=user, pk__in=doc_ids)
-            if qset.count() != num_docs:
-                logWarning(logger, request, 'UpdateSRCme: Invalid documentId(s). queryset.count does not match num_docs.')
-                raise serializers.ValidationError('Invalid documentId(s) specified for user.')
+        for doc_id in doc_ids:
+            qset = Document.objects.filter(pk=doc_id)
+            if qset.exists():
+                doc = qset[0]
+                if doc.user != user:
+                    error_msg = 'UpdateSRCme: The documentId {0} is not owned by user: {1}.'.format(doc_id, user)
+                    logWarning(logger, self.request, error_msg)
+                    raise serializers.ValidationError(error_msg)
+            else:
+                error_msg = 'UpdateSRCme: Invalid documentId {0} - does not exist.'.format(doc_id)
+                logWarning(logger, self.request, error_msg)
+                raise serializers.ValidationError(error_msg)
         with transaction.atomic():
             srcme = serializer.save(user=user)
         return srcme
