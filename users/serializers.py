@@ -897,6 +897,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
     )
     needs_ad_block = serializers.BooleanField(default=False)
     all_specialties = serializers.BooleanField(default=False)
+    is_unlisted = serializers.BooleanField(default=False)
     class Meta:
         model = EligibleSite
         fields = (
@@ -908,7 +909,8 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
             'description',
             'specialties',
             'all_specialties',
-            'needs_ad_block'
+            'needs_ad_block',
+            'is_unlisted'
         )
 
     def create(self, validated_data):

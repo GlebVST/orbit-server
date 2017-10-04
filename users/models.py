@@ -511,6 +511,7 @@ class EligibleSite(models.Model):
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     needs_ad_block = models.BooleanField(default=False)
     all_specialties = models.BooleanField(default=False)
+    is_unlisted = models.BooleanField(default=False, blank=True, help_text='True if site should be unlisted')
     page_title_suffix = models.CharField(max_length=60, blank=True, default='', help_text='Common suffix for page titles')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
