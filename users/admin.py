@@ -78,8 +78,8 @@ class EntryAdmin(admin.ModelAdmin):
 
 class EligibleSiteAdmin(admin.ModelAdmin):
     #list_display = ('id', 'domain_name', 'domain_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
-    list_display = ('id', 'domain_name', 'example_url', 'page_title_suffix', 'needs_ad_block', 'modified')
-    list_filter = ('is_valid_expurl', 'needs_ad_block', 'all_specialties')
+    list_display = ('id', 'domain_name', 'domain_title', 'page_title_suffix', 'needs_ad_block', 'is_unlisted', 'modified')
+    list_filter = ('is_valid_expurl', 'needs_ad_block', 'all_specialties', 'is_unlisted')
     ordering = ('domain_name',)
     filter_horizontal = ('specialties',)
 
