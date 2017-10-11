@@ -751,6 +751,7 @@ class UserFeedbackList(generics.ListCreateAPIView):
             msg.send()
         except SMTPException as e:
             logException(logger, self.request, 'UserFeedback send email failed.')
+        return instance
 
 
 # Eligible Site
@@ -784,7 +785,7 @@ class EligibleSiteList(LogValidationErrorMixin, generics.ListCreateAPIView):
         with transaction.atomic():
             # create EligibleSite, AllowedHost, AllowedUrl
             instance = serializer.save(domain_name=domain_name)
-
+        return instance
 
 class EligibleSiteDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = EligibleSite.objects.all()

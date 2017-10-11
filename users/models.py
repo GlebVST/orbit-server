@@ -1740,11 +1740,13 @@ class AuditReport(models.Model):
 # plugin models - managed by plugin_server project
 #
 @python_2_unicode_compatible
-# Host names of allowed websites.
 class AllowedHost(models.Model):
     id = models.AutoField(primary_key=True)
     hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
     accept_query_keys = models.TextField(blank=True, default='', help_text='accepted keys in url query')
+    has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
+    allow_page_download = models.BooleanField(blank=True, default=True,
+            help_text='False if pages under this host should not be downloaded')
     created = models.DateTimeField(auto_now_add=True, blank=True)
     modified = models.DateTimeField(auto_now=True, blank=True)
 
@@ -1754,6 +1756,36 @@ class AllowedHost(models.Model):
 
     def __str__(self):
         return self.hostname
+
+@python_2_unicode_compatible
+class HostPattern(models.Model):
+    id = models.AutoField(primary_key=True)
+    host = models.ForeignKey(AllowedHost,
+        on_delete=models.CASCADE,
+        related_name='hostpatterns',
+        db_index=True
+    )
+    eligible_site = models.ForeignKey(EligibleSite,
+        on_delete=models.CASCADE,
+        db_index=True)
+    start_pattern = models.CharField(max_length=200,
+        help_text='url pattern to test against path. No leading or trailing slash.')
+    use_exact_match = models.BooleanField(default=False, help_text='True if the url represented by host/pattern (exact match) is an allowed url.')
+    path_contains = models.CharField(max_length=200, blank=True, default='',
+        help_text='If given, url path part must contain this term. No trailing slash.')
+    pattern_key = models.CharField(max_length=40, blank=True, default='', help_text='valid key in URL_PATTERNS dict')
+    created = models.DateTimeField(auto_now_add=True, blank=True)
+    modified = models.DateTimeField(auto_now=True, blank=True)
+    created = models.DateTimeField(auto_now_add=True, blank=True)
+    modified = models.DateTimeField(auto_now=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_hostpattern'
+        ordering = ['host','eligible_site','pattern_key','path_contains']
+
+    def __str__(self):
+        return '{0.host}|{0.eligible_site.domain_name}|key:{0.pattern_key}|start:{0.start_pattern}|pc: {0.path_contains}'.format(self)
 
 @python_2_unicode_compatible
 class AllowedUrl(models.Model):
