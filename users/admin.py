@@ -163,8 +163,13 @@ class AuditReportAdmin(admin.ModelAdmin):
 # plugin models
 #
 class AllowedHostAdmin(admin.ModelAdmin):
-    list_display = ('id', 'hostname', 'created', 'modified')
-    ordering = ('-modified',)
+    list_display = ('id', 'hostname', 'has_paywall', 'allow_page_download', 'accept_query_keys', 'created')
+    ordering = ('hostname',)
+
+class HostPatternAdmin(admin.ModelAdmin):
+    list_display = ('id', 'host', 'eligible_site', 'pattern_key', 'path_contains', 'start_pattern')
+    list_select_related = ('host','eligible_site')
+    list_filter = ('host', 'eligible_site')
 
 class AllowedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'eligible_site', 'url', 'set_id', 'modified')
@@ -225,5 +230,6 @@ admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 # plugin models
 #
 admin_site.register(AllowedHost, AllowedHostAdmin)
+admin_site.register(HostPattern, HostPatternAdmin)
 admin_site.register(AllowedUrl, AllowedUrlAdmin)
 admin_site.register(RequestedUrl, RequestedUrlAdmin)
