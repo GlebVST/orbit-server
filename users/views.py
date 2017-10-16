@@ -351,7 +351,7 @@ class BrowserCmeOfferPagination(PageNumberPagination):
 
 class BrowserCmeOfferList(generics.ListAPIView):
     """
-    Find the top N un-redeemed and unexpired offers order by modified desc
+    Get the un-redeemed and unexpired valid offers order by modified desc
     (latest modified first) for the authenticated user.
     """
     serializer_class = BrowserCmeOfferSerializer
@@ -419,7 +419,7 @@ class InvalidateEntry(generics.UpdateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Entry.objects.filter(user=user, valid=True).select_related('entryType', 'sponsor')
+        return Entry.objects.filter(user=user, valid=True)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -431,6 +431,30 @@ class InvalidateEntry(generics.UpdateAPIView):
             if hasattr(instance, 'brcme'):
                 instance.brcme.offer.valid = False
                 instance.brcme.offer.save()
+        context = {'success': True}
+        return Response(context)
+
+
+class InvalidateOffer(generics.UpdateAPIView):
+    serializer_class = BrowserCmeOfferSerializer
+    permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
+
+    def get_queryset(self):
+        user = self.request.user
+        return BrowserCmeOffer.objects.filter(user=user, valid=True)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.redeemed:
+            context = {
+                'success': False,
+                'message': 'Offer has already been redeemed.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        msg = 'Invalidate offer {0.pk}/{0}'.format(instance)
+        logInfo(logger, request, msg)
+        instance.valid = False
+        instance.save()
         context = {'success': True}
         return Response(context)
 

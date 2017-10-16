@@ -96,6 +96,7 @@ api_patterns = [
     url(r'^feed/?$', views.FeedList.as_view()),
     url(r'^feed/(?P<pk>[0-9]+)/?$', views.FeedEntryDetail.as_view()),
     url(r'^feed/invalidate-entry/(?P<pk>[0-9]+)/?$', views.InvalidateEntry.as_view()),
+    url(r'^feed/invalidate-offer/(?P<pk>[0-9]+)/?$', views.InvalidateOffer.as_view()),
     url(r'^feed/browser-cme-offers/?$', views.BrowserCmeOfferList.as_view()),
     url(r'^feed/browser-cme/?$', views.CreateBrowserCme.as_view()),
     url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', views.UpdateBrowserCme.as_view()),
