@@ -22,6 +22,15 @@ class DegreeSerializer(serializers.ModelSerializer):
         model = Degree
         fields = ('id', 'abbrev', 'name', 'sort_order')
 
+class CmeTagWithSpecSerializer(serializers.ModelSerializer):
+    specialties = serializers.PrimaryKeyRelatedField(
+        queryset=PracticeSpecialty.objects.all(),
+        many=True
+    )
+    class Meta:
+        model = CmeTag
+        fields = ('id', 'name', 'priority', 'description', 'specialties')
+
 class CmeTagSerializer(serializers.ModelSerializer):
     class Meta:
         model = CmeTag

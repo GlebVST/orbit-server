@@ -91,9 +91,12 @@ class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
 # CmeTag
 class CmeTagList(generics.ListCreateAPIView):
     queryset = CmeTag.objects.all().order_by('-priority', 'name')
-    serializer_class = CmeTagSerializer
+    serializer_class = CmeTagWithSpecSerializer
     pagination_class = LongPagination
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        return CmeTag.objects.all().prefetch_related('specialties')
 
 class CmeTagDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = CmeTag.objects.all()
