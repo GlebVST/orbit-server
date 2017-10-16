@@ -226,12 +226,16 @@ def login_via_token(request, access_token):
     """
     remote_addr = request.META.get('REMOTE_ADDR')
     inviterId = request.GET.get('inviteid') # if present, this is the inviteId of the inviter
+    affiliateId = request.GET.get('affid') # if present, this is the affiliateId of the converter
     auth0_users = Users(settings.AUTH0_DOMAIN)
     user_info = auth0_users.userinfo(access_token) # return str as json
     user_info_dict = json.loads(user_info) # create dict
     user_info_dict['inviterId'] = inviterId
+    user_info_dict['affiliateId'] = affiliateId
     msg = 'user_id:{user_id} email:{email}'.format(**user_info_dict)
-    if inviterId:
+    if affiliateId:
+        msg += " from-affl:{affiliateId}".format(**user_info_dict)
+    elif inviterId:
         msg += " invitedBy:{inviterId}".format(**user_info_dict)
     logInfo(logger, request, msg)
     user = authenticate(user_info=user_info_dict) # must specify the keyword user_info

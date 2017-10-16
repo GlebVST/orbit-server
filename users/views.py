@@ -146,6 +146,26 @@ class ProfileUpdate(generics.UpdateAPIView):
     serializer_class = UpdateProfileSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
+
+class AffiliateIdLookup(APIView):
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request, *args, **kwargs):
+        lookupId = self.kwargs.get('affid')
+        if lookupId:
+            qset = Affiliate.objects.filter(affiliateId=lookupId)
+            if qset.exists():
+                m = qset[0]
+                profile = m.user.profile
+                username = profile.getFullName()
+                context = {
+                    'username': username,
+                    'personalText': m.personalText,
+                    'photoUrl': m.photoUrl
+                }
+                return Response(context, status=status.HTTP_200_OK)
+        return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+
 class InviteIdLookup(APIView):
     permission_classes = (permissions.AllowAny,)
 

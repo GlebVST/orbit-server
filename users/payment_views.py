@@ -196,6 +196,7 @@ class NewSubscription(generics.CreateAPIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
         invitee_discount = False
+        convertee_discount = False # used for affiliate conversion
         # Get last subscription of User (if any)
         last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
         # If user has had a prior subscription, do_trial must be 0
@@ -209,8 +210,12 @@ class NewSubscription(generics.CreateAPIView):
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
         elif request.user.profile.inviter:
-            # User's first subscription. Can apply invitee discount
-            invitee_discount = True
+            # User's first subscription. Check if inviter is an affiliate
+            inviter = request.user.profile.inviter
+            if Affiliate.objects.filter(user=inviter).exists():
+                convertee_discount = True
+            else:
+                invitee_discount = True
 
         # get local customer object and braintree customer
         try:
@@ -258,9 +263,10 @@ class NewSubscription(generics.CreateAPIView):
         # finally update form_data for serializer
         form_data['payment_method_token'] = payment_token
         form_data['invitee_discount'] = invitee_discount
+        form_data['convertee_discount'] = convertee_discount
         if not do_trial:
             form_data['trial_duration'] = 0 # 0 days of trial. Subs starts immediately
-        print(form_data)
+        logDebug(logger, request, str(form_data))
         in_serializer = self.get_serializer(data=form_data)
         in_serializer.is_valid(raise_exception=True)
         result, user_subs = self.perform_create(in_serializer)

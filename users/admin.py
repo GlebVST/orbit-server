@@ -39,6 +39,11 @@ class CustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'customerId', 'created')
     search_fields = ['customerId',]
 
+class AffiliateAdmin(admin.ModelAdmin):
+    list_display = ('user', 'affiliateId', 'paymentEmail', 'bonus', 'active', 'created')
+    list_filter = ('active',)
+    readonly_fields = ('affiliateId',)
+
 class StateLicenseAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'state', 'license_no', 'created')
     list_select_related = True
@@ -51,7 +56,7 @@ class OfferTagInline(admin.TabularInline):
     model = OfferCmeTag
 
 class BrowserCmeOfferAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'modified')
+    list_display = ('id', 'user', 'activityDateLocalTz', 'redeemed', 'url', 'suggestedDescr', 'valid', 'modified')
     #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
     list_select_related = ('user','eligible_site')
     list_filter = ('redeemed','eligible_site','user','valid')
@@ -159,6 +164,17 @@ class AuditReportAdmin(admin.ModelAdmin):
     search_fields = ['referenceId',]
     ordering = ('-created',)
 
+class BatchPayoutAdmin(admin.ModelAdmin):
+    list_display = ('id','sender_batch_id','payout_batch_id','status','amount','date_completed','modified')
+    list_filter = ('status',)
+    ordering = ('-modified',)
+
+class AffiliatePayoutAdmin(admin.ModelAdmin):
+    list_display = ('convertee','affiliate','status','payoutItemId','transactionId','amount','modified')
+    list_select_related = True
+    list_filter = ('status',)
+    ordering = ('-modified',)
+
 #
 # plugin models
 #
@@ -172,10 +188,16 @@ class HostPatternAdmin(admin.ModelAdmin):
     list_filter = ('host', 'eligible_site')
 
 class AllowedUrlAdmin(admin.ModelAdmin):
-    list_display = ('id', 'eligible_site', 'url', 'set_id', 'modified')
+    list_display = ('id', 'eligible_site', 'url', 'valid', 'set_id', 'modified')
     list_select_related = ('host', 'eligible_site')
-    list_filter = ('host',)
+    list_filter = ('valid','host',)
     ordering = ('-modified',)
+
+class RejectedUrlAdmin(admin.ModelAdmin):
+    list_display = ('id', 'host', 'url', 'created')
+    list_select_related = ('host',)
+    list_filter = ('host',)
+    ordering = ('-created',)
 
 class RequestedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'url', 'valid', 'num_users', 'created')
@@ -204,7 +226,10 @@ class MyAdminSite(admin.AdminSite):
 
 admin_site = MyAdminSite()
 # register models
+admin_site.register(Affiliate, AffiliateAdmin)
+admin_site.register(AffiliatePayout, AffiliatePayoutAdmin)
 admin_site.register(AuditReport, AuditReportAdmin)
+admin_site.register(BatchPayout, BatchPayoutAdmin)
 admin_site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
 admin_site.register(Certificate, CertificateAdmin)
 admin_site.register(CmeTag, CmeTagAdmin)
@@ -232,4 +257,5 @@ admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 admin_site.register(AllowedHost, AllowedHostAdmin)
 admin_site.register(HostPattern, HostPatternAdmin)
 admin_site.register(AllowedUrl, AllowedUrlAdmin)
+admin_site.register(RejectedUrl, RejectedUrlAdmin)
 admin_site.register(RequestedUrl, RequestedUrlAdmin)

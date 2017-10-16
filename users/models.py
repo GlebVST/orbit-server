@@ -49,6 +49,8 @@ INVITER_DISCOUNT_TYPE = 'inviter'
 # maximum number of invites for which a discount is applied to the inviter's subscription.
 INVITER_MAX_NUM_DISCOUNT = 10
 
+LOCAL_TZ = pytz.timezone(settings.LOCAL_TIME_ZONE)
+
 def makeAwareDatetime(a_date, tzinfo=pytz.utc):
     """Convert <date> to <datetime> with timezone info"""
     return timezone.make_aware(
@@ -59,8 +61,7 @@ def asLocalTz(dt):
         dt: aware datetime object
     Returns dt in the LOCAL_TIME_ZONE
     """
-    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
-    return dt.astimezone(tz)
+    return dt.astimezone(LOCAL_TZ)
 
 @python_2_unicode_compatible
 class Country(models.Model):
@@ -241,6 +242,7 @@ class Profile(models.Model):
     degrees = models.ManyToManyField(Degree, blank=True) # called primaryrole in UI
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
+    is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
     cmeDuedate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
     created = models.DateTimeField(auto_now_add=True)
@@ -323,6 +325,23 @@ class Profile(models.Model):
             t.is_active = t.pk in ps_tag_pks
         return tags
 
+
+class Affiliate(models.Model):
+    user = models.OneToOneField(User,
+        on_delete=models.CASCADE,
+        primary_key=True
+    )
+    affiliateId = models.CharField(max_length=6, unique=True, help_text='Affiliate ID')
+    paymentEmail = models.EmailField(help_text='Valid email address to be used for Payouts.')
+    active = models.BooleanField(default=True)
+    bonus = models.DecimalField(max_digits=5, decimal_places=2, help_text='payout amount per converted user in USD')
+    personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
+    photoUrl = models.URLField(max_length=1000, blank=True, help_text='Link to affiliate photo')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.paymentEmail
 
 class StateLicense(models.Model):
     user = models.ForeignKey(User,
@@ -561,6 +580,9 @@ class BrowserCmeOffer(models.Model):
     def __str__(self):
         return self.url
 
+    def activityDateLocalTz(self):
+        return self.activityDate.astimezone(LOCAL_TZ)
+
     def formatSuggestedTags(self):
         return ", ".join([t.name for t in self.cmeTags.all()])
     formatSuggestedTags.short_description = "suggestedTags"
@@ -786,6 +808,9 @@ class Entry(models.Model):
     def __str__(self):
         return '{0.entryType} of {0.activityDate}'.format(self)
 
+    def asLocalTz(self):
+        return self.created.astimezone(LOCAL_TZ)
+
     def formatTags(self):
         """Returns a comma-separated string of self.tags ordered by tag name"""
         names = [t.name for t in self.tags.all()]  # should use default ordering on CmeTag model
@@ -933,13 +958,12 @@ class UserFeedback(models.Model):
 
     def message_snippet(self):
         if len(self.message) > UserFeedback.SNIPPET_MAX_CHARS:
-            return self.message[0:UserFeedBack.SNIPPET_MAX_CHARS] + '...'
+            return self.message[0:UserFeedback.SNIPPET_MAX_CHARS] + '...'
         return self.message
     message_snippet.short_description = "Message Snippet"
 
     def asLocalTz(self):
-        tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
-        return self.created.astimezone(tz)
+        return self.created.astimezone(LOCAL_TZ)
 
     class Meta:
         verbose_name_plural = 'User Feedback'
@@ -1072,6 +1096,110 @@ class InvitationDiscount(models.Model):
     def __str__(self):
         return '{0.invitee} by {0.inviter}'.format(self)
 
+# Note: sender_batch header can include recipient_type=EMAIL
+class BatchPayout(models.Model):
+    PENDING = 'PENDING'   # waiting to be processed
+    PROCESSING = 'PROCESSING' # being processed
+    SUCCESS = 'SUCCESS'   # successfully processed (but some payout items may be unclaimed/on hold0
+    NEW = 'NEW'           # delayed due to internal updates
+    DENIED = 'DENIED'     # No items in the batch payout were processed
+    CANCELED = 'CANCELED' # status cannot occur if sender uses the API only to send payouts but can occur if web pay is used.
+    STATUS_CHOICES = (
+        (PENDING, PENDING),
+        (PROCESSING, PROCESSING),
+        (SUCCESS, SUCCESS),
+        (DENIED, DENIED),
+        (NEW, NEW),
+        (CANCELED, CANCELED)
+    )
+    sender_batch_id = models.CharField(max_length=36, unique=True)
+    email_subject = models.CharField(max_length=200)
+    # fields to store response
+    payout_batch_id = models.CharField(max_length=36, blank=True, help_text='PayPal-generated ID for a batch payout.')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES,
+        help_text='PayPal-defined status of batch payout request')
+    date_completed = models.DateTimeField(null=True, blank=True)
+    amount = models.DecimalField(null=True, blank=True, max_digits=8, decimal_places=2, help_text='Batch amount paid')
+    currency = models.CharField(max_length=4, blank=True, help_text='Amount currency')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return '{0.sender_batch_id}/{0.status}'.format(self)
+
+# An convertee is given the invitee-discount once for the 1st billing cycle.
+# An affiliate is paid the per-user bonus once the convertee begins an Active subscription.
+class AffiliatePayoutManager(models.Manager):
+    def getNumCompletedSuccess(self, affl):
+        """Get the total count of completed AffiliatePayout rows for the given affiliate.
+        Returns: int
+        """
+        return self.model.objects.filter(
+                affiliate=affl,
+                transactionId__isnull=False,
+                status=self.model.SUCCESS,
+                ).count()
+
+@python_2_unicode_compatible
+class AffiliatePayout(models.Model):
+    BLOCKED = 'BLOCKED' # item is blocked
+    DENIED = 'DENIED'   # item is denied payment
+    FAILED = 'FAILED'   # processing failed
+    NEW = 'NEW'         # delayed due to internal updates
+    ONHOLD = 'ONHOLD'   # item is on hold
+    PENDING = 'PENDING' # item is awaiting payment
+    REFUNDED = 'REFUNDED' # payment for the item was succesfully refunded
+    RETURNED = 'RETURNED' # item is returned (recipient did not claim payment within 30 days)
+    SUCCESS = 'SUCCESS'   # item is successfully processed
+    UNCLAIMED = 'UNCLAIMED' # item is unclaimed (after 30 days unclaimed, status changes to RETURNED)
+    STATUS_CHOICES = (
+        (PENDING, PENDING),
+        (SUCCESS, SUCCESS),
+        (DENIED, DENIED),
+        (NEW, NEW),
+        (BLOCKED, BLOCKED),
+        (FAILED, FAILED),
+        (ONHOLD, ONHOLD),
+        (REFUNDED, REFUNDED),
+        (RETURNED, RETURNED),
+        (UNCLAIMED, UNCLAIMED)
+    )
+    convertee = models.OneToOneField(User,
+        on_delete=models.CASCADE,
+        primary_key=True
+    )
+    affiliate = models.ForeignKey(Affiliate,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='payouts',
+    )
+    batchpayout= models.ForeignKey(BatchPayout,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='afflpayouts',
+    )
+    converteeDiscount = models.ForeignKey(Discount,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='converteediscounts',
+    )
+    payoutItemId = models.CharField(max_length=36, blank=True,
+            help_text='PayPal-generated item identifier. Exists even if there is no transactionId.')
+    transactionId = models.CharField(max_length=36, blank=True,
+            help_text='PayPal-generated id for the transaction.')
+    amount = models.DecimalField(max_digits=5, decimal_places=2, help_text='Amount paid to affiliate in USD.')
+    fee = models.DecimalField(null=True, blank=True, max_digits=4, decimal_places=2, help_text='Transaction fee in USD')
+    status = models.CharField(max_length=20, blank=True, choices=STATUS_CHOICES,
+            help_text='PayPal-defined item transaction status')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = AffiliatePayoutManager()
+
+    def __str__(self):
+        return '{0.convertee} by {0.affiliate}/{0.status}'.format(self)
+
 
 # Recurring Billing Plans
 # https://developers.braintreepayments.com/guides/recurring-billing/plans
@@ -1136,29 +1264,36 @@ class UserSubscriptionManager(models.Manager):
             Create new UserSubscription instance
             Create new SubscriptionTransaction instance (if exists)
         Args:
-            user: User instnace
+            user: User instance
             plan: SubscriptionPlan instance
             subs_params:dict w. keys
                 plan_id: BT planId of the plan
                 payment_method_token:str for the Customer
                 trial_duration:int (number of days of trial). If not given, uses plan default
-                invitee_discount:bool If True, will apply discount
+                invitee_discount:bool If True, user.profile.inviter must be a User instance
+                convertee_discount: if True, user.profile.inviter.affiliate must be an Affiliate instance
         Returns (Braintree result object, UserSubscription object)
         """
         user_subs = None
-        add_invitee_discount = False
+        is_invitee = False
+        is_convertee = False
         key = 'invitee_discount'
         if key in subs_params:
-            add_invitee_discount = subs_params.pop(key)
-            inviter = user.profile.inviter
-            if add_invitee_discount and inviter is not None:
-                discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
-                # Add discounts:add key to subs_params
-                subs_params['discounts'] = {
-                    'add': [
-                        {"inherited_from_id": discount.discountId},
-                    ]
-                }
+            is_invitee = subs_params.pop(key)
+        key = 'convertee_discount'
+        if key in subs_params:
+            is_convertee = subs_params.pop(key)
+        if is_invitee or is_convertee:
+            inviter = user.profile.inviter # User instance (used below)
+            if not inviter:
+                raise ValueError('createBtSubscription: Invalid inviter')
+            discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
+            # Add discounts:add key to subs_params
+            subs_params['discounts'] = {
+                'add': [
+                    {"inherited_from_id": discount.discountId},
+                ]
+            }
         result = braintree.Subscription.create(subs_params)
         if result.is_success:
             key = 'trial_duration'
@@ -1194,12 +1329,18 @@ class UserSubscriptionManager(models.Manager):
                 billingEndDate=endDate,
                 billingCycle=result.subscription.current_billing_cycle
             )
-            if add_invitee_discount and not InvitationDiscount.objects.filter(invitee=user).exists():
+            if is_invitee and not InvitationDiscount.objects.filter(invitee=user).exists():
                 # user can end/create subscription multiple times, but only add invitee once to InvitationDiscount.
                 InvitationDiscount.objects.create(
                     inviter=inviter,
                     invitee=user,
                     inviteeDiscount=discount
+                )
+            elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
+                AffiliatePayout.objects.create(
+                    convertee=user,
+                    affiliate=inviter.affiliate, # Affiliate instance
+                    converteeDiscount=discount
                 )
 
             # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist
@@ -1815,6 +1956,21 @@ class AllowedUrl(models.Model):
     class Meta:
         managed = False
         db_table = 'trackers_allowedurl'
+
+    def __str__(self):
+        return self.url
+
+class RejectedUrl(models.Model):
+    id = models.AutoField(primary_key=True)
+    host = models.ForeignKey(AllowedHost, db_index=True)
+    url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
+    starts_with = models.BooleanField(default=False, help_text='True if any sub URL under it should also be rejected')
+    created = models.DateTimeField(auto_now_add=True, blank=True)
+    modified = models.DateTimeField(auto_now=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_rejectedurl'
 
     def __str__(self):
         return self.url

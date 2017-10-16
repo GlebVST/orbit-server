@@ -826,6 +826,7 @@ class CreateUserSubsSerializer(serializers.Serializer):
         queryset=SubscriptionPlan.objects.all())
     payment_method_token = serializers.CharField(max_length=64)
     invitee_discount = serializers.BooleanField()
+    convertee_discount = serializers.BooleanField()
     trial_duration = serializers.IntegerField(required=False)
 
     def save(self, **kwargs):
@@ -835,19 +836,21 @@ class CreateUserSubsSerializer(serializers.Serializer):
             plan_id: BT planId of plan
             payment_method_token:str for Customer
             trial_duration:int number of days of trial (if not given, use plan default)
-            invitee_discount:bool - if True, add invitee discount
+            invitee_discount:bool - used for InvitationDiscount
+            convertee_discount:bool - used for AffiliatePayout
         Returns: tuple (result object, UserSubscription instance)
         """
         user = kwargs['user']
-        print('user: {0}'.format(user))
         validated_data = self.validated_data
         plan = validated_data['plan']
         payment_method_token = validated_data['payment_method_token']
         invitee_discount = validated_data['invitee_discount']
+        convertee_discount = validated_data['convertee_discount']
         subs_params = {
             'plan_id': plan.planId,
             'payment_method_token': payment_method_token,
-            'invitee_discount': invitee_discount
+            'invitee_discount': invitee_discount,
+            'convertee_discount': convertee_discount
         }
         key = 'trial_duration'
         if key in validated_data:

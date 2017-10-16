@@ -129,6 +129,7 @@ AUTHENTICATION_BACKENDS = (
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
     'PAGE_SIZE': 100,
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         # OAuth
         'oauth2_provider.ext.rest_framework.OAuth2Authentication',
@@ -334,10 +335,6 @@ LOGGING = {
         },
     },
     'loggers': {
-        #'logdna': {
-        #    'handlers': ['gen_rotfile'],
-        #    'level': 'DEBUG',
-        #},
         'django.security.DisallowedHost': {
             'handlers': ['null',], # do not send email about Invalid HTTP_HOST header error
             'propagate': False,
@@ -348,23 +345,20 @@ LOGGING = {
             'propagate': True,
         },
         'api': {
-            #'handlers': ['req_rotfile', 'mail_admins', 'logdna'],
             'handlers': ['req_rotfile', 'mail_admins',],
             'level': 'DEBUG',
             'propagate': True,
         },
         'gen': {
-            #'handlers': ['gen_rotfile', 'mail_admins', 'logdna'],
             'handlers': ['gen_rotfile', 'mail_admins',],
             'level': 'DEBUG',
             'propagate': True,
         },
         'mgmt': {
-            #'handlers': ['mgmt_rotfile', 'mail_admins', 'logdna'],
             'handlers': ['mgmt_rotfile', 'mail_admins',],
             'level': 'DEBUG',
             'propagate': True,
-        },
+        }
     }
 }
 
