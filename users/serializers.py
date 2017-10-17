@@ -84,14 +84,14 @@ class PracticeSpecialtySerializer(serializers.ModelSerializer):
 
 class ProfileCmetagSerializer(serializers.ModelSerializer):
     """Used by ReadProfileSerializer and UpdateProfileSerializer"""
-    tag_id = serializers.ReadOnlyField(source='tag.id')
+    id = serializers.ReadOnlyField(source='tag.id')
     name = serializers.ReadOnlyField(source='tag.name')
     priority = serializers.ReadOnlyField(source='tag.priority')
     description = serializers.ReadOnlyField(source='tag.description')
 
     class Meta:
         model = ProfileCmetag
-        fields = ('tag_id', 'name', 'priority', 'description', 'is_active')
+        fields = ('id', 'name', 'priority', 'description', 'is_active')
 
 class UpdateProfileCmetagSerializer(serializers.ModelSerializer):
     tag = serializers.PrimaryKeyRelatedField(
