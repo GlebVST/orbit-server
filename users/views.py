@@ -164,7 +164,10 @@ class AffiliateIdLookup(APIView):
                 context = {
                     'username': username,
                     'personalText': m.personalText,
-                    'photoUrl': m.photoUrl
+                    'photoUrl': m.photoUrl,
+                    'og_title': m.og_title,
+                    'og_description': m.og_description,
+                    'og_image': m.og_image
                 }
                 return Response(context, status=status.HTTP_200_OK)
         return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)

@@ -46,8 +46,9 @@ class CustomerAdmin(admin.ModelAdmin):
     search_fields = ['customerId',]
 
 class AffiliateAdmin(admin.ModelAdmin):
-    list_display = ('user', 'affiliateId', 'paymentEmail', 'bonus', 'active', 'created')
+    list_display = ('user', 'affiliateId', 'paymentEmail', 'bonus', 'active', 'og_title', 'modified')
     list_filter = ('active',)
+    ordering = ('-modified',)
     readonly_fields = ('affiliateId',)
 
 class StateLicenseAdmin(admin.ModelAdmin):

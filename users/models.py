@@ -347,6 +347,9 @@ class Affiliate(models.Model):
     bonus = models.DecimalField(max_digits=5, decimal_places=2, help_text='payout amount per converted user in USD')
     personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
     photoUrl = models.URLField(max_length=1000, blank=True, help_text='Link to affiliate photo')
+    og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
+    og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
+    og_image = models.URLField(max_length=1000, blank=True, help_text='URL for og:image metatag')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
