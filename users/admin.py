@@ -25,11 +25,17 @@ class CountryAdmin(admin.ModelAdmin):
 class StateAdmin(admin.ModelAdmin):
     list_display = ('id', 'country', 'name', 'abbrev', 'created')
 
+class ProfileCmetagInline(admin.TabularInline):
+    model = ProfileCmetag
+
 class ProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'nbcrnaId', 'cmeDuedate', 'modified')
     list_filter = ('verified','npiType')
     search_fields = ['npiNumber', 'lastName']
-    filter_horizontal = ('cmeTags','specialties')
+    filter_horizontal = ('specialties',)
+    inlines = [
+        ProfileCmetagInline,
+    ]
 
     def get_queryset(self, request):
         qs = super(ProfileAdmin, self).get_queryset(request)

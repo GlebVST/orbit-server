@@ -161,9 +161,11 @@ class CmeTag(models.Model):
 
     def __str__(self):
         return self.name
+
     class Meta:
         verbose_name_plural = 'CME Tags'
         ordering = ['-priority', 'name']
+
 
 @python_2_unicode_compatible
 class PracticeSpecialty(models.Model):
@@ -238,7 +240,11 @@ class Profile(models.Model):
     inviteId = models.CharField(max_length=36, unique=True)
     socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
     pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
-    cmeTags = models.ManyToManyField(CmeTag, related_name='profiles', blank=True)
+    oldcmeTags = models.ManyToManyField(CmeTag, blank=True)
+    cmeTags = models.ManyToManyField(CmeTag,
+            through='ProfileCmetag',
+            blank=True,
+            related_name='profiles')
     degrees = models.ManyToManyField(Degree, blank=True) # called primaryrole in UI
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
@@ -300,7 +306,6 @@ class Profile(models.Model):
             return False
         return True
 
-
     def getFullName(self):
         return u"{0} {1}".format(self.firstName, self.lastName)
 
@@ -313,17 +318,22 @@ class Profile(models.Model):
         return ", ".join([d.abbrev for d in self.degrees.all()])
     formatDegrees.short_description = "Primary Role"
 
-    def getCmeTagsWithIsActive(self):
-        """Return list of cmeTag model instances annotated with is_active bool.
-        The tag has is_active=True if it is associated with any one of the
-        profile's current specialties, else is_active=False.
-        """
-        tags = self.cmeTags.all()
-        ps_pks = self.specialties.values_list('id', flat=True)
-        ps_tag_pks = CmeTag.objects.filter(specialties__in=ps_pks).values_list('id', flat=True).distinct()
-        for t in tags:
-            t.is_active = t.pk in ps_tag_pks
-        return tags
+    def getActiveCmetags(self):
+        """Need to query the through relation to filter by is_active=True"""
+        return ProfileCmetag.filter(profile=self, is_active=True)
+
+# Many-to-many through relation between Profile and CmeTag
+class ProfileCmetag(models.Model):
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, db_index=True)
+    tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('profile','tag')
+        ordering = ['tag',]
+
+    def __str__(self):
+        return '{0.tag}|{0.is_active}'.format(self)
 
 
 class Affiliate(models.Model):

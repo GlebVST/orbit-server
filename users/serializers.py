@@ -82,24 +82,46 @@ class PracticeSpecialtySerializer(serializers.ModelSerializer):
         model = PracticeSpecialty
         fields = ('id', 'name', 'cmeTags')
 
-# Used by ReadProfileSerializer and UpdateProfileSerializer
-# It expects extra attribute on model instance called is_active
-class ProfileCmeTagSerializer(serializers.ModelSerializer):
-    is_active = serializers.SerializerMethodField()
-
-    def get_is_active(self, obj):
-        """Expects attrib on obj: is_active:bool"""
-        return obj.is_active
+class ProfileCmetagSerializer(serializers.ModelSerializer):
+    """Used by ReadProfileSerializer and UpdateProfileSerializer"""
+    tag_id = serializers.ReadOnlyField(source='tag.id')
+    name = serializers.ReadOnlyField(source='tag.name')
+    priority = serializers.ReadOnlyField(source='tag.priority')
+    description = serializers.ReadOnlyField(source='tag.description')
 
     class Meta:
-        model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'is_active')
+        model = ProfileCmetag
+        fields = ('tag_id', 'name', 'priority', 'description', 'is_active')
 
-# Note: cmeTags cannot be updated directly. The caller can update the specialties,
-# and the update method will handle setting the cmeTags based on the specialties.
-# The cmeTags field is read-only by default because it is a SerializerMethodField.
-# All keys listed in fields will be in the serialized representation of the
-# updated object returned by the endpoint.
+class UpdateProfileCmetagSerializer(serializers.ModelSerializer):
+    tag = serializers.PrimaryKeyRelatedField(
+        queryset=CmeTag.objects.exclude(name=CMETAG_SACME))
+    is_active = serializers.BooleanField()
+
+    class Meta:
+        model = ProfileCmetag
+        fields = ('tag','is_active')
+
+class ManageProfileCmetagSerializer(serializers.Serializer):
+    """Updates the is_active flag of a list of existing ProfileCmetags for a given user"""
+    tags = UpdateProfileCmetagSerializer(many=True)
+
+    def update(self, instance, validated_data):
+        data = validated_data['tags']
+        for d in data:
+            t = d['tag']
+            is_active = d['is_active']
+            try:
+                pct = ProfileCmetag.objects.get(profile=instance, tag=t)
+            except ProfileCmetag.DoesNotExist:
+                logger.warning('ManageProfileCmeTags: Invalid tag for user: {0}'.format(t))
+            else:
+                if pct.is_active != is_active:
+                    pct.is_active = is_active
+                    pct.save()
+                    logger.info('Updated ProfileCmetag {0}'.format(pct))
+        return instance
+
 class UpdateProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
     degrees = serializers.PrimaryKeyRelatedField(
@@ -125,8 +147,8 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         return obj.isNPIComplete()
 
     def get_cmeTags(self, obj):
-        annotatedTags = obj.getCmeTagsWithIsActive()
-        return [ProfileCmeTagSerializer(t).data for t in annotatedTags]
+        qset = ProfileCmetag.objects.filter(profile=obj)
+        return [ProfileCmetagSerializer(m).data for m in qset]
 
     class Meta:
         model = Profile
@@ -177,45 +199,61 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         user = instance.user
         upd_cmetags = False
         tag_ids = None
+        del_tagids = set() # tagids to delete
+        new_tagids = set() # tagids to add
+        # get current specialties before updating the instance
+        curSpecs = set([ps for ps in instance.specialties.all()])
+        # update the instance
+        instance = super(UpdateProfileSerializer, self).update(instance, validated_data)
+        # now handle cmeTags
         spec_key = 'specialties'
         if spec_key in validated_data:
             # need to check if key exists, because a PATCH request may not contain the spec_key
             pracSpecs = validated_data[spec_key]
-            curSpecs = set([ps for ps in instance.specialties.all()])
             newSpecs = set([ps for ps in pracSpecs])
             newly_added_specs = newSpecs.difference(curSpecs)
             del_specs = curSpecs.difference(newSpecs)
-            tag_ids = set([t.pk for t in instance.cmeTags.all()])
             for ps in del_specs:
                 logger.info('User {0.email} : remove ps: {1.name}'.format(user, ps))
                 for t in ps.cmeTags.all():
-                    num_entries = t.entries.filter(user=user).count()
-                    if num_entries == 0 and t.pk in tag_ids:
-                        tag_ids.remove(t.pk)
-                        logger.info('Del profile.cmeTag: {0}'.format(t))
-                        upd_cmetags = True
+                    pct_qset = ProfileCmetag.objects.filter(profile=instance, tag=t)
+                    if pct_qset.exists():
+                        pct = pct_qset[0]
+                        num_entries = t.entries.filter(user=user).count()
+                        #logger.debug('Num entries for tag {0} = {1}'.format(t, num_entries))
+                        if num_entries == 0:
+                            pct.delete()
+                            logger.info('Delete unused ProfileCmetag: {0}'.format(pct))
+                        elif pct.is_active:
+                            # Set is_active to false
+                            pct.is_active = False
+                            pct.save()
+                            logger.info('Inactivate ProfileCmetag: {0}'.format(pct))
+            # get refreshed set
+            tag_ids = set([t.pk for t in instance.cmeTags.all()])
             for ps in newly_added_specs:
                 logger.info('User {0.email} : Add ps: {1.name}'.format(user, ps))
                 for t in ps.cmeTags.all():
-                    if t.pk not in tag_ids:
-                        tag_ids.add(t.pk)
-                        logger.info('New profile.cmeTag: {0}'.format(t))
-                        upd_cmetags = True
-        instance = super(UpdateProfileSerializer, self).update(instance, validated_data)
-        if upd_cmetags and (spec_key in validated_data):
-            instance.cmeTags.set(list(tag_ids))
+                    # tag may already exist from a previous occasion in which ps was assigned to user
+                    pct, created = ProfileCmetag.objects.get_or_create(profile=instance, tag=t)
+                    if created:
+                        logger.info('New ProfileCmetag: {0}'.format(pct))
+                    elif not pct.is_active:
+                        pct.is_active = True
+                        pct.save()
+                        logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
         return instance
 
 
 class ReadProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
-    cmeTags = serializers.SerializerMethodField()
     # degrees and specialties are list of pkeyids
     degrees = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     specialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     country = serializers.PrimaryKeyRelatedField(read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
+    cmeTags = serializers.SerializerMethodField()
 
     def get_isSignupComplete(self, obj):
         return obj.isSignupComplete()
@@ -224,8 +262,8 @@ class ReadProfileSerializer(serializers.ModelSerializer):
         return obj.isNPIComplete()
 
     def get_cmeTags(self, obj):
-        annotatedTags = obj.getCmeTagsWithIsActive()
-        return [ProfileCmeTagSerializer(t).data for t in annotatedTags]
+        qset = ProfileCmetag.objects.filter(profile=obj)
+        return [ProfileCmetagSerializer(m).data for m in qset]
 
     class Meta:
         model = Profile

@@ -219,45 +219,30 @@ class SetProfileAccessedTour(APIView):
         return Response(context, status=status.HTTP_200_OK)
 
 
-class VerifyProfile(APIView):
-    """This view expects the lookup-id in the JSON object for the POST.
+class ManageProfileCmetags(APIView):
+    """This view allows the user to set the value of the is_active flag on the
+    existing cmeTags assigned to them. It does not create or delete any tags,
+    it only updates the is_active flag.
     Example JSON:
-        {"lookup-id": string}
+        {
+            "tags": [
+                {"tag":1, "is_active": true},
+                {"tag":2, "is_active": false},
+            ]
+        }
     """
-    permission_classes = (permissions.AllowAny,)
+    serializer_class = ManageProfileCmetagSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
     def post(self, request, *args, **kwargs):
-        """
-        Find the user by customerId=lookupId and set their
-            profile.verified flag to True.
-        If user not found, return success=False.
-        """
-        userdata = request.data
-        lookupId = userdata.get('lookup-id', None)
-        if not lookupId:
-            context = {
-                'success': False,
-                'message': 'Lookup Id value is required'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        # get customer object from database
-        try:
-            customer = Customer.objects.get(customerId=lookupId)
-        except Customer.DoesNotExist:
-            context = {
-                'success': False,
-                'message': 'Invalid Lookup Id.'
-            }
-            message = context['message'] + ' ' + lookupId
-            logError(logger, request, message)
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            # set verified to True
-            profile = customer.user.profile
-            if not profile.verified:
-                profile.verified = True
-                profile.save()
-            context = {'success': True}
-            return Response(context, status=status.HTTP_200_OK)
+        in_serializer = ManageProfileCmetagSerializer(request.user.profile, request.data)
+        in_serializer.is_valid(raise_exception=True)
+        profile = in_serializer.save()
+        qset = ProfileCmetag.objects.filter(profile=profile)
+        context = {
+            'cmeTags': [ProfileCmetagSerializer(m).data for m in qset]
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
 
 class VerifyProfileEmail(APIView):
     """
