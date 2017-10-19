@@ -1922,12 +1922,11 @@ class HostPattern(models.Model):
     eligible_site = models.ForeignKey(EligibleSite,
         on_delete=models.CASCADE,
         db_index=True)
-    start_pattern = models.CharField(max_length=200,
-        help_text='url pattern to test against path. No leading or trailing slash.')
-    use_exact_match = models.BooleanField(default=False, help_text='True if the url represented by host/pattern (exact match) is an allowed url.')
     path_contains = models.CharField(max_length=200, blank=True, default='',
         help_text='If given, url path part must contain this term. No trailing slash.')
-    pattern_key = models.CharField(max_length=40, blank=True, default='', help_text='valid key in URL_PATTERNS dict')
+    path_reject = models.CharField(max_length=200, blank=True, default='',
+        help_text='If given, url path part must not contain this term. No trailing slash.')
+    pattern_key = models.CharField(max_length=40, help_text='valid key in URL_PATTERNS dict')
     created = models.DateTimeField(auto_now_add=True, blank=True)
     modified = models.DateTimeField(auto_now=True, blank=True)
     created = models.DateTimeField(auto_now_add=True, blank=True)
@@ -1939,7 +1938,7 @@ class HostPattern(models.Model):
         ordering = ['host','eligible_site','pattern_key','path_contains']
 
     def __str__(self):
-        return '{0.host}|{0.eligible_site.domain_name}|key:{0.pattern_key}|start:{0.start_pattern}|pc: {0.path_contains}'.format(self)
+        return '{0.host}|{0.eligible_site.domain_name}|{0.pattern_key}|pc:{0.path_contains}|pr: {0.path_reject}'.format(self)
 
 @python_2_unicode_compatible
 class AllowedUrl(models.Model):

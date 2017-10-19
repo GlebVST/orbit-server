@@ -232,7 +232,7 @@ def login_via_token(request, access_token):
     user_info_dict = json.loads(user_info) # create dict
     user_info_dict['inviterId'] = inviterId
     user_info_dict['affiliateId'] = affiliateId
-    msg = 'user_id:{user_id} email:{email}'.format(**user_info_dict)
+    msg = 'user_id:{user_id} email:{email} v:{email_verified}'.format(**user_info_dict)
     if affiliateId:
         msg += " from-affl:{affiliateId}".format(**user_info_dict)
     elif inviterId:

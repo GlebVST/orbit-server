@@ -190,7 +190,7 @@ class AllowedHostAdmin(admin.ModelAdmin):
     ordering = ('hostname',)
 
 class HostPatternAdmin(admin.ModelAdmin):
-    list_display = ('id', 'host', 'eligible_site', 'pattern_key', 'path_contains', 'start_pattern')
+    list_display = ('id', 'host', 'eligible_site', 'pattern_key', 'path_contains', 'path_reject')
     list_select_related = ('host','eligible_site')
     list_filter = ('host', 'eligible_site')
 
