@@ -1929,8 +1929,6 @@ class HostPattern(models.Model):
     pattern_key = models.CharField(max_length=40, help_text='valid key in URL_PATTERNS dict')
     created = models.DateTimeField(auto_now_add=True, blank=True)
     modified = models.DateTimeField(auto_now=True, blank=True)
-    created = models.DateTimeField(auto_now_add=True, blank=True)
-    modified = models.DateTimeField(auto_now=True, blank=True)
 
     class Meta:
         managed = False
