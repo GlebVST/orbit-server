@@ -347,6 +347,7 @@ class Affiliate(models.Model):
     bonus = models.DecimalField(max_digits=5, decimal_places=2, help_text='payout amount per converted user in USD')
     personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
     photoUrl = models.URLField(max_length=1000, blank=True, help_text='Link to affiliate photo')
+    jobDescription = models.TextField(blank=True)
     og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
     og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
     og_image = models.URLField(max_length=1000, blank=True, help_text='URL for og:image metatag')
@@ -1133,7 +1134,7 @@ class BatchPayout(models.Model):
         help_text='PayPal-defined status of batch payout request')
     date_completed = models.DateTimeField(null=True, blank=True)
     amount = models.DecimalField(null=True, blank=True, max_digits=8, decimal_places=2, help_text='Batch amount paid')
-    currency = models.CharField(max_length=4, blank=True, help_text='Amount currency')
+    currency = models.CharField(max_length=4, blank=True, default='USD', help_text='Amount currency')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 

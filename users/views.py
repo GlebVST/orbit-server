@@ -165,6 +165,7 @@ class AffiliateIdLookup(APIView):
                     'username': username,
                     'personalText': m.personalText,
                     'photoUrl': m.photoUrl,
+                    'jobDescription': m.jobDescription,
                     'og_title': m.og_title,
                     'og_description': m.og_description,
                     'og_image': m.og_image
