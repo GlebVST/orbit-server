@@ -1166,6 +1166,7 @@ class AffiliatePayout(models.Model):
     RETURNED = 'RETURNED' # item is returned (recipient did not claim payment within 30 days)
     SUCCESS = 'SUCCESS'   # item is successfully processed
     UNCLAIMED = 'UNCLAIMED' # item is unclaimed (after 30 days unclaimed, status changes to RETURNED)
+    UNSET = 'unset'  # default value upon row creation
     STATUS_CHOICES = (
         (PENDING, PENDING),
         (SUCCESS, SUCCESS),
@@ -1176,7 +1177,8 @@ class AffiliatePayout(models.Model):
         (ONHOLD, ONHOLD),
         (REFUNDED, REFUNDED),
         (RETURNED, RETURNED),
-        (UNCLAIMED, UNCLAIMED)
+        (UNCLAIMED, UNCLAIMED),
+        (UNSET, UNSET)
     )
     convertee = models.OneToOneField(User,
         on_delete=models.CASCADE,
@@ -1199,13 +1201,13 @@ class AffiliatePayout(models.Model):
         db_index=True,
         related_name='converteediscounts',
     )
-    payoutItemId = models.CharField(max_length=36, blank=True,
+    payoutItemId = models.CharField(max_length=36, blank=True, default='',
             help_text='PayPal-generated item identifier. Exists even if there is no transactionId.')
-    transactionId = models.CharField(max_length=36, blank=True,
+    transactionId = models.CharField(max_length=36, blank=True, default='',
             help_text='PayPal-generated id for the transaction.')
     amount = models.DecimalField(max_digits=5, decimal_places=2, help_text='Amount paid to affiliate in USD.')
     fee = models.DecimalField(null=True, blank=True, max_digits=4, decimal_places=2, help_text='Transaction fee in USD')
-    status = models.CharField(max_length=20, blank=True, choices=STATUS_CHOICES,
+    status = models.CharField(max_length=20, blank=True, choices=STATUS_CHOICES, default=UNSET,
             help_text='PayPal-defined item transaction status')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -1353,8 +1355,9 @@ class UserSubscriptionManager(models.Manager):
             elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
                 AffiliatePayout.objects.create(
                     convertee=user,
+                    converteeDiscount=discount,
                     affiliate=inviter.affiliate, # Affiliate instance
-                    converteeDiscount=discount
+                    amount=inviter.affiliate.bonus
                 )
 
             # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist

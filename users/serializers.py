@@ -114,7 +114,7 @@ class ManageProfileCmetagSerializer(serializers.Serializer):
             try:
                 pct = ProfileCmetag.objects.get(profile=instance, tag=t)
             except ProfileCmetag.DoesNotExist:
-                logger.warning('ManageProfileCmeTags: Invalid tag for user: {0}'.format(t))
+                logger.warning('ManageProfileCmeTags: Invalid tag for user {0}: {1}'.format(instance.user, t))
             else:
                 if pct.is_active != is_active:
                     pct.is_active = is_active
