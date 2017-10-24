@@ -4,6 +4,40 @@ from django.template.loader import get_template
 from django.utils import timezone
 import pytz
 
+def sendAffiliateReportEmail(total_by_affl, email_to):
+    """Send report of payout that needs to be submitted to Affiliates.
+    Info included: fullname, paymentEmail, num_convertees, payout, grandTotal for payout
+    """
+    from .models import Affiliate
+    from_email = settings.EMAIL_FROM
+    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
+    now = timezone.now()
+    subject = 'Affiliate Payout Report - {0:%b %d %Y}'.format(now.astimezone(tz))
+    if settings.ENV_TYPE != settings.ENV_PROD:
+        subject = u'[test-only] ' + subject
+    data = []
+    grandTotal = 0
+    for aff_pk in total_by_affl:
+        affl = Affiliate.objects.get(pk=aff_pk)
+        profile = affl.user.profile
+        total = total_by_affl[aff_pk]['total']
+        num_convertees = len(total_by_affl[aff_pk]['pks'])
+        grandTotal += total
+        data.append({
+            'fullName': profile.getFullName(),
+            'paymentEmail': affl.paymentEmail,
+            'numConvertees': num_convertees,
+            'payout': str(total)
+        })
+    ctx = {
+        'data': data,
+        'grandTotal': grandTotal
+    }
+    message = get_template('email/affl_payout_report.html').render(ctx)
+    msg = EmailMessage(subject, message, to=[email_to], from_email=from_email)
+    msg.content_subtype = 'html'
+    msg.send()
+
 def sendNewUserReportEmail(profiles, email_to):
     """Send report of new user signups. Info included:
     email, getFullNameAndDegree, npiNumber, plan_name, subscriptionId

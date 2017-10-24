@@ -5,7 +5,7 @@ from hashids import Hashids
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
-from .models import Profile, Customer
+from .models import Profile, Customer, Affiliate
 
 logger = logging.getLogger('gen.auth')
 HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
@@ -23,10 +23,11 @@ class Auth0Backend(object):
             return None
         user_id = user_info['user_id']
         email = user_info['email']
-        email_verified = user_info.get('email_verified', False)
+        email_verified = user_info.get('email_verified', None)
         picture = user_info.get('picture', '')
-        # optional key passed by login_via_token
+        # optional keys passed by login_via_token
         inviterId = user_info.get('inviterId', None)
+        affiliateId = user_info.get('affiliateId', None)
         try:
             user = User.objects.get(username=email) # the unique constraint is on the username field in the users table
         except User.DoesNotExist:
@@ -41,9 +42,15 @@ class Auth0Backend(object):
                 profile.inviteId = hashgen.encode(user.pk)
                 if picture:
                     profile.pictureUrl = picture
-                profile.verified = email_verified
-                # Check for inviterId
-                if inviterId:
+                profile.verified = bool(email_verified)
+                if affiliateId:
+                    qset = Affiliate.objects.filter(affiliateId=affiliateId)
+                    if qset.exists():
+                        profile.inviter = qset[0].user # inviter User
+                        logger.info('User {0.email} was converted by {1.email}'.format(user, profile.inviter))
+                    else:
+                        logger.warning('Invalid affiliateId: {0}'.format(affiliateId))
+                elif inviterId:
                     qset = Profile.objects.filter(inviteId=inviterId)
                     if qset.exists():
                         profile.inviter = qset[0].user # inviter User
@@ -73,10 +80,12 @@ class Auth0Backend(object):
                 logger.warning('user_id {0} does not match profile.socialId: {1} for user email: {2}'.format(user_id, profile.socialId, user.email))
             saveProfile = False
             # Check update verified
-            if email_verified != profile.verified:
-                profile.verified = email_verified
-                logger.info('Update email_verified for {0}'.format(user_id))
-                saveProfile = True
+            if email_verified is not None:
+                ev = bool(email_verified)
+                if ev != profile.verified:
+                    profile.verified = ev
+                    logger.info('Update email_verified for {0}'.format(user_id))
+                    saveProfile = True
             # Check update picture
             if picture and profile.pictureUrl != picture:
                 profile.pictureUrl = picture

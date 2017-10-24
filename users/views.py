@@ -91,9 +91,12 @@ class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
 # CmeTag
 class CmeTagList(generics.ListCreateAPIView):
     queryset = CmeTag.objects.all().order_by('-priority', 'name')
-    serializer_class = CmeTagSerializer
+    serializer_class = CmeTagWithSpecSerializer
     pagination_class = LongPagination
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        return CmeTag.objects.all().prefetch_related('specialties')
 
 class CmeTagDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = CmeTag.objects.all()
@@ -146,6 +149,30 @@ class ProfileUpdate(generics.UpdateAPIView):
     serializer_class = UpdateProfileSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
+
+class AffiliateIdLookup(APIView):
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request, *args, **kwargs):
+        lookupId = self.kwargs.get('affid')
+        if lookupId:
+            qset = Affiliate.objects.filter(affiliateId=lookupId)
+            if qset.exists():
+                m = qset[0]
+                profile = m.user.profile
+                username = profile.getFullName()
+                context = {
+                    'username': username,
+                    'personalText': m.personalText,
+                    'photoUrl': m.photoUrl,
+                    'jobDescription': m.jobDescription,
+                    'og_title': m.og_title,
+                    'og_description': m.og_description,
+                    'og_image': m.og_image
+                }
+                return Response(context, status=status.HTTP_200_OK)
+        return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+
 class InviteIdLookup(APIView):
     permission_classes = (permissions.AllowAny,)
 
@@ -196,45 +223,30 @@ class SetProfileAccessedTour(APIView):
         return Response(context, status=status.HTTP_200_OK)
 
 
-class VerifyProfile(APIView):
-    """This view expects the lookup-id in the JSON object for the POST.
+class ManageProfileCmetags(APIView):
+    """This view allows the user to set the value of the is_active flag on the
+    existing cmeTags assigned to them. It does not create or delete any tags,
+    it only updates the is_active flag.
     Example JSON:
-        {"lookup-id": string}
+        {
+            "tags": [
+                {"tag":1, "is_active": true},
+                {"tag":2, "is_active": false},
+            ]
+        }
     """
-    permission_classes = (permissions.AllowAny,)
+    serializer_class = ManageProfileCmetagSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
     def post(self, request, *args, **kwargs):
-        """
-        Find the user by customerId=lookupId and set their
-            profile.verified flag to True.
-        If user not found, return success=False.
-        """
-        userdata = request.data
-        lookupId = userdata.get('lookup-id', None)
-        if not lookupId:
-            context = {
-                'success': False,
-                'message': 'Lookup Id value is required'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        # get customer object from database
-        try:
-            customer = Customer.objects.get(customerId=lookupId)
-        except Customer.DoesNotExist:
-            context = {
-                'success': False,
-                'message': 'Invalid Lookup Id.'
-            }
-            message = context['message'] + ' ' + lookupId
-            logError(logger, request, message)
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            # set verified to True
-            profile = customer.user.profile
-            if not profile.verified:
-                profile.verified = True
-                profile.save()
-            context = {'success': True}
-            return Response(context, status=status.HTTP_200_OK)
+        in_serializer = ManageProfileCmetagSerializer(request.user.profile, request.data)
+        in_serializer.is_valid(raise_exception=True)
+        profile = in_serializer.save()
+        qset = ProfileCmetag.objects.filter(profile=profile)
+        context = {
+            'cmeTags': [ProfileCmetagSerializer(m).data for m in qset]
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
 
 class VerifyProfileEmail(APIView):
     """
@@ -331,7 +343,7 @@ class BrowserCmeOfferPagination(PageNumberPagination):
 
 class BrowserCmeOfferList(generics.ListAPIView):
     """
-    Find the top N un-redeemed and unexpired offers order by modified desc
+    Get the un-redeemed and unexpired valid offers order by modified desc
     (latest modified first) for the authenticated user.
     """
     serializer_class = BrowserCmeOfferSerializer
@@ -399,7 +411,7 @@ class InvalidateEntry(generics.UpdateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return Entry.objects.filter(user=user, valid=True).select_related('entryType', 'sponsor')
+        return Entry.objects.filter(user=user, valid=True)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -411,6 +423,30 @@ class InvalidateEntry(generics.UpdateAPIView):
             if hasattr(instance, 'brcme'):
                 instance.brcme.offer.valid = False
                 instance.brcme.offer.save()
+        context = {'success': True}
+        return Response(context)
+
+
+class InvalidateOffer(generics.UpdateAPIView):
+    serializer_class = BrowserCmeOfferSerializer
+    permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
+
+    def get_queryset(self):
+        user = self.request.user
+        return BrowserCmeOffer.objects.filter(user=user, valid=True)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.redeemed:
+            context = {
+                'success': False,
+                'message': 'Offer has already been redeemed.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        msg = 'Invalidate offer {0.pk}/{0}'.format(instance)
+        logInfo(logger, request, msg)
+        instance.valid = False
+        instance.save()
         context = {'success': True}
         return Response(context)
 

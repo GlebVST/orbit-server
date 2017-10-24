@@ -15,5 +15,5 @@ def main():
             ps_tags = psTagDict[ps.pk]
             for t in ps_tags:
                 if t.pk not in cur_tag_pks:
-                    p.cmeTags.add(t)
-                    print('Add tag {0} to profile {1} for ps: {2}'.format(t, p, ps))
+                    pct = ProfileCmetag.objects.create(profile=p, tag=t)
+                    print('Add pct {0} to profile {1} for ps: {2}'.format(pct, p, ps))

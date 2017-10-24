@@ -68,9 +68,9 @@ api_patterns = [
     url(r'^accounts/(?P<pk>[0-9]+)/?$', views.CustomerDetail.as_view()),
     url(r'^profiles/?$', views.ProfileList.as_view()),
     url(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileUpdate.as_view()),
-    url(r'^profiles/verify/?$', views.VerifyProfile.as_view(), name='profile-verify'),
     url(r'^profiles/verify-email/?$', views.VerifyProfileEmail.as_view(), name='profile-verify-email'),
     url(r'^profiles/set-accessed-tour/?$', views.SetProfileAccessedTour.as_view(), name='profile-set-accessed-tour'),
+    url(r'^profiles/set-cmetags/?$', views.ManageProfileCmetags.as_view(), name='profile-set-cmetags'),
     url(r'^cmetags/?$', views.CmeTagList.as_view()),
     url(r'^cmetags/(?P<pk>[0-9]+)/?$', views.CmeTagDetail.as_view()),
     url(r'^degrees/?$', views.DegreeList.as_view()),
@@ -82,6 +82,7 @@ api_patterns = [
     url(r'^user-state-licenses/?$', views.UserStateLicenseList.as_view()),
     url(r'^user-state-licenses/(?P<pk>[0-9]+)/?$', views.UserStateLicenseDetail.as_view()),
     url(r'^invite-lookup/(?P<inviteid>[0-9A-Za-z!@]+)/?$', views.InviteIdLookup.as_view()),
+    url(r'^aff-lookup/(?P<affid>[0-9A-Za-z]+)/?$', views.AffiliateIdLookup.as_view()),
 
     # Feed entry types, sponsors, eligibleSites for browserCme
     url(r'^entrytypes/?$', views.EntryTypeList.as_view()),
@@ -95,6 +96,7 @@ api_patterns = [
     url(r'^feed/?$', views.FeedList.as_view()),
     url(r'^feed/(?P<pk>[0-9]+)/?$', views.FeedEntryDetail.as_view()),
     url(r'^feed/invalidate-entry/(?P<pk>[0-9]+)/?$', views.InvalidateEntry.as_view()),
+    url(r'^feed/invalidate-offer/(?P<pk>[0-9]+)/?$', views.InvalidateOffer.as_view()),
     url(r'^feed/browser-cme-offers/?$', views.BrowserCmeOfferList.as_view()),
     url(r'^feed/browser-cme/?$', views.CreateBrowserCme.as_view()),
     url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', views.UpdateBrowserCme.as_view()),
