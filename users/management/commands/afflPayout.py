@@ -38,13 +38,14 @@ class Command(BaseCommand):
             affl = Affiliate.objects.get(pk=aff_pk)
             total = total_by_affl[aff_pk]['total']
             grandTotal += total
-            items.append({
-                'sender_item_id':sender_batch_id+':'+str(aff_pk),
-                'amount':total,
-                'receiver': affl.paymentEmail
-            })
-            logger.debug('Affl {0} earned: {1}'.format(affl, total))
-        if report_only:
+            if not options['report_only']:
+                items.append({
+                    'sender_item_id':sender_batch_id+':'+str(aff_pk),
+                    'amount':total,
+                    'receiver': affl.paymentEmail
+                })
+                logger.debug('Affl {0} earned: {1}'.format(affl, total))
+        if options['report_only']:
             try:
                 sendAffiliateReportEmail(total_by_affl, email_to)
             except SMTPException as e:
