@@ -110,6 +110,13 @@ braintree.Configuration.configure(
     private_key=get_environment_variable('ORBIT_BRAINTREE_PRIVATE_KEY')
 )
 
+# PayPal
+PAYPAL_CLIENTID = get_environment_variable('PAYPAL_CLIENTID')
+PAYPAL_SECRET = get_environment_variable('PAYPAL_SECRET')
+PAYPAL_APP_NAME = get_environment_variable('PAYPAL_APP_NAME')
+# set API_BASE_URL based on env
+PAYPAL_API_BASEURL = 'https://api.paypal.com/v1/' if ENV_TYPE == ENV_PROD else 'https://api.sandbox.paypal.com/v1/'
+
 #
 # Auth0
 #

@@ -1118,19 +1118,21 @@ class BatchPayout(models.Model):
     NEW = 'NEW'           # delayed due to internal updates
     DENIED = 'DENIED'     # No items in the batch payout were processed
     CANCELED = 'CANCELED' # status cannot occur if sender uses the API only to send payouts but can occur if web pay is used.
+    UNSET = 'unset'  # default value upon row creation
     STATUS_CHOICES = (
         (PENDING, PENDING),
         (PROCESSING, PROCESSING),
         (SUCCESS, SUCCESS),
         (DENIED, DENIED),
         (NEW, NEW),
-        (CANCELED, CANCELED)
+        (CANCELED, CANCELED),
+        (UNSET, UNSET)
     )
     sender_batch_id = models.CharField(max_length=36, unique=True)
     email_subject = models.CharField(max_length=200)
     # fields to store response
     payout_batch_id = models.CharField(max_length=36, blank=True, help_text='PayPal-generated ID for a batch payout.')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES,
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=UNSET,
         help_text='PayPal-defined status of batch payout request')
     date_completed = models.DateTimeField(null=True, blank=True)
     amount = models.DecimalField(null=True, blank=True, max_digits=8, decimal_places=2, help_text='Batch amount paid')
@@ -1139,20 +1141,43 @@ class BatchPayout(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{0.sender_batch_id}/{0.status}'.format(self)
+        return '{0.sender_batch_id}'.format(self)
 
 # An convertee is given the invitee-discount once for the 1st billing cycle.
 # An affiliate is paid the per-user bonus once the convertee begins an Active subscription.
 class AffiliatePayoutManager(models.Manager):
-    def getNumCompletedSuccess(self, affl):
-        """Get the total count of completed AffiliatePayout rows for the given affiliate.
-        Returns: int
+    def calcTotalByAffiliate(self):
+        """Find rows with batchpayout=null (rows that have not been processed yet).
+        Group by affiliate and filter by convertee has begin Active UserSubscription status (and payment transaction exists)
+        For each affiliate: total = sum(m.amount) for m in filtered_rows
+        Returns dict {
+            affiliate_pk:int => {
+                total:Decimal,  -- amount earned by this affl
+                pks:list        -- self.model pkeyids included for total
+            }
+        }
         """
-        return self.model.objects.filter(
-                affiliate=affl,
-                transactionId__isnull=False,
-                status=self.model.SUCCESS,
-                ).count()
+        total_by_affl = dict() # affl.pk => {total:Decimal, pks:list}
+        vqset = AffiliatePayout.objects.filter(batchpayout__isnull=True).values_list('affiliate', flat=True)
+        for aff_pk in vqset:
+            #print('aff_pk: {0}'.format(aff_pk))
+            qset = AffiliatePayout.objects.filter(affiliate_id=aff_pk, batchpayout__isnull=True).order_by('created')
+            # Filter AffiliatePayout qset by Subscription status
+            filtered = []
+            for m in qset:
+                user_subs = UserSubscription.objects.getLatestSubscription(m.convertee)
+                #if user_subs:
+                if user_subs and user_subs.status == UserSubscription.ACTIVE and SubscriptionTransaction.objects.filter(subscription=user_subs).exists():
+                    #print(m)
+                    filtered.append(m)
+            if filtered:
+                total = sum([m.amount for m in filtered])
+                #print('total for aff: {0}'.format(total))
+                total_by_affl[aff_pk] = dict(
+                    total=total,
+                    pks=[m.pk for m in filtered])
+        return total_by_affl
+
 
 @python_2_unicode_compatible
 class AffiliatePayout(models.Model):
@@ -1206,7 +1231,6 @@ class AffiliatePayout(models.Model):
     transactionId = models.CharField(max_length=36, blank=True, default='',
             help_text='PayPal-generated id for the transaction.')
     amount = models.DecimalField(max_digits=5, decimal_places=2, help_text='Amount paid to affiliate in USD.')
-    fee = models.DecimalField(null=True, blank=True, max_digits=4, decimal_places=2, help_text='Transaction fee in USD')
     status = models.CharField(max_length=20, blank=True, choices=STATUS_CHOICES, default=UNSET,
             help_text='PayPal-defined item transaction status')
     created = models.DateTimeField(auto_now_add=True)
