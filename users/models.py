@@ -1111,6 +1111,12 @@ class InvitationDiscount(models.Model):
         return '{0.invitee} by {0.inviter}'.format(self)
 
 # Note: sender_batch header can include recipient_type=EMAIL
+# A BatchPayout consists of 1+ payout-items, each to a specific receipient.
+# A single payout-item is paid to a specific affiliate. The amount paid for the
+# payout-item = sum([unset AffiliatePayout instances (one per convertee)]).
+# Upon creating the BatchPayout, the batchpayout FK is set on the AffiliatePayout instances used in the sum.
+# Upon updating the status of the BatchPayout, the payoutItemId/status/transactionId is also saved
+# to the 1+ AffiliatePayout instances used in the sum.
 class BatchPayout(models.Model):
     PENDING = 'PENDING'   # waiting to be processed
     PROCESSING = 'PROCESSING' # being processed
@@ -1135,7 +1141,7 @@ class BatchPayout(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=UNSET,
         help_text='PayPal-defined status of batch payout request')
     date_completed = models.DateTimeField(null=True, blank=True)
-    amount = models.DecimalField(null=True, blank=True, max_digits=8, decimal_places=2, help_text='Batch amount paid')
+    amount = models.DecimalField(max_digits=8, decimal_places=2, help_text='Batch amount paid')
     currency = models.CharField(max_length=4, blank=True, default='USD', help_text='Amount currency')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -1230,7 +1236,7 @@ class AffiliatePayout(models.Model):
             help_text='PayPal-generated item identifier. Exists even if there is no transactionId.')
     transactionId = models.CharField(max_length=36, blank=True, default='',
             help_text='PayPal-generated id for the transaction.')
-    amount = models.DecimalField(max_digits=5, decimal_places=2, help_text='Amount paid to affiliate in USD.')
+    amount = models.DecimalField(max_digits=5, decimal_places=2, help_text='per_user bonus paid to affiliate in USD.')
     status = models.CharField(max_length=20, blank=True, choices=STATUS_CHOICES, default=UNSET,
             help_text='PayPal-defined item transaction status')
     created = models.DateTimeField(auto_now_add=True)

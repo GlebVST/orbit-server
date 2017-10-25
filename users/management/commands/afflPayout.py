@@ -3,7 +3,7 @@ from smtplib import SMTPException
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.utils import timezone
-from users.models import Affiliate, UserSubscription, SubscriptionTransaction, AffiliatePayout
+from users.models import Affiliate, BatchPayout, AffiliatePayout
 from users.paypal import PayPalApi
 from users.emailutils import sendAffiliateReportEmail
 
@@ -39,6 +39,7 @@ class Command(BaseCommand):
             total = total_by_affl[aff_pk]['total']
             grandTotal += total
             if not options['report_only']:
+                # one payout-item per affiliate with amount=total
                 items.append({
                     'sender_item_id':sender_batch_id+':'+str(aff_pk),
                     'amount':total,
