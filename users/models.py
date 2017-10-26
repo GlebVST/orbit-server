@@ -1030,7 +1030,7 @@ class Discount(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.name
+        return self.discountId
 
     def save(self, *args, **kwargs):
         """Check that only 1 row has activeForType=True for a given discountType,
@@ -1046,6 +1046,41 @@ class Discount(models.Model):
 
     class Meta:
         ordering = ['discountType', '-created']
+
+class SignupDiscountManager(models.Manager):
+
+    def getDiscountForUser(self, user):
+        L = user.email.split('@')
+        if len(L) != 2:
+            return None
+        email_domain = L[1]
+        qset = self.model.objects.select_related('discount').filter(
+                email_domain=email_domain, expireDate__gt=user.date_joined).order_by('expireDate')
+        if qset.exists():
+            sd = qset[0]
+            logger.debug('SignupDiscount: {0} for user {1}'.format(sd, user))
+            return sd.discount
+
+@python_2_unicode_compatible
+class SignupDiscount(models.Model):
+    email_domain = models.CharField(max_length=40)
+    discount = models.ForeignKey(Discount,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='signupdiscounts',
+        help_text='Discount to be applied to first billingCycle'
+    )
+    expireDate = models.DateTimeField('Cutoff for user signup date [UTC]')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = SignupDiscountManager()
+
+    class Meta:
+        unique_together = ('email_domain', 'discount', 'expireDate')
+
+    def __str__(self):
+        return '{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
+
 
 # An invitee is given the invitee-discount once for the first billing cycle.
 # An inviter is given the inviter discount once for each invitee (upto $200 max) on the next billing cycle.
@@ -1323,6 +1358,7 @@ class UserSubscriptionManager(models.Manager):
         user_subs = None
         is_invitee = False
         is_convertee = False
+        discounts = [] # Discount instances to be applied
         key = 'invitee_discount'
         if key in subs_params:
             is_invitee = subs_params.pop(key)
@@ -1333,11 +1369,16 @@ class UserSubscriptionManager(models.Manager):
             inviter = user.profile.inviter # User instance (used below)
             if not inviter:
                 raise ValueError('createBtSubscription: Invalid inviter')
-            discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
+            discounts.append(Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True))
+        # Check SignupDiscount
+        discount = SignupDiscount.objects.getDiscountForUser(user)
+        if discount:
+            discounts.append(discount)
+        if discounts:
             # Add discounts:add key to subs_params
             subs_params['discounts'] = {
                 'add': [
-                    {"inherited_from_id": discount.discountId},
+                    {"inherited_from_id": m.discountId} for m in discounts
                 ]
             }
         result = braintree.Subscription.create(subs_params)

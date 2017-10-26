@@ -129,6 +129,10 @@ class DiscountAdmin(admin.ModelAdmin):
     list_display = ('id','discountType', 'activeForType', 'discountId','name','amount','numBillingCycles','created')
     ordering = ('discountType', '-created',)
 
+class SignupDiscountAdmin(admin.ModelAdmin):
+    list_display = ('id','email_domain','discount','expireDate')
+    ordering = ('email_domain','expireDate')
+
 
 class InvitationDiscountAdmin(admin.ModelAdmin):
     list_display = ('invitee_id', 'invitee', 'inviteeDiscount', 'inviter', 'inviterDiscount', 'inviterBillingCycle', 'creditEarned', 'created')
@@ -244,6 +248,7 @@ admin_site.register(Country, CountryAdmin)
 admin_site.register(Customer, CustomerAdmin)
 admin_site.register(Degree, DegreeAdmin)
 admin_site.register(Discount, DiscountAdmin)
+admin_site.register(SignupDiscount, SignupDiscountAdmin)
 admin_site.register(Document, DocumentAdmin)
 admin_site.register(EligibleSite, EligibleSiteAdmin)
 admin_site.register(Entry, EntryAdmin)
