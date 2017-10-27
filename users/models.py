@@ -1058,7 +1058,6 @@ class SignupDiscountManager(models.Manager):
                 email_domain=email_domain, expireDate__gt=user.date_joined).order_by('expireDate')
         if qset.exists():
             sd = qset[0]
-            logger.debug('SignupDiscount: {0} for user {1}'.format(sd, user))
             return sd.discount
 
 @python_2_unicode_compatible
@@ -1370,10 +1369,13 @@ class UserSubscriptionManager(models.Manager):
             if not inviter:
                 raise ValueError('createBtSubscription: Invalid inviter')
             discounts.append(Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True))
-        # Check SignupDiscount
-        discount = SignupDiscount.objects.getDiscountForUser(user)
-        if discount:
-            discounts.append(discount)
+        # Check SignupDiscount - ensure it is only applied once
+        qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
+        if not qset.exists():
+            discount = SignupDiscount.objects.getDiscountForUser(user)
+            if discount:
+                discounts.append(discount)
+                logger.debug('SignupDiscount: {0} for user {1}'.format(sd, user))
         if discounts:
             # Add discounts:add key to subs_params
             subs_params['discounts'] = {
@@ -1552,8 +1554,12 @@ class UserSubscriptionManager(models.Manager):
             if not qset.exists():
                 # User has no other subscription except this Trial which is to be canceled.
                 # Can apply invitee discount to the new Active subscription
-                subs_params['invitee_discount'] = True
-                logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
+                if Affiliate.objects.filter(user=user.profile.inviter).exists():
+                    subs_params['convertee_discount'] = True
+                    logger.info('SwitchTrialToActive: apply convertee discount to new subscription for {0}'.format(user))
+                else:
+                    subs_params['invitee_discount'] = True
+                    logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
         cancel_result = self.terminalCancelBtSubscription(user_subs)
         if cancel_result.is_success:
             # return (result, new_user_subs)
