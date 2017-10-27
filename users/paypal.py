@@ -111,7 +111,46 @@ class PayPalApi(object):
         return (recvd_sbid, payout_batch_id, batch_status)
 
     def getPayoutStatus(self, payout_batch_id):
-        """Request status of a batch payout"""
+        """Request status of a batch payout
+        Example response:
+        {
+            u'batch_header':
+                {u'amount': {u'currency': u'USD', u'value': u'5.25'},
+                u'batch_status': u'SUCCESS',
+                u'fees': {u'currency': u'USD', u'value': u'0.25'},
+                u'payout_batch_id': u'6TVQTDH65LSNN',
+                u'sender_batch_header': {u'email_subject': u'Another payout attempt',
+                                        u'sender_batch_id': u'201710202102'},
+                u'time_completed': u'2017-10-20T21:03:22Z',
+                u'time_created': u'2017-10-20T21:02:57Z'
+            },
+            u'items': [
+                {u'links': [
+                    {
+                        u'encType': u'application/json',
+                        u'href': u'https://api.sandbox.paypal.com/v1/payments/payouts-item/R2WM3CAEQ336G';,
+                        u'method': u'GET',
+                        u'rel': u'item'
+                    }
+                ],
+                u'payout_batch_id': u'6TVQTDH65LSNN',
+                u'payout_item': {
+                    u'amount': {u'currency': u'USD', u'value': u'5.25'},
+                    u'note': u'Thank you',
+                    u'receiver': u'faria.chowdhury-buyer-1@gmail.com',
+                    u'recipient_type': u'EMAIL',
+                    u'sender_item_id': u'201710202102:1'
+                },
+                u'payout_item_fee': {u'currency': u'USD', u'value': u'0.25'},
+                u'payout_item_id': u'R2WM3CAEQ336G',
+                u'time_processed': u'2017-10-20T21:03:15Z',
+                u'transaction_id': u'3DL34442EM6673237',   -- key does not exist for failed transactions
+                u'transaction_status': u'SUCCESS',
+                u'errors': {u'details, u'message', u'name'} -- key exists in case of errors
+                }
+            ],
+        }
+        """
         access_token = self.getOrRenewToken()
         headers = {
             "Accept": "application/json",

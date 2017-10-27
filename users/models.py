@@ -1030,7 +1030,7 @@ class Discount(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.name
+        return self.discountId
 
     def save(self, *args, **kwargs):
         """Check that only 1 row has activeForType=True for a given discountType,
@@ -1046,6 +1046,40 @@ class Discount(models.Model):
 
     class Meta:
         ordering = ['discountType', '-created']
+
+class SignupDiscountManager(models.Manager):
+
+    def getDiscountForUser(self, user):
+        L = user.email.split('@')
+        if len(L) != 2:
+            return None
+        email_domain = L[1]
+        qset = self.model.objects.select_related('discount').filter(
+                email_domain=email_domain, expireDate__gt=user.date_joined).order_by('expireDate')
+        if qset.exists():
+            sd = qset[0]
+            return sd.discount
+
+@python_2_unicode_compatible
+class SignupDiscount(models.Model):
+    email_domain = models.CharField(max_length=40)
+    discount = models.ForeignKey(Discount,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='signupdiscounts',
+        help_text='Discount to be applied to first billingCycle'
+    )
+    expireDate = models.DateTimeField('Cutoff for user signup date [UTC]')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = SignupDiscountManager()
+
+    class Meta:
+        unique_together = ('email_domain', 'discount', 'expireDate')
+
+    def __str__(self):
+        return '{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
+
 
 # An invitee is given the invitee-discount once for the first billing cycle.
 # An inviter is given the inviter discount once for each invitee (upto $200 max) on the next billing cycle.
@@ -1111,6 +1145,12 @@ class InvitationDiscount(models.Model):
         return '{0.invitee} by {0.inviter}'.format(self)
 
 # Note: sender_batch header can include recipient_type=EMAIL
+# A BatchPayout consists of 1+ payout-items, each to a specific receipient.
+# A single payout-item is paid to a specific affiliate. The amount paid for the
+# payout-item = sum([unset AffiliatePayout instances (one per convertee)]).
+# Upon creating the BatchPayout, the batchpayout FK is set on the AffiliatePayout instances used in the sum.
+# Upon updating the status of the BatchPayout, the payoutItemId/status/transactionId is also saved
+# to the 1+ AffiliatePayout instances used in the sum.
 class BatchPayout(models.Model):
     PENDING = 'PENDING'   # waiting to be processed
     PROCESSING = 'PROCESSING' # being processed
@@ -1135,7 +1175,7 @@ class BatchPayout(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=UNSET,
         help_text='PayPal-defined status of batch payout request')
     date_completed = models.DateTimeField(null=True, blank=True)
-    amount = models.DecimalField(null=True, blank=True, max_digits=8, decimal_places=2, help_text='Batch amount paid')
+    amount = models.DecimalField(max_digits=8, decimal_places=2, help_text='Batch amount paid')
     currency = models.CharField(max_length=4, blank=True, default='USD', help_text='Amount currency')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -1230,7 +1270,7 @@ class AffiliatePayout(models.Model):
             help_text='PayPal-generated item identifier. Exists even if there is no transactionId.')
     transactionId = models.CharField(max_length=36, blank=True, default='',
             help_text='PayPal-generated id for the transaction.')
-    amount = models.DecimalField(max_digits=5, decimal_places=2, help_text='Amount paid to affiliate in USD.')
+    amount = models.DecimalField(max_digits=5, decimal_places=2, help_text='per_user bonus paid to affiliate in USD.')
     status = models.CharField(max_length=20, blank=True, choices=STATUS_CHOICES, default=UNSET,
             help_text='PayPal-defined item transaction status')
     created = models.DateTimeField(auto_now_add=True)
@@ -1317,6 +1357,7 @@ class UserSubscriptionManager(models.Manager):
         user_subs = None
         is_invitee = False
         is_convertee = False
+        discounts = [] # Discount instances to be applied
         key = 'invitee_discount'
         if key in subs_params:
             is_invitee = subs_params.pop(key)
@@ -1327,11 +1368,19 @@ class UserSubscriptionManager(models.Manager):
             inviter = user.profile.inviter # User instance (used below)
             if not inviter:
                 raise ValueError('createBtSubscription: Invalid inviter')
-            discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
+            discounts.append(Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True))
+        # Check SignupDiscount - ensure it is only applied once
+        qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
+        if not qset.exists():
+            discount = SignupDiscount.objects.getDiscountForUser(user)
+            if discount:
+                discounts.append(discount)
+                logger.debug('Signup discount: {0} for user {1}'.format(discount, user))
+        if discounts:
             # Add discounts:add key to subs_params
             subs_params['discounts'] = {
                 'add': [
-                    {"inherited_from_id": discount.discountId},
+                    {"inherited_from_id": m.discountId} for m in discounts
                 ]
             }
         result = braintree.Subscription.create(subs_params)
@@ -1505,8 +1554,12 @@ class UserSubscriptionManager(models.Manager):
             if not qset.exists():
                 # User has no other subscription except this Trial which is to be canceled.
                 # Can apply invitee discount to the new Active subscription
-                subs_params['invitee_discount'] = True
-                logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
+                if Affiliate.objects.filter(user=user.profile.inviter).exists():
+                    subs_params['convertee_discount'] = True
+                    logger.info('SwitchTrialToActive: apply convertee discount to new subscription for {0}'.format(user))
+                else:
+                    subs_params['invitee_discount'] = True
+                    logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
         cancel_result = self.terminalCancelBtSubscription(user_subs)
         if cancel_result.is_success:
             # return (result, new_user_subs)
