@@ -1375,7 +1375,7 @@ class UserSubscriptionManager(models.Manager):
             discount = SignupDiscount.objects.getDiscountForUser(user)
             if discount:
                 discounts.append(discount)
-                logger.debug('SignupDiscount: {0} for user {1}'.format(sd, user))
+                logger.debug('Signup discount: {0} for user {1}'.format(discount, user))
         if discounts:
             # Add discounts:add key to subs_params
             subs_params['discounts'] = {
