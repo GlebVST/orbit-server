@@ -1358,6 +1358,7 @@ class UserSubscriptionManager(models.Manager):
         is_invitee = False
         is_convertee = False
         discounts = [] # Discount instances to be applied
+        inv_discount = None # saved to either InvitationDiscount or AffiliatePayout
         key = 'invitee_discount'
         if key in subs_params:
             is_invitee = subs_params.pop(key)
@@ -1368,14 +1369,15 @@ class UserSubscriptionManager(models.Manager):
             inviter = user.profile.inviter # User instance (used below)
             if not inviter:
                 raise ValueError('createBtSubscription: Invalid inviter')
-            discounts.append(Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True))
+            inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
+            discounts.append(inv_discount)
         # Check SignupDiscount - ensure it is only applied once
         qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
         if not qset.exists():
             discount = SignupDiscount.objects.getDiscountForUser(user)
             if discount:
                 discounts.append(discount)
-                logger.debug('Signup discount: {0} for user {1}'.format(discount, user))
+                logger.info('Signup discount: {0} for user {1}'.format(discount, user))
         if discounts:
             # Add discounts:add key to subs_params
             subs_params['discounts'] = {
@@ -1384,6 +1386,7 @@ class UserSubscriptionManager(models.Manager):
                 ]
             }
         result = braintree.Subscription.create(subs_params)
+        logger.info('createBtSubscription result: {0.is_success}'.format(result))
         if result.is_success:
             key = 'trial_duration'
             if key in subs_params and subs_params[key] == 0:
@@ -1423,12 +1426,12 @@ class UserSubscriptionManager(models.Manager):
                 InvitationDiscount.objects.create(
                     inviter=inviter,
                     invitee=user,
-                    inviteeDiscount=discount
+                    inviteeDiscount=inv_discount
                 )
             elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
                 AffiliatePayout.objects.create(
                     convertee=user,
-                    converteeDiscount=discount,
+                    converteeDiscount=inv_discount,
                     affiliate=inviter.affiliate, # Affiliate instance
                     amount=inviter.affiliate.bonus
                 )
