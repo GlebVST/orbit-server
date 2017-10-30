@@ -161,6 +161,7 @@ class AffiliateIdLookup(APIView):
                 m = qset[0]
                 profile = m.user.profile
                 username = profile.getFullName()
+                inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
                 context = {
                     'username': username,
                     'personalText': m.personalText,
@@ -168,7 +169,8 @@ class AffiliateIdLookup(APIView):
                     'jobDescription': m.jobDescription,
                     'og_title': m.og_title,
                     'og_description': m.og_description,
-                    'og_image': m.og_image
+                    'og_image': m.og_image,
+                    'invitee_discount': inv_discount.amount
                 }
                 return Response(context, status=status.HTTP_200_OK)
         return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
