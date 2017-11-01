@@ -706,11 +706,18 @@ class EntryManager(models.Manager):
         otherSrCmeEntries = []
         creditSumByTag = {}
         otherCmeTotal = 0
+        #print('Num entries: {0}'.format(qset.count()))
         try:
             for m in qset:
-                tagids = set([t.pk for t in m.tags.all()])
+                credits = 0
+                entry_tags = m.tags.all()
+                tagids = set([t.pk for t in entry_tags])
+                #tagnames = [t.name for t in entry_tags]
+                #print('{0.pk} {0}|{1}'.format(m, ','.join(tagnames)))
                 if satag.pk in tagids:
                     saEntries.append(m)
+                    #print('-- add to saEntries')
+                    #credits = m.srcme.credits -- include this?
                 else:
                     if m.entryType.name == ENTRYTYPE_BRCME:
                         brcmeEntries.append(m)
@@ -719,10 +726,13 @@ class EntryManager(models.Manager):
                         otherSrCmeEntries.append(m)
                         credits = m.srcme.credits
                     otherCmeTotal += credits
+                #print('-- credits: {0}'.format(credits))
                 # add credits to creditSumByTag
-                for t in m.tags.all():
-                    if t.pk == satag.pk: continue
+                for t in entry_tags:
+                    if t.pk == satag.pk:
+                        continue
                     creditSumByTag[t.name] = creditSumByTag.setdefault(t.name, 0) + credits
+                    #print('---- {0.name} : {1}'.format(t, creditSumByTag[t.name]))
             # sum credit totals
             saCmeTotal = sum([m.srcme.credits for m in saEntries])
         except Exception:
