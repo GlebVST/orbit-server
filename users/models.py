@@ -345,7 +345,7 @@ class Affiliate(models.Model):
     discountLabel = models.CharField(max_length=60, blank=True, default='', help_text='identifying label used in discount display')
     paymentEmail = models.EmailField(help_text='Valid email address to be used for Payouts.')
     active = models.BooleanField(default=True)
-    bonus = models.DecimalField(max_digits=5, decimal_places=2, help_text='payout amount per converted user in USD')
+    bonus = models.DecimalField(max_digits=3, decimal_places=2, default=0.15, help_text='Fractional multipler on fully discounted priced paid by convertee')
     personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
     photoUrl = models.URLField(max_length=1000, blank=True, help_text='Link to photo')
     jobDescription = models.TextField(blank=True)
@@ -356,7 +356,7 @@ class Affiliate(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{0.affiliateId}/{0.paymentEmail}'.format(self)
+        return '{0.affiliateId}|{0.paymentEmail}'.format(self)
 
 class StateLicense(models.Model):
     user = models.ForeignKey(User,
@@ -1192,7 +1192,7 @@ class BatchPayout(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{0.sender_batch_id}'.format(self)
+        return 'SBID:{0.sender_batch_id}|PBID:{0.payout_batch_id}'.format(self)
 
 # An convertee is given the invitee-discount once for the 1st billing cycle.
 # An affiliate is paid the per-user bonus once the convertee begins an Active subscription.
@@ -1370,6 +1370,7 @@ class UserSubscriptionManager(models.Manager):
         is_convertee = False
         discounts = [] # Discount instances to be applied
         inv_discount = None # saved to either InvitationDiscount or AffiliatePayout
+        subs_price = None
         key = 'invitee_discount'
         if key in subs_params:
             is_invitee = subs_params.pop(key)
@@ -1382,6 +1383,8 @@ class UserSubscriptionManager(models.Manager):
                 raise ValueError('createBtSubscription: Invalid inviter')
             inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
             discounts.append(inv_discount)
+            # calculate subs_price
+            subs_price = plan.discountPrice - inv_discount.amount
         # Check SignupDiscount - ensure it is only applied once
         qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
         if not qset.exists():
@@ -1389,6 +1392,9 @@ class UserSubscriptionManager(models.Manager):
             if discount:
                 discounts.append(discount)
                 logger.info('Signup discount: {0} for user {1}'.format(discount, user))
+                if not subs_price:
+                    subs_price = plan.discountPrice
+                subs_price -= discount.amount # subtract signup discount
         if discounts:
             # Add discounts:add key to subs_params
             subs_params['discounts'] = {
@@ -1396,6 +1402,7 @@ class UserSubscriptionManager(models.Manager):
                     {"inherited_from_id": m.discountId} for m in discounts
                 ]
             }
+            logger.info('subs_price: {0}'.format(subs_price))
         result = braintree.Subscription.create(subs_params)
         logger.info('createBtSubscription result: {0.is_success}'.format(result))
         if result.is_success:
@@ -1440,11 +1447,12 @@ class UserSubscriptionManager(models.Manager):
                     inviteeDiscount=inv_discount
                 )
             elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
+                afp_amount = inviter.affiliate.bonus*subs_price
                 AffiliatePayout.objects.create(
                     convertee=user,
                     converteeDiscount=inv_discount,
                     affiliate=inviter.affiliate, # Affiliate instance
-                    amount=inviter.affiliate.bonus
+                    amount=afp_amount
                 )
 
             # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist

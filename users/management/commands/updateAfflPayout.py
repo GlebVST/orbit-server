@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 from users.models import Affiliate, BatchPayout, AffiliatePayout
 from users.paypal import PayPalApi
-
+import pytz
 logger = logging.getLogger('mgmt.updafp')
 
 class Command(BaseCommand):
@@ -19,7 +19,10 @@ class Command(BaseCommand):
                 settings.PAYPAL_SECRET)
         batch_payouts = BatchPayout.objects.filter(date_completed__isnull=True).order_by('created')
         for bp in batch_payouts:
-            logger.debug('Check status for BatchPayout {0.pk}/{0.payout_batch_id}'.format(bp))
+            if not bp.payout_batch_id:
+                logger.debug('Skip BatchPayout {0.pk}/{0}'.format(bp))
+                continue
+            logger.info('Check status for BatchPayout {0.pk}/{0}'.format(bp))
             data = paypalApi.getPayoutStatus(bp.payout_batch_id)
             bh = data['batch_header']
             batch_status = bh['batch_status']
@@ -48,8 +51,8 @@ class Command(BaseCommand):
                         logger.debug('Updating afp {0.pk} for {1}'.format(m, aff_email))
                         m.payoutItemId = d['payout_item_id']
                         m.status = d['transaction_status']
-                        if 'transactionId' in d:
-                            m.transactionId = d['transactionId']
+                        if 'transaction_id' in d:
+                            m.transactionId = d['transaction_id']
                         m.save()
                         logger.info('Updated afp {0.pk}/{0}'.format(m))
                         if 'errors' in d:
