@@ -10,7 +10,7 @@ from users.emailutils import sendAffiliateReportEmail
 logger = logging.getLogger('mgmt.affp')
 
 class Command(BaseCommand):
-    help = "Calculate total amount earned by Affiliate, and create BatchPayout for the grandTotal if non-zero. Call PayPalApi.makePayout and update AffiliatePayout instances"
+    help = "Calculate total payout, and if non-zero, create BatchPayout for the grandTotal with one item per Affiliate. Call PayPalApi.makePayout and update AffiliatePayout instances"
 
     def add_arguments(self, parser):
         """Named optional argument for report_only"""
@@ -71,6 +71,7 @@ class Command(BaseCommand):
                 bp.payout_batch_id = payout_batch_id
                 bp.status = batch_status
                 bp.save()
+                print(bp)
                 # update AffiliatePayout instances: set batchpayout
                 for aff_pk in total_by_affl:
                     pks = total_by_affl[aff_pk]['pks']

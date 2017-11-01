@@ -12,26 +12,34 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
     from_email = settings.EMAIL_FROM
     tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
     now = timezone.now()
-    subject = 'Affiliate Payout Report - {0:%b %d %Y}'.format(now.astimezone(tz))
+    subject = 'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(tz))
     if settings.ENV_TYPE != settings.ENV_PROD:
         subject = u'[test-only] ' + subject
     data = []
     grandTotal = 0
+    totalUsers = 0
     for aff_pk in total_by_affl:
         affl = Affiliate.objects.get(pk=aff_pk)
         profile = affl.user.profile
         total = total_by_affl[aff_pk]['total']
         num_convertees = len(total_by_affl[aff_pk]['pks'])
         grandTotal += total
+        totalUsers += num_convertees
         data.append({
-            'fullName': profile.getFullName(),
+            'name': affl.discountLabel,
             'paymentEmail': affl.paymentEmail,
             'numConvertees': num_convertees,
             'payout': str(total)
         })
+    lastBatchPayout = None
+    bps = BatchPayout.objects.all().order_by('-created')
+    if bps.exists():
+        lastBatchPayout = bps[0]
     ctx = {
         'data': data,
-        'grandTotal': grandTotal
+        'grandTotal': grandTotal,
+        'totalUsers': totalUsers,
+        'lastBatchPayout': lastBatchPayout
     }
     message = get_template('email/affl_payout_report.html').render(ctx)
     msg = EmailMessage(subject, message, to=[email_to], from_email=from_email)

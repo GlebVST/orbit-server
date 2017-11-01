@@ -3,16 +3,16 @@
     <table border="1" cellpadding="5" cellspacing="0">
         <thead>
             <tr>
-                <th>Name</th>
+                <th>Associate</th>
                 <th>PayPal Email</th>
-                <th>Num. Users</th>
+                <th>Active Users Converted</th>
                 <th>Payout</th>
             </tr>
         </thead>
         <tbody>
             {% for d in data %}
             <tr>
-                <td>{{ d.fullName }}</td>
+                <td>{{ d.name }}</td>
                 <td>{{ d.paymentEmail }}</td>
                 <td>{{ d.numConvertees }}</td>
                 <td>${{ d.payout }}</td>
@@ -21,6 +21,9 @@
         </tbody>
     </table>
     <p>Payout Grand Total: ${{ grandTotal }} USD</p>
+    {% if lastBatchPayout %}
+        <p>Total number of converted users since {% lastBatchPayout.created "D, d N Y H:i e" %}: {{ totalUsers }}.</p>
+    {% endif %}
     {% if grandTotal %}
         <p><em>Action required: </em> Please login to the admin server and execute management command to submit the actual payout.</p>
     {% endif %}

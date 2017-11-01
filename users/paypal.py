@@ -37,6 +37,7 @@ class PayPalApi(object):
         }
         now = timezone.now()
         service = self.BASEURL + SERVICE_TOKEN
+        print(service)
         r = requests.post(
                 service,
                 data=payload,
@@ -45,8 +46,9 @@ class PayPalApi(object):
         )
         data = r.json()
         data['created'] = now # add extra key for reference point for expires_in
-        logger.debug('Token {access_token} expires in {expires_in} seconds starting from {created_at}'.format(**data))
-        logger.debug(data['scope'])
+        if 'access_token' in data:
+            logger.debug('Token {access_token} expires in {expires_in} seconds starting from {created}'.format(**data))
+            #logger.debug(data['scope'])
         self.token = data
 
     def getOrRenewToken(self):
@@ -93,7 +95,7 @@ class PayPalApi(object):
                 "receiver": d['receiver'], # an email address
                 "note": "Thank you"
             })
-        #pprint(payload)
+        pprint(payload)
         service = self.BASEURL + SERVICE_PAYOUT
         r = requests.post(
                 service,

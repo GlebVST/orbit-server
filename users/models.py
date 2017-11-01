@@ -341,12 +341,13 @@ class Affiliate(models.Model):
         on_delete=models.CASCADE,
         primary_key=True
     )
-    affiliateId = models.CharField(max_length=6, unique=True, help_text='Affiliate ID')
+    affiliateId = models.CharField(max_length=20, unique=True, help_text='Affiliate ID')
+    discountLabel = models.CharField(max_length=60, blank=True, default='', help_text='identifying label used in discount display')
     paymentEmail = models.EmailField(help_text='Valid email address to be used for Payouts.')
     active = models.BooleanField(default=True)
     bonus = models.DecimalField(max_digits=5, decimal_places=2, help_text='payout amount per converted user in USD')
     personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
-    photoUrl = models.URLField(max_length=1000, blank=True, help_text='Link to affiliate photo')
+    photoUrl = models.URLField(max_length=1000, blank=True, help_text='Link to photo')
     jobDescription = models.TextField(blank=True)
     og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
     og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
@@ -355,7 +356,7 @@ class Affiliate(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.paymentEmail
+        return '{0.affiliateId}/{0.paymentEmail}'.format(self)
 
 class StateLicense(models.Model):
     user = models.ForeignKey(User,
