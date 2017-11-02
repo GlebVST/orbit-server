@@ -67,6 +67,14 @@ class PayPalApi(object):
 
 
     def makePayout(self, sender_batch_id, email_subject, items):
+        """make POST request to BatchPayout API.
+        Args:
+        sender_batch_id:str for sender_batch_header
+        email_subject:str email subject as seen by recipients
+        items:list of dicts {amount,sender_item_id, receiver,note}
+        Returns:tuple
+        (recveived_sender_batch_id, payout_batch_id, batch_status)
+        """
         if not items:
             return None
         if len(items) > MAX_NUM_ITEMS:
@@ -93,7 +101,7 @@ class PayPalApi(object):
                 },
                 "sender_item_id": d['sender_item_id'],
                 "receiver": d['receiver'], # an email address
-                "note": "Thank you"
+                "note": d['note']
             })
         pprint(payload)
         service = self.BASEURL + SERVICE_PAYOUT

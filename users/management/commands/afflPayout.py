@@ -3,11 +3,14 @@ from smtplib import SMTPException
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.utils import timezone
+from dateutils.relativedelta import *
 from users.models import Affiliate, BatchPayout, AffiliatePayout
 from users.paypal import PayPalApi
 from users.emailutils import sendAffiliateReportEmail
 
 logger = logging.getLogger('mgmt.affp')
+
+PROGRAM_NAME = 'Orbit Associates Program'
 
 class Command(BaseCommand):
     help = "Calculate total payout, and if non-zero, create BatchPayout for the grandTotal with one item per Affiliate. Call PayPalApi.makePayout and update AffiliatePayout instances"
@@ -28,24 +31,30 @@ class Command(BaseCommand):
                 settings.PAYPAL_CLIENTID,
                 settings.PAYPAL_SECRET)
         email_to = settings.SALES_EMAIL
-        grandTotal = 0
-        items = []
         # affl.pk => {total:Decimal, pks:list of AffiliatePayout pkeyids}
         total_by_affl = AffiliatePayout.objects.calcTotalByAffiliate()
         now = timezone.now()
         sender_batch_id = now.strftime('%Y%m%d%H%M')
-        for aff_pk in total_by_affl:
+        startdate = now - relativedelta(months=1)
+        monyr = startdate.strftime('%B %Y')
+        print(monyr)
+        grandTotal = 0
+        items = []
+        for aff_pk in sorted(total_by_affl):
             affl = Affiliate.objects.get(pk=aff_pk)
             total = total_by_affl[aff_pk]['total']
             grandTotal += total
+            num_convertees = len(total_by_affl[aff_pk]['pks'])
+            note = "Earnings for {0} total referral(s) that converted to Active users through the {1} for {2}.".format(num_convertees, PROGRAM_NAME, monyr)
             if not options['report_only']:
                 # one payout-item per affiliate with amount=total
                 items.append({
-                    'sender_item_id':sender_batch_id+':'+str(aff_pk),
+                    'sender_item_id':sender_batch_id+':{0}'.format(aff_pk),
                     'amount':total,
-                    'receiver': affl.paymentEmail
+                    'receiver': affl.paymentEmail,
+                    'note': note
                 })
-                logger.debug('Affl {0} earned: {1}'.format(affl, total))
+                logger.debug('Affl {0.paymentEmail} earned: {1}'.format(affl, total))
         if options['report_only']:
             try:
                 sendAffiliateReportEmail(total_by_affl, email_to)
@@ -65,6 +74,7 @@ class Command(BaseCommand):
                 (recvd_sender_batch_id, payout_batch_id, batch_status) = paypalApi.makePayout(sender_batch_id, bp.email_subject, items)
             except ValueError, e:
                 logger.exception('makePayout error: {0}'.format(e))
+                bp.delete()
             else:
                 logger.info('received_sender_batch_id:{0} payout_batch_id: {1} status {2}'.format(recvd_sender_batch_id, payout_batch_id, batch_status))
                 # update BatchPayout instance

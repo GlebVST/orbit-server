@@ -44,10 +44,12 @@ class Auth0Backend(object):
                     profile.pictureUrl = picture
                 profile.verified = bool(email_verified)
                 if affiliateId:
-                    qset = Affiliate.objects.filter(affiliateId=affiliateId)
+                    qset = AffiliateDetail.objects.filter(affiliateId=affiliateId)
                     if qset.exists():
-                        profile.inviter = qset[0].user # inviter User
-                        logger.info('User {0.email} was converted by {1.email}'.format(user, profile.inviter))
+                        affl = qset[0].affiliate # Affiliate instance
+                        profile.inviter = affl.user # User instance
+                        profile.affiliateId = affiliateId
+                        logger.info('User {0.email} was converted by {1}'.format(user, affiliateId))
                     else:
                         logger.warning('Invalid affiliateId: {0}'.format(affiliateId))
                 elif inviterId:

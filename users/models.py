@@ -199,6 +199,18 @@ class PracticeSpecialty(models.Model):
     class Meta:
         verbose_name_plural = 'Practice Specialties'
 
+@python_2_unicode_compatible
+class Organization(models.Model):
+    """Organization - groups of users
+    """
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, unique=True, help_text='Org code for display')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.code
+
 
 @python_2_unicode_compatible
 class Profile(models.Model):
@@ -251,6 +263,7 @@ class Profile(models.Model):
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
     cmeDuedate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
+    affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -341,22 +354,34 @@ class Affiliate(models.Model):
         on_delete=models.CASCADE,
         primary_key=True
     )
-    affiliateId = models.CharField(max_length=20, unique=True, help_text='Affiliate ID')
-    discountLabel = models.CharField(max_length=60, blank=True, default='', help_text='identifying label used in discount display')
+    displayLabel = models.CharField(max_length=60, blank=True, default='', help_text='identifying label used in display')
     paymentEmail = models.EmailField(help_text='Valid email address to be used for Payouts.')
-    active = models.BooleanField(default=True)
     bonus = models.DecimalField(max_digits=3, decimal_places=2, default=0.15, help_text='Fractional multipler on fully discounted priced paid by convertee')
-    personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
-    photoUrl = models.URLField(max_length=1000, blank=True, help_text='Link to photo')
-    jobDescription = models.TextField(blank=True)
-    og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
-    og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
-    og_image = models.URLField(max_length=1000, blank=True, help_text='URL for og:image metatag')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{0.affiliateId}|{0.paymentEmail}'.format(self)
+        return '{0.displayLabel}'.format(self)
+
+class AffiliateDetail(models.Model):
+    affiliate = models.ForeignKey(Affiliate,
+        on_delete=models.CASCADE,
+        related_name='affdetails',
+        db_index=True
+    )
+    affiliateId = models.CharField(max_length=20, unique=True, help_text='Affiliate ID')
+    active = models.BooleanField(default=True)
+    personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
+    photoUrl = models.URLField(max_length=500, blank=True, help_text='Link to photo')
+    jobDescription = models.TextField(blank=True)
+    og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
+    og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
+    og_image = models.URLField(max_length=500, blank=True, help_text='URL for og:image metatag')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return '{0.affiliate}|{0.affiliateId}'.format(self)
 
 class StateLicense(models.Model):
     user = models.ForeignKey(User,
@@ -1074,6 +1099,11 @@ class SignupDiscountManager(models.Manager):
 @python_2_unicode_compatible
 class SignupDiscount(models.Model):
     email_domain = models.CharField(max_length=40)
+#    organization = models.ForeignKey(Organization,
+#        on_delete=models.CASCADE,
+#        db_index=True,
+#        related_name='signupdiscounts'
+#    )
     discount = models.ForeignKey(Discount,
         on_delete=models.CASCADE,
         db_index=True,
@@ -1089,6 +1119,7 @@ class SignupDiscount(models.Model):
         unique_together = ('email_domain', 'discount', 'expireDate')
 
     def __str__(self):
+        #return '{0.organization}|{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
         return '{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
 
 
@@ -1348,6 +1379,11 @@ class UserSubscriptionManager(models.Manager):
             return None
         else:
             return subscription
+
+#    def getDiscountsForNewSubscription(self, user, plan):
+#        """
+#        """
+#        return (subs_price, discounts)
 
     def createBtSubscription(self, user, plan, subs_params):
         """Create Braintree subscription using the given params

@@ -18,7 +18,7 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
     data = []
     grandTotal = 0
     totalUsers = 0
-    for aff_pk in total_by_affl:
+    for aff_pk in sorted(total_by_affl):
         affl = Affiliate.objects.get(pk=aff_pk)
         profile = affl.user.profile
         total = total_by_affl[aff_pk]['total']
@@ -26,7 +26,7 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
         grandTotal += total
         totalUsers += num_convertees
         data.append({
-            'name': affl.discountLabel,
+            'name': affl.displayLabel,
             'paymentEmail': affl.paymentEmail,
             'numConvertees': num_convertees,
             'payout': str(total)
