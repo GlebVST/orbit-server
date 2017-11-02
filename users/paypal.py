@@ -37,6 +37,7 @@ class PayPalApi(object):
         }
         now = timezone.now()
         service = self.BASEURL + SERVICE_TOKEN
+        print(service)
         r = requests.post(
                 service,
                 data=payload,
@@ -45,8 +46,9 @@ class PayPalApi(object):
         )
         data = r.json()
         data['created'] = now # add extra key for reference point for expires_in
-        logger.debug('Token {access_token} expires in {expires_in} seconds starting from {created_at}'.format(**data))
-        logger.debug(data['scope'])
+        if 'access_token' in data:
+            logger.debug('Token {access_token} expires in {expires_in} seconds starting from {created}'.format(**data))
+            #logger.debug(data['scope'])
         self.token = data
 
     def getOrRenewToken(self):
@@ -65,6 +67,14 @@ class PayPalApi(object):
 
 
     def makePayout(self, sender_batch_id, email_subject, items):
+        """make POST request to BatchPayout API.
+        Args:
+        sender_batch_id:str for sender_batch_header
+        email_subject:str email subject as seen by recipients
+        items:list of dicts {amount,sender_item_id, receiver,note}
+        Returns:tuple
+        (recveived_sender_batch_id, payout_batch_id, batch_status)
+        """
         if not items:
             return None
         if len(items) > MAX_NUM_ITEMS:
@@ -91,9 +101,9 @@ class PayPalApi(object):
                 },
                 "sender_item_id": d['sender_item_id'],
                 "receiver": d['receiver'], # an email address
-                "note": "Thank you"
+                "note": d['note']
             })
-        #pprint(payload)
+        pprint(payload)
         service = self.BASEURL + SERVICE_PAYOUT
         r = requests.post(
                 service,

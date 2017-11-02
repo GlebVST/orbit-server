@@ -199,6 +199,18 @@ class PracticeSpecialty(models.Model):
     class Meta:
         verbose_name_plural = 'Practice Specialties'
 
+@python_2_unicode_compatible
+class Organization(models.Model):
+    """Organization - groups of users
+    """
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, unique=True, help_text='Org code for display')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.code
+
 
 @python_2_unicode_compatible
 class Profile(models.Model):
@@ -251,6 +263,7 @@ class Profile(models.Model):
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
     cmeDuedate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
+    affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -341,21 +354,34 @@ class Affiliate(models.Model):
         on_delete=models.CASCADE,
         primary_key=True
     )
-    affiliateId = models.CharField(max_length=6, unique=True, help_text='Affiliate ID')
+    displayLabel = models.CharField(max_length=60, blank=True, default='', help_text='identifying label used in display')
     paymentEmail = models.EmailField(help_text='Valid email address to be used for Payouts.')
-    active = models.BooleanField(default=True)
-    bonus = models.DecimalField(max_digits=5, decimal_places=2, help_text='payout amount per converted user in USD')
-    personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
-    photoUrl = models.URLField(max_length=1000, blank=True, help_text='Link to affiliate photo')
-    jobDescription = models.TextField(blank=True)
-    og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
-    og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
-    og_image = models.URLField(max_length=1000, blank=True, help_text='URL for og:image metatag')
+    bonus = models.DecimalField(max_digits=3, decimal_places=2, default=0.15, help_text='Fractional multipler on fully discounted priced paid by convertee')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.paymentEmail
+        return '{0.displayLabel}'.format(self)
+
+class AffiliateDetail(models.Model):
+    affiliate = models.ForeignKey(Affiliate,
+        on_delete=models.CASCADE,
+        related_name='affdetails',
+        db_index=True
+    )
+    affiliateId = models.CharField(max_length=20, unique=True, help_text='Affiliate ID')
+    active = models.BooleanField(default=True)
+    personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
+    photoUrl = models.URLField(max_length=500, blank=True, help_text='Link to photo')
+    jobDescription = models.TextField(blank=True)
+    og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
+    og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
+    og_image = models.URLField(max_length=500, blank=True, help_text='URL for og:image metatag')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return '{0.affiliate}|{0.affiliateId}'.format(self)
 
 class StateLicense(models.Model):
     user = models.ForeignKey(User,
@@ -705,11 +731,18 @@ class EntryManager(models.Manager):
         otherSrCmeEntries = []
         creditSumByTag = {}
         otherCmeTotal = 0
+        #print('Num entries: {0}'.format(qset.count()))
         try:
             for m in qset:
-                tagids = set([t.pk for t in m.tags.all()])
+                credits = 0
+                entry_tags = m.tags.all()
+                tagids = set([t.pk for t in entry_tags])
+                #tagnames = [t.name for t in entry_tags]
+                #print('{0.pk} {0}|{1}'.format(m, ','.join(tagnames)))
                 if satag.pk in tagids:
                     saEntries.append(m)
+                    #print('-- add to saEntries')
+                    #credits = m.srcme.credits -- include this?
                 else:
                     if m.entryType.name == ENTRYTYPE_BRCME:
                         brcmeEntries.append(m)
@@ -718,10 +751,13 @@ class EntryManager(models.Manager):
                         otherSrCmeEntries.append(m)
                         credits = m.srcme.credits
                     otherCmeTotal += credits
+                #print('-- credits: {0}'.format(credits))
                 # add credits to creditSumByTag
-                for t in m.tags.all():
-                    if t.pk == satag.pk: continue
+                for t in entry_tags:
+                    if t.pk == satag.pk:
+                        continue
                     creditSumByTag[t.name] = creditSumByTag.setdefault(t.name, 0) + credits
+                    #print('---- {0.name} : {1}'.format(t, creditSumByTag[t.name]))
             # sum credit totals
             saCmeTotal = sum([m.srcme.credits for m in saEntries])
         except Exception:
@@ -1063,6 +1099,11 @@ class SignupDiscountManager(models.Manager):
 @python_2_unicode_compatible
 class SignupDiscount(models.Model):
     email_domain = models.CharField(max_length=40)
+#    organization = models.ForeignKey(Organization,
+#        on_delete=models.CASCADE,
+#        db_index=True,
+#        related_name='signupdiscounts'
+#    )
     discount = models.ForeignKey(Discount,
         on_delete=models.CASCADE,
         db_index=True,
@@ -1078,6 +1119,7 @@ class SignupDiscount(models.Model):
         unique_together = ('email_domain', 'discount', 'expireDate')
 
     def __str__(self):
+        #return '{0.organization}|{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
         return '{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
 
 
@@ -1181,7 +1223,7 @@ class BatchPayout(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{0.sender_batch_id}'.format(self)
+        return 'SBID:{0.sender_batch_id}|PBID:{0.payout_batch_id}'.format(self)
 
 # An convertee is given the invitee-discount once for the 1st billing cycle.
 # An affiliate is paid the per-user bonus once the convertee begins an Active subscription.
@@ -1338,6 +1380,11 @@ class UserSubscriptionManager(models.Manager):
         else:
             return subscription
 
+#    def getDiscountsForNewSubscription(self, user, plan):
+#        """
+#        """
+#        return (subs_price, discounts)
+
     def createBtSubscription(self, user, plan, subs_params):
         """Create Braintree subscription using the given params
         In local db:
@@ -1359,6 +1406,7 @@ class UserSubscriptionManager(models.Manager):
         is_convertee = False
         discounts = [] # Discount instances to be applied
         inv_discount = None # saved to either InvitationDiscount or AffiliatePayout
+        subs_price = None
         key = 'invitee_discount'
         if key in subs_params:
             is_invitee = subs_params.pop(key)
@@ -1371,6 +1419,8 @@ class UserSubscriptionManager(models.Manager):
                 raise ValueError('createBtSubscription: Invalid inviter')
             inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
             discounts.append(inv_discount)
+            # calculate subs_price
+            subs_price = plan.discountPrice - inv_discount.amount
         # Check SignupDiscount - ensure it is only applied once
         qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
         if not qset.exists():
@@ -1378,6 +1428,9 @@ class UserSubscriptionManager(models.Manager):
             if discount:
                 discounts.append(discount)
                 logger.info('Signup discount: {0} for user {1}'.format(discount, user))
+                if not subs_price:
+                    subs_price = plan.discountPrice
+                subs_price -= discount.amount # subtract signup discount
         if discounts:
             # Add discounts:add key to subs_params
             subs_params['discounts'] = {
@@ -1385,6 +1438,7 @@ class UserSubscriptionManager(models.Manager):
                     {"inherited_from_id": m.discountId} for m in discounts
                 ]
             }
+            logger.info('subs_price: {0}'.format(subs_price))
         result = braintree.Subscription.create(subs_params)
         logger.info('createBtSubscription result: {0.is_success}'.format(result))
         if result.is_success:
@@ -1429,11 +1483,12 @@ class UserSubscriptionManager(models.Manager):
                     inviteeDiscount=inv_discount
                 )
             elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
+                afp_amount = inviter.affiliate.bonus*subs_price
                 AffiliatePayout.objects.create(
                     convertee=user,
                     converteeDiscount=inv_discount,
                     affiliate=inviter.affiliate, # Affiliate instance
-                    amount=inviter.affiliate.bonus
+                    amount=afp_amount
                 )
 
             # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist

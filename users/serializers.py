@@ -322,8 +322,8 @@ class StateLicenseSerializer(serializers.ModelSerializer):
 class BrowserCmeOfferSerializer(serializers.ModelSerializer):
     userId = serializers.IntegerField(source='user.id', read_only=True)
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True)
+    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
+    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
     cmeTags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
@@ -337,7 +337,7 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
             'suggestedDescr',
             'expireDate',
             'credits',
-            'sponsorId',
+            'sponsor',
             'logo_url',
             'cmeTags'
         )
@@ -449,8 +449,8 @@ class EntryReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     entryTypeId = serializers.PrimaryKeyRelatedField(source='entryType.id', read_only=True)
     entryType = serializers.StringRelatedField(read_only=True)
-    sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True)
+    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
+    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
     tags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     documents = DocumentReadSerializer(many=True, required=False)
     creditType = serializers.ReadOnlyField(source='ama_pra_catg')
@@ -479,7 +479,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'documents',
             'creditType',
             'extra',
-            'sponsorId',
+            'sponsor',
             'logo_url',
             'created',
             'modified'
@@ -911,8 +911,8 @@ PINNED_MESSAGE_LABEL = 'Self-Assessed CME'
 
 class PinnedMessageSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-    sponsorId = serializers.PrimaryKeyRelatedField(source='sponsor.id', read_only=True)
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True)
+    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
+    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
     displayLabel = serializers.SerializerMethodField()
 
     def get_displayLabel(self, obj):
@@ -928,7 +928,7 @@ class PinnedMessageSerializer(serializers.ModelSerializer):
             'startDate',
             'expireDate',
             'launch_url',
-            'sponsorId',
+            'sponsor',
             'logo_url',
             'displayLabel'
         )
@@ -1014,9 +1014,9 @@ class StateLicenseSubSerializer(serializers.ModelSerializer):
 class AuditReportReadSerializer(serializers.ModelSerializer):
     npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
     nbcrnaId = serializers.ReadOnlyField(source='user.profile.nbcrnaId')
-    country = serializers.ReadOnlyField(source='user.profile.country.code')
     degree = serializers.SerializerMethodField()
     statelicense = serializers.SerializerMethodField()
+    country = serializers.SerializerMethodField()
 
     def get_degree(self, obj):
         return obj.user.profile.formatDegrees()
@@ -1027,6 +1027,14 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
             s =  StateLicenseSubSerializer(user.statelicenses.all()[0])
             return s.data
         return None
+
+    def get_country(self, obj):
+        """After upgrade to DRF 3.7, use SerializerMethodField because profile.country can be null
+        """
+        p = obj.user.profile
+        if p.country:
+            return p.country.code
+        return None # or empty str?
 
     class Meta:
         model = AuditReport

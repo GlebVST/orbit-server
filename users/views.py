@@ -156,14 +156,13 @@ class AffiliateIdLookup(APIView):
     def get(self, request, *args, **kwargs):
         lookupId = self.kwargs.get('affid')
         if lookupId:
-            qset = Affiliate.objects.filter(affiliateId=lookupId)
+            qset = AffiliateDetail.objects.filter(affiliateId=lookupId)
             if qset.exists():
                 m = qset[0]
-                profile = m.user.profile
-                username = profile.getFullName()
+                affl = m.affiliate
                 inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
                 context = {
-                    'username': username,
+                    'username': affl.displayLabel,
                     'personalText': m.personalText,
                     'photoUrl': m.photoUrl,
                     'jobDescription': m.jobDescription,

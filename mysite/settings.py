@@ -47,8 +47,8 @@ DEBUG = True if ENV_TYPE == ENV_DEV else False
 
 ADMINS = [
     ('Faria Chowdhury',     'faria.chowdhury@gmail.com'),
-    ('Max Hwang',           'mch@codeabovelab.com'),
-    ('Gleb Starodubstev',   'gleb@codeabovelab.com')
+#    ('Max Hwang',           'mch@codeabovelab.com'),
+#    ('Gleb Starodubstev',   'gleb@codeabovelab.com')
 ]
 
 # Note: This value should match the X_FORWARDED_HOST in the nginx conf file.

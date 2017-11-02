@@ -16,6 +16,9 @@ class PracticeSpecialtyAdmin(admin.ModelAdmin):
         qs = super(PracticeSpecialtyAdmin, self).get_queryset(request)
         return qs.prefetch_related('cmeTags')
 
+class OrgAdmin(admin.ModelAdmin):
+    list_display = ('id', 'code', 'name', 'created')
+
 class CmeTagAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'priority', 'description', 'created')
 
@@ -46,10 +49,12 @@ class CustomerAdmin(admin.ModelAdmin):
     search_fields = ['customerId',]
 
 class AffiliateAdmin(admin.ModelAdmin):
-    list_display = ('user', 'affiliateId', 'paymentEmail', 'bonus', 'active', 'og_title', 'modified')
-    list_filter = ('active',)
-    ordering = ('-modified',)
-    readonly_fields = ('affiliateId',)
+    list_display = ('user', 'displayLabel', 'paymentEmail', 'bonus', 'modified')
+    ordering = ('displayLabel',)
+
+class AffiliateDetailAdmin(admin.ModelAdmin):
+    list_display = ('affiliateId', 'affiliate', 'photoUrl', 'jobDescription', 'modified')
+    ordering = ('affiliate','affiliateId')
 
 class StateLicenseAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'state', 'license_no', 'created')
@@ -132,6 +137,8 @@ class DiscountAdmin(admin.ModelAdmin):
 class SignupDiscountAdmin(admin.ModelAdmin):
     list_display = ('id','email_domain','discount','expireDate')
     ordering = ('email_domain','expireDate')
+    #list_display = ('id','organization','email_domain','discount','expireDate')
+    #ordering = ('organization','expireDate')
 
 
 class InvitationDiscountAdmin(admin.ModelAdmin):
@@ -238,6 +245,7 @@ class MyAdminSite(admin.AdminSite):
 admin_site = MyAdminSite()
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
+admin_site.register(AffiliateDetail, AffiliateDetailAdmin)
 admin_site.register(AffiliatePayout, AffiliatePayoutAdmin)
 admin_site.register(AuditReport, AuditReportAdmin)
 admin_site.register(BatchPayout, BatchPayoutAdmin)
@@ -254,6 +262,7 @@ admin_site.register(EligibleSite, EligibleSiteAdmin)
 admin_site.register(Entry, EntryAdmin)
 admin_site.register(EntryType, EntryTypeAdmin)
 admin_site.register(InvitationDiscount, InvitationDiscountAdmin)
+admin_site.register(Organization, OrgAdmin)
 admin_site.register(PinnedMessage, PinnedMessageAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
