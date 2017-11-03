@@ -333,7 +333,7 @@ LOGGING = {
             'backupCount':5
         },
         'mgmt_rotfile': {
-            'level': 'INFO',
+            'level': 'DEBUG',
             'class': 'logging.handlers.RotatingFileHandler',
             'formatter': 'verbose',
             'filename': os.path.join(LOG_DIR, 'mgmt.log'),

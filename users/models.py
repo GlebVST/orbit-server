@@ -377,6 +377,7 @@ class AffiliateDetail(models.Model):
     og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
     og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
     og_image = models.URLField(max_length=500, blank=True, help_text='URL for og:image metatag')
+    redirect_page = models.CharField(max_length=80, blank=True, default='', help_text='Name of HTML page for redirect - e.g. orbitPA.html')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -1099,11 +1100,11 @@ class SignupDiscountManager(models.Manager):
 @python_2_unicode_compatible
 class SignupDiscount(models.Model):
     email_domain = models.CharField(max_length=40)
-#    organization = models.ForeignKey(Organization,
-#        on_delete=models.CASCADE,
-#        db_index=True,
-#        related_name='signupdiscounts'
-#    )
+    organization = models.ForeignKey(Organization,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='signupdiscounts'
+    )
     discount = models.ForeignKey(Discount,
         on_delete=models.CASCADE,
         db_index=True,
@@ -1119,8 +1120,7 @@ class SignupDiscount(models.Model):
         unique_together = ('email_domain', 'discount', 'expireDate')
 
     def __str__(self):
-        #return '{0.organization}|{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
-        return '{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
+        return '{0.organization}|{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
 
 
 # An invitee is given the invitee-discount once for the first billing cycle.

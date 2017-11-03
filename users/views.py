@@ -169,6 +169,7 @@ class AffiliateIdLookup(APIView):
                     'og_title': m.og_title,
                     'og_description': m.og_description,
                     'og_image': m.og_image,
+                    'redirect_page': m.redirect_page,
                     'invitee_discount': inv_discount.amount
                 }
                 return Response(context, status=status.HTTP_200_OK)
