@@ -150,6 +150,24 @@ class ProfileUpdate(generics.UpdateAPIView):
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
 
+class SignupDiscountList(APIView):
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+        data = [{
+            'discountId': d['discount'].discountId,
+            'amount': d['discount'].amount,
+            'discountType': d['discountType'],
+            'displayLabel': d['displayLabel']
+            } for d in discounts]
+        # sort by amount desc
+        display_data = sorted(data, key=itemgetter('amount'), reverse=True)
+        context = {'discounts': display_data}
+        return Response(context, status=status.HTTP_200_OK)
+
+
 class AffiliateIdLookup(APIView):
     permission_classes = (permissions.AllowAny,)
 

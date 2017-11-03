@@ -5,7 +5,7 @@ from hashids import Hashids
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
-from .models import Profile, Customer, Affiliate
+from .models import Profile, Customer, Affiliate, AffiliateDetail
 
 logger = logging.getLogger('gen.auth')
 HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
