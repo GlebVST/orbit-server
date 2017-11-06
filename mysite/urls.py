@@ -62,6 +62,7 @@ api_patterns = [
     url(r'^shop/trial-to-active/?$', payment_views.SwitchTrialToActive.as_view(), name='payment-trial-to-active'),
     url(r'^shop/plans/?$', views.SubscriptionPlanList.as_view(), name='shop-plans'),
     url(r'^shop/plans-public/?$', views.SubscriptionPlanPublic.as_view(), name='shop-plan-public'),
+    url(r'^shop/signup-discounts/?$', views.SignupDiscountList.as_view(), name='shop-signup-discounts'),
 
     # Account and Profile-related
     url(r'^accounts/?$', views.CustomerList.as_view()),

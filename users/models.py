@@ -43,8 +43,10 @@ DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
 SPONSOR_BRCME = 'TUSM'
 ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
-INVITEE_DISCOUNT_TYPE = 'invitee'
 INVITER_DISCOUNT_TYPE = 'inviter'
+INVITEE_DISCOUNT_TYPE = 'invitee'
+CONVERTEE_DISCOUNT_TYPE = 'convertee'
+ORG_DISCOUNT_TYPE = 'org'
 
 # maximum number of invites for which a discount is applied to the inviter's subscription.
 INVITER_MAX_NUM_DISCOUNT = 10
@@ -377,6 +379,7 @@ class AffiliateDetail(models.Model):
     og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
     og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
     og_image = models.URLField(max_length=500, blank=True, help_text='URL for og:image metatag')
+    redirect_page = models.CharField(max_length=80, blank=True, default='', help_text='Name of HTML page for redirect - e.g. orbitPA.html')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -1085,7 +1088,8 @@ class Discount(models.Model):
 
 class SignupDiscountManager(models.Manager):
 
-    def getDiscountForUser(self, user):
+    def getForUser(self, user):
+        """Returns SignupDiscount instance/None for the given user"""
         L = user.email.split('@')
         if len(L) != 2:
             return None
@@ -1093,17 +1097,16 @@ class SignupDiscountManager(models.Manager):
         qset = self.model.objects.select_related('discount').filter(
                 email_domain=email_domain, expireDate__gt=user.date_joined).order_by('expireDate')
         if qset.exists():
-            sd = qset[0]
-            return sd.discount
+            return qset[0]
 
 @python_2_unicode_compatible
 class SignupDiscount(models.Model):
     email_domain = models.CharField(max_length=40)
-#    organization = models.ForeignKey(Organization,
-#        on_delete=models.CASCADE,
-#        db_index=True,
-#        related_name='signupdiscounts'
-#    )
+    organization = models.ForeignKey(Organization,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='signupdiscounts'
+    )
     discount = models.ForeignKey(Discount,
         on_delete=models.CASCADE,
         db_index=True,
@@ -1119,8 +1122,7 @@ class SignupDiscount(models.Model):
         unique_together = ('email_domain', 'discount', 'expireDate')
 
     def __str__(self):
-        #return '{0.organization}|{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
-        return '{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
+        return '{0.organization}|{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
 
 
 # An invitee is given the invitee-discount once for the first billing cycle.
@@ -1380,10 +1382,49 @@ class UserSubscriptionManager(models.Manager):
         else:
             return subscription
 
-#    def getDiscountsForNewSubscription(self, user, plan):
-#        """
-#        """
-#        return (subs_price, discounts)
+    def getDiscountsForNewSubscription(self, user):
+        """This returns the list of discounts for the user for his/her first Active subscription.
+        If called by createBtSubscription, then it should be called like so:
+        qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
+        if not qset.exists():
+            call this method to get the discounts
+        Otherwise can be called even after user has started Active Subs for other purpose (such as receipt).
+        Returns list of dicts:
+        { discount:Discount instance, discountType:str, displayLabel:str }
+        """
+        is_invitee = False
+        is_convertee = False
+        discounts = [] # Discount instances to be applied
+        profile = user.profile
+        if profile.inviter:
+            # Check if inviter is an affiliate
+            inviter = profile.inviter
+            if Affiliate.objects.filter(user=inviter).exists():
+                is_convertee = True
+            else:
+                is_invitee = True
+        if is_invitee or is_convertee:
+            inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
+            if is_invitee:
+                discountType = INVITEE_DISCOUNT_TYPE
+                displayLabel = inviter.profile.getFullName()
+            else:
+                discountType = CONVERTEE_DISCOUNT_TYPE
+                affl = Affiliate.objects.get(user=inviter)
+                displayLabel = affl.displayLabel
+            discounts.append({
+                'discount': inv_discount,
+                'discountType': discountType,
+                'displayLabel': displayLabel
+            })
+        sd = SignupDiscount.objects.getForUser(user)
+        if sd:
+            discounts.append({
+                'discount': sd.discount,
+                'discountType': ORG_DISCOUNT_TYPE,
+                'displayLabel': sd.organization.code
+            })
+        return discounts
 
     def createBtSubscription(self, user, plan, subs_params):
         """Create Braintree subscription using the given params
@@ -1424,8 +1465,9 @@ class UserSubscriptionManager(models.Manager):
         # Check SignupDiscount - ensure it is only applied once
         qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
         if not qset.exists():
-            discount = SignupDiscount.objects.getDiscountForUser(user)
-            if discount:
+            sd = SignupDiscount.objects.getForUser(user)
+            if sd:
+                discount = sd.discount
                 discounts.append(discount)
                 logger.info('Signup discount: {0} for user {1}'.format(discount, user))
                 if not subs_price:

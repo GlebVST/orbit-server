@@ -53,7 +53,7 @@ class AffiliateAdmin(admin.ModelAdmin):
     ordering = ('displayLabel',)
 
 class AffiliateDetailAdmin(admin.ModelAdmin):
-    list_display = ('affiliateId', 'affiliate', 'photoUrl', 'jobDescription', 'modified')
+    list_display = ('affiliateId', 'affiliate', 'redirect_page', 'jobDescription', 'photoUrl', 'modified')
     ordering = ('affiliate','affiliateId')
 
 class StateLicenseAdmin(admin.ModelAdmin):
@@ -135,10 +135,8 @@ class DiscountAdmin(admin.ModelAdmin):
     ordering = ('discountType', '-created',)
 
 class SignupDiscountAdmin(admin.ModelAdmin):
-    list_display = ('id','email_domain','discount','expireDate')
-    ordering = ('email_domain','expireDate')
-    #list_display = ('id','organization','email_domain','discount','expireDate')
-    #ordering = ('organization','expireDate')
+    list_display = ('id','organization','email_domain','discount','expireDate')
+    ordering = ('organization','expireDate')
 
 
 class InvitationDiscountAdmin(admin.ModelAdmin):
