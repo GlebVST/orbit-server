@@ -324,6 +324,17 @@ class Profile(models.Model):
     def getFullName(self):
         return u"{0} {1}".format(self.firstName, self.lastName)
 
+    def getFirstNameLastInitial(self):
+        """Returns firstName Initial of lastName, else if no firstName, returns first part of email"""
+        if self.firstName:
+            if self.lastName:
+                lastInitial = self.lastName[0].upper()
+            else:
+                lastInitial = ''
+            return u"{0} {1}.".format(self.firstName, lastInitial)
+        else:
+            return self.user.email.split('@')[0]
+
     def getFullNameAndDegree(self):
         degrees = self.degrees.all()
         degree_str = ", ".join(str(degree.abbrev) for degree in degrees)

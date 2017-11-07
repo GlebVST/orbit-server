@@ -3,6 +3,7 @@ from django.core.mail import EmailMessage
 from django.template.loader import get_template
 from django.utils import timezone
 import pytz
+from .models import *
 
 def sendAffiliateReportEmail(total_by_affl, email_to):
     """Send report of payout that needs to be submitted to Affiliates.
@@ -48,7 +49,7 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
 
 def sendNewUserReportEmail(profiles, email_to):
     """Send report of new user signups. Info included:
-    email, getFullNameAndDegree, npiNumber, plan_name, subscriptionId
+    email, getFullNameAndDegree, npiNumber, plan_name, subscriptionId,referral
     Can raise SMTPException
     """
     from .models import UserSubscription
@@ -69,11 +70,19 @@ def sendNewUserReportEmail(profiles, email_to):
             npiNumber=p.npiNumber,
             npiType=p.npiType,
             plan_name='',
-            subscriptionId=''
+            subscriptionId='',
+            referral=''
         )
         if user_subs:
             d['plan_name'] = user_subs.plan.name
             d['subscriptionId'] = user_subs.subscriptionId
+        if p.inviter:
+            if p.affiliateId:
+                aff = Affiliate.objects.get(user=p.inviter)
+                referralName = aff.displayLabel
+            else:
+                referralName = p.inviter.profile.getFullName()
+            d['referral'] = referralName
         data.append(d)
     ctx = {
         'data': data
