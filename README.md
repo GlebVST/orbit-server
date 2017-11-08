@@ -50,6 +50,12 @@ The following keys are expected in the .env file which is read by manage.py and 
 
  * ORBIT_LOGDNA_API_KEY
 
+#### PayPal
+
+ * PAYPAL_APP_NAME
+ * PAYPAL_CLIENTID
+ * PAYPAL_SECRET
+
 #### [optional] Auth0 non-interactive client with permission to access the Auth0 management API
 
  * ORBIT_AUTH0_MGMT_CLIENTID

@@ -1,51 +1,14 @@
+from dateutil.relativedelta import *
+import pytz
+from operator import itemgetter
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.template.loader import get_template
 from django.utils import timezone
-import pytz
 from .models import *
+from pprint import pprint
 
-def sendAffiliateReportEmail(total_by_affl, email_to):
-    """Send report of payout that needs to be submitted to Affiliates.
-    Info included: fullname, paymentEmail, num_convertees, payout, grandTotal for payout
-    """
-    from .models import Affiliate
-    from_email = settings.EMAIL_FROM
-    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
-    now = timezone.now()
-    subject = 'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(tz))
-    if settings.ENV_TYPE != settings.ENV_PROD:
-        subject = u'[test-only] ' + subject
-    data = []
-    grandTotal = 0
-    totalUsers = 0
-    for aff_pk in sorted(total_by_affl):
-        affl = Affiliate.objects.get(pk=aff_pk)
-        profile = affl.user.profile
-        total = total_by_affl[aff_pk]['total']
-        num_convertees = len(total_by_affl[aff_pk]['pks'])
-        grandTotal += total
-        totalUsers += num_convertees
-        data.append({
-            'name': affl.displayLabel,
-            'paymentEmail': affl.paymentEmail,
-            'numConvertees': num_convertees,
-            'payout': str(total)
-        })
-    lastBatchPayout = None
-    bps = BatchPayout.objects.all().order_by('-created')
-    if bps.exists():
-        lastBatchPayout = bps[0]
-    ctx = {
-        'data': data,
-        'grandTotal': grandTotal,
-        'totalUsers': totalUsers,
-        'lastBatchPayout': lastBatchPayout
-    }
-    message = get_template('email/affl_payout_report.html').render(ctx)
-    msg = EmailMessage(subject, message, to=[email_to], from_email=from_email)
-    msg.content_subtype = 'html'
-    msg.send()
+ROCKET_ICON = u'\U0001F680'
 
 def sendNewUserReportEmail(profiles, email_to):
     """Send report of new user signups. Info included:
@@ -139,3 +102,154 @@ def sendPaymentFailureEmail(user, subs_trans):
     msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
     msg.content_subtype = 'html'
     msg.send()
+
+def sendAfflConsolationEmail(affl, start_monyear):
+    """This is intended to be called once a month for the case of
+    Affiliate did not earn any payout for the past month
+    Args:
+        affl: Affiliate instance
+        start_monyear:str e.g. October 2017
+    """
+    from_email = settings.EMAIL_FROM
+    reply_to = settings.SUPPORT_EMAIL
+    email_to = affl.paymentEmail
+    addressee = affl.user.profile.firstName
+    if not addressee:
+        addressee = 'Greetings'
+    subject = u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear)
+    if settings.ENV_TYPE != settings.ENV_PROD:
+        subject = u'[test-only] ' + subject
+    subject_with_icon = u"{0} {1}".format(ROCKET_ICON, subject)
+    encoded_subject = subject_with_icon.encode('utf-8')
+    #print(encoded_subject)
+    # get affiliateId(s) for this Affiliate
+    data = AffiliateDetail.objects.filter(affiliate=affl).values('affiliateId').order_by('affiliateId')
+    ctx = {
+        'addressee': addressee,
+        'monyear': start_monyear,
+        'data': data,
+        'support_email': settings.SUPPORT_EMAIL
+    }
+    message = get_template('email/affl_consolation.html').render(ctx)
+    msg = EmailMessage(encoded_subject,
+            message,
+            from_email=from_email,
+            to=[email_to],
+            bcc=[reply_to,],
+            reply_to=[reply_to,]
+        )
+    msg.content_subtype = 'html'
+    msg.send()
+
+def sendAfflEarningsStatementEmail(batchPayout, affl, afp_data):
+    """This is intended to be called once a month using the batchPayout created
+    for a particular month's payout.
+    It sends an earnings statement email for the past month to the given affiliate
+    with a tabular summary of the conversions.
+    Args:
+        batchPayout: BatchPayout instance - used to determine the month interval
+        affl: Affiliate instance
+        afp_data: list of dicts [{convertee:User, amount:Decimal, created:datetime}]
+    """
+    from_email = settings.EMAIL_FROM
+    reply_to = settings.SUPPORT_EMAIL
+    email_to = affl.paymentEmail
+    start = batchPayout.created - relativedelta(months=1)
+    start_monyear = start.strftime('%B %Y')
+    addressee = affl.user.profile.firstName
+    if not addressee:
+        addressee = 'Greetings'
+    subject = u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear)
+    if settings.ENV_TYPE != settings.ENV_PROD:
+        subject = u'[test-only] ' + subject
+    subject_with_icon = u"{0} {1}".format(ROCKET_ICON, subject)
+    encoded_subject = subject_with_icon.encode('utf-8')
+    print(encoded_subject)
+    # get affiliateId(s) for this Affiliate
+    affIds = AffiliateDetail.objects.filter(affiliate=affl).values_list('affiliateId', flat=True).order_by('affiliateId')
+    data_by_affid = dict() # affiliateId => {num_convertees:int, total:Decimal}
+    for affId in affIds:
+        data_by_affid[affId] = dict(num_convertees=0, total=0)
+    # group afp_data by affiliateId(s)
+    for d in afp_data:
+        p = d['convertee'].profile
+        affId = p.affiliateId
+        dd = data_by_affid[affId]
+        dd['num_convertees'] += 1
+        dd['total'] += d['amount']
+    display_data = []
+    grandTotal = 0
+    totalConvertees = 0
+    for affId in sorted(data_by_affid):
+        dd = data_by_affid[affId]
+        grandTotal += dd['total']
+        totalConvertees += dd['num_convertees']
+        display_data.append({
+            'affiliateId': affId,
+            'num_convertees': dd['num_convertees'],
+            'total': dd['total']
+        })
+    #pprint(display_data)
+    ctx = {
+        'addressee': addressee,
+        'monyear': start_monyear,
+        'grandTotal': grandTotal,
+        'totalConvertees': totalConvertees,
+        'data': display_data,
+        'showGrandTotal': len(display_data) > 1,
+        'support_email': settings.SUPPORT_EMAIL
+    }
+    message = get_template('email/affl_earnings_statement.html').render(ctx)
+    msg = EmailMessage(encoded_subject,
+            message,
+            from_email=from_email,
+            to=[email_to],
+            bcc=[reply_to,],
+            reply_to=[reply_to,]
+        )
+    msg.content_subtype = 'html'
+    msg.send()
+
+
+def sendAffiliateReportEmail(total_by_affl, email_to):
+    """Send report of payout that needs to be submitted to Affiliates.
+    Info included: fullname, paymentEmail, num_convertees, payout, grandTotal for payout
+    """
+    from_email = settings.EMAIL_FROM
+    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
+    now = timezone.now()
+    subject = 'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(tz))
+    if settings.ENV_TYPE != settings.ENV_PROD:
+        subject = u'[test-only] ' + subject
+    data = []
+    grandTotal = 0
+    totalUsers = 0
+    for aff_pk in sorted(total_by_affl):
+        affl = Affiliate.objects.get(pk=aff_pk)
+        profile = affl.user.profile
+        total = total_by_affl[aff_pk]['total']
+        num_convertees = len(total_by_affl[aff_pk]['pks'])
+        grandTotal += total
+        totalUsers += num_convertees
+        data.append({
+            'name': affl.displayLabel,
+            'paymentEmail': affl.paymentEmail,
+            'numConvertees': num_convertees,
+            'payout': str(total)
+        })
+    lastBatchPayout = None
+    bps = BatchPayout.objects.all().order_by('-created')
+    if bps.exists():
+        lastBatchPayout = bps[0]
+    ctx = {
+        'data': data,
+        'grandTotal': grandTotal,
+        'totalUsers': totalUsers,
+        'lastBatchPayout': lastBatchPayout
+    }
+    message = get_template('email/affl_payout_report.html').render(ctx)
+    msg = EmailMessage(subject, message, to=[email_to], from_email=from_email)
+    msg.content_subtype = 'html'
+    msg.send()
+
+
