@@ -169,9 +169,10 @@ class SubscriptionTransactionAdmin(admin.ModelAdmin):
 
 
 class CertificateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'referenceId', 'name', 'startDate', 'endDate', 'credits', 'created')
+    list_display = ('id', 'user', 'referenceId', 'tag','name', 'startDate', 'endDate', 'credits', 'created')
     list_select_related = ('user',)
     search_fields = ['referenceId',]
+    list_filter = ('tag',)
     ordering = ('-created',)
 
 class AuditReportAdmin(admin.ModelAdmin):

@@ -2027,6 +2027,13 @@ class Certificate(models.Model):
         related_name='certificates',
         db_index=True
     )
+    tag = models.ForeignKey(CmeTag,
+        on_delete=models.PROTECT,
+        related_name='certificates',
+        null=True,
+        default=None,
+        db_index=True
+    )
     referenceId = models.CharField(max_length=64,
         null=True,
         blank=True,
