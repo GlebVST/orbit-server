@@ -156,7 +156,7 @@ class CmeTag(models.Model):
         default=0,
         help_text='Used for non-alphabetical sort.'
     )
-    description = models.CharField(max_length=200, blank=True, help_text='Used for tooltip')
+    description = models.CharField(max_length=200, blank=True, help_text='Long-form name')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = CmeTagManager()
@@ -240,7 +240,6 @@ class Profile(models.Model):
         help_text='Set during profile creation to the user whose inviteId was provided upon first login.'
     )
     jobTitle = models.CharField(max_length=100, blank=True)
-    description = models.TextField(blank=True, help_text='About me')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
     npiLastName = models.CharField(max_length=30, blank=True, help_text='Last name from NPI Registry')
@@ -254,7 +253,6 @@ class Profile(models.Model):
     inviteId = models.CharField(max_length=36, unique=True)
     socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
     pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
-    oldcmeTags = models.ManyToManyField(CmeTag, blank=True)
     cmeTags = models.ManyToManyField(CmeTag,
             through='ProfileCmetag',
             blank=True,
@@ -264,7 +262,8 @@ class Profile(models.Model):
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
-    cmeDuedate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
+    cmeStartDate = models.DateTimeField(null=True, blank=True, help_text='Start date for CME requirements calculation')
+    cmeEndDate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
     affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)

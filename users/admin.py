@@ -32,7 +32,7 @@ class ProfileCmetagInline(admin.TabularInline):
     model = ProfileCmetag
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'nbcrnaId', 'cmeDuedate', 'modified')
+    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'nbcrnaId', 'cmeEndDate', 'modified')
     list_filter = ('verified','npiType')
     search_fields = ['npiNumber', 'lastName']
     filter_horizontal = ('specialties',)
