@@ -26,8 +26,11 @@ BLANK_FILE = 'blank.pdf'
 
 PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented <br/>in accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education<br/> through the joint providership Tufts University School of Medicine (TUSM) and Orbit. <br/>TUSM is accredited with commendation by the ACCME to provide continuing education for physicians.""")
 
-CREDIT_TEXT_VERIFIED = "<i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded"
-CREDIT_TEXT_PARTICIPATION = "Hours of Participation Awarded"
+CREDIT_TEXT_VERIFIED_TEMPLATE = string.Template("${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded")
+SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE = string.Template("${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded in ${tag}")
+
+CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Hours of Participation Awarded")
+SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Hours of Participation Awarded in ${tag}")
 
 SAMPLE_CERTIFICATE_NAME = "Sample Only - Upgrade to Receive Official CME"
 
@@ -37,6 +40,21 @@ for font_file in glob('{0}/fonts/*.ttf'.format(settings.PDF_TEMPLATES_DIR)):
     ttf = TTFont(font_name, font_file)
     FONT_CHARACTER_TABLES[font_name] = ttf.face.charToGlyph.keys()
     pdfmetrics.registerFont(TTFont(font_name, font_file))
+
+def getCreditText(verified, certificate):
+    """Returns string for credit text"""
+    if certificate.tag:
+        if verified:
+            tpl = SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE
+        else:
+            tpl = SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
+        return tpl.substitute({'numCredits': certificate.credits, 'tag': certificate.tag.description})
+    else:
+        if verified:
+            tpl = CREDIT_TEXT_VERIFIED_TEMPLATE
+        else:
+            tpl = CREDIT_TEXT_PARTICIPATION_TEMPLATE
+        return tpl.substitute({'numCredits': certificate.credits})
 
 def makeCmeCertOverlay(verified, certificate):
     """This file is overlaid on the template certificate.
@@ -58,8 +76,9 @@ def makeCmeCertOverlay(verified, certificate):
 
     WIDTH = 297  # width in mm (A4)
     HEIGHT = 210  # hight in mm (A4)
-    LEFT_INDENT = 49  # mm from the left side to write the text
-    RIGHT_INDENT = 49  # mm from the right side for the CERTIFICATE
+    # These seem to be unused vars
+    #LEFT_INDENT = 49  # mm from the left side to write the text
+    #RIGHT_INDENT = 49  # mm from the right side for the CERTIFICATE
     # CLIENT NAME
     styleOpenSans.fontSize = 20
     styleOpenSans.leading = 10
@@ -77,7 +96,7 @@ def makeCmeCertOverlay(verified, certificate):
     paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
 
     # dates
-    paragraph = Paragraph("{0} - {1}".format(
+    paragraph = Paragraph("Total credits earned between {0} - {1}".format(
         DateFormat(certificate.startDate).format('d F Y'),
         DateFormat(certificate.endDate).format('d F Y')),
         styleOpenSansLight)
@@ -86,8 +105,8 @@ def makeCmeCertOverlay(verified, certificate):
 
     # credits
     styleOpenSans.fontSize = 14
-    creditText = CREDIT_TEXT_VERIFIED if verified else CREDIT_TEXT_PARTICIPATION
-    paragraph = Paragraph("{0} {1}".format(certificate.credits, creditText), styleOpenSans)
+    creditText = getCreditText(verified, certificate)
+    paragraph = Paragraph(creditText, styleOpenSans)
     paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
     paragraph.drawOn(pdfCanvas, 12.2 * mm, 53.83 * mm)
 

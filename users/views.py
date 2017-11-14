@@ -927,12 +927,13 @@ class CertificateMixin(object):
     to S3 and save model instance.
     Returns: Certificate instance
     """
-    def makeCertificate(self, profile, startdt, enddt, cmeTotal):
+    def makeCertificate(self, profile, startdt, enddt, cmeTotal, tag=None):
         """
         profile: Profile instance for user
         startdt: datetime - startDate
         enddt: datetime - endDate
         cmeTotal: float - total credits in date range
+        tag: CmeTag/None - if given, this is a specialty Cert
         """
         user = profile.user
         degrees = profile.degrees.all()
@@ -947,7 +948,8 @@ class CertificateMixin(object):
             startDate = startdt,
             endDate = enddt,
             credits = cmeTotal,
-            user=user
+            user=user,
+            tag=tag
         )
         certificate.save()
         hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
@@ -999,14 +1001,7 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             message = context['error'] + ': ' + start + ' - ' + end
             logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            profile = Profile.objects.get(user=request.user)
-        except Profile.DoesNotExist:
-            context = {
-                'error': 'Invalid user. No profile found.'
-            }
-            logWarning(logger, request, context['error'])
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        profile = request.user.profile
         # get total cme credits earned by user in date range
         browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt)
         cmeTotal = browserCmeTotal
@@ -1017,6 +1012,70 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal)
+        out_serializer = CertificateReadSerializer(certificate)
+        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
+    """
+    This view expects a start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1), and a tag ID as URL parameters. It calculates
+    the total Browser-Cme credits for the selected tag and date range for the user,
+    generates certificate PDF file, and uploads it to S3.
+
+    parameters:
+        - name: start
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: end
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: tag
+          description: tag id
+          required: true
+          type: string
+          paramType: form
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    def post(self, request, start, end, tag_id):
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+            if startdt >= enddt:
+                context = {
+                    'error': 'Start date must be prior to End Date.'
+                }
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            tag = CmeTag.objects.get(pk=tag_id)
+        except Profile.DoesNotExist:
+            context = {
+                'error': 'Invalid tag id'
+            }
+            logWarning(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        profile = request.user.profile
+        # get cme credits earned by user in date range for selected tag
+        browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt, tag)
+        cmeTotal = browserCmeTotal
+        if cmeTotal == 0:
+            context = {
+                'error': 'No Browser-CME credits earned for {0} in this date range.'.format(tag)
+            }
+            logInfo(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, tag)
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 

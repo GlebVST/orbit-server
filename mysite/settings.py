@@ -12,8 +12,10 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 
 import os
 import braintree
+from datetime import datetime
 from django.core.exceptions import ImproperlyConfigured
 import logging
+import pytz
 from logging.handlers import SysLogHandler
 from logdna import LogDNAHandler
 
@@ -387,3 +389,7 @@ SALES_EMAIL = 'sales@orbitcme.com'
 HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
 DOCUMENT_HASHIDS_SALT = 'random AlVkkUk2Z14FCTXu1pC32pUYm3T6uYSEYZY9ZtOLVNEJ'
 REPORT_HASHIDS_SALT = 'random AjMAVYQgiOgeS4Kwijb6ejHTzsMNsqvsauMIooVlxkOA'
+
+# Tufts license start/end dates that are printed on Certificates
+CERT_ORIGINAL_RELEASE_DATE = datetime(2017, 8, 7, tzinfo=pytz.utc)
+CERT_EXPIRE_DATE = datetime(2018, 8, 6, tzinfo=pytz.utc)

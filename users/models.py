@@ -756,7 +756,6 @@ class EntryManager(models.Manager):
                 if satag.pk in tagids:
                     saEntries.append(m)
                     #print('-- add to saEntries')
-                    #credits = m.srcme.credits -- include this?
                 else:
                     if m.entryType.name == ENTRYTYPE_BRCME:
                         brcmeEntries.append(m)
