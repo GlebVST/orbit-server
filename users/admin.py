@@ -26,7 +26,8 @@ class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class StateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'country', 'name', 'abbrev', 'created')
+    list_display = ('id', 'country', 'name', 'abbrev', 'rnCertValid', 'created')
+    list_filter = ('rnCertValid',)
 
 class ProfileCmetagInline(admin.TabularInline):
     model = ProfileCmetag
@@ -266,6 +267,7 @@ admin_site.register(PinnedMessage, PinnedMessageAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin_site.register(Sponsor, SponsorAdmin)
+admin_site.register(State, StateAdmin)
 admin_site.register(StateLicense, StateLicenseAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)

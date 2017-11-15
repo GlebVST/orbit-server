@@ -52,7 +52,7 @@ class NestedStateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = State
-        fields = ('id', 'abbrev', 'name')
+        fields = ('id', 'abbrev', 'name', 'rnCertValid')
 
 class CountrySerializer(serializers.ModelSerializer):
     states = NestedStateSerializer(many=True, read_only=True)
@@ -66,7 +66,7 @@ class StateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = State
-        fields = ('id', 'country', 'abbrev', 'name')
+        fields = ('id', 'country', 'abbrev', 'name', 'rnCertValid')
 
 class PracticeSpecialtyListSerializer(serializers.ModelSerializer):
     class Meta:

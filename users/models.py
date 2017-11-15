@@ -91,6 +91,7 @@ class State(models.Model):
     )
     name = models.CharField(max_length=100)
     abbrev = models.CharField(max_length=5, blank=True)
+    rnCertValid = models.BooleanField(default=False, help_text='True if RN/NP certificate is valid in this state')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
