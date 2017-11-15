@@ -992,6 +992,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
 class CertificateReadSerializer(serializers.ModelSerializer):
     url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
     tag = serializers.PrimaryKeyRelatedField(queryset=CmeTag.objects.all())
+    state_license = serializers.PrimaryKeyRelatedField(queryset=StateLicense.objects.all())
     class Meta:
         model = Certificate
         fields = (
@@ -1002,6 +1003,7 @@ class CertificateReadSerializer(serializers.ModelSerializer):
             'endDate',
             'credits',
             'tag',
+            'state_license',
             'created'
         )
         read_only_fields = fields

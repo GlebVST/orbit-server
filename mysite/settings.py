@@ -393,3 +393,8 @@ REPORT_HASHIDS_SALT = 'random AjMAVYQgiOgeS4Kwijb6ejHTzsMNsqvsauMIooVlxkOA'
 # Tufts license start/end dates that are printed on Certificates
 CERT_ORIGINAL_RELEASE_DATE = datetime(2017, 8, 7, tzinfo=pytz.utc)
 CERT_EXPIRE_DATE = datetime(2018, 8, 6, tzinfo=pytz.utc)
+
+# Company details (printed on Certificate)
+COMPANY_NAME = 'Transcend Review Inc.'
+COMPANY_BRN_CEP = 'BRN CEP#16946'
+COMPANY_ADDRESS = '265 Cambridge Ave, #61224, Palo Alto CA 94306'

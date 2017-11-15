@@ -9,6 +9,7 @@ from smtplib import SMTPException
 import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.core.files.base import ContentFile
 from django.core.mail import EmailMessage
 from django.db import transaction
 from django.template.loader import get_template
@@ -27,7 +28,7 @@ from common.logutils import *
 from .models import *
 from .serializers import *
 from .permissions import *
-from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate, SAMPLE_CERTIFICATE_NAME
+from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate
 
 logger = logging.getLogger('api.views')
 
@@ -927,13 +928,14 @@ class CertificateMixin(object):
     to S3 and save model instance.
     Returns: Certificate instance
     """
-    def makeCertificate(self, profile, startdt, enddt, cmeTotal, tag=None):
+    def makeCertificate(self, profile, startdt, enddt, cmeTotal, tag=None, state_license=None):
         """
         profile: Profile instance for user
         startdt: datetime - startDate
         enddt: datetime - endDate
         cmeTotal: float - total credits in date range
         tag: CmeTag/None - if given, this is a specialty Cert
+        state_license: StateLicense/None - if given this is a Cert for a specific user statelicense
         """
         user = profile.user
         degrees = profile.degrees.all()
@@ -949,19 +951,23 @@ class CertificateMixin(object):
             endDate = enddt,
             credits = cmeTotal,
             user=user,
-            tag=tag
+            tag=tag,
+            state_license=state_license
         )
         certificate.save()
         hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
         certificate.referenceId = hashgen.encode(certificate.pk)
-        isVerified = any(d.isVerifiedForCme() for d in degrees)
-        # create StringIO buffer containing pdf overlay
-        overlayBuffer = makeCmeCertOverlay(isVerified, certificate)
-        output = makeCmeCertificate(overlayBuffer, isVerified) # str
+        if profile.isNurse() and certificate.state_license is not None:
+            certGenerator = NurseCertificate(certificate)
+        else:
+            isVerified = any(d.isVerifiedForCme() for d in degrees)
+            certGenerator = MDCertificate(certificate, isVerified)
+        certGenerator.makeCmeCertOverlay()
+        output = certGenerator.makeCmeCertificate() # str
         cf = ContentFile(output) # Create a ContentFile from the output
         # Save file (upload to S3) and re-save model instance
         certificate.document.save("{0}.pdf".format(certificate.referenceId), cf, save=True)
-        overlayBuffer.close()
+        certGenerator.cleanup()
         return certificate
 
 
@@ -1001,9 +1007,10 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             message = context['error'] + ': ' + start + ' - ' + end
             logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        profile = request.user.profile
+        user = request.user
+        profile = user.profile
         # get total cme credits earned by user in date range
-        browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt)
+        browserCmeTotal = Entry.objects.sumBrowserCme(user, startdt, enddt)
         cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
@@ -1011,7 +1018,11 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal)
+        # 2017-11-14: if user is Nurse, get state license
+        state_license = None
+        if profile.isNurse() and user.statelicenses.exists():
+            state_license = user.statelicenses.all()[0]
+        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, state_license=state_license)
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 

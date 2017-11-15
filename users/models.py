@@ -41,6 +41,8 @@ CMETAG_SACME = 'SA-CME'
 COUNTRY_USA = 'USA'
 DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
+DEGREE_NP = 'NP'
+DEGREE_RN = 'RN'
 SPONSOR_BRCME = 'TUSM'
 ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
 INVITER_DISCOUNT_TYPE = 'inviter'
@@ -138,6 +140,11 @@ class Degree(models.Model):
         """
         abbrev = self.abbrev
         return abbrev == DEGREE_MD or abbrev == DEGREE_DO
+
+    def isNurse(self):
+        """Returns True if degree is RN/NP"""
+        abbrev = self.abbrev
+        return abbrev == DEGREE_RN or abbrev == DEGREE_NP
 
     class Meta:
         ordering = ['sort_order',]
@@ -345,6 +352,10 @@ class Profile(models.Model):
         return ", ".join([d.abbrev for d in self.degrees.all()])
     formatDegrees.short_description = "Primary Role"
 
+    def isNurse(self):
+        degrees = self.degrees.all()
+        return any([m.isNurse() for m in degrees])
+
     def getActiveCmetags(self):
         """Need to query the through relation to filter by is_active=True"""
         return ProfileCmetag.filter(profile=self, is_active=True)
@@ -418,6 +429,12 @@ class StateLicense(models.Model):
     def __str__(self):
         return self.license_no
 
+    def getLabelForCertificate(self):
+        """Returns str e.g. California RN License #12345
+        """
+        deg = self.user.profile.degrees.all()[0] # get degree
+        label = "{0.name} {1.abbrev} License #{0.license_no}".format(self, deg)
+        return label
 
 class CustomerManager(models.Manager):
     def findBtCustomer(self, customer):
@@ -2027,6 +2044,13 @@ class Certificate(models.Model):
         db_index=True
     )
     tag = models.ForeignKey(CmeTag,
+        on_delete=models.PROTECT,
+        related_name='certificates',
+        null=True,
+        default=None,
+        db_index=True
+    )
+    state_license = models.ForeignKey(StateLicense,
         on_delete=models.PROTECT,
         related_name='certificates',
         null=True,
