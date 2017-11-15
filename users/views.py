@@ -1007,7 +1007,7 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
         cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
-                'error': 'No Browser-CME credits earned in this date range.'
+                'error': 'No Orbit CME credits earned in this date range.'
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
@@ -1071,7 +1071,7 @@ class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
         cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
-                'error': 'No Browser-CME credits earned for {0} in this date range.'.format(tag)
+                'error': 'No Orbit CME credits earned for {0} in this date range.'.format(tag)
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
