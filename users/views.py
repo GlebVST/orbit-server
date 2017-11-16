@@ -1082,7 +1082,7 @@ class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
         cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
-                'error': 'No Orbit CME credits earned for {0} in this date range.'.format(tag)
+                'error': 'No Orbit CME credits earned for the selected tag in this date range.',
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)

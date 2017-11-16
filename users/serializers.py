@@ -1013,7 +1013,7 @@ class StateLicenseSubSerializer(serializers.ModelSerializer):
     state = serializers.StringRelatedField()
     class Meta:
         model = StateLicense
-        fields = ('state','license_no')
+        fields = ('state','license_no', 'expiryDate')
 
 class AuditReportReadSerializer(serializers.ModelSerializer):
     npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
