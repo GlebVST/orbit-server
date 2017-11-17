@@ -2,6 +2,7 @@ import copy
 import os
 import string
 import StringIO
+import logging
 from glob import glob
 
 from django.conf import settings
@@ -18,6 +19,8 @@ from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.fonts import addMapping
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
+
+logger = logging.getLogger('api.pdf')
 
 SAMPLE_CERTIFICATE_NAME = "Sample Only - Upgrade to Receive Official CME"
 # files in settings.PDF_TEMPLATES_DIR
@@ -222,7 +225,7 @@ class NurseCertificate(BaseCertificate):
     CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded")
     SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded in ${tag}")
 
-    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented <br/>in accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education<br/> through the joint providership Tufts University School of Medicine (TUSM) and ${companyName} (${companyCep}), ${companyAddress}. This certificate must be retained by the licensee for a period of four years after the course ends.<br/>TUSM is accredited with commendation by the ACCME to provide continuing education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}""")
+    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented in<br/> accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education <br/>through the joint providership Tufts University School of Medicine (TUSM) and ${companyName} (${companyCep}), <br/>${companyAddress}. This certificate must be retained by the licensee for a period of four years <br/>after the course ends. TUSM is accredited with commendation by the ACCME to provide continuing education for physicians. <br/>Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}""")
 
     def __init__(self, certificate):
         super(NurseCertificate, self).__init__(certificate)
@@ -260,27 +263,21 @@ class NurseCertificate(BaseCertificate):
         self.styleOpenSansLight.alignment = TA_LEFT
 
         # CERT TITLE
-        self.styleOpenSans.fontSize = 12
-        certTitle = CERT_TITLE_TEMPLATE.substitute({
+        self.styleOpenSans.fontSize = 10.5
+        certTitle = self.CERT_TITLE_TEMPLATE.substitute({
             'companyName': settings.COMPANY_NAME.upper(),
             'companyCep': settings.COMPANY_BRN_CEP
             })
         paragraph = Paragraph(certTitle, self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12 * mm, 80 * mm)  # need correct position
+        paragraph.drawOn(pdfCanvas, 12 * mm, 139 * mm)  # need correct position
 
         # CERT NAME
         self.styleOpenSans.fontSize = 20
-        paragraph = Paragraph(self.certificate.name, self.styleOpenSans)
+        text = "{0} <font size=13>({1})</font>".format(self.certificate.name, self.certificate.state_license.getLabelForCertificate())
+        paragraph = Paragraph(text, self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
         paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
-
-        # state license label
-        self.styleOpenSans.fontSize = 12
-        stateLicenseLabel = "{0}".format(self.certificate.state_license.getLabelForCertificate())
-        paragraph = Paragraph(stateLicenseLabel, self.styleOpenSans)
-        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 127.5 * mm, 120 * mm)
 
         # dates
         paragraph = Paragraph("Total credits earned between {0} - {1}".format(
@@ -288,27 +285,27 @@ class NurseCertificate(BaseCertificate):
             DateFormat(self.certificate.endDate).format(LONG_DATE_FORMAT)),
             self.styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 65 * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 75 * mm)
 
         # credits
         self.styleOpenSans.fontSize = 14
         creditText = self.getCreditText()
         paragraph = Paragraph(creditText, self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 53.83 * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 63.83 * mm)
 
         # issued
         self.styleOpenSans.fontSize = 9
         paragraph = Paragraph("Issued: {0}".format(
             DateFormat(self.certificate.created).format(LONG_DATE_FORMAT)), self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 12 * mm)
+        paragraph.drawOn(pdfCanvas, 12.4 * mm, 12 * mm)
 
         # Link to this certificate
         certUrl = self.certificate.getAccessUrl()
         paragraph = Paragraph(certUrl, self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 127.5 * mm, 12 * mm)
+        paragraph.drawOn(pdfCanvas, 114.5 * mm, 12 * mm)
 
         # Large description text block with variable substitutions
         self.styleOpenSansLight.fontSize = 10.5

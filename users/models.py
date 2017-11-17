@@ -433,7 +433,7 @@ class StateLicense(models.Model):
         """Returns str e.g. California RN License #12345
         """
         deg = self.user.profile.degrees.all()[0] # get degree
-        label = "{0.name} {1.abbrev} License #{0.license_no}".format(self, deg)
+        label = "{0.state.name} {1.abbrev} License #{0.license_no}".format(self, deg)
         return label
 
 class CustomerManager(models.Manager):

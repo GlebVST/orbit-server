@@ -1076,9 +1076,10 @@ class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
             }
             logWarning(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        profile = request.user.profile
+        user = request.user
+        profile = user.profile
         # get cme credits earned by user in date range for selected tag
-        browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt, tag)
+        browserCmeTotal = Entry.objects.sumBrowserCme(user, startdt, enddt, tag)
         cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
@@ -1086,7 +1087,11 @@ class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, tag)
+        # 2017-11-14: if user is Nurse, get state license
+        state_license = None
+        if profile.isNurse() and user.statelicenses.exists():
+            state_license = user.statelicenses.all()[0]
+        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, tag, state_license=state_license)
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
