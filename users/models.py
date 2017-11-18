@@ -164,7 +164,7 @@ class CmeTag(models.Model):
         default=0,
         help_text='Used for non-alphabetical sort.'
     )
-    description = models.CharField(max_length=200, blank=True, help_text='Long-form name')
+    description = models.CharField(max_length=200, unique=True, help_text='Long-form name')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = CmeTagManager()
