@@ -58,7 +58,7 @@ class AffiliateDetailAdmin(admin.ModelAdmin):
     ordering = ('affiliate','affiliateId')
 
 class StateLicenseAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'state', 'license_no', 'created')
+    list_display = ('id', 'user', 'state', 'license_no', 'expiryDate', 'created')
     list_select_related = True
 
 class SponsorAdmin(admin.ModelAdmin):
