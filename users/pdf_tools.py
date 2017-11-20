@@ -220,12 +220,12 @@ class NurseCertificate(BaseCertificate):
     # files in settings.PDF_TEMPLATES_DIR
     CERT_TEMPLATE = 'nurse-cme-certificate.pdf'
 
-    CERT_TITLE_TEMPLATE = string.Template("${companyName} (${companyCep}) AND TUFTS UNIVERSITY SCHOOL OF MEDICINE-OFFICE OF CONTINUING EDUCATION")
+    CERT_HEADER = "TUFTS UNIVERSITY SCHOOL OF MEDICINE-OFFICE OF CONTINUING EDUCATION"
 
     CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded")
     SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded in ${tag}")
 
-    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented in<br/> accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education <br/>through the joint providership Tufts University School of Medicine (TUSM) and ${companyName} (${companyCep}), <br/>${companyAddress}. This certificate must be retained by the licensee for a period of four years <br/>after the course ends. TUSM is accredited with commendation by the ACCME to provide continuing education for physicians. <br/>Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}""")
+    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity is designated for ${numCredits} Contact Hours by ${companyName} (${companyCep}), ${companyAddress}. This certificate must be retained by the nurse licensee for a period of four years after the course ends. <br />This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented in<br/> accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education <br/>through the joint providership Tufts University School of Medicine (TUSM) and Orbit. TUSM is accredited with commendation by the ACCME to provide continuing education for physicians. <br/>Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}""")
 
     def __init__(self, certificate):
         super(NurseCertificate, self).__init__(certificate)
@@ -262,15 +262,12 @@ class NurseCertificate(BaseCertificate):
             0.1, 0.1, 0.1)
         self.styleOpenSansLight.alignment = TA_LEFT
 
-        # CERT TITLE
+        # CERT HEADER
         self.styleOpenSans.fontSize = 10.5
-        certTitle = self.CERT_TITLE_TEMPLATE.substitute({
-            'companyName': settings.COMPANY_NAME.upper(),
-            'companyCep': settings.COMPANY_BRN_CEP
-            })
-        paragraph = Paragraph(certTitle, self.styleOpenSans)
+        text = "{0} <font size=9>certifies that</font>".format(NurseCertificate.CERT_HEADER)
+        paragraph = Paragraph(text, self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12 * mm, 139 * mm)  # need correct position
+        paragraph.drawOn(pdfCanvas, 12 * mm, 139 * mm)
 
         # CERT NAME
         self.styleOpenSans.fontSize = 20
