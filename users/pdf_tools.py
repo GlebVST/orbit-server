@@ -105,9 +105,9 @@ class MDCertificate(BaseCertificate):
     CERT_TEMPLATE_VERIFIED = 'cme-certificate-verified.pdf'
     CERT_TEMPLATE_PARTICIPATION = 'cme-certificate-participation.pdf'
 
-    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented <br/>in accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education<br/> through the joint providership Tufts University School of Medicine (TUSM) and Orbit. <br/>TUSM is accredited by the ACCME to provide continuing education for physicians.""")
+    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented <br/>in accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education<br/> through the joint providership of Tufts University School of Medicine (TUSM) and Orbit. <br/>TUSM is accredited by the ACCME to provide continuing education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
 
-    VERIFIED_TEXT_TEMPLATE = string.Template("""This activity has been planned and implemented in accordance with the Essential Areas and policies of the<br/> Accreditation Council for Continuing Medical Education through the joint providership of Tufts University School of<br/> Medicine (TUSM) and Orbit. TUSM is accredited by the ACCME to provide continuing medical education for<br/> physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}""")
+    VERIFIED_TEXT_TEMPLATE = string.Template("""This activity has been planned and implemented in accordance with the Essential Areas and policies of the<br/> Accreditation Council for Continuing Medical Education through the joint providership of Tufts University School of<br/> Medicine (TUSM) and Orbit. TUSM is accredited by the ACCME to provide continuing medical education for<br/> physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
 
     CREDIT_TEXT_VERIFIED_TEMPLATE = string.Template("${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded")
     SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE = string.Template("${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded in ${tag}")
@@ -200,7 +200,11 @@ class MDCertificate(BaseCertificate):
         self.styleOpenSansLight.textColor = colors.Color(
             0.6, 0.6, 0.6)
         if not self.verified:
-            descriptionText = MDCertificate.PARTICIPATION_TEXT_TEMPLATE.substitute({'numCredits': self.certificate.credits})
+            descriptionText = MDCertificate.PARTICIPATION_TEXT_TEMPLATE.substitute({
+                'numCredits': self.certificate.credits,
+                'releaseDate': DateFormat(settings.CERT_ORIGINAL_RELEASE_DATE).format(SHORTEST_DATE_FORMAT),
+                'expireDate': DateFormat(settings.CERT_EXPIRE_DATE).format(SHORTEST_DATE_FORMAT)
+                })
         else:
             descriptionText = MDCertificate.VERIFIED_TEXT_TEMPLATE.substitute({
                 'releaseDate': DateFormat(settings.CERT_ORIGINAL_RELEASE_DATE).format(SHORTEST_DATE_FORMAT),
@@ -220,12 +224,10 @@ class NurseCertificate(BaseCertificate):
     # files in settings.PDF_TEMPLATES_DIR
     CERT_TEMPLATE = 'nurse-cme-certificate.pdf'
 
-    CERT_HEADER = "TUFTS UNIVERSITY SCHOOL OF MEDICINE-OFFICE OF CONTINUING EDUCATION"
-
     CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded")
     SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded in ${tag}")
 
-    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity is designated for ${numCredits} Contact Hours by ${companyName} (${companyCep}), 265 Cambridge Ave, #61224,<br />Palo Alto CA 94306. This certificate must be retained by the nurse licensee for a period of four years after the course ends. <br />This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented in<br/> accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education through the<br /> joint providership Tufts University School of Medicine (TUSM) and Orbit. TUSM is accredited by the ACCME to provide<br /> continuing education for physicians. <br/>Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}""")
+    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity is designated for ${numCredits} Contact Hours by ${companyName} (${companyCep}), 265 Cambridge Ave, #61224,<br />Palo Alto CA 94306. This certificate must be retained by the nurse licensee for a period of four years after the course ends.<br />This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented in<br/> accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education through the<br /> joint providership of Tufts University School of Medicine (TUSM) and Orbit. TUSM is accredited by the ACCME to provide<br /> continuing education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
 
     def __init__(self, certificate):
         super(NurseCertificate, self).__init__(certificate)
@@ -261,13 +263,6 @@ class NurseCertificate(BaseCertificate):
         self.styleOpenSansLight.textColor = colors.Color(
             0.1, 0.1, 0.1)
         self.styleOpenSansLight.alignment = TA_LEFT
-
-        # CERT HEADER
-        self.styleOpenSans.fontSize = 10.5
-        text = "{0} <font size=9>certifies that</font>".format(NurseCertificate.CERT_HEADER)
-        paragraph = Paragraph(text, self.styleOpenSans)
-        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12 * mm, 139 * mm)
 
         # CERT NAME
         self.styleOpenSans.fontSize = 20
