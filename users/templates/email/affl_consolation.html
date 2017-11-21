@@ -1,0 +1,23 @@
+<div>
+    <p>{{ addressee }},</p>
+    <p>Here's your Orbit Associate Program statement for the month of {{ monyear }}:</p>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <th>Source</th>
+            <th>Active users converted</th>
+            <th>Total Commission</th>
+        </thead>
+        <tbody>
+            {% for d in data %}
+            <tr>
+                <td>{{ d.affiliateId }}</td>
+                <td>0</td>
+                <td>0</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p>Stay creative and gritty - it will take time to see your monthly conversions grow.</p>
+    <p>Best wishes,</p>
+    <p>Ram<br />Orbit / Palo Alto<br />{{ support_email }}</p>
+</div>

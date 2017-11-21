@@ -3,10 +3,10 @@ from smtplib import SMTPException
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.utils import timezone
-from dateutils.relativedelta import *
+from dateutil.relativedelta import *
 from users.models import Affiliate, BatchPayout, AffiliatePayout
 from users.paypal import PayPalApi
-from users.emailutils import sendAffiliateReportEmail
+from users.emailutils import sendAffiliateReportEmail, sendAfflConsolationEmail
 
 logger = logging.getLogger('mgmt.affp')
 
@@ -40,8 +40,10 @@ class Command(BaseCommand):
         print(monyr)
         grandTotal = 0
         items = []
+        aff_pks = []
         for aff_pk in sorted(total_by_affl):
             affl = Affiliate.objects.get(pk=aff_pk)
+            aff_pks.append(aff_pk)
             total = total_by_affl[aff_pk]['total']
             grandTotal += total
             num_convertees = len(total_by_affl[aff_pk]['pks'])
@@ -90,3 +92,18 @@ class Command(BaseCommand):
                         m.batchpayout = bp
                         m.save()
                         logger.info('Update afp {0.pk}'.format(m))
+        # For any Affiliate who did not earn any payout in this interval, send consolation email
+        if aff_pks:
+            affls = Affilate.objects.exclude(pk__in=aff_pks).order_by('paymentEmail')
+        else:
+            affls = Affiliate.objects.all().order_by('paymentEmail')
+        for affl in affls:
+            print('No payout for {0}'.format(affl))
+            aff_email = affl.paymentEmail
+            try:
+                sendAfflConsolationEmail(affl, monyr)
+            except SMTPException as e:
+                logger.exception('Send Consolation Email to {0} failed'.format(aff_email))
+            else:
+                logger.info('Consolation Email to {0} sent.'.format(aff_email))
+                print('Consolation Email to {0} sent.'.format(aff_email))

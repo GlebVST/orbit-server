@@ -26,13 +26,14 @@ class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class StateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'country', 'name', 'abbrev', 'created')
+    list_display = ('id', 'country', 'name', 'abbrev', 'rnCertValid', 'created')
+    list_filter = ('rnCertValid',)
 
 class ProfileCmetagInline(admin.TabularInline):
     model = ProfileCmetag
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'nbcrnaId', 'cmeDuedate', 'modified')
+    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'nbcrnaId', 'cmeEndDate', 'modified')
     list_filter = ('verified','npiType')
     search_fields = ['npiNumber', 'lastName']
     filter_horizontal = ('specialties',)
@@ -57,7 +58,7 @@ class AffiliateDetailAdmin(admin.ModelAdmin):
     ordering = ('affiliate','affiliateId')
 
 class StateLicenseAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'state', 'license_no', 'created')
+    list_display = ('id', 'user', 'state', 'license_no', 'expiryDate', 'created')
     list_select_related = True
 
 class SponsorAdmin(admin.ModelAdmin):
@@ -169,9 +170,10 @@ class SubscriptionTransactionAdmin(admin.ModelAdmin):
 
 
 class CertificateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'referenceId', 'name', 'startDate', 'endDate', 'credits', 'created')
+    list_display = ('id', 'user', 'referenceId', 'tag','name', 'startDate', 'endDate', 'credits', 'created')
     list_select_related = ('user',)
     search_fields = ['referenceId',]
+    list_filter = ('tag',)
     ordering = ('-created',)
 
 class AuditReportAdmin(admin.ModelAdmin):
@@ -265,6 +267,7 @@ admin_site.register(PinnedMessage, PinnedMessageAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin_site.register(Sponsor, SponsorAdmin)
+admin_site.register(State, StateAdmin)
 admin_site.register(StateLicense, StateLicenseAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)

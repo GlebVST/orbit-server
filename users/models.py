@@ -41,6 +41,8 @@ CMETAG_SACME = 'SA-CME'
 COUNTRY_USA = 'USA'
 DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
+DEGREE_NP = 'NP'
+DEGREE_RN = 'RN'
 SPONSOR_BRCME = 'TUSM'
 ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
 INVITER_DISCOUNT_TYPE = 'inviter'
@@ -90,7 +92,8 @@ class State(models.Model):
         related_name='states',
     )
     name = models.CharField(max_length=100)
-    abbrev = models.CharField(max_length=5, blank=True)
+    abbrev = models.CharField(max_length=15, blank=True)
+    rnCertValid = models.BooleanField(default=False, help_text='True if RN/NP certificate is valid in this state')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -138,6 +141,11 @@ class Degree(models.Model):
         abbrev = self.abbrev
         return abbrev == DEGREE_MD or abbrev == DEGREE_DO
 
+    def isNurse(self):
+        """Returns True if degree is RN/NP"""
+        abbrev = self.abbrev
+        return abbrev == DEGREE_RN or abbrev == DEGREE_NP
+
     class Meta:
         ordering = ['sort_order',]
 
@@ -156,7 +164,7 @@ class CmeTag(models.Model):
         default=0,
         help_text='Used for non-alphabetical sort.'
     )
-    description = models.CharField(max_length=200, blank=True, help_text='Used for tooltip')
+    description = models.CharField(max_length=200, unique=True, help_text='Long-form name')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = CmeTagManager()
@@ -240,7 +248,6 @@ class Profile(models.Model):
         help_text='Set during profile creation to the user whose inviteId was provided upon first login.'
     )
     jobTitle = models.CharField(max_length=100, blank=True)
-    description = models.TextField(blank=True, help_text='About me')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
     npiLastName = models.CharField(max_length=30, blank=True, help_text='Last name from NPI Registry')
@@ -254,7 +261,6 @@ class Profile(models.Model):
     inviteId = models.CharField(max_length=36, unique=True)
     socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
     pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
-    oldcmeTags = models.ManyToManyField(CmeTag, blank=True)
     cmeTags = models.ManyToManyField(CmeTag,
             through='ProfileCmetag',
             blank=True,
@@ -264,7 +270,8 @@ class Profile(models.Model):
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
-    cmeDuedate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
+    cmeStartDate = models.DateTimeField(null=True, blank=True, help_text='Start date for CME requirements calculation')
+    cmeEndDate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
     affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -324,16 +331,17 @@ class Profile(models.Model):
     def getFullName(self):
         return u"{0} {1}".format(self.firstName, self.lastName)
 
-    def getFirstNameLastInitial(self):
-        """Returns firstName Initial of lastName, else if no firstName, returns first part of email"""
+    def getInitials(self):
+        """Returns initials from firstName, lastName"""
+        firstInitial = ''
+        lastInitial = ''
         if self.firstName:
-            if self.lastName:
-                lastInitial = self.lastName[0].upper()
-            else:
-                lastInitial = ''
-            return u"{0} {1}.".format(self.firstName, lastInitial)
-        else:
-            return self.user.email.split('@')[0]
+            firstInitial = self.firstName[0].upper()
+        if self.lastName:
+            lastInitial = self.lastName[0].upper()
+        if firstInitial and lastInitial:
+            return u"{0}.{1}.".format(firstInitial, lastInitial)
+        return ''
 
     def getFullNameAndDegree(self):
         degrees = self.degrees.all()
@@ -343,6 +351,10 @@ class Profile(models.Model):
     def formatDegrees(self):
         return ", ".join([d.abbrev for d in self.degrees.all()])
     formatDegrees.short_description = "Primary Role"
+
+    def isNurse(self):
+        degrees = self.degrees.all()
+        return any([m.isNurse() for m in degrees])
 
     def getActiveCmetags(self):
         """Need to query the through relation to filter by is_active=True"""
@@ -417,6 +429,11 @@ class StateLicense(models.Model):
     def __str__(self):
         return self.license_no
 
+    def getLabelForCertificate(self):
+        """Returns str e.g. California RN License #12345
+        """
+        label = "{0.state.name} RN License #{0.license_no}".format(self)
+        return label
 
 class CustomerManager(models.Manager):
     def findBtCustomer(self, customer):
@@ -756,7 +773,6 @@ class EntryManager(models.Manager):
                 if satag.pk in tagids:
                     saEntries.append(m)
                     #print('-- add to saEntries')
-                    #credits = m.srcme.credits -- include this?
                 else:
                     if m.entryType.name == ENTRYTYPE_BRCME:
                         brcmeEntries.append(m)
@@ -2024,6 +2040,20 @@ class Certificate(models.Model):
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         related_name='certificates',
+        db_index=True
+    )
+    tag = models.ForeignKey(CmeTag,
+        on_delete=models.PROTECT,
+        related_name='certificates',
+        null=True,
+        default=None,
+        db_index=True
+    )
+    state_license = models.ForeignKey(StateLicense,
+        on_delete=models.PROTECT,
+        related_name='certificates',
+        null=True,
+        default=None,
         db_index=True
     )
     referenceId = models.CharField(max_length=64,

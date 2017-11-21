@@ -9,6 +9,7 @@ from smtplib import SMTPException
 import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.core.files.base import ContentFile
 from django.core.mail import EmailMessage
 from django.db import transaction
 from django.template.loader import get_template
@@ -27,7 +28,7 @@ from common.logutils import *
 from .models import *
 from .serializers import *
 from .permissions import *
-from .pdf_tools import makeCmeCertOverlay, makeCmeCertificate, SAMPLE_CERTIFICATE_NAME
+from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate
 
 logger = logging.getLogger('api.views')
 
@@ -155,7 +156,11 @@ class SignupDiscountList(APIView):
 
     def get(self, request, *args, **kwargs):
         user = request.user
-        discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+        discounts = []
+        user_subs = self.getLatestSubscription(user)
+        if user_subs is None or (user_subs.display_status == UserSubscription.UI_TRIAL) or (user_subs.display_status == UserSubscription.UI_TRIAL_CANCELED):
+            # User has never had an active subscription. Ok to get signup discounts
+            discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
         data = [{
             'discountId': d['discount'].discountId,
             'amount': d['discount'].amount,
@@ -902,11 +907,11 @@ class CmeAggregateStats(APIView):
         stats = {
             ENTRYTYPE_BRCME: {
                 'total': Entry.objects.sumBrowserCme(request.user, startdt, enddt),
-                'untagged': Entry.objects.sumBrowserCme(request.user, startdt, enddt, untaggedOnly=True)
+                'Untagged': Entry.objects.sumBrowserCme(request.user, startdt, enddt, untaggedOnly=True)
             },
             ENTRYTYPE_SRCME: {
                 'total': Entry.objects.sumSRCme(request.user, startdt, enddt),
-                'untagged': Entry.objects.sumSRCme(request.user, startdt, enddt, untaggedOnly=True),
+                'Untagged': Entry.objects.sumSRCme(request.user, startdt, enddt, untaggedOnly=True),
                 satag.name: Entry.objects.sumSRCme(request.user, startdt, enddt, satag)
             }
         }
@@ -923,12 +928,14 @@ class CertificateMixin(object):
     to S3 and save model instance.
     Returns: Certificate instance
     """
-    def makeCertificate(self, profile, startdt, enddt, cmeTotal):
+    def makeCertificate(self, profile, startdt, enddt, cmeTotal, tag=None, state_license=None):
         """
         profile: Profile instance for user
         startdt: datetime - startDate
         enddt: datetime - endDate
         cmeTotal: float - total credits in date range
+        tag: CmeTag/None - if given, this is a specialty Cert
+        state_license: StateLicense/None - if given this is a Cert for a specific user statelicense
         """
         user = profile.user
         degrees = profile.degrees.all()
@@ -943,19 +950,24 @@ class CertificateMixin(object):
             startDate = startdt,
             endDate = enddt,
             credits = cmeTotal,
-            user=user
+            user=user,
+            tag=tag,
+            state_license=state_license
         )
         certificate.save()
         hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
         certificate.referenceId = hashgen.encode(certificate.pk)
-        isVerified = any(d.isVerifiedForCme() for d in degrees)
-        # create StringIO buffer containing pdf overlay
-        overlayBuffer = makeCmeCertOverlay(isVerified, certificate)
-        output = makeCmeCertificate(overlayBuffer, isVerified) # str
+        if profile.isNurse() and certificate.state_license is not None:
+            certGenerator = NurseCertificate(certificate)
+        else:
+            isVerified = any(d.isVerifiedForCme() for d in degrees)
+            certGenerator = MDCertificate(certificate, isVerified)
+        certGenerator.makeCmeCertOverlay()
+        output = certGenerator.makeCmeCertificate() # str
         cf = ContentFile(output) # Create a ContentFile from the output
         # Save file (upload to S3) and re-save model instance
         certificate.document.save("{0}.pdf".format(certificate.referenceId), cf, save=True)
-        overlayBuffer.close()
+        certGenerator.cleanup()
         return certificate
 
 
@@ -995,24 +1007,91 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             message = context['error'] + ': ' + start + ' - ' + end
             logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            profile = Profile.objects.get(user=request.user)
-        except Profile.DoesNotExist:
-            context = {
-                'error': 'Invalid user. No profile found.'
-            }
-            logWarning(logger, request, context['error'])
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        profile = user.profile
         # get total cme credits earned by user in date range
-        browserCmeTotal = Entry.objects.sumBrowserCme(request.user, startdt, enddt)
+        browserCmeTotal = Entry.objects.sumBrowserCme(user, startdt, enddt)
         cmeTotal = browserCmeTotal
         if cmeTotal == 0:
             context = {
-                'error': 'No Browser-CME credits earned in this date range.'
+                'error': 'No Orbit CME credits earned in this date range.'
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal)
+        # 2017-11-14: if user is Nurse, get state license
+        state_license = None
+        if profile.isNurse() and user.statelicenses.exists():
+            state_license = user.statelicenses.all()[0]
+        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, state_license=state_license)
+        out_serializer = CertificateReadSerializer(certificate)
+        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
+    """
+    This view expects a start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1), and a tag ID as URL parameters. It calculates
+    the total Browser-Cme credits for the selected tag and date range for the user,
+    generates certificate PDF file, and uploads it to S3.
+
+    parameters:
+        - name: start
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: end
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: tag
+          description: tag id
+          required: true
+          type: string
+          paramType: form
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    def post(self, request, start, end, tag_id):
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+            if startdt >= enddt:
+                context = {
+                    'error': 'Start date must be prior to End Date.'
+                }
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            tag = CmeTag.objects.get(pk=tag_id)
+        except Profile.DoesNotExist:
+            context = {
+                'error': 'Invalid tag id'
+            }
+            logWarning(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        profile = user.profile
+        # get cme credits earned by user in date range for selected tag
+        browserCmeTotal = Entry.objects.sumBrowserCme(user, startdt, enddt, tag)
+        cmeTotal = browserCmeTotal
+        if cmeTotal == 0:
+            context = {
+                'error': 'No Orbit CME credits earned for the selected tag in this date range.',
+            }
+            logInfo(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # 2017-11-14: if user is Nurse, get state license
+        state_license = None
+        if profile.isNurse() and user.statelicenses.exists():
+            state_license = user.statelicenses.all()[0]
+        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, tag, state_license=state_license)
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 

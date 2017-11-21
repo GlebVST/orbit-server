@@ -2,6 +2,7 @@ import copy
 import os
 import string
 import StringIO
+import logging
 from glob import glob
 
 from django.conf import settings
@@ -19,17 +20,11 @@ from reportlab.lib.fonts import addMapping
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 
-# files in settings.PDF_TEMPLATES_DIR
-CERT_TEMPLATE_VERIFIED = 'cme-certificate-verified.pdf'
-CERT_TEMPLATE_PARTICIPATION = 'cme-certificate-participation.pdf'
-BLANK_FILE = 'blank.pdf'
-
-PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credit<sup>TM</sup></i>. This activity has been planned and implemented <br/>in accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education<br/> through the joint providership Tufts University School of Medicine (TUSM) and Orbit. <br/>TUSM is accredited with commendation by the ACCME to provide continuing education for physicians.""")
-
-CREDIT_TEXT_VERIFIED = "<i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded"
-CREDIT_TEXT_PARTICIPATION = "Hours of Participation Awarded"
+logger = logging.getLogger('api.pdf')
 
 SAMPLE_CERTIFICATE_NAME = "Sample Only - Upgrade to Receive Official CME"
+# files in settings.PDF_TEMPLATES_DIR
+BLANK_FILE = 'blank.pdf'
 
 FONT_CHARACTER_TABLES = {}
 for font_file in glob('{0}/fonts/*.ttf'.format(settings.PDF_TEMPLATES_DIR)):
@@ -38,115 +33,289 @@ for font_file in glob('{0}/fonts/*.ttf'.format(settings.PDF_TEMPLATES_DIR)):
     FONT_CHARACTER_TABLES[font_name] = ttf.face.charToGlyph.keys()
     pdfmetrics.registerFont(TTFont(font_name, font_file))
 
-def makeCmeCertOverlay(verified, certificate):
-    """This file is overlaid on the template certificate.
-        verified: bool  verified vs. participation
+SHORTEST_DATE_FORMAT = 'n/j/y' # day/month without leading zeroes
+LONG_DATE_FORMAT = 'd F Y' # full month name
+
+WIDTH = 297  # width in mm (A4)
+HEIGHT = 210  # hight in mm (A4)
+
+class BaseCertificate(object):
+
+    def __init__(self, certificate):
+        """
         certificate: Certificate instance
-    Returns StringIO object
+        """
+        self.certificate = certificate
+        # overlayBuffer is overlaid on the template certificate.
+        self.overlayBuffer = StringIO.StringIO()
+        self.tplfileName = None
+        # common styles
+        addMapping('OpenSans-Light', 0, 0, 'OpenSans-Light')
+        addMapping('OpenSans-Light', 0, 1, 'OpenSans-LightItalic')
+        addMapping('OpenSans-Light', 1, 0, 'OpenSans-Bold')
+        addMapping('OpenSans-Regular', 0, 0, 'OpenSans-Regular')
+        addMapping('OpenSans-Regular', 0, 1, 'OpenSans-Italic')
+        addMapping('OpenSans-Regular', 1, 0, 'OpenSans-Bold')
+        addMapping('OpenSans-Regular', 1, 1, 'OpenSans-BoldItalic')
+        self.styleOpenSans = ParagraphStyle(name="opensans-regular", leading=10, fontName='OpenSans-Bold')
+        self.styleOpenSansLight = ParagraphStyle(name="opensans-light", leading=10, fontName='OpenSans-Regular')
+
+    def makeCmeCertificate(self):
+        """Generate CME certificate by merging self.overlayBuffer with
+            an existing PDF template.
     """
-    overlayBuffer = StringIO.StringIO()
-    pdfCanvas = canvas.Canvas(overlayBuffer, pagesize=landscape(A4))
-    addMapping('OpenSans-Light', 0, 0, 'OpenSans-Light')
-    addMapping('OpenSans-Light', 0, 1, 'OpenSans-LightItalic')
-    addMapping('OpenSans-Light', 1, 0, 'OpenSans-Bold')
-    addMapping('OpenSans-Regular', 0, 0, 'OpenSans-Regular')
-    addMapping('OpenSans-Regular', 0, 1, 'OpenSans-Italic')
-    addMapping('OpenSans-Regular', 1, 0, 'OpenSans-Bold')
-    addMapping('OpenSans-Regular', 1, 1, 'OpenSans-BoldItalic')
-    styleOpenSans = ParagraphStyle(name="opensans-regular", leading=10, fontName='OpenSans-Bold')
-    styleOpenSansLight = ParagraphStyle(name="opensans-light", leading=10, fontName='OpenSans-Regular')
+        tplfilePath = os.path.join(settings.PDF_TEMPLATES_DIR, self.tplfileName)
+        blankfilePath = os.path.join(settings.PDF_TEMPLATES_DIR, BLANK_FILE)
+        output = StringIO.StringIO()
+        try:
+            overlayReader = PdfFileReader(self.overlayBuffer, strict=False)
+            with open(tplfilePath, 'rb') as f_tpl, open(blankfilePath, 'rb') as f_blank:
+                templateReader = PdfFileReader(f_tpl, strict=False)
+                blankReader = PdfFileReader(f_blank, strict=False)
+                # make copy of blank page
+                mergedPage = copy.copy(blankReader.getPage(0))
+                # add template
+                mergedPage.mergePage(templateReader.getPage(0))
+                # add overlay
+                mergedPage.mergePage(overlayReader.getPage(0))
+                # write to output
+                writer = PdfFileWriter()
+                writer.addPage(mergedPage)
+                writer.write(output)
+        except IOError, e:
+            logger.exception('makeCmeCertificate IOError')
+        except Exception, e:
+            logger.exception('makeCmeCertificate exception')
+        finally:
+            return output.getvalue() # return empty str if no write
 
-    WIDTH = 297  # width in mm (A4)
-    HEIGHT = 210  # hight in mm (A4)
-    LEFT_INDENT = 49  # mm from the left side to write the text
-    RIGHT_INDENT = 49  # mm from the right side for the CERTIFICATE
-    # CLIENT NAME
-    styleOpenSans.fontSize = 20
-    styleOpenSans.leading = 10
-    styleOpenSans.textColor = colors.Color(0, 0, 0)
-    styleOpenSans.alignment = TA_LEFT
+    def cleanup(self):
+        self.overlayBuffer.close()
 
-    styleOpenSansLight.fontSize = 12
-    styleOpenSansLight.leading = 10
-    styleOpenSansLight.textColor = colors.Color(
-        0.1, 0.1, 0.1)
-    styleOpenSansLight.alignment = TA_LEFT
+    def makeCmeCertOverlay(self):
+        """This method should be implemented by a subclass"""
+        raise NotImplementedError
 
-    paragraph = Paragraph(certificate.name, styleOpenSans)
-    paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-    paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
+class MDCertificate(BaseCertificate):
+    """Handles both MD/DO certificate (via verified) and participation certificate for non-verified.
+    Note: NurseCertificate should be used for nurses (RN/NP).
+    """
 
-    # dates
-    paragraph = Paragraph("{0} - {1}".format(
-        DateFormat(certificate.startDate).format('d F Y'),
-        DateFormat(certificate.endDate).format('d F Y')),
-        styleOpenSansLight)
-    paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-    paragraph.drawOn(pdfCanvas, 12.2 * mm, 65 * mm)
+    # files in settings.PDF_TEMPLATES_DIR
+    CERT_TEMPLATE_VERIFIED = 'cme-certificate-verified.pdf'
+    CERT_TEMPLATE_PARTICIPATION = 'cme-certificate-participation.pdf'
 
-    # credits
-    styleOpenSans.fontSize = 14
-    creditText = CREDIT_TEXT_VERIFIED if verified else CREDIT_TEXT_PARTICIPATION
-    paragraph = Paragraph("{0} {1}".format(certificate.credits, creditText), styleOpenSans)
-    paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-    paragraph.drawOn(pdfCanvas, 12.2 * mm, 53.83 * mm)
+    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented <br/>in accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education<br/> through the joint providership of Tufts University School of Medicine (TUSM) and Orbit. <br/>TUSM is accredited by the ACCME to provide continuing education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
 
-    # issued
-    styleOpenSans.fontSize = 9
-    paragraph = Paragraph("Issued: {0}".format(DateFormat(certificate.created).format('d F Y')), styleOpenSans)
-    paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-    paragraph.drawOn(pdfCanvas, 12.2 * mm, 12 * mm)
+    VERIFIED_TEXT_TEMPLATE = string.Template("""This activity has been planned and implemented in accordance with the Essential Areas and policies of the<br/> Accreditation Council for Continuing Medical Education through the joint providership of Tufts University School of<br/> Medicine (TUSM) and Orbit. TUSM is accredited by the ACCME to provide continuing medical education for<br/> physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
 
-    # Link to this certificate
-    certUrl = certificate.getAccessUrl()
-    paragraph = Paragraph(certUrl, styleOpenSans)
-    paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-    paragraph.drawOn(pdfCanvas, 127.5 * mm, 12 * mm)
+    CREDIT_TEXT_VERIFIED_TEMPLATE = string.Template("${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded")
+    SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE = string.Template("${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded in ${tag}")
 
-    # Some extra text for participation
-    if not verified:
-        styleOpenSansLight.fontSize = 10.5
-        styleOpenSansLight.leading = 15
-        styleOpenSansLight.textColor = colors.Color(
-            0.5, 0.5, 0.5)
-        participationText = PARTICIPATION_TEXT_TEMPLATE.substitute({'numCredits': certificate.credits})
-        paragraph = Paragraph(participationText, styleOpenSansLight)
+    CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Hours of Participation Awarded")
+    SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Hours of Participation Awarded in ${tag}")
+
+    def __init__(self, certificate, verified):
+        """
+        verified: bool  If True: use verified template, else use participation template.
+        """
+        BaseCertificate.__init__(self, certificate)
+        self.verified = verified
+        if verified:
+            self.tplfileName = MDCertificate.CERT_TEMPLATE_VERIFIED
+        else:
+            self.tplfileName = MDCertificate.CERT_TEMPLATE_PARTICIPATION
+
+    def getCreditText(self):
+        """Returns string for credit text"""
+        if self.certificate.tag:
+            if self.verified:
+                tpl = MDCertificate.SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE
+            else:
+                tpl = MDCertificate.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
+            return tpl.substitute({
+                'numCredits': self.certificate.credits,
+                'tag': self.certificate.tag.description
+                })
+        else:
+            if self.verified:
+                tpl = MDCertificate.CREDIT_TEXT_VERIFIED_TEMPLATE
+            else:
+                tpl = MDCertificate.CREDIT_TEXT_PARTICIPATION_TEMPLATE
+            return tpl.substitute({
+                'numCredits': self.certificate.credits
+                })
+
+    def makeCmeCertOverlay(self):
+        """Populate self.overlayBuffer"""
+        pdfCanvas = canvas.Canvas(self.overlayBuffer, pagesize=landscape(A4))
+        # initialize font styles
+        self.styleOpenSans.fontSize = 20
+        self.styleOpenSans.leading = 10
+        self.styleOpenSans.textColor = colors.Color(0, 0, 0)
+        self.styleOpenSans.alignment = TA_LEFT
+
+        self.styleOpenSansLight.fontSize = 12
+        self.styleOpenSansLight.leading = 10
+        self.styleOpenSansLight.textColor = colors.Color(
+            0.1, 0.1, 0.1)
+        self.styleOpenSansLight.alignment = TA_LEFT
+
+        # CERT NAME
+        paragraph = Paragraph(self.certificate.name, self.styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
+
+        # dates
+        paragraph = Paragraph("Total credits earned between {0} - {1}".format(
+            DateFormat(self.certificate.startDate).format(LONG_DATE_FORMAT),
+            DateFormat(self.certificate.endDate).format(LONG_DATE_FORMAT)),
+            self.styleOpenSansLight)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 65 * mm)
+
+        # credits
+        self.styleOpenSans.fontSize = 14
+        creditText = self.getCreditText()
+        paragraph = Paragraph(creditText, self.styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 53.83 * mm)
+
+        # issued
+        self.styleOpenSans.fontSize = 9
+        paragraph = Paragraph("Issued: {0}".format(
+            DateFormat(self.certificate.created).format(LONG_DATE_FORMAT)), self.styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 12 * mm)
+
+        # Link to this certificate
+        certUrl = self.certificate.getAccessUrl()
+        paragraph = Paragraph(certUrl, self.styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 127.5 * mm, 12 * mm)
+
+        # Large description text block with variable substitutions
+        self.styleOpenSansLight.fontSize = 10.5
+        self.styleOpenSansLight.leading = 15
+        self.styleOpenSansLight.textColor = colors.Color(
+            0.6, 0.6, 0.6)
+        if not self.verified:
+            descriptionText = MDCertificate.PARTICIPATION_TEXT_TEMPLATE.substitute({
+                'numCredits': self.certificate.credits,
+                'releaseDate': DateFormat(settings.CERT_ORIGINAL_RELEASE_DATE).format(SHORTEST_DATE_FORMAT),
+                'expireDate': DateFormat(settings.CERT_EXPIRE_DATE).format(SHORTEST_DATE_FORMAT)
+                })
+        else:
+            descriptionText = MDCertificate.VERIFIED_TEXT_TEMPLATE.substitute({
+                'releaseDate': DateFormat(settings.CERT_ORIGINAL_RELEASE_DATE).format(SHORTEST_DATE_FORMAT),
+                'expireDate': DateFormat(settings.CERT_EXPIRE_DATE).format(SHORTEST_DATE_FORMAT)
+            })
+        paragraph = Paragraph(descriptionText, self.styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
         paragraph.drawOn(pdfCanvas, 12.2 * mm, 24 * mm)
-    pdfCanvas.showPage()
-    pdfCanvas.save() # write to overlayBuffer
-    return overlayBuffer
+
+        pdfCanvas.showPage()
+        pdfCanvas.save() # write to overlayBuffer
 
 
-def makeCmeCertificate(overlayBuffer, verified):
-    """Generate CME certificate by merging the overlayBuffer with
-        an existing PDF template.
-        overlayBuffer: StringIO object
-        verified: bool  If True: use verified template, else
-            use participation template.
-    """
-    tplfileName = CERT_TEMPLATE_VERIFIED if verified else CERT_TEMPLATE_PARTICIPATION
-    tplfilePath = os.path.join(settings.PDF_TEMPLATES_DIR, tplfileName)
-    blankfilePath = os.path.join(settings.PDF_TEMPLATES_DIR, BLANK_FILE)
-    output = StringIO.StringIO()
-    try:
-        overlayReader = PdfFileReader(overlayBuffer, strict=False)
-        with open(tplfilePath, 'rb') as f_tpl, open(blankfilePath, 'rb') as f_blank:
-            templateReader = PdfFileReader(f_tpl, strict=False)
-            blankReader = PdfFileReader(f_blank, strict=False)
-            # make copy of blank page
-            mergedPage = copy.copy(blankReader.getPage(0))
-            # add template
-            mergedPage.mergePage(templateReader.getPage(0))
-            # add overlay
-            mergedPage.mergePage(overlayReader.getPage(0))
-            # write to output
-            writer = PdfFileWriter()
-            writer.addPage(mergedPage)
-            writer.write(output)
-    except IOError, e:
-        logger.exception('makeCmeCertificate IOError')
-    except Exception, e:
-        logger.exception('makeCmeCertificate exception')
-    finally:
-        return output.getvalue() # return empty str if no write
+class NurseCertificate(BaseCertificate):
+    """Used for Nurse certificate."""
+
+    # files in settings.PDF_TEMPLATES_DIR
+    CERT_TEMPLATE = 'nurse-cme-certificate.pdf'
+
+    CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded")
+    SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded in ${tag}")
+
+    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity is designated for ${numCredits} Contact Hours by ${companyName} (${companyCep}), 265 Cambridge Ave, #61224,<br />Palo Alto CA 94306. This certificate must be retained by the nurse licensee for a period of four years after the course ends.<br />This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented in<br/> accordance with the Essential Areas and policies of the Accreditation Council for Continuing Medical Education through the<br /> joint providership of Tufts University School of Medicine (TUSM) and Orbit. TUSM is accredited by the ACCME to provide<br /> continuing education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
+
+    def __init__(self, certificate):
+        super(NurseCertificate, self).__init__(certificate)
+        self.tplfileName = NurseCertificate.CERT_TEMPLATE
+        if not certificate.state_license:
+            raise ValueError('NurseCertificate requires certificate to have non-null state_license.')
+
+    def getCreditText(self):
+        """Returns string for credit text"""
+        if self.certificate.tag:
+            tpl = NurseCertificate.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
+            return tpl.substitute({
+                'numCredits': self.certificate.credits,
+                'tag': self.certificate.tag.description
+                })
+        else:
+            tpl = NurseCertificate.CREDIT_TEXT_PARTICIPATION_TEMPLATE
+            return tpl.substitute({
+                'numCredits': self.certificate.credits
+                })
+
+    def makeCmeCertOverlay(self):
+        """Populate self.overlayBuffer"""
+        pdfCanvas = canvas.Canvas(self.overlayBuffer, pagesize=landscape(A4))
+        # initialize font styles
+        self.styleOpenSans.fontSize = 20
+        self.styleOpenSans.leading = 10
+        self.styleOpenSans.textColor = colors.Color(0, 0, 0)
+        self.styleOpenSans.alignment = TA_LEFT
+
+        self.styleOpenSansLight.fontSize = 12
+        self.styleOpenSansLight.leading = 10
+        self.styleOpenSansLight.textColor = colors.Color(
+            0.1, 0.1, 0.1)
+        self.styleOpenSansLight.alignment = TA_LEFT
+
+        # CERT NAME
+        self.styleOpenSans.fontSize = 20
+        text = "{0} <font size=13>({1})</font>".format(
+                self.certificate.name,
+                self.certificate.state_license.getLabelForCertificate())
+        paragraph = Paragraph(text, self.styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
+
+        # dates
+        paragraph = Paragraph("Total credits earned between {0} - {1}".format(
+            DateFormat(self.certificate.startDate).format(LONG_DATE_FORMAT),
+            DateFormat(self.certificate.endDate).format(LONG_DATE_FORMAT)),
+            self.styleOpenSansLight)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 75 * mm)
+
+        # credits
+        self.styleOpenSans.fontSize = 14
+        creditText = self.getCreditText()
+        paragraph = Paragraph(creditText, self.styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 63.83 * mm)
+
+        # issued
+        self.styleOpenSans.fontSize = 9
+        paragraph = Paragraph("Issued: {0}".format(
+            DateFormat(self.certificate.created).format(LONG_DATE_FORMAT)), self.styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12.4 * mm, 12 * mm)
+
+        # Link to this certificate
+        certUrl = self.certificate.getAccessUrl()
+        paragraph = Paragraph(certUrl, self.styleOpenSans)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 114.5 * mm, 12 * mm)
+
+        # Large description text block with variable substitutions
+        self.styleOpenSansLight.fontSize = 10.5
+        self.styleOpenSansLight.leading = 15
+        self.styleOpenSansLight.textColor = colors.Color(
+            0.6, 0.6, 0.6)
+        descriptionText = NurseCertificate.PARTICIPATION_TEXT_TEMPLATE.substitute({
+            'numCredits': self.certificate.credits,
+            'companyName': settings.COMPANY_NAME,
+            'companyCep': settings.COMPANY_BRN_CEP,
+            'releaseDate': DateFormat(settings.CERT_ORIGINAL_RELEASE_DATE).format(SHORTEST_DATE_FORMAT),
+            'expireDate': DateFormat(settings.CERT_EXPIRE_DATE).format(SHORTEST_DATE_FORMAT)
+        })
+        paragraph = Paragraph(descriptionText, self.styleOpenSansLight)
+        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 24 * mm)
+
+        pdfCanvas.showPage()
+        pdfCanvas.save() # write to overlayBuffer

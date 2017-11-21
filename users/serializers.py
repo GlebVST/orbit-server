@@ -52,7 +52,7 @@ class NestedStateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = State
-        fields = ('id', 'abbrev', 'name')
+        fields = ('id', 'abbrev', 'name', 'rnCertValid')
 
 class CountrySerializer(serializers.ModelSerializer):
     states = NestedStateSerializer(many=True, read_only=True)
@@ -66,7 +66,7 @@ class StateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = State
-        fields = ('id', 'country', 'abbrev', 'name')
+        fields = ('id', 'country', 'abbrev', 'name', 'rnCertValid')
 
 class PracticeSpecialtyListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -159,7 +159,6 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'contactEmail',
             'country',
             'jobTitle',
-            'description',
             'inviteId',
             'socialId',
             'pictureUrl',
@@ -173,7 +172,8 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'specialties',
             'verified',
             'accessedTour',
-            'cmeDuedate',
+            'cmeStartDate',
+            'cmeEndDate',
             'isNPIComplete',
             'isSignupComplete',
             'created',
@@ -274,7 +274,6 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'contactEmail',
             'country',
             'jobTitle',
-            'description',
             'inviteId',
             'socialId',
             'pictureUrl',
@@ -288,7 +287,8 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'specialties',
             'verified',
             'accessedTour',
-            'cmeDuedate',
+            'cmeStartDate',
+            'cmeEndDate',
             'isNPIComplete',
             'isSignupComplete',
             'created',
@@ -991,6 +991,8 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
 
 class CertificateReadSerializer(serializers.ModelSerializer):
     url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
+    tag = serializers.PrimaryKeyRelatedField(queryset=CmeTag.objects.all())
+    state_license = serializers.PrimaryKeyRelatedField(queryset=StateLicense.objects.all())
     class Meta:
         model = Certificate
         fields = (
@@ -1000,16 +1002,18 @@ class CertificateReadSerializer(serializers.ModelSerializer):
             'startDate',
             'endDate',
             'credits',
+            'tag',
+            'state_license',
             'created'
         )
-        read_only_fields = ('referenceId', 'url', 'name', 'startDate', 'endDate', 'credits')
+        read_only_fields = fields
 
 
 class StateLicenseSubSerializer(serializers.ModelSerializer):
     state = serializers.StringRelatedField()
     class Meta:
         model = StateLicense
-        fields = ('state','license_no')
+        fields = ('state','license_no', 'expiryDate')
 
 class AuditReportReadSerializer(serializers.ModelSerializer):
     npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')

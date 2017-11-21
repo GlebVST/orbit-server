@@ -1,0 +1,28 @@
+<div>
+    <p>{{ addressee }},</p>
+    <p>You just got paid!</p>
+    <p>Here's your earnings statement from Orbit for the month of {{ monyear }}:</p>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <th>Source</th>
+            <th>Active users converted</th>
+            <th>Commission</th>
+        </thead>
+        <tbody>
+            {% for d in data %}
+            <tr>
+                <td>{{ d.affiliateId }}</td>
+                <td>{{ d.num_convertees }}</td>
+                <td>${{ d.total }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if showGrandTotal %}
+        <p>Total Referrals: {{ totalConvertees }}</p>
+        <p>Total Commission: ${{ grandTotal }} USD</p>
+    {% endif %}
+    <p>Keep up the great work - we're excited to see your monthly conversions grow!</p>
+    <p>Best wishes,</p>
+    <p>Ram<br />Orbit / Palo Alto<br />{{ support_email }}</p>
+</div>
