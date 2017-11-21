@@ -157,7 +157,7 @@ class SignupDiscountList(APIView):
     def get(self, request, *args, **kwargs):
         user = request.user
         discounts = []
-        user_subs = self.getLatestSubscription(user)
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
         if user_subs is None or (user_subs.display_status == UserSubscription.UI_TRIAL) or (user_subs.display_status == UserSubscription.UI_TRIAL_CANCELED):
             # User has never had an active subscription. Ok to get signup discounts
             discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
