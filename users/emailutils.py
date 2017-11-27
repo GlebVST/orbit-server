@@ -30,6 +30,9 @@ def sendNewUserReportEmail(profiles, email_to):
             user_id=user.id,
             email=user.email,
             nameAndRole=p.getFullNameAndDegree(),
+            specialties=p.formatSpecialties(),
+            country='',
+            nbcrnaId=p.nbcrnaId,
             npiNumber=p.npiNumber,
             npiType=p.npiType,
             plan_name='',
@@ -46,6 +49,8 @@ def sendNewUserReportEmail(profiles, email_to):
             else:
                 referralName = p.inviter.profile.getFullName()
             d['referral'] = referralName
+        if p.country:
+            d['country'] = p.country.name
         data.append(d)
     ctx = {
         'data': data

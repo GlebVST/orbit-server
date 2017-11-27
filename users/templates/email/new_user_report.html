@@ -6,9 +6,12 @@
                 <th>Email</th>
                 <th>Name</th>
                 <th>NpiNumber</th>
+                <th>Specialty</th>
                 <th>Plan Name</th>
                 <th>SubscriptionId</th>
                 <th>Referred By</th>
+                <th>NBCRNA Id</th>
+                <th>Country</th>
             </tr>
         </thead>
         <tbody>
@@ -17,9 +20,12 @@
                 <td>{{ d.email }}</td>
                 <td>{{ d.nameAndRole|default:"Not provided" }}</td>
                 <td>{{ d.npiNumber }} {% if d.npiNumber %}({{ d.npiType }}){% endif %}</td>
+                <td>{{ d.specialties }}</td>
                 <td>{{ d.plan_name|default:"" }}</td>
                 <td>{{ d.subscriptionId|default:"None" }}</td>
                 <td>{{ d.referral|default:"" }}</td>
+                <td>{{ d.nbcrnaId }}</td>
+                <td>{{ d.country }}</td>
             </tr>
             {% endfor %}
         </tbody>

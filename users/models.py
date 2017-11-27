@@ -352,6 +352,10 @@ class Profile(models.Model):
         return ", ".join([d.abbrev for d in self.degrees.all()])
     formatDegrees.short_description = "Primary Role"
 
+    def formatSpecialties(self):
+        return ", ".join([d.name for d in self.specialties.all()])
+    formatSpecialties.short_description = "Specialties"
+
     def isNurse(self):
         degrees = self.degrees.all()
         return any([m.isNurse() for m in degrees])
