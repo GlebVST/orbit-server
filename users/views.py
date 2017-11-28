@@ -1211,10 +1211,7 @@ class CreateAuditReport(CertificateMixin, APIView):
         user = profile.user
         can_print_report = hasUserSubscriptionPerm(user, PERM_PRINT_AUDIT_REPORT)
         if can_print_report:
-            if profile.isNurse():
-                reportName = profile.getFullName() + ", RN"
-            else:
-                reportName = profile.getFullNameAndDegree()
+            reportName = profile.getFullNameAndDegree()
         else:
             reportName = SAMPLE_CERTIFICATE_NAME
         brcmeCertReferenceId = certificate.referenceId if certificate else None

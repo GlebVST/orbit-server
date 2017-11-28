@@ -1,0 +1,11 @@
+[
+{
+  "model": "users.licensetype",
+  "pk": 1,
+  "fields": {
+    "name": "RN",
+    "created": "2017-11-27T23:22:45.583Z",
+    "modified": "2017-11-27T23:22:45.583Z"
+  }
+}
+]
