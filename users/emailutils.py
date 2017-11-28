@@ -104,9 +104,10 @@ def sendPaymentFailureEmail(user, subs_trans):
         'support_email': settings.SUPPORT_EMAIL
     }
     message = get_template('email/payment_failed.html').render(ctx)
-    msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
+    msg = EmailMessage(subject, message, to=[user.email], from_email=from_email, bcc=[from_email,])
     msg.content_subtype = 'html'
     msg.send()
+
 
 def sendAfflConsolationEmail(affl, start_monyear):
     """This is intended to be called once a month for the case of
@@ -256,5 +257,3 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
     msg = EmailMessage(subject, message, to=[email_to], from_email=from_email)
     msg.content_subtype = 'html'
     msg.send()
-
-

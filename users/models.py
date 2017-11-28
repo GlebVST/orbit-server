@@ -413,6 +413,14 @@ class AffiliateDetail(models.Model):
     def __str__(self):
         return '{0.affiliate}|{0.affiliateId}'.format(self)
 
+class LicenseType(models.Model):
+    name = models.CharField(max_length=10, unique=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
 class StateLicense(models.Model):
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
@@ -421,6 +429,13 @@ class StateLicense(models.Model):
     )
     state = models.ForeignKey(State,
         on_delete=models.CASCADE,
+        related_name='statelicenses',
+        db_index=True
+    )
+    license_type = models.ForeignKey(LicenseType,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='statelicenses',
         db_index=True
     )
