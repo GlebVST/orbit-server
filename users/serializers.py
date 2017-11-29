@@ -312,9 +312,10 @@ class CustomerSerializer(serializers.ModelSerializer):
 class StateLicenseSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all())
+    license_type = serializers.StringRelatedField(read_only=True)
     class Meta:
         model = StateLicense
-        fields = ('id','user', 'state','license_no', 'expiryDate')
+        fields = ('id','user', 'state', 'license_type', 'license_no', 'expiryDate')
 
 
 # Entire offer is read-only because offers are created by the plugin server.
@@ -1010,10 +1011,11 @@ class CertificateReadSerializer(serializers.ModelSerializer):
 
 
 class StateLicenseSubSerializer(serializers.ModelSerializer):
-    state = serializers.StringRelatedField()
+    state = serializers.StringRelatedField(read_only=True)
+    license_type = serializers.StringRelatedField(read_only=True)
     class Meta:
         model = StateLicense
-        fields = ('state','license_no', 'expiryDate')
+        fields = ('state','license_type', 'license_no', 'expiryDate')
 
 class AuditReportReadSerializer(serializers.ModelSerializer):
     npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
@@ -1038,7 +1040,7 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
         p = obj.user.profile
         if p.country:
             return p.country.code
-        return None # or empty str?
+        return None
 
     class Meta:
         model = AuditReport

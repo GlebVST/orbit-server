@@ -8,8 +8,7 @@ class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'created')
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'is_abms_board', 'formatTags', 'created')
-    list_filter = ('is_abms_board',)
+    list_display = ('id', 'name', 'formatTags', 'created')
     filter_horizontal = ('cmeTags',)
 
     def get_queryset(self, request):
@@ -43,7 +42,7 @@ class ProfileAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super(ProfileAdmin, self).get_queryset(request)
-        return qs.prefetch_related('degrees')
+        return qs.prefetch_related('degrees', 'specialties')
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'customerId', 'created')
@@ -57,8 +56,12 @@ class AffiliateDetailAdmin(admin.ModelAdmin):
     list_display = ('affiliateId', 'affiliate', 'redirect_page', 'jobDescription', 'photoUrl', 'modified')
     ordering = ('affiliate','affiliateId')
 
+
+class LicenseTypeAdmin(admin.ModelAdmin):
+    list_display = ('id','name','created')
+
 class StateLicenseAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'state', 'license_no', 'expiryDate', 'created')
+    list_display = ('id', 'user', 'state', 'license_type', 'license_no', 'expiryDate', 'created')
     list_select_related = True
 
 class SponsorAdmin(admin.ModelAdmin):
@@ -262,6 +265,7 @@ admin_site.register(EligibleSite, EligibleSiteAdmin)
 admin_site.register(Entry, EntryAdmin)
 admin_site.register(EntryType, EntryTypeAdmin)
 admin_site.register(InvitationDiscount, InvitationDiscountAdmin)
+admin_site.register(LicenseType, LicenseTypeAdmin)
 admin_site.register(Organization, OrgAdmin)
 admin_site.register(PinnedMessage, PinnedMessageAdmin)
 admin_site.register(Profile, ProfileAdmin)

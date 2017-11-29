@@ -327,8 +327,10 @@ class UserStateLicenseList(generics.ListCreateAPIView):
         return StateLicense.objects.filter(user=user)
 
     def perform_create(self, serializer, format=None):
+        """At present time, only RN StateLicense is supported"""
         user = self.request.user
-        instance = serializer.save(user=user)
+        lt = LicenseType.objects.get(name='RN')
+        instance = serializer.save(user=user, license_type=lt)
         return instance
 
 class UserStateLicenseDetail(generics.RetrieveUpdateDestroyAPIView):
