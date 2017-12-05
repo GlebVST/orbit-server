@@ -451,7 +451,7 @@ class StateLicense(models.Model):
     def getLabelForCertificate(self):
         """Returns str e.g. California RN License #12345
         """
-        label = "{0.state.name} RN License #{0.license_no}".format(self)
+        label = "{0.state.name} {0.license_type.name} License #{0.license_no}".format(self)
         return label
 
 class CustomerManager(models.Manager):

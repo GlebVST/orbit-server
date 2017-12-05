@@ -1,5 +1,8 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+import logging
+import premailer
+from io import StringIO
 from smtplib import SMTPException
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -246,3 +249,55 @@ class InvitationDiscountList(generics.ListAPIView):
         user = self.request.user
         return InvitationDiscount.objects.filter(inviter=user).select_related().order_by('-created')
 
+class PreEmail(APIView):
+    """send test email using premailer
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, format=None):
+        user = request.user
+        etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
+        now = timezone.now()
+        cutoff = now - timedelta(days=300)
+        entries = Entry.objects.filter(
+                user=user,
+                entryType=etype,
+                valid=True,
+                created__gte=cutoff).order_by('-created')
+        data = []
+        for m in entries:
+            data.append(dict(
+                id=m.pk,
+                url=m.brcme.offer.url,
+                created=m.created
+            ))
+        from_email = settings.SUPPORT_EMAIL
+        subject = 'Your Orbit monthly update'
+        ctx = {
+            'profile': user.profile,
+            'entries': data,
+            'reportDate': now
+        }
+        # setup premailer
+        plog = StringIO()
+        phandler = logging.StreamHandler(plog)
+        orig_message = get_template('email/test_inline.html').render(ctx)
+        p = premailer.Premailer(orig_message,
+                cssutils_logging_handler=phandler,
+                cssutils_logging_level=logging.INFO)
+        # transformed message
+        message = p.transform()
+        print(plog.getvalue())
+        msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
+        msg.content_subtype = 'html'
+        try:
+            msg.send()
+        except SMTPException as e:
+            logException(logger, request, 'SendTestPreEmail failed.')
+            context = {'success': False, 'message': 'Failure sending email'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        finally:
+            context = {
+                'success': True,
+                'message': 'A message was emailed to {0.email}'.format(user),
+            }
+            return Response(context, status=status.HTTP_200_OK)
