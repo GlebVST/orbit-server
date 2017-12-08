@@ -78,7 +78,8 @@ INSTALLED_APPS = [
     'storages',
     'users.apps.UsersConfig',
     'rest_framework_swagger',
-    'pagedown'
+    'pagedown',
+    'django_extensions',
 ]
 
 # Session

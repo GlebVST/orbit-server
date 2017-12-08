@@ -2138,6 +2138,7 @@ class AuditReport(models.Model):
 class AllowedHost(models.Model):
     id = models.AutoField(primary_key=True)
     hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
+    description = models.CharField(max_length=500, blank=True, default='')
     accept_query_keys = models.TextField(blank=True, default='', help_text='accepted keys in url query')
     has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
     allow_page_download = models.BooleanField(blank=True, default=True,
