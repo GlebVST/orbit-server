@@ -778,6 +778,30 @@ class PinnedMessageDetail(APIView):
         return self.serialize_and_render(message)
 
 
+class StoryDetail(APIView):
+    """Finds the latest non-expired Story and returns the info with the launch_url customized for the user.
+    Value is None if none exists.
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def serialize_and_render(self, user_id, story):
+        context = {'story': None}
+        if story:
+            s = StorySerializer(story)
+            context['story'] = s.data
+            context['story']['launch_url'] += "={0}".format(user_id)
+        return Response(context, status=status.HTTP_200_OK)
+
+    def get(self, request, format=None):
+        story = None
+        user_id = request.user.profile.getAuth0Id()
+        now = timezone.now()
+        qset = Story.objects.filter(startDate__lte=now, endDate__gt=now).order_by('-created')
+        if qset.exists():
+            story = qset[0]
+        return self.serialize_and_render(user_id, story)
+
+
 # User Feedback
 class UserFeedbackList(generics.ListCreateAPIView):
     serializer_class = UserFeedbackSerializer
@@ -1223,7 +1247,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             'id': m.pk,
             'entryType': m.entryType.name,
             'date': calendar.timegm(m.activityDate.timetuple()),
-            'credit': float(m.srcme.credits),
+            'credit': float(m.getCredits()),
             'creditType': m.formatCreditType(),
             'tags': m.formatNonSATags(),
             'authority': m.getCertifyingAuthority(),

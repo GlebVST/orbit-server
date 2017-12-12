@@ -108,6 +108,8 @@ api_patterns = [
 
     # pinned message
     url(r'^pinned-message/?$', views.PinnedMessageDetail.as_view()),
+    # story
+    url(r'^story/?$', views.StoryDetail.as_view()),
     # user feedback (list/create)
     url(r'^feedback/?$', views.UserFeedbackList.as_view()),
     # dashboard
@@ -132,6 +134,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
         url(r'^debug/make-pinned-message/?$', debug_views.MakePinnedMessage.as_view()),
         url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
+        url(r'^debug/feed/storycme/?$', debug_views.MakeStoryCme.as_view()),
         url(r'^debug/email-receipt/?$', debug_views.EmailSubscriptionReceipt.as_view()),
         url(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view()),
         url(r'^debug/invitation-discount/?$', debug_views.InvitationDiscountList.as_view()),

@@ -36,6 +36,7 @@ from common.appconstants import (
 #
 ENTRYTYPE_BRCME = 'browser-cme'
 ENTRYTYPE_SRCME = 'sr-cme'
+ENTRYTYPE_STORY_CME = 'story-cme'
 ENTRYTYPE_NOTIFICATION = 'notification'
 CMETAG_SACME = 'SA-CME'
 COUNTRY_USA = 'USA'
@@ -363,6 +364,12 @@ class Profile(models.Model):
     def getActiveCmetags(self):
         """Need to query the through relation to filter by is_active=True"""
         return ProfileCmetag.filter(profile=self, is_active=True)
+
+    def getAuth0Id(self):
+        delim = '|'
+        if delim in self.socialId:
+            L = self.socialId.split(delim, 1)
+            return L[-1]
 
 # Many-to-many through relation between Profile and CmeTag
 class ProfileCmetag(models.Model):
@@ -698,6 +705,35 @@ class OfferCmeTag(models.Model):
     class Meta:
         unique_together = ('offer','tag')
 
+# A Story is broadcast to many users.
+# The launch_url must be customized to include the user id when sending
+# it in the response for a given user.
+@python_2_unicode_compatible
+class Story(models.Model):
+    sponsor = models.ForeignKey(Sponsor,
+        on_delete=models.PROTECT,
+        db_index=True
+    )
+    title = models.CharField(max_length=500)
+    description = models.CharField(max_length=2000)
+    credits = models.DecimalField(max_digits=4, decimal_places=2, default=1, blank=True,
+        help_text='CME credits to be awarded upon completion (default = 1)')
+    startDate = models.DateTimeField()
+    expireDate = models.DateField(help_text='Expiration date for display')
+    endDate = models.DateTimeField(help_text='Expiration timestamp used by server')
+    launch_url = models.URLField(max_length=1000, help_text='Form URL')
+    entry_url = models.URLField(max_length=1000, help_text='Article URL will be copied to the feed entries.')
+    entry_title = models.CharField(max_length=1000, help_text='Article title will be copied to the feed entries.')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = 'Stories'
+
+    def __str__(self):
+        return self.title
+
+
 # Extensible list of entry types that can appear in a user's feed
 @python_2_unicode_compatible
 class EntryType(models.Model):
@@ -792,7 +828,7 @@ class EntryManager(models.Manager):
                 #print('{0.pk} {0}|{1}'.format(m, ','.join(tagnames)))
                 if satag.pk in tagids:
                     saEntries.append(m)
-                    #print('-- add to saEntries')
+                    logger.debug('-- Add entry {0.pk} {0.entryType} to saEntries'.format(m))
                 else:
                     if m.entryType.name == ENTRYTYPE_BRCME:
                         brcmeEntries.append(m)
@@ -809,11 +845,11 @@ class EntryManager(models.Manager):
                     creditSumByTag[t.name] = creditSumByTag.setdefault(t.name, 0) + credits
                     #print('---- {0.name} : {1}'.format(t, creditSumByTag[t.name]))
             # sum credit totals
-            saCmeTotal = sum([m.srcme.credits for m in saEntries])
+            saCmeTotal = sum([m.getCredits() for m in saEntries])
         except Exception:
             logger.exception('prepareDataForAuditReport exception')
         else:
-            #logger.debug('saCmeTotal: {0}'.format(saCmeTotal))
+            logger.debug('saCmeTotal: {0}'.format(saCmeTotal))
             #logger.debug('otherCmeTotal: {0}'.format(otherCmeTotal))
             res = AuditReportResult(
                 saEntries=saEntries,
@@ -906,7 +942,7 @@ class Entry(models.Model):
     objects = EntryManager()
 
     def __str__(self):
-        return '{0.entryType} of {0.activityDate}'.format(self)
+        return '{0.pk}|{0.entryType}|{0.user}|{0.activityDate}'.format(self)
 
     def asLocalTz(self):
         return self.created.astimezone(LOCAL_TZ)
@@ -930,6 +966,15 @@ class Entry(models.Model):
             return Entry.CREDIT_OTHER_TAGNAME
         return u''
 
+    def getCredits(self):
+        """Returns credit:Decimal value"""
+        if self.entryType.name == ENTRYTYPE_SRCME:
+            return self.srcme.credits
+        if self.entryType.name == ENTRYTYPE_BRCME:
+            return self.brcme.credits
+        if self.entryType.name == ENTRYTYPE_STORY_CME:
+            return self.storycme.credits
+        return 0
 
     def getCertDocReferenceId(self):
         """This expects attr cert_docs:list from prefetch_related.
@@ -1039,6 +1084,28 @@ class BrowserCme(models.Model):
         res = urlparse(self.url)
         return res.netloc + ' - ' + self.entry.description
 
+# Story CME entry
+# An entry is created by a script for users who completed a particular Story
+@python_2_unicode_compatible
+class StoryCme(models.Model):
+    entry = models.OneToOneField(Entry,
+        on_delete=models.CASCADE,
+        related_name='storycme',
+        primary_key=True
+    )
+    story = models.ForeignKey(Story,
+        on_delete=models.PROTECT,
+        related_name='storycme',
+        db_index=True
+    )
+    credits = models.DecimalField(max_digits=5, decimal_places=2)
+    url = models.URLField(max_length=500)
+    title = models.TextField()
+
+    def __str__(self):
+        return self.url
+
+
 @python_2_unicode_compatible
 class UserFeedback(models.Model):
     SNIPPET_MAX_CHARS = 80
@@ -1077,6 +1144,7 @@ class PinnedMessageManager(models.Manager):
         if qset.exists():
             return qset[0]
 
+# This model is no longer used for Orbit Stories, it has been superseded by Story. Its fields need to be changed once we use it for user-specified PinnedMessages.
 @python_2_unicode_compatible
 class PinnedMessage(models.Model):
     user = models.ForeignKey(User,
