@@ -434,16 +434,17 @@ class StateLicense(models.Model):
     )
     license_type = models.ForeignKey(LicenseType,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
         related_name='statelicenses',
         db_index=True
     )
-    license_no = models.CharField(max_length=40, blank=True,
+    license_no = models.CharField(max_length=40, blank=True, default='',
             help_text='License number')
-    expiryDate = models.DateTimeField(null=True)
+    expiryDate = models.DateTimeField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user','state','license_type','license_no')
 
     def __str__(self):
         return self.license_no
