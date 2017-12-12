@@ -434,16 +434,17 @@ class StateLicense(models.Model):
     )
     license_type = models.ForeignKey(LicenseType,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
         related_name='statelicenses',
         db_index=True
     )
-    license_no = models.CharField(max_length=40, blank=True,
+    license_no = models.CharField(max_length=40, blank=True, default='',
             help_text='License number')
-    expiryDate = models.DateTimeField(null=True)
+    expiryDate = models.DateTimeField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user','state','license_type','license_no')
 
     def __str__(self):
         return self.license_no
@@ -451,7 +452,7 @@ class StateLicense(models.Model):
     def getLabelForCertificate(self):
         """Returns str e.g. California RN License #12345
         """
-        label = "{0.state.name} RN License #{0.license_no}".format(self)
+        label = "{0.state.name} {0.license_type.name} License #{0.license_no}".format(self)
         return label
 
 class CustomerManager(models.Manager):
@@ -2138,6 +2139,7 @@ class AuditReport(models.Model):
 class AllowedHost(models.Model):
     id = models.AutoField(primary_key=True)
     hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
+    description = models.CharField(max_length=500, blank=True, default='')
     accept_query_keys = models.TextField(blank=True, default='', help_text='accepted keys in url query')
     has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
     allow_page_download = models.BooleanField(blank=True, default=True,

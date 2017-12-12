@@ -200,7 +200,7 @@ class AffiliatePayoutAdmin(admin.ModelAdmin):
 # plugin models
 #
 class AllowedHostAdmin(admin.ModelAdmin):
-    list_display = ('id', 'hostname', 'has_paywall', 'allow_page_download', 'accept_query_keys', 'created')
+    list_display = ('id', 'hostname', 'description', 'has_paywall', 'allow_page_download', 'accept_query_keys', 'created')
     ordering = ('hostname',)
 
 class HostPatternAdmin(admin.ModelAdmin):

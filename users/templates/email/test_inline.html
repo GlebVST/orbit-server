@@ -1,0 +1,48 @@
+<html>
+    <head>
+        <title>Your monthly update from Orbit</title>
+        <style type="text/css">
+            body {
+                margin: 0;
+                padding: 0;
+                background-color: #fafafd;
+            }
+            #banner {
+                background-color: #2d2dc8;
+                color: white
+            }
+            #banner h1 {
+                font-size: 24px;
+                margin: 50px 20px; 50px; 20px;
+            }
+            #content {
+                border: 2px solid #9d3000;
+                padding: 5px;
+            }
+            p.lead {
+                font-size: 16px;
+                color: #006c00;
+                line-height: 150%;
+            }
+            p {
+                font-size: 12px;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="banner">
+            <h1>Your Orbit Update for {{ reportDate|date:"F Y" }}</h1>
+        </div>
+        <div id="content">
+            <p class="lead">Hello, {{ profile.firstName }}!</p>
+            <ul>
+                {% for entry in entries %}
+                <li>{{ entry.url }} on {{ entry.created|date:"Y-m-d" }}</li>
+                {% empty %}
+                    <li>Sorry, you did not visit any sites this month</li>
+                {% endfor %}
+            </ul>
+            <p>Have a wonderful day!</p>
+        </div>
+    </body>
+</html>

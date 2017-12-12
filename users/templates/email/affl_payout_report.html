@@ -22,7 +22,7 @@
     </table>
     <p>Payout Grand Total: ${{ grandTotal }} USD</p>
     {% if lastBatchPayout %}
-        <p>Total number of converted users since {% lastBatchPayout.created "D, d N Y H:i e" %}: {{ totalUsers }}.</p>
+    <p>Total number of converted users since {{ lastBatchPayout.created|date:"D, d N Y H:i e" }}: {{ totalUsers }}.</p>
     {% endif %}
     {% if grandTotal %}
         <p><em>Action required: </em> Please login to the admin server and execute management command to submit the actual payout.</p>
