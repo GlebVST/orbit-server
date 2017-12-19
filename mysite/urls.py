@@ -60,6 +60,7 @@ api_patterns = [
     url(r'^shop/resume-subscription/?$', payment_views.ResumeSubscription.as_view(), name='payment-resume-subscription'),
     url(r'^shop/update-token/?$', payment_views.UpdatePaymentToken.as_view(), name='payment-update-token'),
     url(r'^shop/trial-to-active/?$', payment_views.SwitchTrialToActive.as_view(), name='payment-trial-to-active'),
+    url(r'^shop/upgrade-plan/?$', payment_views.UpgradePlan.as_view(), name='payment-upgrade-plan'),
     url(r'^shop/plans/?$', views.SubscriptionPlanList.as_view(), name='shop-plans'),
     url(r'^shop/plans-public/?$', views.SubscriptionPlanPublic.as_view(), name='shop-plan-public'),
     url(r'^shop/signup-discounts/?$', views.SignupDiscountList.as_view(), name='shop-signup-discounts'),

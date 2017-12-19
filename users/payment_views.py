@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from common.logutils import *
 # app
 from .models import *
-from .serializers import ReadUserSubsSerializer, CreateUserSubsSerializer
+from .serializers import ReadUserSubsSerializer, CreateUserSubsSerializer, UpgradePlanSerializer
 
 TPL_DIR = 'users'
 
@@ -157,7 +157,7 @@ class NewSubscription(generics.CreateAPIView):
 
     Example when using a new payment method with a Nonce prepared on client:
         {"plan":1,"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9", "do_trial":0}
-    If a None is given, it takes precedence and will be saved to the Customer vault and converted into a token.
+    If a Nonce is given, it takes precedence and will be saved to the Customer vault and converted into a token.
     If do_trial == 0: the trial period is skipped and the subscription starts immediately.
     If do_trial == 1 (or key not present), the trial period is activated. This is the default.
     """
@@ -218,22 +218,15 @@ class NewSubscription(generics.CreateAPIView):
                 invitee_discount = True
 
         # get local customer object and braintree customer
+        customer = request.user.customer
         try:
-            customer = Customer.objects.get(user=request.user)
             bc = Customer.objects.findBtCustomer(customer)
-        except Customer.DoesNotExist:
-            context = {
-                'success': False,
-                'message': 'Local Customer object not found for user.'
-            }
-            logError(logger, request, context['message'])
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         except braintree.exceptions.not_found_error.NotFoundError:
             context = {
                 'success': False,
                 'message': 'BT Customer object not found.'
             }
-            message = context['message'] + ' customerId: {0}'.format(customer.customerId)
+            message = context['message'] + ' customerId: {0.customerId}'.format(customer)
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # Convert nonce into token because it is required by subs
@@ -278,6 +271,88 @@ class NewSubscription(generics.CreateAPIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         logInfo(logger, request, 'NewSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
         out_serializer = ReadUserSubsSerializer(user_subs)
+        context['subscription'] = out_serializer.data
+        return Response(context, status=status.HTTP_201_CREATED)
+
+
+class UpgradePlan(generics.CreateAPIView):
+    """Plan upgrade. Cancel existing subscription, and create new subscription for the higher-priced plan for the user.
+    This view expects a JSON object in the POST data:
+        Example when using existing customer payment method with token obtained from Vault:
+            {"plan":2,"payment_method_token":"5wfrrp"}
+        Example when using a new payment method with a Nonce prepared on client:
+            {"plan":2,"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9"}
+    If a Nonce is given, it takes precedence and will be saved to the Customer vault and converted into a token.
+    """
+    serializer_class = UpgradePlanSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def perform_create(self, serializer, format=None):
+        with transaction.atomic():
+            result, new_user_subs = serializer.save(user_subs=self.user_subs)
+        return (result, new_user_subs)
+
+    def create(self, request, *args, **kwargs):
+        """User's current subscription.status must be Active in order to upgrade"""
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        if user_subs.status != UserSubscription.ACTIVE:
+            context = {
+                'success': False,
+                'message': 'The current subscription status is {0.display_status}. This subscription cannot be upgraded.'.format(user_subs)
+            }
+            logError(logger, request, context['message'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        self.user_subs = user_subs
+        form_data = request.data.copy()
+        logDebug(logger, request, str(form_data))
+        payment_token = form_data.get('payment_method_token', None)
+        payment_nonce = form_data.get('payment_method_nonce', None)
+        if payment_nonce:
+            # Convert nonce into token because it is required by subs
+            customer = user.customer
+            try:
+                pm_result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
+            except braintree.exceptions.not_found_error.NotFoundError:
+                context = {
+                    'success': False,
+                    'message': 'BT Customer object not found.'
+                }
+                message = context['message'] + ' customerId: {0.customerId}'.format(customer)
+                logError(logger, request, message)
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            except ValueError, e:
+                context = {
+                    'success': False,
+                    'message': str(e)
+                }
+                logException(logger, request, 'UpgradePlan addOrUpdatePaymentMethod ValueError')
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            # Get converted token
+            if not pm_result.is_success:
+                context = {
+                    'success': False,
+                    'message': 'Customer vault update failed.'
+                }
+                message = 'UpgradePlan: Customer vault update failed. Result message: {0.message}'.format(pm_result)
+                logError(logger, request, message)
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            bc = Customer.objects.findBtCustomer(customer)
+            tokens = [m.token for m in bc.payment_methods]
+            payment_token = tokens[0]
+        # update form_data for serializer
+        form_data['payment_method_token'] = payment_token
+        in_serializer = self.get_serializer(data=form_data)
+        in_serializer.is_valid(raise_exception=True)
+        result, new_user_subs = self.perform_create(in_serializer)
+        context = {'success': result.is_success}
+        if not result.is_success:
+            context['message'] = 'Upgrade Plan failed.'
+            message = 'UpgradePlan failed. Result message: {0.message}'.format(result)
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        logInfo(logger, request, 'UpgradePlan: complete for subscriptionId={0.subscriptionId}'.format(new_user_subs))
+        out_serializer = ReadUserSubsSerializer(new_user_subs)
         context['subscription'] = out_serializer.data
         return Response(context, status=status.HTTP_201_CREATED)
 

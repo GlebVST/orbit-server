@@ -921,9 +921,24 @@ class CreateUserSubsSerializer(serializers.Serializer):
         key = 'trial_duration'
         if key in validated_data:
             subs_params[key] = validated_data[key]
-        # Create the subscription and transaction record (transaction is handle from by perform_create)
         return UserSubscription.objects.createBtSubscription(user, plan, subs_params)
 
+class UpgradePlanSerializer(serializers.Serializer):
+    plan = serializers.PrimaryKeyRelatedField(
+        queryset=SubscriptionPlan.objects.all())
+    payment_method_token = serializers.CharField(max_length=64)
+
+    def save(self, **kwargs):
+        """This expects user_subs passed into kwargs for the existing
+        UserSubscription to be canceled.
+        It calls UserSusbscription manager method upgradePlan.
+        Returns: tuple (result object, UserSubscription instance)
+        """
+        user_subs = kwargs['user_subs'] # existing user_subs on old plan
+        validated_data = self.validated_data
+        plan = validated_data['plan']
+        payment_method_token = validated_data['payment_method_token']
+        return UserSubscription.objects.upgradePlan(user_subs, plan, payment_method_token)
 
 
 SACME_LABEL = 'Self-Assessed CME'
