@@ -56,6 +56,7 @@ ORG_DISCOUNT_TYPE = 'org'
 INVITER_MAX_NUM_DISCOUNT = 10
 
 LOCAL_TZ = pytz.timezone(settings.LOCAL_TIME_ZONE)
+TWO_PLACES = Decimal('.01')
 
 def makeAwareDatetime(a_date, tzinfo=pytz.utc):
     """Convert <date> to <datetime> with timezone info"""
@@ -1754,7 +1755,6 @@ class UserSubscriptionManager(models.Manager):
         if billingDay == 0:
             billingDay = 1
         numDaysInYear = 365 if not calendar.isleap(now.year) else 366
-        TWO_PLACES = Decimal('.01')
         # cancel existing user_subs
         cancel_result = self.terminalCancelBtSubscription(user_subs)
         if cancel_result.is_success:

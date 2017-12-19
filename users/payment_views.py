@@ -275,6 +275,81 @@ class NewSubscription(generics.CreateAPIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 
+class UpgradePlanAmount(APIView):
+    """This calculates the amount the user will be charged for upgrading to the new higher-priced plan. If user's current subscription status is not Active, the user cannot upgrade.
+    Example response
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+    def get(self, request, *args, **kwargs):
+        try:
+            new_plan = SubscriptionPlan.objects.get(pk=kwargs['plan_pk'])
+        except SubscriptionPlan.DoesNotExist:
+            context = {
+                'can_upgrade': False,
+                'message': 'Invalid Plan.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # user must have an existing subscription
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        if not user_subs:
+            context = {
+                'can_upgrade': False,
+                'message': 'No existing susbcription found.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # New plan must be an upgrade from the old plan
+        old_plan = user_subs.plan
+        if new_plan.price < old_plan.price:
+            context = {
+                'can_upgrade': False,
+                'message': 'Current subscription plan is {0.plan}.'.format(user_subs)
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # user cannot be in expired/canceled/pastdue bt status
+        if user_subs.status != UserSubscription.ACTIVE:
+            context = {
+                'can_upgrade': False,
+                'message': 'Current subscription status is {0.display_status}'.format(user_subs)
+            }
+            return Response(context, status=status.HTTP_200_OK)
+        if user_subs.display_status == UserSubscription.UI_TRIAL:
+            owed = new_plan.discountPrice
+            discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+            for d in discounts:
+                owed -= d['discount']
+            context = {
+                'can_upgrade': True,
+                'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+                'message': '',
+            }
+            return Response(context, status=status.HTTP_200_OK)
+        # user has begun an Active subscription
+        now = timezone.now()
+        daysInYear = 365 if not calendar.isleap(now.year) else 366
+        td = now - user_subs.billingStartDate
+        billingDay = td.days
+        owed, discount_amount = UserSubscription.objects.getDiscountAmountForUpgrade(old_plan, new_plan, user_subs.billingCycle, billingDay, daysInYear)
+        apply_earned_discount = False
+        if (old_plan.price > user_subs.nextBillingAmount):
+            # user has earned some discounts that would have been applied to the next billing cycle on their old plan
+            earned_discount_amount = old_plan.price - user_subs.nextBillingAmount
+            # check if can apply the earned_discount_amount right now
+            t = discount_amount + earned_discount_amount
+            if t < new_plan.price:
+                discount_amount = t
+                owed -= earned_discount_amount
+                apply_earned_discount = True
+                logDebug(logger, request, 'earned_discount_amount {0}'.format(earned_discount_amount))
+        context = {
+            'can_upgrade': True,
+            'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+            'message': '',
+            'apply_earned_discount': apply_earned_discount
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
+
 class UpgradePlan(generics.CreateAPIView):
     """Plan upgrade. Cancel existing subscription, and create new subscription for the higher-priced plan for the user.
     This view expects a JSON object in the POST data:
