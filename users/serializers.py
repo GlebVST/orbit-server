@@ -1086,8 +1086,11 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
         return obj.user.profile.formatDegrees()
 
     def get_statelicense(self, obj):
+        """2017-12-20: Add isNurse if condition since we currently
+        only support Nurse statelicenses.
+        """
         user = obj.user
-        if user.statelicenses.exists():
+        if user.profile.isNurse() and user.statelicenses.exists():
             s =  StateLicenseSubSerializer(user.statelicenses.all()[0])
             return s.data
         return None
