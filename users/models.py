@@ -1721,10 +1721,11 @@ class UserSubscriptionManager(models.Manager):
             logger.debug('discount: {0}'.format(discount_amount))
         else:
             # user in post-first year
-            # the nominal amount paid (ignoring any inviter discounts b/c user earned that regardless of upgrade)
+            # the nominal amount paid (omitting any inviter discounts b/c user earned that regardless of upgrade)
             discount_amount = old_plan.price
             owed = new_plan.price - discount_amount
         return (owed, discount_amount)
+
 
     def upgradePlan(self, user_subs, new_plan, payment_token):
         """This is called to upgrade the user to a higher-priced plan (e.g. Standard to Plus).
@@ -1739,40 +1740,46 @@ class UserSubscriptionManager(models.Manager):
         self.updateSubscriptionFromBt(user_subs, bt_subs)
         user = user_subs.user
         old_plan = user_subs.plan
-        old_billingFirstDate = user_subs.billingFirstDate
-        old_billingStartDate = user_subs.billingStartDate
-        old_billingCycle = user_subs.billingCycle
-        old_nextBillingAmount = user_subs.nextBillingAmount
-        now = timezone.now()
-        if old_billingFirstDate > now:
-            # user was still in Trial.
-            # This will cancel existing user_subs and create new Active user_subs in new_plan
+        if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
             return self.switchTrialToActive(user_subs, payment_token, new_plan)
         # Check we can get plan discount before making any changes
         plan_discount = Discount.objects.get(discountType=new_plan.planId, activeForType=True)
-        td = now - old_billingStartDate
-        billingDay = Decimal(td.days)
-        if billingDay == 0:
-            billingDay = 1
-        numDaysInYear = 365 if not calendar.isleap(now.year) else 366
-        # cancel existing user_subs
-        cancel_result = self.terminalCancelBtSubscription(user_subs)
-        if cancel_result.is_success:
-            subs_params = {
-                'plan_id': new_plan.planId,
-                'trial_duration': 0,
-                'payment_method_token': payment_token
-            }
+        discount_amount = None
+        now = timezone.now()
+        if user_subs.status == UserSubscription.EXPIRED:
+            # user_subs is already in a terminal state
+            owed = new_plan.price
+            # this value will be used to override the default plan first-year discount
+            discount_amount = 0
+        else:
+            # vars needed to calculate discount_amount
+            old_billingStartDate = user_subs.billingStartDate
+            old_billingCycle = user_subs.billingCycle
+            old_nextBillingAmount = old_plan.price
+            if user_subs.display_status == UserSubscription.UI_ACTIVE:
+                old_nextBillingAmount = user_subs.nextBillingAmount
+            # cancel existing subscription
+            cancel_result = self.terminalCancelBtSubscription(user_subs)
+            if not cancel_result.is_success:
+                logger.warning('upgradePlan: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
+                return (cancel_result, user_subs)
+            # Calculate discount_amount for the new subscription
+            td = now - old_billingStartDate
+            billingDay = Decimal(td.days)
+            if billingDay == 0:
+                billingDay = 1
+            numDaysInYear = 365 if not calendar.isleap(now.year) else 366
             owed, discount_amount = self.getDiscountAmountForUpgrade(old_plan, new_plan, old_billingCycle, billingDay, numDaysInYear)
-            logger.info('upgradePlan billingCycle={0}|billingDay={1}|discount={2}|owed={3}.'.format(
+            logger.info('upgradePlan old_subs:{0.subscriptionId}|billingCycle={1}|billingDay={2}|discount={3}|owed={4}.'.format(
+                user_subs,
                 old_billingCycle,
                 billingDay,
                 discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP),
                 owed.quantize(TWO_PLACES, ROUND_HALF_UP)
             ))
-            # compare old_nextBillingAmount with old_plan.price
-            if (old_plan.price > old_nextBillingAmount):
+            if (user_subs.display_status == UserSubscription.UI_ACTIVE) and (old_plan.price > old_nextBillingAmount):
                 # user had earned some discounts that would have been applied to the next billing cycle on their old plan
+                # (Active-Canceled users forfeited any earned discounts because they don't have a nextBillingAmount)
                 earned_discount_amount = old_plan.price - old_nextBillingAmount
                 # check if can apply the earned_discount_amount right now
                 t = discount_amount + earned_discount_amount
@@ -1789,26 +1796,28 @@ class UserSubscriptionManager(models.Manager):
                     logger.info('Defer earned_discount={0} from user_subs {1.subscriptionId}'.format(ead, user_subs))
                     user.customer.balance += ead
                     user.customer.save()
-            if discount_amount:
-                subs_params['discounts'] = {
-                    'update': [
-                        {
-                            'existing_id': plan_discount.discountId,
-                            'amount': discount_amount.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-                        }
-                    ]
-                }
-            result = braintree.Subscription.create(subs_params)
-            logger.info('upgradePlan result: {0.is_success}'.format(result))
-            if result.is_success:
-                new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
-                return (result, new_user_subs)
-            else:
-                logger.warning('upgradePlan result: {0.is_success}'.format(result))
-                return (result, None)
+        # Create new subscription
+        subs_params = {
+            'plan_id': new_plan.planId,
+            'trial_duration': 0,
+            'payment_method_token': payment_token,
+            'discounts': {
+                'update': [
+                    {
+                        'existing_id': plan_discount.discountId,
+                        'amount': discount_amount.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+                    }
+                ]
+            }
+        }
+        result = braintree.Subscription.create(subs_params)
+        logger.info('upgradePlan result: {0.is_success}'.format(result))
+        if result.is_success:
+            new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
+            return (result, new_user_subs)
         else:
-            logger.warning('upgradePlan: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
-            return (cancel_result, user_subs)
+            logger.warning('upgradePlan result: {0.is_success}'.format(result))
+            return (result, None)
 
 
     def makeActiveCanceled(self, user_subs):
@@ -1877,32 +1886,35 @@ class UserSubscriptionManager(models.Manager):
 
     def terminalCancelBtSubscription(self, user_subs):
         """
-        Use case: User wants to cancel while they are still in UI_TRIAL.
         Cancel Braintree subscription - this is a terminal state. Once
             canceled, a subscription cannot be reactivated.
-        Update model: set display_status to UI_TRIAL_CANCELED.
+        Update instance: set display_status to:
+            UI_TRIAL_CANCELED if previous display_status was UI_TRIAL, else to UI_EXPIRED.
         Reference: https://developers.braintreepayments.com/reference/request/subscription/cancel/python
         Can raise braintree.exceptions.not_found_error.NotFoundError
         Returns Braintree result object
         """
+        old_display_status = user_subs.display_status
         result = braintree.Subscription.cancel(user_subs.subscriptionId)
         if result.is_success:
             user_subs.status = result.subscription.status
-            user_subs.display_status = self.model.UI_TRIAL_CANCELED
+            if old_display_status == self.model.UI_TRIAL:
+                user_subs.display_status = self.model.UI_TRIAL_CANCELED
+            else:
+                user_subs.display_status = self.model.UI_EXPIRED
             user_subs.save()
         return result
 
 
     def switchTrialToActive(self, user_subs, payment_token, new_plan=None):
-        """
-        User is in UI_TRIAL, and their trial period is still on-going, but
-        user wants to upgrade to Active.
+        """User wants to upgrade to Active right now and their current status
+        is either UI_TRIAL or UI_TRIAL_CANCELED.
         Args:
-            user_subs: existing subscription in Trial period
+            user_subs: existing UserSubscription
             payment_token:str payment method token
             new_plan: SubscriptionPlan / None (if None, use existing plan)
-        Cannot update existing subscription, need to cancel it, and create 
-        new one.
+        Cancel existing subs (if in TRIAL).
+        Create new Active subscription with any signup discounts for which the user is eligible.
         Returns (Braintree result object, UserSubscription)
         """
 
@@ -1924,12 +1936,13 @@ class UserSubscriptionManager(models.Manager):
                 else:
                     subs_params['invitee_discount'] = True
                     logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
-        cancel_result = self.terminalCancelBtSubscription(user_subs)
-        if cancel_result.is_success:
-            # return (result, new_user_subs)
-            return self.createBtSubscription(user, plan, subs_params)
-        else:
-            return (cancel_result, user_subs)
+        if user_subs.display_status == UserSubscription.UI_TRIAL:
+            cancel_result = self.terminalCancelBtSubscription(user_subs)
+            if not cancel_result.is_success:
+                logger.warning('SwitchTrialToActive: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
+                return (cancel_result, user_subs)
+        # Create new subscription. Returns (result, new_user_subs)
+        return self.createBtSubscription(user, plan, subs_params)
 
 
     def updateSubscriptionFromBt(self, user_subs, bt_subs):

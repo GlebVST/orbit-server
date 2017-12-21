@@ -306,14 +306,14 @@ class UpgradePlanAmount(APIView):
                 'message': 'Current subscription plan is {0.plan}.'.format(user_subs)
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        # user cannot be in expired/canceled/pastdue bt status
-        if user_subs.status != UserSubscription.ACTIVE:
+        # user cannot be in pastdue bt status
+        if user_subs.status == UserSubscription.PASTDUE:
             context = {
                 'can_upgrade': False,
                 'message': 'Current subscription status is {0.display_status}'.format(user_subs)
             }
             return Response(context, status=status.HTTP_200_OK)
-        if user_subs.display_status == UserSubscription.UI_TRIAL:
+        if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
             owed = new_plan.discountPrice
             discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
             for d in discounts:
@@ -324,34 +324,47 @@ class UpgradePlanAmount(APIView):
                 'message': '',
             }
             return Response(context, status=status.HTTP_200_OK)
-        # user has begun an Active subscription
-        now = timezone.now()
-        daysInYear = 365 if not calendar.isleap(now.year) else 366
-        td = now - user_subs.billingStartDate
-        billingDay = td.days
-        owed, discount_amount = UserSubscription.objects.getDiscountAmountForUpgrade(old_plan, new_plan, user_subs.billingCycle, billingDay, daysInYear)
-        apply_earned_discount = False
-        if (old_plan.price > user_subs.nextBillingAmount):
-            # user has earned some discounts that would have been applied to the next billing cycle on their old plan
-            earned_discount_amount = old_plan.price - user_subs.nextBillingAmount
-            # check if can apply the earned_discount_amount right now
-            t = discount_amount + earned_discount_amount
-            if t < new_plan.price:
-                discount_amount = t
-                owed -= earned_discount_amount
-                apply_earned_discount = True
-                logDebug(logger, request, 'earned_discount_amount {0}'.format(earned_discount_amount))
-        context = {
-            'can_upgrade': True,
-            'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
-            'message': '',
-            'apply_earned_discount': apply_earned_discount
-        }
+        if user_subs.status == UserSubscription.EXPIRED:
+            # user's last subscription is expired (this is the final state AFTER Active-Canceled)
+            # so they have already used up their first year (hence no proration on plan first-year discount at all).
+            owed = new_plan.price
+            context = {
+                'can_upgrade': True,
+                'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+                'message': '',
+            }
+            return Response(context, status=status.HTTP_200_OK)
+        if user_subs.status == UserSubscription.ACTIVE:
+            # user_subs.display_status is one of Active/Active-Canceled
+            now = timezone.now()
+            daysInYear = 365 if not calendar.isleap(now.year) else 366
+            td = now - user_subs.billingStartDate
+            billingDay = td.days
+            owed, discount_amount = UserSubscription.objects.getDiscountAmountForUpgrade(old_plan, new_plan, user_subs.billingCycle, billingDay, daysInYear)
+            apply_earned_discount = False
+            if (user_subs.display_status == UserSubscription.UI_ACTIVE) and (old_plan.price > user_subs.nextBillingAmount):
+                # user has earned some discounts that would have been applied to the next billing cycle on their old plan
+                # (Active-Canceled users forfeited any earned discounts because they don't have a nextBillingAmount)
+                earned_discount_amount = old_plan.price - user_subs.nextBillingAmount
+                # check if can apply the earned_discount_amount right now
+                t = discount_amount + earned_discount_amount
+                if t < new_plan.price:
+                    discount_amount = t
+                    owed -= earned_discount_amount
+                    apply_earned_discount = True
+                    logDebug(logger, request, 'earned_discount_amount {0}'.format(earned_discount_amount))
+            context = {
+                'can_upgrade': True,
+                'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+                'message': '',
+                'apply_earned_discount': apply_earned_discount
+            }
         return Response(context, status=status.HTTP_200_OK)
 
 
 class UpgradePlan(generics.CreateAPIView):
-    """Plan upgrade. Cancel existing subscription, and create new subscription for the higher-priced plan for the user.
+    """Plan upgrade (means to a higher-priced plan).
+    Cancel existing subscription if necessary, and create new UserSubscription under the new plan for the user.
     This view expects a JSON object in the POST data:
         Example when using existing customer payment method with token obtained from Vault:
             {"plan":2,"payment_method_token":"5wfrrp"}
@@ -371,7 +384,7 @@ class UpgradePlan(generics.CreateAPIView):
         """User's current subscription.status must be Active in order to upgrade"""
         user = request.user
         user_subs = UserSubscription.objects.getLatestSubscription(user)
-        if user_subs.status != UserSubscription.ACTIVE:
+        if user_subs.status == UserSubscription.PASTDUE:
             context = {
                 'success': False,
                 'message': 'The current subscription status is {0.display_status}. This subscription cannot be upgraded.'.format(user_subs)

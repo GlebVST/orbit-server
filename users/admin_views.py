@@ -5,7 +5,7 @@ from rest_framework.pagination import PageNumberPagination
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # app
 from .models import *
-from .serializers import CmeTagSerializer, DegreeSerializer, CountrySerializer, PracticeSpecialtyListSerializer
+from .serializers import ProfileCmetagSerializer, DegreeSerializer, PracticeSpecialtyListSerializer
 
 class ReadProfileListSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id')
@@ -25,10 +25,10 @@ class ReadProfileListSerializer(serializers.ModelSerializer):
 class ReadProfileDetailSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id')
     email = serializers.EmailField(source='user.email')
-    cmeTags = CmeTagSerializer(many=True)
+    cmeTags = serializers.SerializerMethodField()
     degrees = DegreeSerializer(many=True)
     specialties = PracticeSpecialtyListSerializer(many=True)
-    country = CountrySerializer()
+    country = serializers.StringRelatedField()
     subscriptionStatus = serializers.SerializerMethodField()
 
     def get_subscriptionStatus(self, obj):
@@ -37,6 +37,10 @@ class ReadProfileDetailSerializer(serializers.ModelSerializer):
         if user_subs:
             return user_subs.display_status
         return 'No Subscription'
+
+    def get_cmeTags(self, obj):
+        qset = ProfileCmetag.objects.filter(profile=obj)
+        return [ProfileCmetagSerializer(m).data for m in qset]
 
     class Meta:
         model = Profile

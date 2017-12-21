@@ -5,7 +5,7 @@ from pagedown.widgets import AdminPagedownWidget
 from .models import *
 
 class DegreeAdmin(admin.ModelAdmin):
-    list_display = ('id', 'abbrev', 'name', 'created')
+    list_display = ('id', 'abbrev', 'name', 'sort_order', 'created')
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'formatTags', 'created')
@@ -45,7 +45,7 @@ class ProfileAdmin(admin.ModelAdmin):
         return qs.prefetch_related('degrees', 'specialties')
 
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'customerId', 'created')
+    list_display = ('user', 'customerId', 'balance', 'modified')
     search_fields = ['customerId',]
 
 class AffiliateAdmin(admin.ModelAdmin):
