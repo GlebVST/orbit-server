@@ -1959,6 +1959,11 @@ class UserSubscriptionManager(models.Manager):
                 user_subs.display_status = self.model.UI_TRIAL
         elif bt_subs.status == self.model.PASTDUE:
             user_subs.display_status = self.model.UI_SUSPENDED
+        elif bt_subs.status == self.model.CANCELED:
+            if user_subs.transactions.exists():
+                user_subs.display_status = self.model.UI_EXPIRED
+            else:
+                user_subs.display_status = self.model.UI_TRIAL_CANCELED
         startDate = bt_subs.billing_period_start_date
         endDate = bt_subs.billing_period_end_date
         if startDate:

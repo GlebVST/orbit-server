@@ -317,7 +317,7 @@ class UpgradePlanAmount(APIView):
             owed = new_plan.discountPrice
             discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
             for d in discounts:
-                owed -= d['discount']
+                owed -= d['discount'].amount
             context = {
                 'can_upgrade': True,
                 'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
