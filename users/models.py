@@ -1726,7 +1726,7 @@ class UserSubscriptionManager(models.Manager):
         logger.info('createBtSubscriptionWithTestAmount result: {0.is_success}'.format(result))
         if result.is_success:
             bt_subs = result.subscription
-            print('SubscriptionId: {0.id} Status:{0.status}'.format(bt_subs))
+            #print('SubscriptionId: {0.id} Status:{0.status}'.format(bt_subs))
             new_user_subs = self.createSubscriptionFromBt(user, plan, result.subscription)
             return (result, new_user_subs)
         else:

@@ -928,6 +928,8 @@ class CreateUserSubsSerializer(serializers.Serializer):
             # user is designated for testing payment transactions
             subs_params[key] = 1 # needed in order to test PASTDUE
             subs_params['code'] = test_code
+            subs_params.pop('invitee_discount')
+            subs_params.pop('convertee_discount')
             return UserSubscription.objects.createBtSubscriptionWithTestAmount(user, plan, subs_params)
 
 
