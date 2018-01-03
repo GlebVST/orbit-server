@@ -209,8 +209,20 @@ class NewSubscription(generics.CreateAPIView):
                 message = context['message'] + ' last_subscription id: {0}'.format(last_subscription.pk)
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        elif request.user.profile.inviter:
-            # User's first subscription. Check if inviter is an affiliate
+            # check pastdue
+            if last_subscription.status == UserSubscription.PASTDUE:
+                logInfo(logger, request, 'NewSubscription: begin cancel existing pastdue subscription {0.subscriptionId}'.format(last_subscription))
+                cancel_result = UserSubscription.objects.terminalCancelBtSubscription(last_subscription)
+                if not cancel_result.is_success:
+                    context = {
+                        'success': False,
+                        'message': 'Create Subscription failed.'
+                    }
+                    message = 'NewSubscription: Cancel pastdue Subscription failed. Result message: {0.message}'.format(cancel_result)
+                    logError(logger, request, message)
+                    return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if request.user.profile.inviter and ((last_subscription is None) or (last_subscription.display_status == UserSubscription.UI_TRIAL_CANCELED)):
+            # Check if inviter is an affiliate
             inviter = request.user.profile.inviter
             if Affiliate.objects.filter(user=inviter).exists():
                 convertee_discount = True

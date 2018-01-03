@@ -7,6 +7,7 @@ from datetime import datetime
 from dateutil.relativedelta import *
 from decimal import Decimal, ROUND_HALF_UP
 import pytz
+import re
 import uuid
 from urlparse import urlparse
 from django.conf import settings
@@ -57,6 +58,8 @@ INVITER_MAX_NUM_DISCOUNT = 10
 
 LOCAL_TZ = pytz.timezone(settings.LOCAL_TIME_ZONE)
 TWO_PLACES = Decimal('.01')
+TEST_CARD_EMAIL_PATTERN = re.compile(r'testcode-(?P<code>\d+)')
+
 
 def makeAwareDatetime(a_date, tzinfo=pytz.utc):
     """Convert <date> to <datetime> with timezone info"""
@@ -372,6 +375,17 @@ class Profile(models.Model):
         if delim in self.socialId:
             L = self.socialId.split(delim, 1)
             return L[-1]
+
+    def isForTestTransaction(self):
+        """Test if user.email matches TEST_CARD_EMAIL_PATTERN
+        Returns:int/None code from email or None if no match
+        """
+        user_email = self.user.email
+        m = TEST_CARD_EMAIL_PATTERN.match(user_email)
+        if m:
+            return int(m.groups()[0])
+        return None
+
 
 # Many-to-many through relation between Profile and CmeTag
 class ProfileCmetag(models.Model):
@@ -1490,13 +1504,14 @@ class UserSubscriptionManager(models.Manager):
         return g.permissions.all().order_by('codename')
 
     def allowNewSubscription(self, user):
-        """If user has no existing subscriptions, or latest subscription is canceled/expired, then allow new subscription.
+        """If user has no existing subscriptions, or latest subscription is canceled/expired/pastdue, then allow new subscription.
+        For pastdue: the existing subs must be canceled first.
         """
         user_subs = self.getLatestSubscription(user)
         if not user_subs:
             return True
         status = user_subs.status
-        return (status == UserSubscription.CANCELED or status == UserSubscription.EXPIRED)
+        return (status == UserSubscription.CANCELED or status == UserSubscription.EXPIRED or status == UserSubscription.PASTDUE)
 
     def findBtSubscription(self, subscriptionId):
         try:
@@ -1687,6 +1702,36 @@ class UserSubscriptionManager(models.Manager):
                 )
         return (result, user_subs)
 
+    def createBtSubscriptionWithTestAmount(self, user, plan, subs_params):
+        """Create Braintree subscription with a given test amount in order to test a particular transaction outcome.
+        Args:
+            user: User instance
+            plan: SubscriptionPlan instance
+            subs_params:dict w. keys
+                plan_id: BT planId of the plan
+                payment_method_token:str for the Customer
+                code:integer corresponding to a processor response code (e.g. 200x)
+                trial_duration:int - at least 1 in order to delay the card being charged and simulate PASTDUE status
+        """
+        user_subs = None
+        response_code = subs_params.pop('code')
+        if not response_code or (response_code < 2000) or (response_code > 3000):
+            raise ValueError('Invalid response_code: {0}'.format(response_code))
+        subs_params['price'] = Decimal(response_code)
+        subs_params['options'] = {
+            'do_not_inherit_add_ons_or_discounts': True
+        }
+        logger.debug(subs_params)
+        result = braintree.Subscription.create(subs_params)
+        logger.info('createBtSubscriptionWithTestAmount result: {0.is_success}'.format(result))
+        if result.is_success:
+            bt_subs = result.subscription
+            print('SubscriptionId: {0.id} Status:{0.status}'.format(bt_subs))
+            new_user_subs = self.createSubscriptionFromBt(user, plan, result.subscription)
+            return (result, new_user_subs)
+        else:
+            return (result, None)
+
 
     def getDiscountAmountForUpgrade(self, old_plan, new_plan, billingCycle, billingDay, numDaysInYear):
         """Calculate the discount amount to be used as the update amount on the
@@ -1811,8 +1856,8 @@ class UserSubscriptionManager(models.Manager):
             }
         }
         result = braintree.Subscription.create(subs_params)
-        logger.info('upgradePlan result: {0.is_success}'.format(result))
         if result.is_success:
+            logger.info('upgradePlan result: {0.is_success}'.format(result))
             new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
             return (result, new_user_subs)
         else:

@@ -919,9 +919,17 @@ class CreateUserSubsSerializer(serializers.Serializer):
             'convertee_discount': convertee_discount
         }
         key = 'trial_duration'
-        if key in validated_data:
-            subs_params[key] = validated_data[key]
-        return UserSubscription.objects.createBtSubscription(user, plan, subs_params)
+        test_code = user.profile.isForTestTransaction()
+        if not test_code:
+            if key in validated_data:
+                subs_params[key] = validated_data[key]
+            return UserSubscription.objects.createBtSubscription(user, plan, subs_params)
+        else:
+            # user is designated for testing payment transactions
+            subs_params[key] = 1 # needed in order to test PASTDUE
+            subs_params['code'] = test_code
+            return UserSubscription.objects.createBtSubscriptionWithTestAmount(user, plan, subs_params)
+
 
 class UpgradePlanSerializer(serializers.Serializer):
     plan = serializers.PrimaryKeyRelatedField(
