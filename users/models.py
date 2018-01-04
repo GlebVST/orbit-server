@@ -25,6 +25,7 @@ from common.appconstants import (
     MAX_URL_LENGTH,
     SELF_REPORTED_AUTHORITY,
     AMA_PRA_CATEGORY_LABEL,
+    ALL_PERMS,
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
@@ -1502,6 +1503,29 @@ class UserSubscriptionManager(models.Manager):
         """
         g = Group.objects.get(name=user_subs.display_status)
         return g.permissions.all().order_by('codename')
+
+
+    def serialize_permissions(self, user, user_subs):
+        """This is used by auth_views and payment_views to return
+        the allowed permissions for the user in the response.
+        Returns list of dicts: [{codename:str, allowed:bool}]
+        for the permissions in appconstants.ALL_PERMS.
+        """
+        allowed_codes = []
+        # get any special admin groups that user is a member of
+        for g in user.groups.all():
+            allowed_codes.extend([p.codename for p in g.permissions.all()])
+        if user_subs:
+            qset = self.getPermissions(user_subs) # Permission queryset
+            allowed_codes.extend([p.codename for p in qset])
+        allowed_codes = set(allowed_codes)
+        perms = [{
+                'codename': codename,
+                'allow': codename in allowed_codes
+            } for codename in ALL_PERMS]
+        #print(perms)
+        return perms
+
 
     def allowNewSubscription(self, user):
         """If user has no existing subscriptions, or latest subscription is canceled/expired/pastdue, then allow new subscription.

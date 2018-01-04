@@ -353,6 +353,12 @@ class UpgradePlanAmount(APIView):
             td = now - user_subs.billingStartDate
             billingDay = td.days
             owed, discount_amount = UserSubscription.objects.getDiscountAmountForUpgrade(old_plan, new_plan, user_subs.billingCycle, billingDay, daysInYear)
+            logDebug(logger, request, 'SubscriptionId:{0.subscriptionId}|Cycle:{0.billingCycle}|Day:{1}|Owed:{2}|Discount:{3}'.format(
+                user_subs,
+                billingDay,
+                owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+                discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP)
+            ))
             apply_earned_discount = False
             if (user_subs.display_status == UserSubscription.UI_ACTIVE) and (old_plan.price > user_subs.nextBillingAmount):
                 # user has earned some discounts that would have been applied to the next billing cycle on their old plan
@@ -454,6 +460,8 @@ class UpgradePlan(generics.CreateAPIView):
         logInfo(logger, request, 'UpgradePlan: complete for subscriptionId={0.subscriptionId}'.format(new_user_subs))
         out_serializer = ReadUserSubsSerializer(new_user_subs)
         context['subscription'] = out_serializer.data
+        # Return permissions b/c new_user_subs may allow different perms than prior subscription.
+        context['permissions'] = UserSubscription.objects.serialize_permissions(user, new_user_subs)
         return Response(context, status=status.HTTP_201_CREATED)
 
 
