@@ -1803,10 +1803,12 @@ class UserSubscriptionManager(models.Manager):
         that is what is owed for upgrade, then apply these discounts to the new subscription.
         Returns (Braintree result object, UserSubscription)
         """
-        #bt_subs = self.findBtSubscription(user_subs.subscriptionId)
-        #if not bt_subs:
-        #    raise ValueError('upgradePlan BT subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs))
-        #self.updateSubscriptionFromBt(user_subs, bt_subs)
+        if settings.ENV_TYPE == settings.ENV_PROD:
+            # In test env, we deliberately make db different from bt (e.g. to test suspended accounts)
+            bt_subs = self.findBtSubscription(user_subs.subscriptionId)
+            if not bt_subs:
+                raise ValueError('upgradePlan BT subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs))
+            self.updateSubscriptionFromBt(user_subs, bt_subs)
         user = user_subs.user
         old_plan = user_subs.plan
         if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
@@ -2197,6 +2199,7 @@ class UserSubscription(models.Model):
         (UI_EXPIRED, UI_EXPIRED),
         (UI_TRIAL_CANCELED, UI_TRIAL_CANCELED)
     )
+    RESULT_ALREADY_CANCELED = 'Subscription has already been canceled.'
     # fields
     subscriptionId = models.CharField(max_length=36, unique=True)
     user = models.ForeignKey(User,

@@ -173,6 +173,7 @@ class NewSubscription(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         """Override method to handle custom input/output data structures"""
         # first check if user is allowed to create a new subscription
+        logDebug(logger, request, 'NewSubscription begin')
         if not UserSubscription.objects.allowNewSubscription(request.user):
             context = {
                 'success': False,
@@ -214,13 +215,18 @@ class NewSubscription(generics.CreateAPIView):
                 logInfo(logger, request, 'NewSubscription: cancel existing pastdue subs {0.subscriptionId}'.format(last_subscription))
                 cancel_result = UserSubscription.objects.terminalCancelBtSubscription(last_subscription)
                 if not cancel_result.is_success:
-                    context = {
-                        'success': False,
-                        'message': 'Cancel Suspended Subscription failed.'
-                    }
-                    message = 'NewSubscription: Cancel pastdue Subscription failed. Result message: {0.message}'.format(cancel_result)
-                    logError(logger, request, message)
-                    return Response(context, status=status.HTTP_400_BAD_REQUEST)
+                    if cancel_result.message == UserSubscription.RESULT_ALREADY_CANCELED:
+                        logInfo(logger, request, 'Existing bt_subs already canceled. Syncing with db.')
+                        bt_subs = UserSubscription.objects.findBtSubscription(user_subs.subscriptionId)
+                        UserSubscription.objects.updateSubscriptionFromBt(user_subs, bt_subs)
+                    else:
+                        context = {
+                            'success': False,
+                            'message': 'Cancel Suspended Subscription failed.'
+                        }
+                        message = 'NewSubscription: Cancel pastdue subs failed. Result message: {0.message}'.format(cancel_result)
+                        logError(logger, request, message)
+                        return Response(context, status=status.HTTP_400_BAD_REQUEST)
         if request.user.profile.inviter and ((last_subscription is None) or (last_subscription.display_status == UserSubscription.UI_TRIAL_CANCELED)):
             # Check if inviter is an affiliate
             inviter = request.user.profile.inviter
@@ -379,9 +385,9 @@ class UpgradePlan(generics.CreateAPIView):
     Cancel existing subscription if necessary, and create new UserSubscription under the new plan for the user.
     This view expects a JSON object in the POST data:
         Example when using existing customer payment method with token obtained from Vault:
-            {"plan":2,"payment_method_token":"5wfrrp"}
+            {"plan":3,"payment_method_token":"5wfrrp"}
         Example when using a new payment method with a Nonce prepared on client:
-            {"plan":2,"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9"}
+            {"plan":3,"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9"}
     If a Nonce is given, it takes precedence and will be saved to the Customer vault and converted into a token.
     """
     serializer_class = UpgradePlanSerializer
@@ -393,7 +399,7 @@ class UpgradePlan(generics.CreateAPIView):
         return (result, new_user_subs)
 
     def create(self, request, *args, **kwargs):
-        """User's current subscription.status must be Active in order to upgrade"""
+        logDebug(logger, request, 'UpgradePlan begin')
         user = request.user
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         if not user_subs:
@@ -405,16 +411,21 @@ class UpgradePlan(generics.CreateAPIView):
             logError(logger, request, context['message'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         if user_subs.status == UserSubscription.PASTDUE:
-            logInfo(logger, request, 'NewSubscription: cancel existing pastdue subs {0.subscriptionId}'.format(user_subs))
+            logInfo(logger, request, 'UpgradePlan: cancel existing pastdue subs {0.subscriptionId}'.format(user_subs))
             cancel_result = UserSubscription.objects.terminalCancelBtSubscription(user_subs)
             if not cancel_result.is_success:
-                context = {
-                    'success': False,
-                    'message': 'Cancel Suspended Subscription failed.'
-                }
-                message = 'UpgradePlan: Cancel pastdue Subscription failed. Result message: {0.message}'.format(cancel_result)
-                logError(logger, request, message)
-                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+                if cancel_result.message == UserSubscription.RESULT_ALREADY_CANCELED:
+                    logInfo(logger, request, 'Existing bt_subs already canceled. Syncing with db.')
+                    bt_subs = UserSubscription.objects.findBtSubscription(user_subs.subscriptionId)
+                    UserSubscription.objects.updateSubscriptionFromBt(user_subs, bt_subs)
+                else:
+                    context = {
+                        'success': False,
+                        'message': 'Cancel Suspended Subscription failed.'
+                    }
+                    message = 'UpgradePlan: Cancel pastdue subs failed. Result message: {0.message}'.format(cancel_result)
+                    logError(logger, request, message)
+                    return Response(context, status=status.HTTP_400_BAD_REQUEST)
         self.user_subs = user_subs
         form_data = request.data.copy()
         logDebug(logger, request, str(form_data))
