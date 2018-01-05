@@ -318,7 +318,7 @@ class UpgradePlanAmount(APIView):
                 'message': 'Current subscription plan is {0.plan}.'.format(user_subs)
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.PASTDUE):
+        if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.UI_SUSPENDED):
             # For pastdue, billingDay is effectively 0 since user has not paid, and we will treat it the same as Trial for the calculation of owed.
             owed = new_plan.discountPrice
             discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
