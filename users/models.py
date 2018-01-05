@@ -1803,10 +1803,10 @@ class UserSubscriptionManager(models.Manager):
         that is what is owed for upgrade, then apply these discounts to the new subscription.
         Returns (Braintree result object, UserSubscription)
         """
-        bt_subs = self.findBtSubscription(user_subs.subscriptionId)
-        if not bt_subs:
-            raise ValueError('upgradePlan BT subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs))
-        self.updateSubscriptionFromBt(user_subs, bt_subs)
+        #bt_subs = self.findBtSubscription(user_subs.subscriptionId)
+        #if not bt_subs:
+        #    raise ValueError('upgradePlan BT subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs))
+        #self.updateSubscriptionFromBt(user_subs, bt_subs)
         user = user_subs.user
         old_plan = user_subs.plan
         if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
@@ -1820,6 +1820,15 @@ class UserSubscriptionManager(models.Manager):
             owed = new_plan.price
             # this value will be used to override the default plan first-year discount
             discount_amount = 0
+        elif user_subs.status == UserSubscription.PASTDUE:
+            # This method expects the user_subs to be canceled already
+            owed = new_plan.discountPrice
+            discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+            for d in discounts:
+                owed -= d['discount'].amount
+            discount_amount = new_plan.price - owed
+            logger.debug('owed    : {0}'.format(owed))
+            logger.debug('discount: {0}'.format(discount_amount))
         else:
             # vars needed to calculate discount_amount
             old_billingStartDate = user_subs.billingStartDate

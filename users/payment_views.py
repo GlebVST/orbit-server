@@ -211,12 +211,12 @@ class NewSubscription(generics.CreateAPIView):
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             # check pastdue
             if last_subscription.status == UserSubscription.PASTDUE:
-                logInfo(logger, request, 'NewSubscription: begin cancel existing pastdue subscription {0.subscriptionId}'.format(last_subscription))
+                logInfo(logger, request, 'NewSubscription: cancel existing pastdue subs {0.subscriptionId}'.format(last_subscription))
                 cancel_result = UserSubscription.objects.terminalCancelBtSubscription(last_subscription)
                 if not cancel_result.is_success:
                     context = {
                         'success': False,
-                        'message': 'Create Subscription failed.'
+                        'message': 'Cancel Suspended Subscription failed.'
                     }
                     message = 'NewSubscription: Cancel pastdue Subscription failed. Result message: {0.message}'.format(cancel_result)
                     logError(logger, request, message)
@@ -307,7 +307,7 @@ class UpgradePlanAmount(APIView):
         if not user_subs:
             context = {
                 'can_upgrade': False,
-                'message': 'No existing susbcription found.'
+                'message': 'No existing subscription found.'
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # New plan must be an upgrade from the old plan
@@ -318,14 +318,8 @@ class UpgradePlanAmount(APIView):
                 'message': 'Current subscription plan is {0.plan}.'.format(user_subs)
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        # user cannot be in pastdue bt status
-        if user_subs.status == UserSubscription.PASTDUE:
-            context = {
-                'can_upgrade': False,
-                'message': 'Current subscription status is {0.display_status}'.format(user_subs)
-            }
-            return Response(context, status=status.HTTP_200_OK)
-        if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
+        if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.PASTDUE):
+            # For pastdue, billingDay is effectively 0 since user has not paid, and we will treat it the same as Trial for the calculation of owed.
             owed = new_plan.discountPrice
             discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
             for d in discounts:
@@ -402,13 +396,25 @@ class UpgradePlan(generics.CreateAPIView):
         """User's current subscription.status must be Active in order to upgrade"""
         user = request.user
         user_subs = UserSubscription.objects.getLatestSubscription(user)
-        if user_subs.status == UserSubscription.PASTDUE:
+        if not user_subs:
+            # this endpoint is for upgrade only. An existing subs must exist.
             context = {
                 'success': False,
-                'message': 'The current subscription status is {0.display_status}. This subscription cannot be upgraded.'.format(user_subs)
+                'message': 'No existing subscription found.'
             }
             logError(logger, request, context['message'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if user_subs.status == UserSubscription.PASTDUE:
+            logInfo(logger, request, 'NewSubscription: cancel existing pastdue subs {0.subscriptionId}'.format(user_subs))
+            cancel_result = UserSubscription.objects.terminalCancelBtSubscription(user_subs)
+            if not cancel_result.is_success:
+                context = {
+                    'success': False,
+                    'message': 'Cancel Suspended Subscription failed.'
+                }
+                message = 'UpgradePlan: Cancel pastdue Subscription failed. Result message: {0.message}'.format(cancel_result)
+                logError(logger, request, message)
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
         self.user_subs = user_subs
         form_data = request.data.copy()
         logDebug(logger, request, str(form_data))
