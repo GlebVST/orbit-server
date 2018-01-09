@@ -325,15 +325,20 @@ class UpgradePlanAmount(APIView):
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.UI_SUSPENDED):
-            # For pastdue, billingDay is effectively 0 since user has not paid, and we will treat it the same as Trial for the calculation of owed.
+            # For pastdue, billingDay is effectively 0 since user has not paid, and treat it the same as Trial for the calculation of owed.
             owed = new_plan.discountPrice
             discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
             for d in discounts:
                 owed -= d['discount'].amount
+            can_upgrade = True
+            message = ''
+            if user_subs.status == UserSubscription.UI_SUSPENDED:
+                can_upgrade = False # UI will redirect to credit card screen
+                message = 'Please enter a valid credit card for the new subscription'
             context = {
-                'can_upgrade': True,
+                'can_upgrade': can_upgrade,
                 'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
-                'message': '',
+                'message': message,
             }
             return Response(context, status=status.HTTP_200_OK)
         if user_subs.status == UserSubscription.EXPIRED:
@@ -482,6 +487,44 @@ class UpgradePlan(generics.CreateAPIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 
+class DowngradePlan(APIView):
+    """
+    User is currently in Plus plan and wants to downgrade back to Standard.
+    This will take effect at the end of the current billing cycle.
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, *args, **kwargs):
+        user_subs = UserSubscription.objects.getLatestSubscription(request.user)
+        try:
+            result = UserSubscription.objects.makeActiveDowngrade(user_subs)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            context = {
+                'success': False,
+                'message': 'BT Subscription not found.'
+            }
+            message = 'DowngradePlan: BT Subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs)
+            logException(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            if not result.is_success:
+                context = {
+                    'success': False,
+                    'message': 'BT Subscription update failed.'
+                }
+                message = 'DowngradePlan failed for subscriptionId: {0.subscriptionId}. Result message: {1.message}'.format(user_subs, result)
+                logError(logger, request, message)
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                context = {
+                    'success': True,
+                    'bt_status': user_subs.status,
+                    'display_status': user_subs.display_status
+                }
+                message = 'DowngradePlan set for subscriptionId: {0.subscriptionId}.'.format(user_subs)
+                logInfo(logger, request, message)
+                return Response(context, status=status.HTTP_200_OK)
+
+
 class SwitchTrialToActive(APIView):
     """
     This view cancels the user's Trial subscription, and creates a new
@@ -530,7 +573,7 @@ class SwitchTrialToActive(APIView):
 
 class CancelSubscription(APIView):
     """
-    This view expects a JSON object from the POST:
+    This view expects a JSON object in the POST data:
     {"subscription-id": BT subscriptionid to cancel}
     If the subscription Id is valid:
         If the subscription is in UI_TRIAL:

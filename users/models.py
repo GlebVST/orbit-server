@@ -1900,12 +1900,8 @@ class UserSubscriptionManager(models.Manager):
             return (result, None)
 
 
-    def makeActiveCanceled(self, user_subs):
-        """
-        Use case: User does not want to renew subscription,
-        and their subscription is currently active and we have
-        not reached billingEndDate.
-        Model: set display_status to UI_ACTIVE_CANCELED.
+    def setExpireAtBillingCycleEnd(self, user_subs):
+        """Use case: to make the user_subs expire at the end of the current_billing_cycle.
         Braintree:
             1. Set never_expires = False
             2. Set number_of_billing_cycles on the subscription to the current_billing_cycle.
@@ -1913,10 +1909,10 @@ class UserSubscriptionManager(models.Manager):
         Can raise braintree.exceptions.not_found_error.NotFoundError
         Returns Braintree result object
         """
-        subscription = braintree.Subscription.find(user_subs.subscriptionId)
+        bt_subs = braintree.Subscription.find(user_subs.subscriptionId)
         # When subscription passes the billing_period_end_date, the current_billing_cycle is incremented
         # Set the max number of billing cycles. When billingEndDate is reached, the subscription will expire in braintree.
-        curBillingCycle = subscription.current_billing_cycle
+        curBillingCycle = bt_subs.current_billing_cycle
         if not curBillingCycle:
             numBillingCycles = 1
         else:
@@ -1924,18 +1920,43 @@ class UserSubscriptionManager(models.Manager):
         result = braintree.Subscription.update(user_subs.subscriptionId, {
             'never_expires': False,
             'number_of_billing_cycles': numBillingCycles
-        });
+        })
+        return result
+
+
+    def makeActiveCanceled(self, user_subs):
+        """
+        Use case: User does not want to renew subscription.
+        Update BT subscription and set never_expires=False and number_of_billing_cycles to current cycle.
+        Update model instance: set display_status = UI_ACTIVE_CANCELED
+        Returns Braintree result object
+        """
+        result = self.setExpireAtBillingCycleEnd(user_subs)
         if result.is_success:
-            # update model
             user_subs.display_status = UserSubscription.UI_ACTIVE_CANCELED
-            if curBillingCycle:
-                user_subs.billingCycle = curBillingCycle
             user_subs.save()
         return result
+
+
+    def makeActiveDowngrade(self, user_subs):
+        """
+        Use case: User is currently in Plus, and wants to downgrade at end of current billing cycle.
+        Update BT subscription and set never_expires=False and number_of_billing_cycles to current cycle.
+        Update model instance: set display_status = UI_ACTIVE_DOWNGRADE
+        Need separate management task that creates new subscription in Standard at end of the billing cycle.
+        Returns Braintree result object
+        """
+        result = self.setExpireAtBillingCycleEnd(user_subs)
+        if result.is_success:
+            user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
+            user_subs.save()
+        return result
+
 
     def reactivateBtSubscription(self, user_subs, payment_token=None):
         """
         Use case: switch from UI_ACTIVE_CANCELED back to UI_ACTIVE
+        Can also be used to switch from UI_ACTIVE_DOWNGRADE back to UI_ACTIVE.
         while the btSubscription is still ACTIVE.
         Caller may optionally provide a payment_token with which
         to update the subscription.
@@ -2033,10 +2054,13 @@ class UserSubscriptionManager(models.Manager):
         user_subs.status = bt_subs.status
         if bt_subs.status == self.model.ACTIVE:
             today = timezone.now()
-            if (today > user_subs.billingFirstDate):
+            if (today < user_subs.billingFirstDate):
+                user_subs.display_status = self.model.UI_TRIAL
+            elif bt_subs.never_expires:
                 user_subs.display_status = self.model.UI_ACTIVE
             else:
-                user_subs.display_status = self.model.UI_TRIAL
+                if user_subs.display_status not in (self.model.UI_ACTIVE_CANCELED, self.model.UI_ACTIVE_DOWNGRADE):
+                    logger.warning('Invalid display_status for subscriptionId: {0.subcriptionId}'.format(user_subs))
         elif bt_subs.status == self.model.PASTDUE:
             user_subs.display_status = self.model.UI_SUSPENDED
         elif bt_subs.status == self.model.CANCELED:
@@ -2188,6 +2212,7 @@ class UserSubscription(models.Model):
     UI_TRIAL = 'Trial'
     UI_ACTIVE = 'Active'
     UI_ACTIVE_CANCELED = 'Active-Canceled'
+    UI_ACTIVE_DOWNGRADE = 'Active-Downgrade'
     UI_TRIAL_CANCELED = 'Trial-Canceled'
     UI_SUSPENDED = 'Suspended'
     UI_EXPIRED = 'Expired'
@@ -2197,7 +2222,8 @@ class UserSubscription(models.Model):
         (UI_ACTIVE_CANCELED, UI_ACTIVE_CANCELED),
         (UI_SUSPENDED, UI_SUSPENDED),
         (UI_EXPIRED, UI_EXPIRED),
-        (UI_TRIAL_CANCELED, UI_TRIAL_CANCELED)
+        (UI_TRIAL_CANCELED, UI_TRIAL_CANCELED),
+        (UI_ACTIVE_DOWNGRADE, UI_ACTIVE_DOWNGRADE),
     )
     RESULT_ALREADY_CANCELED = 'Subscription has already been canceled.'
     # fields
