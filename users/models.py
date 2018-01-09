@@ -2212,7 +2212,7 @@ class UserSubscription(models.Model):
     UI_TRIAL = 'Trial'
     UI_ACTIVE = 'Active'
     UI_ACTIVE_CANCELED = 'Active-Canceled'
-    UI_ACTIVE_DOWNGRADE = 'Active-Downgrade'
+    UI_ACTIVE_DOWNGRADE = 'Active-Downgrade-Scheduled'
     UI_TRIAL_CANCELED = 'Trial-Canceled'
     UI_SUSPENDED = 'Suspended'
     UI_EXPIRED = 'Expired'
