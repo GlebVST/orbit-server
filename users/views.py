@@ -920,30 +920,29 @@ class CmeAggregateStats(APIView):
             message = context['error'] + ': ' + start + ' - ' + end
             logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            profile = Profile.objects.get(user=request.user)
-        except Profile.DoesNotExist:
-            context = {
-                'error': 'Invalid user. No profile found.'
-            }
-            logWarning(logger, request, context['error'])
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        user_tags = profile.cmeTags.all()
+        user = request.user
+        user_tags = user.profile.cmeTags.all()
         satag = CmeTag.objects.get(name=CMETAG_SACME)
+        story_total = Entry.objects.sumStoryCme(user, startdt, enddt)
         stats = {
             ENTRYTYPE_BRCME: {
-                'total': Entry.objects.sumBrowserCme(request.user, startdt, enddt),
-                'Untagged': Entry.objects.sumBrowserCme(request.user, startdt, enddt, untaggedOnly=True)
+                'total': Entry.objects.sumBrowserCme(user, startdt, enddt),
+                'Untagged': Entry.objects.sumBrowserCme(user, startdt, enddt, untaggedOnly=True)
             },
             ENTRYTYPE_SRCME: {
-                'total': Entry.objects.sumSRCme(request.user, startdt, enddt),
-                'Untagged': Entry.objects.sumSRCme(request.user, startdt, enddt, untaggedOnly=True),
-                satag.name: Entry.objects.sumSRCme(request.user, startdt, enddt, satag)
+                'total': Entry.objects.sumSRCme(user, startdt, enddt),
+                'Untagged': Entry.objects.sumSRCme(user, startdt, enddt, untaggedOnly=True),
+                satag.name: Entry.objects.sumSRCme(user, startdt, enddt, satag)
+            },
+            ENTRYTYPE_STORY_CME: {
+                'total': story_total,
+                satag.name: story_total
             }
         }
         for tag in user_tags:
-            stats[ENTRYTYPE_BRCME][tag.name] = Entry.objects.sumBrowserCme(request.user, startdt, enddt, tag)
-            stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(request.user, startdt, enddt, tag)
+            stats[ENTRYTYPE_BRCME][tag.name] = Entry.objects.sumBrowserCme(user, startdt, enddt, tag)
+            stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(user, startdt, enddt, tag)
+            stats[ENTRYTYPE_STORY_CME][tag.name] = 0 # for mvp storycme are only tagged with SA-CME
         return self.serialize_and_render(stats)
 
 #

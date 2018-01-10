@@ -909,6 +909,26 @@ class EntryManager(models.Manager):
             return float(credit_sum)
         return 0
 
+
+    def sumStoryCme(self, user, startDate, endDate):
+        """
+        Total valid StoryCme credits over the given time period for the given user.
+        """
+        filter_kwargs = dict(
+            valid=True,
+            user=user,
+            entryType__name=ENTRYTYPE_STORY_CME,
+            activityDate__gte=startDate,
+            activityDate__lte=endDate
+        )
+        qset = self.model.objects.select_related('entryType').filter(**filter_kwargs)
+        total = qset.aggregate(credit_sum=Sum('storycme__credits'))
+        credit_sum = total['credit_sum']
+        if credit_sum:
+            return float(credit_sum)
+        return 0
+
+
     def sumBrowserCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
         Total valid BrowserCme credits over the given time period for the given user.

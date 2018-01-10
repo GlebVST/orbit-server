@@ -103,8 +103,8 @@ class MakeStoryCme(APIView):
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         story = Story.objects.all().order_by('-created')[0]
-        user = User.objects.get(pk=3)
-        #user = request.user
+        #user = User.objects.get(pk=3)
+        user = request.user
         qset = StoryCme.objects.filter(story=story, entry__user=user)
         if qset.exists():
             m = qset[0]

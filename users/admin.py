@@ -130,7 +130,7 @@ class StoryForm(forms.ModelForm):
 class StoryAdmin(admin.ModelAdmin):
     list_display = ('id', 'startDate', 'expireDate', 'title', 'launch_url')
     date_hierarchy = 'startDate'
-    ordering = ('-created',)
+    ordering = ('-startDate',)
     form = StoryForm
 
 class UserFeedbackAdmin(admin.ModelAdmin):
