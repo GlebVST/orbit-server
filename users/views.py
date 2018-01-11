@@ -28,7 +28,7 @@ from common.logutils import *
 from .models import *
 from .serializers import *
 from .permissions import *
-from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate
+from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate, MDStoryCertificate, NurseStoryCertificate
 
 logger = logging.getLogger('api.views')
 
@@ -953,8 +953,9 @@ class CertificateMixin(object):
     to S3 and save model instance.
     Returns: Certificate instance
     """
-    def makeCertificate(self, profile, startdt, enddt, cmeTotal, tag=None, state_license=None):
+    def makeCertificate(self, certClass, profile, startdt, enddt, cmeTotal, tag=None, state_license=None):
         """
+        certClass: Certificate class to instantiate (MDCertificate/NurseCertificate/MDStoryCertificate/etc)
         profile: Profile instance for user
         startdt: datetime - startDate
         enddt: datetime - endDate
@@ -983,10 +984,10 @@ class CertificateMixin(object):
         hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
         certificate.referenceId = hashgen.encode(certificate.pk)
         if profile.isNurse() and certificate.state_license is not None:
-            certGenerator = NurseCertificate(certificate)
+            certGenerator = certClass(certificate)
         else:
             isVerified = any(d.isVerifiedForCme() for d in degrees)
-            certGenerator = MDCertificate(certificate, isVerified)
+            certGenerator = certClass(certificate, isVerified)
         certGenerator.makeCmeCertOverlay()
         output = certGenerator.makeCmeCertificate() # str
         cf = ContentFile(output) # Create a ContentFile from the output
@@ -1045,9 +1046,11 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # 2017-11-14: if user is Nurse, get state license
         state_license = None
+        certClass = MDCertificate
         if profile.isNurse() and user.statelicenses.exists():
             state_license = user.statelicenses.all()[0]
-        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, state_license=state_license)
+            certClass = NurseCertificate
+        certificate = self.makeCertificate(certClass, profile, startdt, enddt, cmeTotal, state_license=state_license)
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -1095,7 +1098,7 @@ class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         try:
             tag = CmeTag.objects.get(pk=tag_id)
-        except Profile.DoesNotExist:
+        except CmeTag.DoesNotExist:
             context = {
                 'error': 'Invalid tag id'
             }
@@ -1114,9 +1117,69 @@ class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # 2017-11-14: if user is Nurse, get state license
         state_license = None
+        certClass = MDCertificate
         if profile.isNurse() and user.statelicenses.exists():
             state_license = user.statelicenses.all()[0]
-        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, tag, state_license=state_license)
+            certClass = NurseCertificate
+        certificate = self.makeCertificate(certClass, profile, startdt, enddt, cmeTotal, tag, state_license=state_license)
+        out_serializer = CertificateReadSerializer(certificate)
+        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CreateStoryCmeCertificatePdf(CertificateMixin, APIView):
+    """
+    This view expects a start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1).
+    It calculates the total Story-Cme credits for the given date range and request.user.
+    It generates certificate PDF file, and uploads it to S3.
+
+    parameters:
+        - name: start
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: end
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    def post(self, request, start, end):
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+            if startdt >= enddt:
+                context = {
+                    'error': 'Start date must be prior to End Date.'
+                }
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        profile = user.profile
+        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        # get cme credits earned by user in date range for selected tag
+        cmeTotal = Entry.objects.sumStoryCme(user, startdt, enddt)
+        if cmeTotal == 0:
+            context = {
+                'error': 'No Orbit Story CME credits earned in this date range.',
+            }
+            logInfo(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # if user is Nurse, get state license
+        state_license = None
+        certClass = MDStoryCertificate
+        if profile.isNurse() and user.statelicenses.exists():
+            state_license = user.statelicenses.all()[0]
+            certClass = NurseStoryCertificate
+        certificate = self.makeCertificate(certClass, profile, startdt, enddt, cmeTotal, satag, state_license=state_license)
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 

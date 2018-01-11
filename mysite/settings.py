@@ -394,6 +394,9 @@ REPORT_HASHIDS_SALT = 'random AjMAVYQgiOgeS4Kwijb6ejHTzsMNsqvsauMIooVlxkOA'
 # Tufts license start/end dates that are printed on Certificates
 CERT_ORIGINAL_RELEASE_DATE = datetime(2017, 8, 7, tzinfo=pytz.utc)
 CERT_EXPIRE_DATE = datetime(2018, 8, 6, tzinfo=pytz.utc)
+# Separate dates for Orbit Story Certificates
+STORY_CERT_ORIGINAL_RELEASE_DATE = datetime(2018, 1, 1, tzinfo=pytz.utc)
+STORY_CERT_EXPIRE_DATE = datetime(2019, 1, 1, tzinfo=pytz.utc)
 
 # Company details (printed on Certificate)
 COMPANY_NAME = 'Transcend Review Inc.'

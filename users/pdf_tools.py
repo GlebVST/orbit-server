@@ -122,26 +122,28 @@ class MDCertificate(BaseCertificate):
         BaseCertificate.__init__(self, certificate)
         self.verified = verified
         if verified:
-            self.tplfileName = MDCertificate.CERT_TEMPLATE_VERIFIED
+            self.tplfileName = self.__class__.CERT_TEMPLATE_VERIFIED
         else:
-            self.tplfileName = MDCertificate.CERT_TEMPLATE_PARTICIPATION
+            self.tplfileName = self.__class__.CERT_TEMPLATE_PARTICIPATION
+        self.releaseDate = settings.CERT_ORIGINAL_RELEASE_DATE
+        self.expireDate = settings.CERT_EXPIRE_DATE
 
     def getCreditText(self):
         """Returns string for credit text"""
         if self.certificate.tag:
             if self.verified:
-                tpl = MDCertificate.SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE
+                tpl = self.__class__.SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE
             else:
-                tpl = MDCertificate.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
+                tpl = self.__class__.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
             return tpl.substitute({
                 'numCredits': self.certificate.credits,
                 'tag': self.certificate.tag.description
                 })
         else:
             if self.verified:
-                tpl = MDCertificate.CREDIT_TEXT_VERIFIED_TEMPLATE
+                tpl = self.__class__.CREDIT_TEXT_VERIFIED_TEMPLATE
             else:
-                tpl = MDCertificate.CREDIT_TEXT_PARTICIPATION_TEMPLATE
+                tpl = self.__class__.CREDIT_TEXT_PARTICIPATION_TEMPLATE
             return tpl.substitute({
                 'numCredits': self.certificate.credits
                 })
@@ -200,15 +202,15 @@ class MDCertificate(BaseCertificate):
         self.styleOpenSansLight.textColor = colors.Color(
             0.6, 0.6, 0.6)
         if not self.verified:
-            descriptionText = MDCertificate.PARTICIPATION_TEXT_TEMPLATE.substitute({
+            descriptionText = self.__class__.PARTICIPATION_TEXT_TEMPLATE.substitute({
                 'numCredits': self.certificate.credits,
-                'releaseDate': DateFormat(settings.CERT_ORIGINAL_RELEASE_DATE).format(SHORTEST_DATE_FORMAT),
-                'expireDate': DateFormat(settings.CERT_EXPIRE_DATE).format(SHORTEST_DATE_FORMAT)
+                'releaseDate': DateFormat(self.releaseDate).format(SHORTEST_DATE_FORMAT),
+                'expireDate': DateFormat(self.expireDate).format(SHORTEST_DATE_FORMAT)
                 })
         else:
-            descriptionText = MDCertificate.VERIFIED_TEXT_TEMPLATE.substitute({
-                'releaseDate': DateFormat(settings.CERT_ORIGINAL_RELEASE_DATE).format(SHORTEST_DATE_FORMAT),
-                'expireDate': DateFormat(settings.CERT_EXPIRE_DATE).format(SHORTEST_DATE_FORMAT)
+            descriptionText = self.__class__.VERIFIED_TEXT_TEMPLATE.substitute({
+                'releaseDate': DateFormat(self.releaseDate).format(SHORTEST_DATE_FORMAT),
+                'expireDate': DateFormat(self.expireDate).format(SHORTEST_DATE_FORMAT)
             })
         paragraph = Paragraph(descriptionText, self.styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
@@ -231,20 +233,20 @@ class NurseCertificate(BaseCertificate):
 
     def __init__(self, certificate):
         super(NurseCertificate, self).__init__(certificate)
-        self.tplfileName = NurseCertificate.CERT_TEMPLATE
+        self.tplfileName = self.__class__.CERT_TEMPLATE
         if not certificate.state_license:
             raise ValueError('NurseCertificate requires certificate to have non-null state_license.')
 
     def getCreditText(self):
         """Returns string for credit text"""
         if self.certificate.tag:
-            tpl = NurseCertificate.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
+            tpl = self.__class__.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
             return tpl.substitute({
                 'numCredits': self.certificate.credits,
                 'tag': self.certificate.tag.description
                 })
         else:
-            tpl = NurseCertificate.CREDIT_TEXT_PARTICIPATION_TEMPLATE
+            tpl = self.__class__.CREDIT_TEXT_PARTICIPATION_TEMPLATE
             return tpl.substitute({
                 'numCredits': self.certificate.credits
                 })
@@ -306,12 +308,12 @@ class NurseCertificate(BaseCertificate):
         self.styleOpenSansLight.leading = 15
         self.styleOpenSansLight.textColor = colors.Color(
             0.6, 0.6, 0.6)
-        descriptionText = NurseCertificate.PARTICIPATION_TEXT_TEMPLATE.substitute({
+        descriptionText = self.__class__.PARTICIPATION_TEXT_TEMPLATE.substitute({
             'numCredits': self.certificate.credits,
             'companyName': settings.COMPANY_NAME,
             'companyCep': settings.COMPANY_BRN_CEP,
-            'releaseDate': DateFormat(settings.CERT_ORIGINAL_RELEASE_DATE).format(SHORTEST_DATE_FORMAT),
-            'expireDate': DateFormat(settings.CERT_EXPIRE_DATE).format(SHORTEST_DATE_FORMAT)
+            'releaseDate': DateFormat(self.releaseDate).format(SHORTEST_DATE_FORMAT),
+            'expireDate': DateFormat(self.expireDate).format(SHORTEST_DATE_FORMAT)
         })
         paragraph = Paragraph(descriptionText, self.styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
@@ -319,3 +321,62 @@ class NurseCertificate(BaseCertificate):
 
         pdfCanvas.showPage()
         pdfCanvas.save() # write to overlayBuffer
+
+
+#
+# Orbit Story certificates
+#
+
+class MDStoryCertificate(MDCertificate):
+    """Handles both MD/DO Orbit Story certificate (via verified) and participation certificate for non-verified.
+    Note: NurseStoryCertificate should be used for nurses (RN/NP).
+    """
+    # files in settings.PDF_TEMPLATES_DIR
+    CERT_TEMPLATE_VERIFIED = 'story-certificate-verified.pdf'
+    CERT_TEMPLATE_PARTICIPATION = 'story-certificate-participation.pdf'
+
+    SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE = string.Template("${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded in Self Assessment")
+    SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Hours of Participation Awarded in Self Assessment")
+
+    def __init__(self, certificate, verified):
+        """
+        verified: bool  If True: use verified template, else use participation template.
+        """
+        MDCertificate.__init__(self, certificate, verified)
+        self.releaseDate = settings.STORY_CERT_ORIGINAL_RELEASE_DATE
+        self.expireDate = settings.STORY_CERT_EXPIRE_DATE
+
+    def getCreditText(self):
+        """Returns string for credit text"""
+        if self.verified:
+            tpl = self.__class__.SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE
+        else:
+            tpl = self.__class__.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
+        return tpl.substitute({
+            'numCredits': self.certificate.credits
+        })
+
+
+class NurseStoryCertificate(NurseCertificate):
+    """Used for Nurse Orbit Story certificate."""
+
+    # files in settings.PDF_TEMPLATES_DIR
+    CERT_TEMPLATE = 'story-certificate-nurse.pdf'
+
+    SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded in Self Assessment")
+
+    def __init__(self, certificate):
+        NurseCertificate.__init__(self, certificate)
+        self.releaseDate = settings.STORY_CERT_ORIGINAL_RELEASE_DATE
+        self.expireDate = settings.STORY_CERT_EXPIRE_DATE
+
+
+    def getCreditText(self):
+        """Returns string for credit text"""
+        if self.verified:
+            tpl = self.__class__.SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE
+        else:
+            tpl = self.__class__.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
+        return tpl.substitute({
+            'numCredits': self.certificate.credits
+        })
