@@ -176,9 +176,13 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
         'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle', 'nextBillingAmount',
         'modified')
     list_select_related = ('user','plan')
-    list_filter = ('status', 'display_status', 'remindRenewSent')
+    list_filter = ('status', 'display_status', 'plan')
     ordering = ('-modified',)
 
+class SubscriptionEmailAdmin(admin.ModelAdmin):
+    list_display = ('id', 'subscription', 'billingCycle', 'remind_renew_sent', 'expire_alert_sent')
+    list_select_related = ('subscription',)
+    ordering = ('-modified',)
 
 class SubscriptionTransactionAdmin(admin.ModelAdmin):
     list_display = ('id', 'transactionId', 'subscription', 'trans_type', 'amount', 'status', 'card_type', 'card_last4', 'receipt_sent', 'created', 'modified')
@@ -293,6 +297,7 @@ admin_site.register(Story, StoryAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
+admin_site.register(SubscriptionEmail, SubscriptionEmailAdmin)
 admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 #
 # plugin models

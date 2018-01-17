@@ -53,6 +53,7 @@ INVITER_DISCOUNT_TYPE = 'inviter'
 INVITEE_DISCOUNT_TYPE = 'invitee'
 CONVERTEE_DISCOUNT_TYPE = 'convertee'
 ORG_DISCOUNT_TYPE = 'org'
+STANDARD_PLAN_NAME = 'Standard'
 
 # maximum number of invites for which a discount is applied to the inviter's subscription.
 INVITER_MAX_NUM_DISCOUNT = 10
@@ -1966,17 +1967,20 @@ class UserSubscriptionManager(models.Manager):
         Need separate management task that creates new subscription in Standard at end of the billing cycle.
         Returns Braintree result object
         """
+        standard_plan = SubscriptionPlan.objects.get(name=STANDARD_PLAN_NAME)
         result = self.setExpireAtBillingCycleEnd(user_subs)
         if result.is_success:
             user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
+            user_subs.next_plan = standard_plan
             user_subs.save()
         return result
 
 
     def reactivateBtSubscription(self, user_subs, payment_token=None):
         """
-        Use case: switch from UI_ACTIVE_CANCELED back to UI_ACTIVE
-        Can also be used to switch from UI_ACTIVE_DOWNGRADE back to UI_ACTIVE.
+        Use cases:
+            1. switch from UI_ACTIVE_CANCELED back to UI_ACTIVE
+            2. switch from UI_ACTIVE_DOWNGRADE back to UI_ACTIVE.
         while the btSubscription is still ACTIVE.
         Caller may optionally provide a payment_token with which
         to update the subscription.
@@ -2181,6 +2185,65 @@ class UserSubscriptionManager(models.Manager):
                 saved = True
         return saved
 
+    def completeDowngrade(self, user_subs, payment_token):
+        """This is called by a management cmd to complete the scheduled downgrade
+        subscription requested by the user.
+        It should be called when the billingCycle on the current subscription is
+        about to end (because the user has already paid for the entire cycle).
+        It terminates the current subs, and starts a new subscription using the plan
+        specified in user_subs.next_plan. It also applies any earned discounts to the
+        full price of the plan (override the first-year discount since it is no longer applicable).
+        Args:
+            user_subs: UserSubscription instance with status=UI_ACTIVE_DOWNGRADE and about to end.
+            payment_token: Payment token to use for the new subscription.
+        """
+        new_plan = user_subs.next_plan
+        if not new_plan:
+            raise ValueError('completeDowngrade: next_plan not set on user subscription {0}'.format(user_subs))
+        plan_discount = Discount.objects.get(discountType=new_plan.planId, activeForType=True)
+        bt_subs = self.findBtSubscription(user_subs.subscriptionId)
+        # get any earned discounts
+        discount = Discount.objects.get(discountType=INVITER_DISCOUNT_TYPE, activeForType=True)
+        # value will be used to override the default plan first-year discount
+        discount_amount = 0 # default of 0 means: user will be charged full price (override first-year discount)
+        for d in bt_subs.discounts:
+            if d.id == discount.discountId:
+                discount_amount = discount.amount*d.quantity
+                break
+        logger.debug('completeDowngrade discount amount: {0}'.format(discount_amount))
+        # cancel old user_subs
+        cancel_result = self.terminalCancelBtSubscription(user_subs)
+        if not cancel_result.is_success:
+            if cancel_result.message == self.model.RESULT_ALREADY_CANCELED:
+                logger.info('completeDowngrade: existing bt_subs already canceled for: {0}'.format(user_subs))
+                self.updateSubscriptionFromBt(user_subs, bt_subs)
+            else:
+                logger.warning('completeDowngrade: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
+                return (cancel_result, user_subs)
+        # start new user_subs
+        subs_params = {
+            'plan_id': new_plan.planId,
+            'trial_duration': 0,
+            'payment_method_token': payment_token,
+            'discounts': {
+                'update': [
+                    {
+                        'existing_id': plan_discount.discountId,
+                        'amount': discount_amount.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+                    }
+                ]
+            }
+        }
+        result = braintree.Subscription.create(subs_params)
+        if result.is_success:
+            logger.info('completeDowngrade result: {0.is_success}'.format(result))
+            new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
+            return (result, new_user_subs)
+        else:
+            logger.warning('completeDowngrade result: {0.is_success}'.format(result))
+            return (result, None)
+
+
     def updateLatestUserSubsAndTransactions(self, user):
         """Get the latest UserSubscription for the given user
         from the local db and update it from BT. Also update
@@ -2272,13 +2335,50 @@ class UserSubscription(models.Model):
         decimal_places=2,
         default=0,
         help_text=' BT next_billing_period_amount in USD')
-    remindRenewSent = models.BooleanField(default=False, help_text='set to True upon sending of auto-renewal reminder via email')
+    next_plan = models.ForeignKey(SubscriptionPlan,
+        on_delete=models.CASCADE,
+        db_index=True,
+        null=True,
+        default=None,
+        help_text='Used to store plan for pending downgrade'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = UserSubscriptionManager()
 
     def __str__(self):
         return self.subscriptionId
+
+class SubscriptionEmailManager(models.Manager):
+    def getOrCreate(self, user_subs):
+        """Get or create model instance for (user_subs, user_subs.billingCycle)
+        Returns tuple (model instance, created:bool)
+        """
+        return self.model.objects.get_or_create(
+                subscription=user_subs,
+                billingCycle=user_subs.billingCycle)
+
+
+@python_2_unicode_compatible
+class SubscriptionEmail(models.Model):
+    """Used to keep track of reminder emails sent for renewal and other notices per billingCycle"""
+    subscription = models.ForeignKey(UserSubscription,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='subscriptionemails',
+    )
+    billingCycle = models.PositiveIntegerField()
+    remind_renew_sent = models.BooleanField(default=False, help_text='set to True upon sending of renewal reminder email')
+    expire_alert_sent = models.BooleanField(default=False, help_text='set to True upon sending of card expiry alert email')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = SubscriptionEmailManager()
+
+    class Meta:
+        unique_together = ('subscription', 'billingCycle')
+
+    def __str__(self):
+        return '{0.subscription.subscriptionId}|{0.billingCycle}|{0.remind_renew_sent}'.format(self)
 
 
 class SubscriptionTransactionManager(models.Manager):

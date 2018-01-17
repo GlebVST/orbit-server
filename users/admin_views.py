@@ -86,9 +86,11 @@ class ReadOfferSerializer(serializers.ModelSerializer):
             'id',
             'userId',
             'activityDate',
+            'expireDate',
             'url',
             'suggestedDescr',
-            'cmeTags'
+            'cmeTags',
+            'valid'
         )
         read_only_fields = fields
 
@@ -103,6 +105,7 @@ class UserOfferList(generics.ListAPIView):
         return BrowserCmeOffer.objects.filter(
             user=userid,
             expireDate__gt=now,
+            valid=True,
             redeemed=False
             ).order_by('-modified')
 
