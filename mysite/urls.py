@@ -143,6 +143,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view()),
         url(r'^debug/invitation-discount/?$', debug_views.InvitationDiscountList.as_view()),
         url(r'^debug/premail/?$', debug_views.PreEmail.as_view()),
+        url(r'^debug/email-card-expired/?$', debug_views.EmailCardExpired.as_view()),
     ])
 
 

@@ -341,6 +341,14 @@ class UpgradePlanAmount(APIView):
                 'message': message,
             }
             return Response(context, status=status.HTTP_200_OK)
+        if user_subs.display_status == UserSubscription.UI_ACTIVE_DOWNGRADE:
+            # user is already in upgraded plan (can re-activate to cancel the scheduled downgrade)
+            context = {
+                'can_upgrade': True,
+                'amount': 0,
+                'message': '',
+            }
+            return Response(context, status=status.HTTP_200_OK)
         if user_subs.status == UserSubscription.EXPIRED:
             # user's last subscription is expired (this is the final state AFTER Active-Canceled)
             # so they have already used up their first year (hence no proration on plan first-year discount at all).

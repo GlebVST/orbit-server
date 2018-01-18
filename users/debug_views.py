@@ -341,3 +341,26 @@ class MakePinnedMessage(APIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 
+class EmailCardExpired(APIView):
+    """Call emailutils.SendCardExpiredAlertEmail for request.user
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, format=None):
+        from .emailutils import sendCardExpiredAlertEmail
+        user = request.user
+        paymentMethods = Customer.objects.getPaymentMethods(user.customer)
+        pm = paymentMethods[0]
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        try:
+            sendCardExpiredAlertEmail(user_subs, pm)
+        except SMTPException as e:
+            logException(logger, request, 'EmailCardExpired failed.')
+            context = {'success': False, 'message': 'Failure sending email'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        finally:
+            context = {
+                'success': True,
+                'message': 'A message was emailed to {0.email}'.format(user),
+                'paymentMethod': pm
+            }
+            return Response(context, status=status.HTTP_200_OK)

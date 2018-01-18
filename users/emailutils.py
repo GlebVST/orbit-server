@@ -1,4 +1,8 @@
 from dateutil.relativedelta import *
+from datetime import timedelta
+import logging
+import premailer
+from io import StringIO
 import pytz
 from operator import itemgetter
 from django.conf import settings
@@ -9,14 +13,13 @@ from .models import *
 from pprint import pprint
 
 ROCKET_ICON = u'\U0001F680'
-REPLY_TO = settings.SUPPORT_EMAIL
+REPLY_TO = settings.SUPPORT_EMAIL if settings.ENV_TYPE == settings.ENV_PROD else 'faria@orbitcme.com'
 
 def sendNewUserReportEmail(profiles, email_to):
     """Send report of new user signups. Info included:
     email, getFullNameAndDegree, npiNumber, plan_name, subscriptionId,referral
     Can raise SMTPException
     """
-    from .models import UserSubscription
     from_email = settings.EMAIL_FROM
     tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
     now = timezone.now()
@@ -269,15 +272,25 @@ def sendCardExpiredAlertEmail(user_subs, payment_method):
     subject = u'Heads up! Your Orbit payment method has expired'
     if settings.ENV_TYPE != settings.ENV_PROD:
         subject = u'[test-only] ' + subject
+    nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
     ctx = {
         'profile': user.profile,
-        'subscription': user_subs,
+        'nextBillingDate': nextBillingDate,
         'card_type': payment_method['type'],
-        'card_last4': payment_method['number'][-4:]
+        'card_last4': payment_method['number'][-4:],
         'expiry': payment_method['expiry'],
-        'support_email': settings.SUPPORT_EMAIL
+        'support_email': settings.SUPPORT_EMAIL,
+        'server_hostname': settings.SERVER_HOSTNAME
     }
-    message = get_template('email/card_expired_alert.html').render(ctx)
+    orig_message = get_template('email/card_expired_alert.html').render(ctx)
+    # setup premailer
+    plog = StringIO()
+    phandler = logging.StreamHandler(plog)
+    p = premailer.Premailer(orig_message,
+            cssutils_logging_handler=phandler,
+            cssutils_logging_level=logging.INFO)
+    # transformed message
+    message = p.transform()
     msg = EmailMessage(subject,
             message,
             from_email=from_email,

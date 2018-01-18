@@ -1,10 +1,43 @@
-<div>
-    <p>Dear {{ profile.firstName|default:"User" }},</p>
-    <p>This is to let you know that your payment method for Orbit has expired:</p>
-    <p>Card: {{ card_type }} ending in {{ card_last4 }} expired on {{ expiry }}</p>
-    <br />
-    <p>Your current annual subscription will end on {{ subscription.billingEndDate|date:"d M Y" }}.</p>
-    <p>Please sign in to <a href="http://orbitcme.com">Orbit</a> and update your card information.</p>
-    <p>Best regards,</p>
-    <p>The Orbit Team</p>
-</div>
+<html>
+    <head>
+        <title>Your payment method for Orbit has expired</title>
+        <style type="text/css">
+            .orbit-href {
+                color: #008cdd;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                text-decoration: none; 
+            }
+            .card {
+                border: 1px solid #eaeaea;
+                padding: 10px;
+            }
+            .signature {
+                margin-top: 10px;
+            }
+            .footer {
+                margin-top: 15px;
+                border-top: 1px solid #eee;
+            }
+            .footer p {
+                font-size: 10px;
+                color: #999;
+            }
+        </style>
+    </head>
+    <body>
+    <div>
+        <p>Dear {{ profile.firstName|default:"User" }},</p>
+        <p>This is to let you know that your payment method for Orbit has expired:</p>
+        <p class="card">Card: {{ card_type }} ending in {{ card_last4 }} expired on {{ expiry }}</p>
+        <p>Your next billing cycle will commence on {{ nextBillingDate|date:"d M Y" }}.</p> 
+        <p>Please sign in to <a href="https://{{ server_hostname }}" class="orbit-href" target="_blank" rel="noreferrer">Orbit</a> and update your card information.</p>
+        <div class="signature">
+            <p>Best regards,</p>
+            <p>The Orbit Team</p>
+        </div>
+        <div class="footer">
+            <p>You are receiving this email because you made a purchase at <a href="https://{{ server_hostname }}" target="_blank" rel="noreferrer">Orbit</a>.</p>
+        </div>
+    </div>
+    </body>
+</html>
