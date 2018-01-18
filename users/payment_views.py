@@ -685,7 +685,7 @@ class ResumeSubscription(APIView):
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # check current status
-        if user_subs.display_status != UserSubscription.UI_ACTIVE_CANCELED:
+        if user_subs.display_status not in (UserSubscription.UI_ACTIVE_CANCELED, UserSubscription.UI_ACTIVE_DOWNGRADE):
             context = {
                 'success': False,
                 'message': 'UserSubscription status is already: ' + user_subs.display_status
