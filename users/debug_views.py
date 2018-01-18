@@ -187,7 +187,7 @@ class EmailSubscriptionReceipt(APIView):
             logException(logger, request, 'EmailSubscriptionReceipt send email failed.')
             context = {'success': False, 'message': 'Failure sending email'}
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        finally:
+        else:
             context = {
                 'success': True,
                 'message': 'A receipt was emailed to {0.email}'.format(user),
@@ -242,7 +242,7 @@ class EmailSubscriptionPaymentFailure(APIView):
             logException(logger, request, 'EmailSubscriptionPaymentFailure send email failed.')
             context = {'success': False, 'message': 'Failure sending email'}
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        finally:
+        else:
             context = {
                 'success': True,
                 'message': 'A payment failure notice was emailed to {0.email}'.format(user),
@@ -306,7 +306,7 @@ class PreEmail(APIView):
             logException(logger, request, 'SendTestPreEmail failed.')
             context = {'success': False, 'message': 'Failure sending email'}
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        finally:
+        else:
             context = {
                 'success': True,
                 'message': 'A message was emailed to {0.email}'.format(user),
@@ -357,7 +357,7 @@ class EmailCardExpired(APIView):
             logException(logger, request, 'EmailCardExpired failed.')
             context = {'success': False, 'message': 'Failure sending email'}
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        finally:
+        else:
             context = {
                 'success': True,
                 'message': 'A message was emailed to {0.email}'.format(user),

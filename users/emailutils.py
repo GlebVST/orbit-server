@@ -268,7 +268,8 @@ def sendCardExpiredAlertEmail(user_subs, payment_method):
         payment_method:dict from Customer vault (getPaymentMethods)
     """
     from_email = settings.EMAIL_FROM
-    email_to = user_subs.user.email
+    user = user_subs.user
+    email_to = user.email
     subject = u'Heads up! Your Orbit payment method has expired'
     if settings.ENV_TYPE != settings.ENV_PROD:
         subject = u'[test-only] ' + subject
