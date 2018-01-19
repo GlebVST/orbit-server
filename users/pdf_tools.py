@@ -373,10 +373,7 @@ class NurseStoryCertificate(NurseCertificate):
 
     def getCreditText(self):
         """Returns string for credit text"""
-        if self.verified:
-            tpl = self.__class__.SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE
-        else:
-            tpl = self.__class__.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
+        tpl = self.__class__.SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE
         return tpl.substitute({
             'numCredits': self.certificate.credits
         })

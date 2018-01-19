@@ -5,7 +5,6 @@ import logging
 from operator import itemgetter
 from urlparse import urlparse
 from smtplib import SMTPException
-
 import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -327,11 +326,34 @@ class UserStateLicenseList(generics.ListCreateAPIView):
         return StateLicense.objects.filter(user=user)
 
     def perform_create(self, serializer, format=None):
-        """At present time, only RN StateLicense is supported"""
+        """At present time, only RN StateLicense is supported
+        Note: In order to handle unique constraint on ('user','state','license_type','license_no'), caller must instantiate serializer with the instance if the constraint already exists. In this case, the serializer.save will update the existing instance.
+        """
         user = self.request.user
         lt = LicenseType.objects.get(name='RN')
         instance = serializer.save(user=user, license_type=lt)
         return instance
+
+    def create(self, request, *args, **kwargs):
+        """Override create to handle unique constraint on StateLicense model."""
+        form_data = request.data.copy()
+        serializer = self.get_serializer(data=form_data)
+        serializer.is_valid(raise_exception=True)
+        lt = LicenseType.objects.get(name='RN')
+        # check if unique constraint already exists
+        qset = StateLicense.objects.filter(
+                user=request.user,
+                license_type=lt,
+                state_id=form_data['state'],
+                license_no=form_data['license_no']
+            )
+        if qset.exists():
+            m = qset[0]
+            logDebug(logger, request, 'Update existing statelicense {0.pk}'.format(m))
+            serializer = self.get_serializer(instance=m, data=form_data)
+            serializer.is_valid(raise_exception=True)
+        instance = self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class UserStateLicenseDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = StateLicense.objects.all()
