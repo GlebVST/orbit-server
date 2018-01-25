@@ -234,6 +234,8 @@ class NurseCertificate(BaseCertificate):
     def __init__(self, certificate):
         super(NurseCertificate, self).__init__(certificate)
         self.tplfileName = self.__class__.CERT_TEMPLATE
+        self.releaseDate = settings.CERT_ORIGINAL_RELEASE_DATE
+        self.expireDate = settings.CERT_EXPIRE_DATE
         if not certificate.state_license:
             raise ValueError('NurseCertificate requires certificate to have non-null state_license.')
 
