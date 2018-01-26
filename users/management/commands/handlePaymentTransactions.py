@@ -36,6 +36,8 @@ class Command(BaseCommand):
                             sendReceiptEmail(user, user_subs, m)
                         else:
                             logger.debug('mock sendReceiptEmail for transactionId: {0.transactionId}'.format(m))
+                            m.receipt_sent = True
+                            m.save()
                     except SMTPException as e:
                         logger.exception('Email receipt to {0.email} failed'.format(user))
                     else:
@@ -48,6 +50,8 @@ class Command(BaseCommand):
                             sendPaymentFailureEmail(user, m)
                         else:
                             logger.debug('mock sendPaymentFailureEmail for transactionId: {0.transactionId}'.format(m))
+                            m.failure_alert_sent = True
+                            m.save()
                     except:
                         logger.exception('Email payment_failure to {0.email} failed'.format(user))
                     else:

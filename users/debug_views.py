@@ -16,8 +16,6 @@ from rest_framework.parsers import FormParser,MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
-# proj
-from common.appconstants import PINNED_MESSAGE_TITLE_PREFIX
 # app
 from .models import *
 from .permissions import *
@@ -96,38 +94,51 @@ class MakeNotification(APIView):
         }
         return Response(context, status=status.HTTP_201_CREATED)
 
-MESSAGE_DESCRIPTION = """
-This month we're exploring the application of machine learning
-to dermatology in work from the Berkeley Artificial Intelligence Research Lab.
-Click [here][id_foo] for a related press release.
 
-
-[id_foo]: http://bair.berkeley.edu/ "BAIR"
-"""
-
-class MakePinnedMessage(APIView):
+class MakeStoryCme(APIView):
     """
-    Create a test PinnedMessage for the user.
-    The description field may contain Markdown syntax.
-    Reference: https://daringfireball.net/projects/markdown/syntax
+    Create a test StoryCme entry for the user using the latest Story (if dne), else return the existing StoryCme.
+    The entry will be tagged with SA-CME.
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
+        story = Story.objects.all().order_by('-created')[0]
+        #user = User.objects.get(pk=3)
+        user = request.user
+        qset = StoryCme.objects.filter(story=story, entry__user=user)
+        if qset.exists():
+            m = qset[0]
+            context = {
+                'success': True,
+                'id': m.entry.pk,
+            }
+            return Response(context, status=status.HTTP_200_OK)
+        # else
         now = timezone.now()
-        startDate = datetime(now.year, now.month, now.day, tzinfo=now.tzinfo)
-        expireDate = now + timedelta(days=30)
-        message = PinnedMessage.objects.create(
-            user=request.user,
-            startDate=startDate,
-            expireDate=expireDate,
-            title=PINNED_MESSAGE_TITLE_PREFIX + 'Artificial Intelligence in Healthcare',
-            description=MESSAGE_DESCRIPTION,
-            sponsor_id=1,
-            launch_url='https://docs.google.com/'
-        )
+        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        activityDate = now - timedelta(seconds=5)
+        entryType = EntryType.objects.get(name=ENTRYTYPE_STORY_CME)
+        creditType = Entry.CREDIT_CATEGORY_1
+        with transaction.atomic():
+            entry = Entry.objects.create(
+                user=user,
+                entryType=entryType,
+                activityDate=activityDate,
+                ama_pra_catg=creditType,
+                sponsor=story.sponsor,
+                description='Created for feed test'
+            )
+            StoryCme.objects.create(
+                entry=entry,
+                story=story,
+                credits=story.credits,
+                url=story.entry_url,
+                title=story.entry_title
+            )
+            entry.tags.add(satag)
         context = {
             'success': True,
-            'id': message.pk,
+            'id': entry.pk,
         }
         return Response(context, status=status.HTTP_201_CREATED)
 
@@ -176,7 +187,7 @@ class EmailSubscriptionReceipt(APIView):
             logException(logger, request, 'EmailSubscriptionReceipt send email failed.')
             context = {'success': False, 'message': 'Failure sending email'}
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        finally:
+        else:
             context = {
                 'success': True,
                 'message': 'A receipt was emailed to {0.email}'.format(user),
@@ -231,7 +242,7 @@ class EmailSubscriptionPaymentFailure(APIView):
             logException(logger, request, 'EmailSubscriptionPaymentFailure send email failed.')
             context = {'success': False, 'message': 'Failure sending email'}
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        finally:
+        else:
             context = {
                 'success': True,
                 'message': 'A payment failure notice was emailed to {0.email}'.format(user),
@@ -295,9 +306,61 @@ class PreEmail(APIView):
             logException(logger, request, 'SendTestPreEmail failed.')
             context = {'success': False, 'message': 'Failure sending email'}
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        finally:
+        else:
             context = {
                 'success': True,
                 'message': 'A message was emailed to {0.email}'.format(user),
+            }
+            return Response(context, status=status.HTTP_200_OK)
+
+
+class MakePinnedMessage(APIView):
+    """
+    Create a test PinnedMessage for the user.
+    The description field may contain Markdown syntax.
+    Reference: https://daringfireball.net/projects/markdown/syntax
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, format=None):
+        now = timezone.now()
+        startDate = datetime(now.year, now.month, now.day, tzinfo=now.tzinfo)
+        expireDate = now + timedelta(days=30)
+        message = PinnedMessage.objects.create(
+            user=request.user,
+            startDate=startDate,
+            expireDate=expireDate,
+            title='Test PinnedMessage title',
+            description='This is the description',
+            sponsor_id=1,
+            launch_url='https://docs.google.com/'
+        )
+        context = {
+            'success': True,
+            'id': message.pk,
+        }
+        return Response(context, status=status.HTTP_201_CREATED)
+
+
+class EmailCardExpired(APIView):
+    """Call emailutils.SendCardExpiredAlertEmail for request.user
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, format=None):
+        from .emailutils import sendCardExpiredAlertEmail
+        user = request.user
+        paymentMethods = Customer.objects.getPaymentMethods(user.customer)
+        pm = paymentMethods[0]
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        try:
+            sendCardExpiredAlertEmail(user_subs, pm)
+        except SMTPException as e:
+            logException(logger, request, 'EmailCardExpired failed.')
+            context = {'success': False, 'message': 'Failure sending email'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            context = {
+                'success': True,
+                'message': 'A message was emailed to {0.email}'.format(user),
+                'paymentMethod': pm
             }
             return Response(context, status=status.HTTP_200_OK)

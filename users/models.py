@@ -1,11 +1,13 @@
 from __future__ import unicode_literals
 import logging
 import braintree
+import calendar
 from collections import namedtuple
 from datetime import datetime
 from dateutil.relativedelta import *
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import pytz
+import re
 import uuid
 from urlparse import urlparse
 from django.conf import settings
@@ -23,6 +25,7 @@ from common.appconstants import (
     MAX_URL_LENGTH,
     SELF_REPORTED_AUTHORITY,
     AMA_PRA_CATEGORY_LABEL,
+    ALL_PERMS,
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
@@ -36,6 +39,7 @@ from common.appconstants import (
 #
 ENTRYTYPE_BRCME = 'browser-cme'
 ENTRYTYPE_SRCME = 'sr-cme'
+ENTRYTYPE_STORY_CME = 'story-cme'
 ENTRYTYPE_NOTIFICATION = 'notification'
 CMETAG_SACME = 'SA-CME'
 COUNTRY_USA = 'USA'
@@ -49,11 +53,15 @@ INVITER_DISCOUNT_TYPE = 'inviter'
 INVITEE_DISCOUNT_TYPE = 'invitee'
 CONVERTEE_DISCOUNT_TYPE = 'convertee'
 ORG_DISCOUNT_TYPE = 'org'
+STANDARD_PLAN_NAME = 'Standard'
 
 # maximum number of invites for which a discount is applied to the inviter's subscription.
 INVITER_MAX_NUM_DISCOUNT = 10
 
 LOCAL_TZ = pytz.timezone(settings.LOCAL_TIME_ZONE)
+TWO_PLACES = Decimal('.01')
+TEST_CARD_EMAIL_PATTERN = re.compile(r'testcode-(?P<code>\d+)')
+
 
 def makeAwareDatetime(a_date, tzinfo=pytz.utc):
     """Convert <date> to <datetime> with timezone info"""
@@ -364,6 +372,23 @@ class Profile(models.Model):
         """Need to query the through relation to filter by is_active=True"""
         return ProfileCmetag.filter(profile=self, is_active=True)
 
+    def getAuth0Id(self):
+        delim = '|'
+        if delim in self.socialId:
+            L = self.socialId.split(delim, 1)
+            return L[-1]
+
+    def isForTestTransaction(self):
+        """Test if user.email matches TEST_CARD_EMAIL_PATTERN
+        Returns:int/None code from email or None if no match
+        """
+        user_email = self.user.email
+        m = TEST_CARD_EMAIL_PATTERN.match(user_email)
+        if m:
+            return int(m.groups()[0])
+        return None
+
+
 # Many-to-many through relation between Profile and CmeTag
 class ProfileCmetag(models.Model):
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE, db_index=True)
@@ -466,14 +491,21 @@ class CustomerManager(models.Manager):
     def getPaymentMethods(self, customer):
         """Get the existing payment methods (credit card only)
             customer: Customer instance from db
-        Returns: [{token, number, type, expiry},]
+        Returns: [{
+            token:str alphanumeric value that references a specific payment method in the Vault,
+            number:str masked number of card (e.g. '371449******8431')
+            type:str card type (e.g. American Express)
+            expiry:str card expiration in mm/yyyy format (e.g. 06/2021)
+            expired:boolean True if card is expired, else False
+        },]
         """
         bc = self.findBtCustomer(customer)
         results = [{
             "token": m.token,
             "number": m.masked_number,
             "type": m.card_type,
-            "expiry": m.expiration_date
+            "expiry": m.expiration_date,
+            "expired": m.expired
             } for m in bc.payment_methods]
         return results
 
@@ -698,6 +730,35 @@ class OfferCmeTag(models.Model):
     class Meta:
         unique_together = ('offer','tag')
 
+# A Story is broadcast to many users.
+# The launch_url must be customized to include the user id when sending
+# it in the response for a given user.
+@python_2_unicode_compatible
+class Story(models.Model):
+    sponsor = models.ForeignKey(Sponsor,
+        on_delete=models.PROTECT,
+        db_index=True
+    )
+    title = models.CharField(max_length=500)
+    description = models.CharField(max_length=2000)
+    credits = models.DecimalField(max_digits=4, decimal_places=2, default=1, blank=True,
+        help_text='CME credits to be awarded upon completion (default = 1)')
+    startDate = models.DateTimeField()
+    expireDate = models.DateField(help_text='Expiration date for display')
+    endDate = models.DateTimeField(help_text='Expiration timestamp used by server')
+    launch_url = models.URLField(max_length=1000, help_text='Form URL')
+    entry_url = models.URLField(max_length=1000, help_text='Article URL will be copied to the feed entries.')
+    entry_title = models.CharField(max_length=1000, help_text='Article title will be copied to the feed entries.')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = 'Stories'
+
+    def __str__(self):
+        return self.title
+
+
 # Extensible list of entry types that can appear in a user's feed
 @python_2_unicode_compatible
 class EntryType(models.Model):
@@ -792,7 +853,7 @@ class EntryManager(models.Manager):
                 #print('{0.pk} {0}|{1}'.format(m, ','.join(tagnames)))
                 if satag.pk in tagids:
                     saEntries.append(m)
-                    #print('-- add to saEntries')
+                    logger.debug('-- Add entry {0.pk} {0.entryType} to saEntries'.format(m))
                 else:
                     if m.entryType.name == ENTRYTYPE_BRCME:
                         brcmeEntries.append(m)
@@ -809,11 +870,11 @@ class EntryManager(models.Manager):
                     creditSumByTag[t.name] = creditSumByTag.setdefault(t.name, 0) + credits
                     #print('---- {0.name} : {1}'.format(t, creditSumByTag[t.name]))
             # sum credit totals
-            saCmeTotal = sum([m.srcme.credits for m in saEntries])
+            saCmeTotal = sum([m.getCredits() for m in saEntries])
         except Exception:
             logger.exception('prepareDataForAuditReport exception')
         else:
-            #logger.debug('saCmeTotal: {0}'.format(saCmeTotal))
+            logger.debug('saCmeTotal: {0}'.format(saCmeTotal))
             #logger.debug('otherCmeTotal: {0}'.format(otherCmeTotal))
             res = AuditReportResult(
                 saEntries=saEntries,
@@ -848,6 +909,26 @@ class EntryManager(models.Manager):
         if credit_sum:
             return float(credit_sum)
         return 0
+
+
+    def sumStoryCme(self, user, startDate, endDate):
+        """
+        Total valid StoryCme credits over the given time period for the given user.
+        """
+        filter_kwargs = dict(
+            valid=True,
+            user=user,
+            entryType__name=ENTRYTYPE_STORY_CME,
+            activityDate__gte=startDate,
+            activityDate__lte=endDate
+        )
+        qset = self.model.objects.select_related('entryType').filter(**filter_kwargs)
+        total = qset.aggregate(credit_sum=Sum('storycme__credits'))
+        credit_sum = total['credit_sum']
+        if credit_sum:
+            return float(credit_sum)
+        return 0
+
 
     def sumBrowserCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
         """
@@ -906,7 +987,7 @@ class Entry(models.Model):
     objects = EntryManager()
 
     def __str__(self):
-        return '{0.entryType} of {0.activityDate}'.format(self)
+        return '{0.pk}|{0.entryType}|{0.user}|{0.activityDate}'.format(self)
 
     def asLocalTz(self):
         return self.created.astimezone(LOCAL_TZ)
@@ -930,6 +1011,15 @@ class Entry(models.Model):
             return Entry.CREDIT_OTHER_TAGNAME
         return u''
 
+    def getCredits(self):
+        """Returns credit:Decimal value"""
+        if self.entryType.name == ENTRYTYPE_SRCME:
+            return self.srcme.credits
+        if self.entryType.name == ENTRYTYPE_BRCME:
+            return self.brcme.credits
+        if self.entryType.name == ENTRYTYPE_STORY_CME:
+            return self.storycme.credits
+        return 0
 
     def getCertDocReferenceId(self):
         """This expects attr cert_docs:list from prefetch_related.
@@ -1039,6 +1129,28 @@ class BrowserCme(models.Model):
         res = urlparse(self.url)
         return res.netloc + ' - ' + self.entry.description
 
+# Story CME entry
+# An entry is created by a script for users who completed a particular Story
+@python_2_unicode_compatible
+class StoryCme(models.Model):
+    entry = models.OneToOneField(Entry,
+        on_delete=models.CASCADE,
+        related_name='storycme',
+        primary_key=True
+    )
+    story = models.ForeignKey(Story,
+        on_delete=models.PROTECT,
+        related_name='storycme',
+        db_index=True
+    )
+    credits = models.DecimalField(max_digits=5, decimal_places=2)
+    url = models.URLField(max_length=500)
+    title = models.TextField()
+
+    def __str__(self):
+        return self.url
+
+
 @python_2_unicode_compatible
 class UserFeedback(models.Model):
     SNIPPET_MAX_CHARS = 80
@@ -1077,6 +1189,7 @@ class PinnedMessageManager(models.Manager):
         if qset.exists():
             return qset[0]
 
+# This model is no longer used for Orbit Stories, it has been superseded by Story. Its fields need to be changed once we use it for user-specified PinnedMessages.
 @python_2_unicode_compatible
 class PinnedMessage(models.Model):
     user = models.ForeignKey(User,
@@ -1412,14 +1525,38 @@ class UserSubscriptionManager(models.Manager):
         g = Group.objects.get(name=user_subs.display_status)
         return g.permissions.all().order_by('codename')
 
+
+    def serialize_permissions(self, user, user_subs):
+        """This is used by auth_views and payment_views to return
+        the allowed permissions for the user in the response.
+        Returns list of dicts: [{codename:str, allowed:bool}]
+        for the permissions in appconstants.ALL_PERMS.
+        """
+        allowed_codes = []
+        # get any special admin groups that user is a member of
+        for g in user.groups.all():
+            allowed_codes.extend([p.codename for p in g.permissions.all()])
+        if user_subs:
+            qset = self.getPermissions(user_subs) # Permission queryset
+            allowed_codes.extend([p.codename for p in qset])
+        allowed_codes = set(allowed_codes)
+        perms = [{
+                'codename': codename,
+                'allow': codename in allowed_codes
+            } for codename in ALL_PERMS]
+        #print(perms)
+        return perms
+
+
     def allowNewSubscription(self, user):
-        """If user has no existing subscriptions, or latest subscription is canceled/expired, then allow new subscription.
+        """If user has no existing subscriptions, or latest subscription is canceled/expired/pastdue, then allow new subscription.
+        For pastdue: the existing subs must be canceled first.
         """
         user_subs = self.getLatestSubscription(user)
         if not user_subs:
             return True
         status = user_subs.status
-        return (status == UserSubscription.CANCELED or status == UserSubscription.EXPIRED)
+        return (status == UserSubscription.CANCELED or status == UserSubscription.EXPIRED or status == UserSubscription.PASTDUE)
 
     def findBtSubscription(self, subscriptionId):
         try:
@@ -1428,6 +1565,67 @@ class UserSubscriptionManager(models.Manager):
             return None
         else:
             return subscription
+
+    def createSubscriptionFromBt(self, user, plan, bt_subs):
+        """Handle the result of calling braintree.Subscription.create
+        Args:
+            user: User instance
+            plan: SubscriptionPlan instance
+            bt_subs: braintree Subscription object
+        Create new UserSubscription instance for the given user, plan
+        Create new SubscriptionTransaction if exist
+        Returns UserSubscription instance
+        """
+        user_subs = None
+        if bt_subs.trial_duration == 0:
+            display_status = UserSubscription.UI_ACTIVE
+        elif plan.trialDays:
+            # subscription created with plan's default trial period
+            display_status = UserSubscription.UI_TRIAL
+        else:
+            # plan has no trial period
+            display_status = UserSubscription.UI_ACTIVE
+
+        # create UserSubscription object in database
+        firstDate = makeAwareDatetime(bt_subs.first_billing_date)
+        startDate = bt_subs.billing_period_start_date
+        if startDate:
+            startDate = makeAwareDatetime(startDate)
+        else:
+            startDate = firstDate
+        endDate = bt_subs.billing_period_end_date
+        if endDate:
+            endDate = makeAwareDatetime(endDate)
+        else:
+            endDate = startDate + relativedelta(months=plan.billingCycleMonths)
+        user_subs = UserSubscription.objects.create(
+            user=user,
+            plan=plan,
+            subscriptionId=bt_subs.id,
+            display_status=display_status,
+            status=bt_subs.status,
+            billingFirstDate=firstDate,
+            billingStartDate=startDate,
+            billingEndDate=endDate,
+            billingCycle=bt_subs.current_billing_cycle
+        )
+        # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist
+        result_transactions = bt_subs.transactions # list
+        if len(result_transactions):
+            t = result_transactions[0]
+            card_type = t.credit_card.get('card_type')
+            card_last4 = t.credit_card.get('last_4')
+            proc_auth_code=t.processor_authorization_code or ''
+            subs_trans = SubscriptionTransaction.objects.create(
+                    subscription=user_subs,
+                    transactionId=t.id,
+                    proc_auth_code=proc_auth_code,
+                    proc_response_code=t.processor_response_code,
+                    amount=t.amount,
+                    status=t.status,
+                    card_type=card_type,
+                    card_last4=card_last4)
+        return user_subs
 
     def getDiscountsForNewSubscription(self, user):
         """This returns the list of discounts for the user for his/her first Active subscription.
@@ -1531,39 +1729,7 @@ class UserSubscriptionManager(models.Manager):
         result = braintree.Subscription.create(subs_params)
         logger.info('createBtSubscription result: {0.is_success}'.format(result))
         if result.is_success:
-            key = 'trial_duration'
-            if key in subs_params and subs_params[key] == 0:
-                display_status = UserSubscription.UI_ACTIVE
-            elif plan.trialDays:
-                # subscription created with plan's default trial period
-                display_status = UserSubscription.UI_TRIAL
-            else:
-                # plan has no trial period
-                display_status = UserSubscription.UI_ACTIVE
-
-            # create UserSubscription object in database
-            firstDate = makeAwareDatetime(result.subscription.first_billing_date)
-            startDate = result.subscription.billing_period_start_date
-            if startDate:
-                startDate = makeAwareDatetime(startDate)
-            else:
-                startDate = firstDate
-            endDate = result.subscription.billing_period_end_date
-            if endDate:
-                endDate = makeAwareDatetime(endDate)
-            else:
-                endDate = startDate + relativedelta(months=plan.billingCycleMonths)
-            user_subs = UserSubscription.objects.create(
-                user=user,
-                plan=plan,
-                subscriptionId=result.subscription.id,
-                display_status=display_status,
-                status=result.subscription.status,
-                billingFirstDate=firstDate,
-                billingStartDate=startDate,
-                billingEndDate=endDate,
-                billingCycle=result.subscription.current_billing_cycle
-            )
+            user_subs = self.createSubscriptionFromBt(user, plan, result.subscription)
             if is_invitee and not InvitationDiscount.objects.filter(invitee=user).exists():
                 # user can end/create subscription multiple times, but only add invitee once to InvitationDiscount.
                 InvitationDiscount.objects.create(
@@ -1579,32 +1745,184 @@ class UserSubscriptionManager(models.Manager):
                     affiliate=inviter.affiliate, # Affiliate instance
                     amount=afp_amount
                 )
-
-            # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist
-            result_transactions = result.subscription.transactions # list
-            if len(result_transactions):
-                t = result_transactions[0]
-                card_type = t.credit_card.get('card_type')
-                card_last4 = t.credit_card.get('last_4')
-                proc_auth_code=t.processor_authorization_code or ''
-                subs_trans = SubscriptionTransaction.objects.create(
-                        subscription=user_subs,
-                        transactionId=t.id,
-                        proc_auth_code=proc_auth_code,
-                        proc_response_code=t.processor_response_code,
-                        amount=t.amount,
-                        status=t.status,
-                        card_type=card_type,
-                        card_last4=card_last4)
         return (result, user_subs)
 
-
-    def makeActiveCanceled(self, user_subs):
+    def createBtSubscriptionWithTestAmount(self, user, plan, subs_params):
+        """Create Braintree subscription with a given test amount in order to test a particular transaction outcome.
+        Args:
+            user: User instance
+            plan: SubscriptionPlan instance
+            subs_params:dict w. keys
+                plan_id: BT planId of the plan
+                payment_method_token:str for the Customer
+                code:integer corresponding to a processor response code (e.g. 200x)
+                trial_duration:int - at least 1 in order to delay the card being charged and simulate PASTDUE status
         """
-        Use case: User does not want to renew subscription,
-        and their subscription is currently active and we have
-        not reached billingEndDate.
-        Model: set display_status to UI_ACTIVE_CANCELED.
+        user_subs = None
+        response_code = subs_params.pop('code')
+        if not response_code or (response_code < 2000) or (response_code > 3000):
+            raise ValueError('Invalid response_code: {0}'.format(response_code))
+        subs_params['price'] = Decimal(response_code)
+        subs_params['options'] = {
+            'do_not_inherit_add_ons_or_discounts': True
+        }
+        logger.debug(subs_params)
+        result = braintree.Subscription.create(subs_params)
+        logger.info('createBtSubscriptionWithTestAmount result: {0.is_success}'.format(result))
+        if result.is_success:
+            bt_subs = result.subscription
+            #print('SubscriptionId: {0.id} Status:{0.status}'.format(bt_subs))
+            new_user_subs = self.createSubscriptionFromBt(user, plan, result.subscription)
+            return (result, new_user_subs)
+        else:
+            return (result, None)
+
+
+    def getDiscountAmountForUpgrade(self, old_plan, new_plan, billingCycle, billingDay, numDaysInYear):
+        """Calculate the discount amount to be used as the update amount on the
+        new plan's first-year-dicountId.
+        Args:
+            old_plan: current (lower-priced) Plan
+            new_plan: new (higher-priced) Plan
+            billingCycle: int >= 1. If 1, user is eligible for a pro-rated first year discount on the new plan
+            billingDay: int 1-365/366.  day in the current billing cycle on the old plan
+            numDaysInYear:int either 365 or 366
+        Returns: (owed:Decimal, discount_amount:Decimal)
+        """
+        if billingCycle == 1:
+            # user in first year
+            daysLeft = Decimal(numDaysInYear) - billingDay # days left in the old billing cycle
+            cf = Decimal(numDaysInYear*1.0) # conversion factor to get daily plan price
+            old_discount_price = old_plan.discountPrice/cf # daily discounted price
+            new_discount_price = new_plan.discountPrice/cf # daily discounted price
+            new_full_price = new_plan.price/cf # daily discounted price
+            # amount owed at the old plan discounted price
+            old_plan_discounted_amount = old_discount_price*(billingDay-1)
+            # amount owed at the new plan discounted price
+            new_plan_discounted_amount = new_discount_price*(daysLeft)
+            # amount owed at the new plan full price
+            new_plan_full_amount = new_full_price*(billingDay-1)
+            total = old_plan_discounted_amount + new_plan_discounted_amount + new_plan_full_amount
+            # owed = total - amount_already_paid (omitting any signup discounts b/c user earned that regardless of upgrade)
+            owed = total - old_plan.discountPrice
+            discount_amount = new_plan.price - owed
+            logger.debug('total   : {0}'.format(total))
+            logger.debug('owed    : {0}'.format(owed))
+            logger.debug('discount: {0}'.format(discount_amount))
+        else:
+            # user in post-first year
+            # the nominal amount paid (omitting any inviter discounts b/c user earned that regardless of upgrade)
+            discount_amount = old_plan.price
+            owed = new_plan.price - discount_amount
+        return (owed, discount_amount)
+
+
+    def upgradePlan(self, user_subs, new_plan, payment_token):
+        """This is called to upgrade the user to a higher-priced plan (e.g. Standard to Plus).
+        Cancel existing subscription, and create new one.
+        If the old subscription had some discounts to be applied at the next cycle, and the discount total is less
+        that is what is owed for upgrade, then apply these discounts to the new subscription.
+        Returns (Braintree result object, UserSubscription)
+        """
+        if settings.ENV_TYPE == settings.ENV_PROD:
+            # In test env, we deliberately make db different from bt (e.g. to test suspended accounts)
+            bt_subs = self.findBtSubscription(user_subs.subscriptionId)
+            if not bt_subs:
+                raise ValueError('upgradePlan BT subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs))
+            self.updateSubscriptionFromBt(user_subs, bt_subs)
+        user = user_subs.user
+        old_plan = user_subs.plan
+        if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
+            return self.switchTrialToActive(user_subs, payment_token, new_plan)
+        # Check we can get plan discount before making any changes
+        plan_discount = Discount.objects.get(discountType=new_plan.planId, activeForType=True)
+        discount_amount = None
+        now = timezone.now()
+        if user_subs.status == UserSubscription.EXPIRED:
+            # user_subs is already in a terminal state
+            owed = new_plan.price
+            # this value will be used to override the default plan first-year discount
+            discount_amount = 0
+        elif user_subs.status == UserSubscription.PASTDUE:
+            # This method expects the user_subs to be canceled already
+            owed = new_plan.discountPrice
+            discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+            for d in discounts:
+                owed -= d['discount'].amount
+            discount_amount = new_plan.price - owed
+            logger.debug('owed    : {0}'.format(owed))
+            logger.debug('discount: {0}'.format(discount_amount))
+        else:
+            # vars needed to calculate discount_amount
+            old_billingStartDate = user_subs.billingStartDate
+            old_billingCycle = user_subs.billingCycle
+            old_nextBillingAmount = old_plan.price
+            if user_subs.display_status == UserSubscription.UI_ACTIVE:
+                old_nextBillingAmount = user_subs.nextBillingAmount
+            # cancel existing subscription
+            cancel_result = self.terminalCancelBtSubscription(user_subs)
+            if not cancel_result.is_success:
+                logger.warning('upgradePlan: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
+                return (cancel_result, user_subs)
+            # Calculate discount_amount for the new subscription
+            td = now - old_billingStartDate
+            billingDay = Decimal(td.days)
+            if billingDay == 0:
+                billingDay = 1
+            numDaysInYear = 365 if not calendar.isleap(now.year) else 366
+            owed, discount_amount = self.getDiscountAmountForUpgrade(old_plan, new_plan, old_billingCycle, billingDay, numDaysInYear)
+            logger.info('upgradePlan old_subs:{0.subscriptionId}|billingCycle={1}|billingDay={2}|discount={3}|owed={4}.'.format(
+                user_subs,
+                old_billingCycle,
+                billingDay,
+                discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP),
+                owed.quantize(TWO_PLACES, ROUND_HALF_UP)
+            ))
+            if (user_subs.display_status == UserSubscription.UI_ACTIVE) and (old_plan.price > old_nextBillingAmount):
+                # user had earned some discounts that would have been applied to the next billing cycle on their old plan
+                # (Active-Canceled users forfeited any earned discounts because they don't have a nextBillingAmount)
+                earned_discount_amount = old_plan.price - old_nextBillingAmount
+                # check if can apply the earned_discount_amount right now
+                t = discount_amount + earned_discount_amount
+                if t < new_plan.price:
+                    discount_amount = t
+                    owed -= earned_discount_amount
+                    logger.info('Apply earned_discount={0}|New owed:{1}'.format(
+                        earned_discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP),
+                        owed.quantize(TWO_PLACES, ROUND_HALF_UP)
+                    ))
+                else:
+                    # Defer the earned discount to the next billingCycle on the new subscription
+                    ead = earned_discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP)
+                    logger.info('Defer earned_discount={0} from user_subs {1.subscriptionId}'.format(ead, user_subs))
+                    user.customer.balance += ead
+                    user.customer.save()
+        # Create new subscription
+        subs_params = {
+            'plan_id': new_plan.planId,
+            'trial_duration': 0,
+            'payment_method_token': payment_token,
+            'discounts': {
+                'update': [
+                    {
+                        'existing_id': plan_discount.discountId,
+                        'amount': discount_amount.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+                    }
+                ]
+            }
+        }
+        result = braintree.Subscription.create(subs_params)
+        if result.is_success:
+            logger.info('upgradePlan result: {0.is_success}'.format(result))
+            new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
+            return (result, new_user_subs)
+        else:
+            logger.warning('upgradePlan result: {0.is_success}'.format(result))
+            return (result, None)
+
+
+    def setExpireAtBillingCycleEnd(self, user_subs):
+        """Use case: to make the user_subs expire at the end of the current_billing_cycle.
         Braintree:
             1. Set never_expires = False
             2. Set number_of_billing_cycles on the subscription to the current_billing_cycle.
@@ -1612,10 +1930,10 @@ class UserSubscriptionManager(models.Manager):
         Can raise braintree.exceptions.not_found_error.NotFoundError
         Returns Braintree result object
         """
-        subscription = braintree.Subscription.find(user_subs.subscriptionId)
+        bt_subs = braintree.Subscription.find(user_subs.subscriptionId)
         # When subscription passes the billing_period_end_date, the current_billing_cycle is incremented
         # Set the max number of billing cycles. When billingEndDate is reached, the subscription will expire in braintree.
-        curBillingCycle = subscription.current_billing_cycle
+        curBillingCycle = bt_subs.current_billing_cycle
         if not curBillingCycle:
             numBillingCycles = 1
         else:
@@ -1623,18 +1941,46 @@ class UserSubscriptionManager(models.Manager):
         result = braintree.Subscription.update(user_subs.subscriptionId, {
             'never_expires': False,
             'number_of_billing_cycles': numBillingCycles
-        });
+        })
+        return result
+
+
+    def makeActiveCanceled(self, user_subs):
+        """
+        Use case: User does not want to renew subscription.
+        Update BT subscription and set never_expires=False and number_of_billing_cycles to current cycle.
+        Update model instance: set display_status = UI_ACTIVE_CANCELED
+        Returns Braintree result object
+        """
+        result = self.setExpireAtBillingCycleEnd(user_subs)
         if result.is_success:
-            # update model
             user_subs.display_status = UserSubscription.UI_ACTIVE_CANCELED
-            if curBillingCycle:
-                user_subs.billingCycle = curBillingCycle
             user_subs.save()
         return result
 
+
+    def makeActiveDowngrade(self, user_subs):
+        """
+        Use case: User is currently in Plus, and wants to downgrade at end of current billing cycle.
+        Update BT subscription and set never_expires=False and number_of_billing_cycles to current cycle.
+        Update model instance: set display_status = UI_ACTIVE_DOWNGRADE
+        Need separate management task that creates new subscription in Standard at end of the billing cycle.
+        Returns Braintree result object
+        """
+        standard_plan = SubscriptionPlan.objects.get(name=STANDARD_PLAN_NAME)
+        result = self.setExpireAtBillingCycleEnd(user_subs)
+        if result.is_success:
+            user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
+            user_subs.next_plan = standard_plan
+            user_subs.save()
+        return result
+
+
     def reactivateBtSubscription(self, user_subs, payment_token=None):
         """
-        Use case: switch from UI_ACTIVE_CANCELED back to UI_ACTIVE
+        Use cases:
+            1. switch from UI_ACTIVE_CANCELED back to UI_ACTIVE
+            2. switch from UI_ACTIVE_DOWNGRADE back to UI_ACTIVE.
         while the btSubscription is still ACTIVE.
         Caller may optionally provide a payment_token with which
         to update the subscription.
@@ -1665,31 +2011,39 @@ class UserSubscriptionManager(models.Manager):
 
     def terminalCancelBtSubscription(self, user_subs):
         """
-        Use case: User wants to cancel while they are still in UI_TRIAL.
         Cancel Braintree subscription - this is a terminal state. Once
             canceled, a subscription cannot be reactivated.
-        Update model: set display_status to UI_TRIAL_CANCELED.
+        Update instance: set display_status to:
+            UI_TRIAL_CANCELED if previous display_status was UI_TRIAL, else to UI_EXPIRED.
         Reference: https://developers.braintreepayments.com/reference/request/subscription/cancel/python
         Can raise braintree.exceptions.not_found_error.NotFoundError
         Returns Braintree result object
         """
+        old_display_status = user_subs.display_status
         result = braintree.Subscription.cancel(user_subs.subscriptionId)
         if result.is_success:
             user_subs.status = result.subscription.status
-            user_subs.display_status = self.model.UI_TRIAL_CANCELED
+            if old_display_status == self.model.UI_TRIAL:
+                user_subs.display_status = self.model.UI_TRIAL_CANCELED
+            else:
+                user_subs.display_status = self.model.UI_EXPIRED
             user_subs.save()
         return result
 
 
-    def switchTrialToActive(self, user_subs, payment_token):
-        """
-        User is in UI_TRIAL, and their trial period
-        is still not over, but user wants to upgrade
-        to Active.  Cannot update existing subscription,
-        need to cancel it, and create new one.
+    def switchTrialToActive(self, user_subs, payment_token, new_plan=None):
+        """User wants to upgrade to Active right now and their current status
+        is either UI_TRIAL or UI_TRIAL_CANCELED.
+        Args:
+            user_subs: existing UserSubscription
+            payment_token:str payment method token
+            new_plan: SubscriptionPlan / None (if None, use existing plan)
+        Cancel existing subs (if in TRIAL).
+        Create new Active subscription with any signup discounts for which the user is eligible.
         Returns (Braintree result object, UserSubscription)
         """
-        plan = user_subs.plan
+
+        plan = new_plan if new_plan else user_subs.plan
         user = user_subs.user
         subs_params = {
             'plan_id': plan.planId,
@@ -1707,12 +2061,13 @@ class UserSubscriptionManager(models.Manager):
                 else:
                     subs_params['invitee_discount'] = True
                     logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
-        cancel_result = self.terminalCancelBtSubscription(user_subs)
-        if cancel_result.is_success:
-            # return (result, new_user_subs)
-            return self.createBtSubscription(user, plan, subs_params)
-        else:
-            return (cancel_result, user_subs)
+        if user_subs.display_status == UserSubscription.UI_TRIAL:
+            cancel_result = self.terminalCancelBtSubscription(user_subs)
+            if not cancel_result.is_success:
+                logger.warning('SwitchTrialToActive: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
+                return (cancel_result, user_subs)
+        # Create new subscription. Returns (result, new_user_subs)
+        return self.createBtSubscription(user, plan, subs_params)
 
 
     def updateSubscriptionFromBt(self, user_subs, bt_subs):
@@ -1723,12 +2078,20 @@ class UserSubscriptionManager(models.Manager):
         user_subs.status = bt_subs.status
         if bt_subs.status == self.model.ACTIVE:
             today = timezone.now()
-            if (today > user_subs.billingFirstDate):
+            if (today < user_subs.billingFirstDate):
+                user_subs.display_status = self.model.UI_TRIAL
+            elif bt_subs.never_expires:
                 user_subs.display_status = self.model.UI_ACTIVE
             else:
-                user_subs.display_status = self.model.UI_TRIAL
+                if user_subs.display_status not in (self.model.UI_ACTIVE_CANCELED, self.model.UI_ACTIVE_DOWNGRADE):
+                    logger.warning('Invalid display_status for subscriptionId: {0.subcriptionId}'.format(user_subs))
         elif bt_subs.status == self.model.PASTDUE:
             user_subs.display_status = self.model.UI_SUSPENDED
+        elif bt_subs.status == self.model.CANCELED:
+            if user_subs.transactions.exists():
+                user_subs.display_status = self.model.UI_EXPIRED
+            else:
+                user_subs.display_status = self.model.UI_TRIAL_CANCELED
         startDate = bt_subs.billing_period_start_date
         endDate = bt_subs.billing_period_end_date
         if startDate:
@@ -1822,6 +2185,65 @@ class UserSubscriptionManager(models.Manager):
                 saved = True
         return saved
 
+    def completeDowngrade(self, user_subs, payment_token):
+        """This is called by a management cmd to complete the scheduled downgrade
+        subscription requested by the user.
+        It should be called when the billingCycle on the current subscription is
+        about to end (because the user has already paid for the entire cycle).
+        It terminates the current subs, and starts a new subscription using the plan
+        specified in user_subs.next_plan. It also applies any earned discounts to the
+        full price of the plan (override the first-year discount since it is no longer applicable).
+        Args:
+            user_subs: UserSubscription instance with status=UI_ACTIVE_DOWNGRADE and about to end.
+            payment_token: Payment token to use for the new subscription.
+        """
+        new_plan = user_subs.next_plan
+        if not new_plan:
+            raise ValueError('completeDowngrade: next_plan not set on user subscription {0}'.format(user_subs))
+        plan_discount = Discount.objects.get(discountType=new_plan.planId, activeForType=True)
+        bt_subs = self.findBtSubscription(user_subs.subscriptionId)
+        # get any earned discounts
+        discount = Discount.objects.get(discountType=INVITER_DISCOUNT_TYPE, activeForType=True)
+        # value will be used to override the default plan first-year discount
+        discount_amount = 0 # default of 0 means: user will be charged full price (override first-year discount)
+        for d in bt_subs.discounts:
+            if d.id == discount.discountId:
+                discount_amount = discount.amount*d.quantity
+                break
+        logger.debug('completeDowngrade discount amount: {0}'.format(discount_amount))
+        # cancel old user_subs
+        cancel_result = self.terminalCancelBtSubscription(user_subs)
+        if not cancel_result.is_success:
+            if cancel_result.message == self.model.RESULT_ALREADY_CANCELED:
+                logger.info('completeDowngrade: existing bt_subs already canceled for: {0}'.format(user_subs))
+                self.updateSubscriptionFromBt(user_subs, bt_subs)
+            else:
+                logger.warning('completeDowngrade: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
+                return (cancel_result, user_subs)
+        # start new user_subs
+        subs_params = {
+            'plan_id': new_plan.planId,
+            'trial_duration': 0,
+            'payment_method_token': payment_token,
+            'discounts': {
+                'update': [
+                    {
+                        'existing_id': plan_discount.discountId,
+                        'amount': discount_amount.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+                    }
+                ]
+            }
+        }
+        result = braintree.Subscription.create(subs_params)
+        if result.is_success:
+            logger.info('completeDowngrade result: {0.is_success}'.format(result))
+            new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
+            return (result, new_user_subs)
+        else:
+            logger.warning('completeDowngrade result: {0.is_success}'.format(result))
+            return (result, None)
+
+
     def updateLatestUserSubsAndTransactions(self, user):
         """Get the latest UserSubscription for the given user
         from the local db and update it from BT. Also update
@@ -1873,6 +2295,7 @@ class UserSubscription(models.Model):
     UI_TRIAL = 'Trial'
     UI_ACTIVE = 'Active'
     UI_ACTIVE_CANCELED = 'Active-Canceled'
+    UI_ACTIVE_DOWNGRADE = 'Active-Downgrade-Scheduled'
     UI_TRIAL_CANCELED = 'Trial-Canceled'
     UI_SUSPENDED = 'Suspended'
     UI_EXPIRED = 'Expired'
@@ -1882,8 +2305,10 @@ class UserSubscription(models.Model):
         (UI_ACTIVE_CANCELED, UI_ACTIVE_CANCELED),
         (UI_SUSPENDED, UI_SUSPENDED),
         (UI_EXPIRED, UI_EXPIRED),
-        (UI_TRIAL_CANCELED, UI_TRIAL_CANCELED)
+        (UI_TRIAL_CANCELED, UI_TRIAL_CANCELED),
+        (UI_ACTIVE_DOWNGRADE, UI_ACTIVE_DOWNGRADE),
     )
+    RESULT_ALREADY_CANCELED = 'Subscription has already been canceled.'
     # fields
     subscriptionId = models.CharField(max_length=36, unique=True)
     user = models.ForeignKey(User,
@@ -1910,13 +2335,50 @@ class UserSubscription(models.Model):
         decimal_places=2,
         default=0,
         help_text=' BT next_billing_period_amount in USD')
-    remindRenewSent = models.BooleanField(default=False, help_text='set to True upon sending of auto-renewal reminder via email')
+    next_plan = models.ForeignKey(SubscriptionPlan,
+        on_delete=models.CASCADE,
+        db_index=True,
+        null=True,
+        default=None,
+        help_text='Used to store plan for pending downgrade'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = UserSubscriptionManager()
 
     def __str__(self):
         return self.subscriptionId
+
+class SubscriptionEmailManager(models.Manager):
+    def getOrCreate(self, user_subs):
+        """Get or create model instance for (user_subs, user_subs.billingCycle)
+        Returns tuple (model instance, created:bool)
+        """
+        return self.model.objects.get_or_create(
+                subscription=user_subs,
+                billingCycle=user_subs.billingCycle)
+
+
+@python_2_unicode_compatible
+class SubscriptionEmail(models.Model):
+    """Used to keep track of reminder emails sent for renewal and other notices per billingCycle"""
+    subscription = models.ForeignKey(UserSubscription,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='subscriptionemails',
+    )
+    billingCycle = models.PositiveIntegerField()
+    remind_renew_sent = models.BooleanField(default=False, help_text='set to True upon sending of renewal reminder email')
+    expire_alert_sent = models.BooleanField(default=False, help_text='set to True upon sending of card expiry alert email')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = SubscriptionEmailManager()
+
+    class Meta:
+        unique_together = ('subscription', 'billingCycle')
+
+    def __str__(self):
+        return '{0.subscription.subscriptionId}|{0.billingCycle}|{0.remind_renew_sent}'.format(self)
 
 
 class SubscriptionTransactionManager(models.Manager):

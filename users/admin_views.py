@@ -5,7 +5,7 @@ from rest_framework.pagination import PageNumberPagination
 from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # app
 from .models import *
-from .serializers import CmeTagSerializer, DegreeSerializer, CountrySerializer, PracticeSpecialtyListSerializer
+from .serializers import ProfileCmetagSerializer, DegreeSerializer, PracticeSpecialtyListSerializer
 
 class ReadProfileListSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id')
@@ -25,10 +25,10 @@ class ReadProfileListSerializer(serializers.ModelSerializer):
 class ReadProfileDetailSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id')
     email = serializers.EmailField(source='user.email')
-    cmeTags = CmeTagSerializer(many=True)
+    cmeTags = serializers.SerializerMethodField()
     degrees = DegreeSerializer(many=True)
     specialties = PracticeSpecialtyListSerializer(many=True)
-    country = CountrySerializer()
+    country = serializers.StringRelatedField()
     subscriptionStatus = serializers.SerializerMethodField()
 
     def get_subscriptionStatus(self, obj):
@@ -37,6 +37,10 @@ class ReadProfileDetailSerializer(serializers.ModelSerializer):
         if user_subs:
             return user_subs.display_status
         return 'No Subscription'
+
+    def get_cmeTags(self, obj):
+        qset = ProfileCmetag.objects.filter(profile=obj)
+        return [ProfileCmetagSerializer(m).data for m in qset]
 
     class Meta:
         model = Profile
@@ -82,9 +86,11 @@ class ReadOfferSerializer(serializers.ModelSerializer):
             'id',
             'userId',
             'activityDate',
+            'expireDate',
             'url',
             'suggestedDescr',
-            'cmeTags'
+            'cmeTags',
+            'valid'
         )
         read_only_fields = fields
 
@@ -99,6 +105,7 @@ class UserOfferList(generics.ListAPIView):
         return BrowserCmeOffer.objects.filter(
             user=userid,
             expireDate__gt=now,
+            valid=True,
             redeemed=False
             ).order_by('-modified')
 
@@ -130,6 +137,22 @@ class NotificationSubSerializer(serializers.ModelSerializer):
         fields = ('expireDate',)
         read_only_fields = fields
 
+class StoryCmeSubSerializer(serializers.ModelSerializer):
+    story = serializers.PrimaryKeyRelatedField(read_only=True)
+    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
+    url = serializers.ReadOnlyField()
+    title = serializers.ReadOnlyField()
+
+    class Meta:
+        model = StoryCme
+        fields = (
+            'story',
+            'credits',
+            'url',
+            'title'
+        )
+
+
 class ReadFeedSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id')
     entryType = serializers.StringRelatedField()
@@ -140,10 +163,12 @@ class ReadFeedSerializer(serializers.ModelSerializer):
 
     def get_extra(self, obj):
         etype = obj.entryType.name
-        if etype == ENTRYTYPE_SRCME:
-            s = SRCmeSubSerializer(obj.srcme)
-        elif etype == ENTRYTYPE_BRCME:
+        if etype == ENTRYTYPE_BRCME:
             s = BRCmeSubSerializer(obj.brcme)
+        elif etype == ENTRYTYPE_SRCME:
+            s = SRCmeSubSerializer(obj.srcme)
+        elif etype == ENTRYTYPE_STORY_CME:
+            s = StoryCmeSubSerializer(obj.storycme)
         else:
             s = NotificationSubSerializer(obj.notification)
         return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>

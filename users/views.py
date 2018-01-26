@@ -5,7 +5,6 @@ import logging
 from operator import itemgetter
 from urlparse import urlparse
 from smtplib import SMTPException
-
 import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -28,7 +27,7 @@ from common.logutils import *
 from .models import *
 from .serializers import *
 from .permissions import *
-from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate
+from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate, MDStoryCertificate, NurseStoryCertificate
 
 logger = logging.getLogger('api.views')
 
@@ -327,11 +326,34 @@ class UserStateLicenseList(generics.ListCreateAPIView):
         return StateLicense.objects.filter(user=user)
 
     def perform_create(self, serializer, format=None):
-        """At present time, only RN StateLicense is supported"""
+        """At present time, only RN StateLicense is supported
+        Note: In order to handle unique constraint on ('user','state','license_type','license_no'), caller must instantiate serializer with the instance if the constraint already exists. In this case, the serializer.save will update the existing instance.
+        """
         user = self.request.user
         lt = LicenseType.objects.get(name='RN')
         instance = serializer.save(user=user, license_type=lt)
         return instance
+
+    def create(self, request, *args, **kwargs):
+        """Override create to handle unique constraint on StateLicense model."""
+        form_data = request.data.copy()
+        serializer = self.get_serializer(data=form_data)
+        serializer.is_valid(raise_exception=True)
+        lt = LicenseType.objects.get(name='RN')
+        # check if unique constraint already exists
+        qset = StateLicense.objects.filter(
+                user=request.user,
+                license_type=lt,
+                state_id=form_data['state'],
+                license_no=form_data['license_no']
+            )
+        if qset.exists():
+            m = qset[0]
+            logDebug(logger, request, 'Update existing statelicense {0.pk}'.format(m))
+            serializer = self.get_serializer(instance=m, data=form_data)
+            serializer.is_valid(raise_exception=True)
+        instance = self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class UserStateLicenseDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = StateLicense.objects.all()
@@ -778,6 +800,30 @@ class PinnedMessageDetail(APIView):
         return self.serialize_and_render(message)
 
 
+class StoryDetail(APIView):
+    """Finds the latest non-expired Story and returns the info with the launch_url customized for the user.
+    Value is None if none exists.
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def serialize_and_render(self, user_id, story):
+        context = {'story': None}
+        if story:
+            s = StorySerializer(story)
+            context['story'] = s.data
+            context['story']['launch_url'] += "={0}".format(user_id)
+        return Response(context, status=status.HTTP_200_OK)
+
+    def get(self, request, format=None):
+        story = None
+        user_id = request.user.profile.getAuth0Id()
+        now = timezone.now()
+        qset = Story.objects.filter(startDate__lte=now, endDate__gt=now).order_by('-created')
+        if qset.exists():
+            story = qset[0]
+        return self.serialize_and_render(user_id, story)
+
+
 # User Feedback
 class UserFeedbackList(generics.ListCreateAPIView):
     serializer_class = UserFeedbackSerializer
@@ -896,30 +942,29 @@ class CmeAggregateStats(APIView):
             message = context['error'] + ': ' + start + ' - ' + end
             logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            profile = Profile.objects.get(user=request.user)
-        except Profile.DoesNotExist:
-            context = {
-                'error': 'Invalid user. No profile found.'
-            }
-            logWarning(logger, request, context['error'])
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        user_tags = profile.cmeTags.all()
+        user = request.user
+        user_tags = user.profile.cmeTags.all()
         satag = CmeTag.objects.get(name=CMETAG_SACME)
+        story_total = Entry.objects.sumStoryCme(user, startdt, enddt)
         stats = {
             ENTRYTYPE_BRCME: {
-                'total': Entry.objects.sumBrowserCme(request.user, startdt, enddt),
-                'Untagged': Entry.objects.sumBrowserCme(request.user, startdt, enddt, untaggedOnly=True)
+                'total': Entry.objects.sumBrowserCme(user, startdt, enddt),
+                'Untagged': Entry.objects.sumBrowserCme(user, startdt, enddt, untaggedOnly=True)
             },
             ENTRYTYPE_SRCME: {
-                'total': Entry.objects.sumSRCme(request.user, startdt, enddt),
-                'Untagged': Entry.objects.sumSRCme(request.user, startdt, enddt, untaggedOnly=True),
-                satag.name: Entry.objects.sumSRCme(request.user, startdt, enddt, satag)
+                'total': Entry.objects.sumSRCme(user, startdt, enddt),
+                'Untagged': Entry.objects.sumSRCme(user, startdt, enddt, untaggedOnly=True),
+                satag.name: Entry.objects.sumSRCme(user, startdt, enddt, satag)
+            },
+            ENTRYTYPE_STORY_CME: {
+                'total': story_total,
+                satag.name: story_total
             }
         }
         for tag in user_tags:
-            stats[ENTRYTYPE_BRCME][tag.name] = Entry.objects.sumBrowserCme(request.user, startdt, enddt, tag)
-            stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(request.user, startdt, enddt, tag)
+            stats[ENTRYTYPE_BRCME][tag.name] = Entry.objects.sumBrowserCme(user, startdt, enddt, tag)
+            stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(user, startdt, enddt, tag)
+            stats[ENTRYTYPE_STORY_CME][tag.name] = 0 # for mvp storycme are only tagged with SA-CME
         return self.serialize_and_render(stats)
 
 #
@@ -930,8 +975,9 @@ class CertificateMixin(object):
     to S3 and save model instance.
     Returns: Certificate instance
     """
-    def makeCertificate(self, profile, startdt, enddt, cmeTotal, tag=None, state_license=None):
+    def makeCertificate(self, certClass, profile, startdt, enddt, cmeTotal, tag=None, state_license=None):
         """
+        certClass: Certificate class to instantiate (MDCertificate/NurseCertificate/MDStoryCertificate/etc)
         profile: Profile instance for user
         startdt: datetime - startDate
         enddt: datetime - endDate
@@ -960,10 +1006,10 @@ class CertificateMixin(object):
         hashgen = Hashids(salt=settings.HASHIDS_SALT, min_length=10)
         certificate.referenceId = hashgen.encode(certificate.pk)
         if profile.isNurse() and certificate.state_license is not None:
-            certGenerator = NurseCertificate(certificate)
+            certGenerator = certClass(certificate)
         else:
             isVerified = any(d.isVerifiedForCme() for d in degrees)
-            certGenerator = MDCertificate(certificate, isVerified)
+            certGenerator = certClass(certificate, isVerified)
         certGenerator.makeCmeCertOverlay()
         output = certGenerator.makeCmeCertificate() # str
         cf = ContentFile(output) # Create a ContentFile from the output
@@ -1022,9 +1068,11 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # 2017-11-14: if user is Nurse, get state license
         state_license = None
+        certClass = MDCertificate
         if profile.isNurse() and user.statelicenses.exists():
             state_license = user.statelicenses.all()[0]
-        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, state_license=state_license)
+            certClass = NurseCertificate
+        certificate = self.makeCertificate(certClass, profile, startdt, enddt, cmeTotal, state_license=state_license)
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -1072,7 +1120,7 @@ class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         try:
             tag = CmeTag.objects.get(pk=tag_id)
-        except Profile.DoesNotExist:
+        except CmeTag.DoesNotExist:
             context = {
                 'error': 'Invalid tag id'
             }
@@ -1091,9 +1139,69 @@ class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # 2017-11-14: if user is Nurse, get state license
         state_license = None
+        certClass = MDCertificate
         if profile.isNurse() and user.statelicenses.exists():
             state_license = user.statelicenses.all()[0]
-        certificate = self.makeCertificate(profile, startdt, enddt, cmeTotal, tag, state_license=state_license)
+            certClass = NurseCertificate
+        certificate = self.makeCertificate(certClass, profile, startdt, enddt, cmeTotal, tag, state_license=state_license)
+        out_serializer = CertificateReadSerializer(certificate)
+        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CreateStoryCmeCertificatePdf(CertificateMixin, APIView):
+    """
+    This view expects a start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1).
+    It calculates the total Story-Cme credits for the given date range and request.user.
+    It generates certificate PDF file, and uploads it to S3.
+
+    parameters:
+        - name: start
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: end
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    def post(self, request, start, end):
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+            if startdt >= enddt:
+                context = {
+                    'error': 'Start date must be prior to End Date.'
+                }
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        profile = user.profile
+        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        # get cme credits earned by user in date range for selected tag
+        cmeTotal = Entry.objects.sumStoryCme(user, startdt, enddt)
+        if cmeTotal == 0:
+            context = {
+                'error': 'No Orbit Story CME credits earned in this date range.',
+            }
+            logInfo(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # if user is Nurse, get state license
+        state_license = None
+        certClass = MDStoryCertificate
+        if profile.isNurse() and user.statelicenses.exists():
+            state_license = user.statelicenses.all()[0]
+            certClass = NurseStoryCertificate
+        certificate = self.makeCertificate(certClass, profile, startdt, enddt, cmeTotal, satag, state_license=state_license)
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -1223,7 +1331,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             'id': m.pk,
             'entryType': m.entryType.name,
             'date': calendar.timegm(m.activityDate.timetuple()),
-            'credit': float(m.srcme.credits),
+            'credit': float(m.getCredits()),
             'creditType': m.formatCreditType(),
             'tags': m.formatNonSATags(),
             'authority': m.getCertifyingAuthority(),

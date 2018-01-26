@@ -393,6 +393,22 @@ class BRCmeSubSerializer(serializers.ModelSerializer):
             'planEffect'
         )
 
+# intended to be used by SerializerMethodField on EntrySerializer
+class StoryCmeSubSerializer(serializers.ModelSerializer):
+    story = serializers.PrimaryKeyRelatedField(read_only=True)
+    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
+    url = serializers.ReadOnlyField()
+    title = serializers.ReadOnlyField()
+
+    class Meta:
+        model = StoryCme
+        fields = (
+            'story',
+            'credits',
+            'url',
+            'title'
+        )
+
 
 class DocumentReadSerializer(serializers.ModelSerializer):
     url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
@@ -459,10 +475,12 @@ class EntryReadSerializer(serializers.ModelSerializer):
 
     def get_extra(self, obj):
         etype = obj.entryType.name
-        if etype == ENTRYTYPE_SRCME:
-            s = SRCmeSubSerializer(obj.srcme)
-        elif etype == ENTRYTYPE_BRCME:
+        if etype == ENTRYTYPE_BRCME:
             s = BRCmeSubSerializer(obj.brcme)
+        elif etype == ENTRYTYPE_SRCME:
+            s = SRCmeSubSerializer(obj.srcme)
+        elif etype == ENTRYTYPE_STORY_CME:
+            s = StoryCmeSubSerializer(obj.storycme)
         else:
             s = NotificationSubSerializer(obj.notification)
         return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>
@@ -901,15 +919,65 @@ class CreateUserSubsSerializer(serializers.Serializer):
             'convertee_discount': convertee_discount
         }
         key = 'trial_duration'
-        if key in validated_data:
-            subs_params[key] = validated_data[key]
-        # Create the subscription and transaction record (transaction is handle from by perform_create)
-        return UserSubscription.objects.createBtSubscription(user, plan, subs_params)
+        test_code = user.profile.isForTestTransaction()
+        if not test_code:
+            if key in validated_data:
+                subs_params[key] = validated_data[key]
+            return UserSubscription.objects.createBtSubscription(user, plan, subs_params)
+        else:
+            # user is designated for testing payment transactions
+            subs_params[key] = 1 # needed in order to test PASTDUE
+            subs_params['code'] = test_code
+            subs_params.pop('invitee_discount')
+            subs_params.pop('convertee_discount')
+            return UserSubscription.objects.createBtSubscriptionWithTestAmount(user, plan, subs_params)
 
 
+class UpgradePlanSerializer(serializers.Serializer):
+    plan = serializers.PrimaryKeyRelatedField(
+        queryset=SubscriptionPlan.objects.all())
+    payment_method_token = serializers.CharField(max_length=64)
 
-PINNED_MESSAGE_LABEL = 'Self-Assessed CME'
+    def save(self, **kwargs):
+        """This expects user_subs passed into kwargs for the existing
+        UserSubscription to be canceled.
+        It calls UserSusbscription manager method upgradePlan.
+        Returns: tuple (result object, UserSubscription instance)
+        """
+        user_subs = kwargs['user_subs'] # existing user_subs on old plan
+        validated_data = self.validated_data
+        plan = validated_data['plan']
+        payment_method_token = validated_data['payment_method_token']
+        return UserSubscription.objects.upgradePlan(user_subs, plan, payment_method_token)
 
+
+SACME_LABEL = 'Self-Assessed CME'
+
+class StorySerializer(serializers.ModelSerializer):
+    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
+    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
+    displayLabel = serializers.SerializerMethodField()
+
+    def get_displayLabel(self, obj):
+        return SACME_LABEL
+
+    class Meta:
+        model = Story
+        fields = (
+            'id',
+            'title',
+            'description',
+            'startDate',
+            'expireDate',
+            'launch_url',
+            'sponsor',
+            'logo_url',
+            'displayLabel'
+        )
+
+
+# Note: this will not be used for Orbit Stories as it has been superseded by the Story model.
+# It will be changed at a later date to be used for personalized PinnedMessages.
 class PinnedMessageSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -917,7 +985,7 @@ class PinnedMessageSerializer(serializers.ModelSerializer):
     displayLabel = serializers.SerializerMethodField()
 
     def get_displayLabel(self, obj):
-        return PINNED_MESSAGE_LABEL
+        return SACME_LABEL
 
     class Meta:
         model = PinnedMessage
@@ -1028,8 +1096,11 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
         return obj.user.profile.formatDegrees()
 
     def get_statelicense(self, obj):
+        """2017-12-20: Add isNurse if condition since we currently
+        only support Nurse statelicenses.
+        """
         user = obj.user
-        if user.statelicenses.exists():
+        if user.profile.isNurse() and user.statelicenses.exists():
             s =  StateLicenseSubSerializer(user.statelicenses.all()[0])
             return s.data
         return None

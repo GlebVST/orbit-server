@@ -15,7 +15,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 # proj
 from common.logutils import *
-import common.appconstants as appconstants
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
@@ -102,27 +101,6 @@ def serialize_customer(customer):
         'customerId': customer.customerId
     }
 
-def serialize_permissions(user, user_subs):
-    """
-    user_subs_perms: Permission queryset of the allowed permissions for the user
-    Returns list of dicts: [{codename:str, allowed:bool}]
-    for the permissions in appconstants.ALL_PERMS.
-    """
-    allowed_codes = []
-    # get any special admin groups that user is a member of
-    for g in user.groups.all():
-        allowed_codes.extend([p.codename for p in g.permissions.all()])
-    if user_subs:
-        user_subs_perms = UserSubscription.objects.getPermissions(user_subs) # Permission queryset
-        allowed_codes.extend([p.codename for p in user_subs_perms])
-    allowed_codes = set(allowed_codes)
-    perms = [{
-            'codename': codename,
-            'allow': codename in allowed_codes
-        } for codename in appconstants.ALL_PERMS]
-    #print(perms)
-    return perms
-
 def serialize_subscription(user_subs):
     s = ReadUserSubsSerializer(user_subs)
     return s.data
@@ -165,7 +143,7 @@ def make_login_context(token, user):
     }
     context['subscription'] = serialize_subscription(user_subs) if user_subs else None
     context['allowTrial'] = user_subs is None  # allow a trial period if user has never had a subscription
-    context['permissions'] = serialize_permissions(user, user_subs)
+    context['permissions'] = UserSubscription.objects.serialize_permissions(user, user_subs)
     context['creditTypes'] = [
         dict(value=Entry.CREDIT_CATEGORY_1, label=Entry.CREDIT_CATEGORY_1_LABEL, needs_tm=True),
         dict(value=Entry.CREDIT_OTHER, label=Entry.CREDIT_OTHER_LABEL, needs_tm=False)

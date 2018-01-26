@@ -5,7 +5,7 @@ from pagedown.widgets import AdminPagedownWidget
 from .models import *
 
 class DegreeAdmin(admin.ModelAdmin):
-    list_display = ('id', 'abbrev', 'name', 'created')
+    list_display = ('id', 'abbrev', 'name', 'sort_order', 'created')
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'formatTags', 'created')
@@ -45,7 +45,7 @@ class ProfileAdmin(admin.ModelAdmin):
         return qs.prefetch_related('degrees', 'specialties')
 
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'customerId', 'created')
+    list_display = ('user', 'customerId', 'balance', 'modified')
     search_fields = ['customerId',]
 
 class AffiliateAdmin(admin.ModelAdmin):
@@ -116,6 +116,22 @@ class PinnedMessageAdmin(admin.ModelAdmin):
     ordering = ('-created',)
     form = PinnedMessageForm
 
+class StoryForm(forms.ModelForm):
+    description = forms.CharField(widget=AdminPagedownWidget())
+
+    def clean(self):
+        """Check that startDate is earlier than endDate"""
+        cleaned_data = super(StoryForm, self).clean()
+        startdate = cleaned_data.get('startDate')
+        enddate = cleaned_data.get('endDate')
+        if startdate and enddate and (startdate >= enddate):
+            self.add_error('startDate', 'StartDate must be prior to EndDate')
+
+class StoryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'startDate', 'expireDate', 'title', 'launch_url')
+    date_hierarchy = 'startDate'
+    ordering = ('-startDate',)
+    form = StoryForm
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')
@@ -160,9 +176,13 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
         'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle', 'nextBillingAmount',
         'modified')
     list_select_related = ('user','plan')
-    list_filter = ('status', 'display_status', 'remindRenewSent')
+    list_filter = ('status', 'display_status', 'plan')
     ordering = ('-modified',)
 
+class SubscriptionEmailAdmin(admin.ModelAdmin):
+    list_display = ('id', 'subscription', 'billingCycle', 'remind_renew_sent', 'expire_alert_sent')
+    list_select_related = ('subscription',)
+    ordering = ('-modified',)
 
 class SubscriptionTransactionAdmin(admin.ModelAdmin):
     list_display = ('id', 'transactionId', 'subscription', 'trans_type', 'amount', 'status', 'card_type', 'card_last4', 'receipt_sent', 'created', 'modified')
@@ -273,9 +293,11 @@ admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin_site.register(Sponsor, SponsorAdmin)
 admin_site.register(State, StateAdmin)
 admin_site.register(StateLicense, StateLicenseAdmin)
+admin_site.register(Story, StoryAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
+admin_site.register(SubscriptionEmail, SubscriptionEmailAdmin)
 admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 #
 # plugin models

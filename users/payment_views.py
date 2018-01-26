@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from common.logutils import *
 # app
 from .models import *
-from .serializers import ReadUserSubsSerializer, CreateUserSubsSerializer
+from .serializers import ReadUserSubsSerializer, CreateUserSubsSerializer, UpgradePlanSerializer
 
 TPL_DIR = 'users'
 
@@ -157,7 +157,7 @@ class NewSubscription(generics.CreateAPIView):
 
     Example when using a new payment method with a Nonce prepared on client:
         {"plan":1,"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9", "do_trial":0}
-    If a None is given, it takes precedence and will be saved to the Customer vault and converted into a token.
+    If a Nonce is given, it takes precedence and will be saved to the Customer vault and converted into a token.
     If do_trial == 0: the trial period is skipped and the subscription starts immediately.
     If do_trial == 1 (or key not present), the trial period is activated. This is the default.
     """
@@ -173,6 +173,7 @@ class NewSubscription(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         """Override method to handle custom input/output data structures"""
         # first check if user is allowed to create a new subscription
+        logDebug(logger, request, 'NewSubscription begin')
         if not UserSubscription.objects.allowNewSubscription(request.user):
             context = {
                 'success': False,
@@ -209,8 +210,25 @@ class NewSubscription(generics.CreateAPIView):
                 message = context['message'] + ' last_subscription id: {0}'.format(last_subscription.pk)
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        elif request.user.profile.inviter:
-            # User's first subscription. Check if inviter is an affiliate
+            # check pastdue
+            if last_subscription.status == UserSubscription.PASTDUE:
+                logInfo(logger, request, 'NewSubscription: cancel existing pastdue subs {0.subscriptionId}'.format(last_subscription))
+                cancel_result = UserSubscription.objects.terminalCancelBtSubscription(last_subscription)
+                if not cancel_result.is_success:
+                    if cancel_result.message == UserSubscription.RESULT_ALREADY_CANCELED:
+                        logInfo(logger, request, 'Existing bt_subs already canceled. Syncing with db.')
+                        bt_subs = UserSubscription.objects.findBtSubscription(user_subs.subscriptionId)
+                        UserSubscription.objects.updateSubscriptionFromBt(user_subs, bt_subs)
+                    else:
+                        context = {
+                            'success': False,
+                            'message': 'Cancel Suspended Subscription failed.'
+                        }
+                        message = 'NewSubscription: Cancel pastdue subs failed. Result message: {0.message}'.format(cancel_result)
+                        logError(logger, request, message)
+                        return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if request.user.profile.inviter and ((last_subscription is None) or (last_subscription.display_status == UserSubscription.UI_TRIAL_CANCELED)):
+            # Check if inviter is an affiliate
             inviter = request.user.profile.inviter
             if Affiliate.objects.filter(user=inviter).exists():
                 convertee_discount = True
@@ -218,22 +236,15 @@ class NewSubscription(generics.CreateAPIView):
                 invitee_discount = True
 
         # get local customer object and braintree customer
+        customer = request.user.customer
         try:
-            customer = Customer.objects.get(user=request.user)
             bc = Customer.objects.findBtCustomer(customer)
-        except Customer.DoesNotExist:
-            context = {
-                'success': False,
-                'message': 'Local Customer object not found for user.'
-            }
-            logError(logger, request, context['message'])
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
         except braintree.exceptions.not_found_error.NotFoundError:
             context = {
                 'success': False,
                 'message': 'BT Customer object not found.'
             }
-            message = context['message'] + ' customerId: {0}'.format(customer.customerId)
+            message = context['message'] + ' customerId: {0.customerId}'.format(customer)
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # Convert nonce into token because it is required by subs
@@ -280,6 +291,246 @@ class NewSubscription(generics.CreateAPIView):
         out_serializer = ReadUserSubsSerializer(user_subs)
         context['subscription'] = out_serializer.data
         return Response(context, status=status.HTTP_201_CREATED)
+
+
+class UpgradePlanAmount(APIView):
+    """This calculates the amount the user will be charged for upgrading to the new higher-priced plan. If user's current subscription status is not Active, the user cannot upgrade.
+    Example response
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+    def get(self, request, *args, **kwargs):
+        try:
+            new_plan = SubscriptionPlan.objects.get(pk=kwargs['plan_pk'])
+        except SubscriptionPlan.DoesNotExist:
+            context = {
+                'can_upgrade': False,
+                'message': 'Invalid Plan.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # user must have an existing subscription
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        if not user_subs:
+            context = {
+                'can_upgrade': False,
+                'message': 'No existing subscription found.'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # New plan must be an upgrade from the old plan
+        old_plan = user_subs.plan
+        if new_plan.price < old_plan.price:
+            context = {
+                'can_upgrade': False,
+                'message': 'Current subscription plan is {0.plan}.'.format(user_subs)
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.UI_SUSPENDED):
+            # For pastdue, billingDay is effectively 0 since user has not paid, and treat it the same as Trial for the calculation of owed.
+            owed = new_plan.discountPrice
+            discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+            for d in discounts:
+                owed -= d['discount'].amount
+            can_upgrade = True
+            message = ''
+            if user_subs.status == UserSubscription.UI_SUSPENDED:
+                can_upgrade = False # UI will redirect to credit card screen
+                message = 'Please enter a valid credit card for the new subscription'
+            context = {
+                'can_upgrade': can_upgrade,
+                'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+                'message': message,
+            }
+            return Response(context, status=status.HTTP_200_OK)
+        if user_subs.display_status == UserSubscription.UI_ACTIVE_DOWNGRADE:
+            # user is already in upgraded plan (can re-activate to cancel the scheduled downgrade)
+            context = {
+                'can_upgrade': True,
+                'amount': 0,
+                'message': '',
+            }
+            return Response(context, status=status.HTTP_200_OK)
+        if user_subs.status == UserSubscription.EXPIRED:
+            # user's last subscription is expired (this is the final state AFTER Active-Canceled)
+            # so they have already used up their first year (hence no proration on plan first-year discount at all).
+            owed = new_plan.price
+            context = {
+                'can_upgrade': True,
+                'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+                'message': '',
+            }
+            return Response(context, status=status.HTTP_200_OK)
+        if user_subs.status == UserSubscription.ACTIVE:
+            # user_subs.display_status is one of Active/Active-Canceled
+            now = timezone.now()
+            daysInYear = 365 if not calendar.isleap(now.year) else 366
+            td = now - user_subs.billingStartDate
+            billingDay = td.days
+            owed, discount_amount = UserSubscription.objects.getDiscountAmountForUpgrade(old_plan, new_plan, user_subs.billingCycle, billingDay, daysInYear)
+            logDebug(logger, request, 'SubscriptionId:{0.subscriptionId}|Cycle:{0.billingCycle}|Day:{1}|Owed:{2}|Discount:{3}'.format(
+                user_subs,
+                billingDay,
+                owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+                discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP)
+            ))
+            apply_earned_discount = False
+            if (user_subs.display_status == UserSubscription.UI_ACTIVE) and (old_plan.price > user_subs.nextBillingAmount):
+                # user has earned some discounts that would have been applied to the next billing cycle on their old plan
+                # (Active-Canceled users forfeited any earned discounts because they don't have a nextBillingAmount)
+                earned_discount_amount = old_plan.price - user_subs.nextBillingAmount
+                # check if can apply the earned_discount_amount right now
+                t = discount_amount + earned_discount_amount
+                if t < new_plan.price:
+                    discount_amount = t
+                    owed -= earned_discount_amount
+                    apply_earned_discount = True
+                    logDebug(logger, request, 'earned_discount_amount {0}'.format(earned_discount_amount))
+            context = {
+                'can_upgrade': True,
+                'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+                'message': '',
+                'apply_earned_discount': apply_earned_discount
+            }
+        return Response(context, status=status.HTTP_200_OK)
+
+
+class UpgradePlan(generics.CreateAPIView):
+    """Plan upgrade (means to a higher-priced plan).
+    Cancel existing subscription if necessary, and create new UserSubscription under the new plan for the user.
+    This view expects a JSON object in the POST data:
+        Example when using existing customer payment method with token obtained from Vault:
+            {"plan":3,"payment_method_token":"5wfrrp"}
+        Example when using a new payment method with a Nonce prepared on client:
+            {"plan":3,"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9"}
+    If a Nonce is given, it takes precedence and will be saved to the Customer vault and converted into a token.
+    """
+    serializer_class = UpgradePlanSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def perform_create(self, serializer, format=None):
+        with transaction.atomic():
+            result, new_user_subs = serializer.save(user_subs=self.user_subs)
+        return (result, new_user_subs)
+
+    def create(self, request, *args, **kwargs):
+        logDebug(logger, request, 'UpgradePlan begin')
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        if not user_subs:
+            # this endpoint is for upgrade only. An existing subs must exist.
+            context = {
+                'success': False,
+                'message': 'No existing subscription found.'
+            }
+            logError(logger, request, context['message'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if user_subs.status == UserSubscription.PASTDUE:
+            logInfo(logger, request, 'UpgradePlan: cancel existing pastdue subs {0.subscriptionId}'.format(user_subs))
+            cancel_result = UserSubscription.objects.terminalCancelBtSubscription(user_subs)
+            if not cancel_result.is_success:
+                if cancel_result.message == UserSubscription.RESULT_ALREADY_CANCELED:
+                    logInfo(logger, request, 'Existing bt_subs already canceled. Syncing with db.')
+                    bt_subs = UserSubscription.objects.findBtSubscription(user_subs.subscriptionId)
+                    UserSubscription.objects.updateSubscriptionFromBt(user_subs, bt_subs)
+                else:
+                    context = {
+                        'success': False,
+                        'message': 'Cancel Suspended Subscription failed.'
+                    }
+                    message = 'UpgradePlan: Cancel pastdue subs failed. Result message: {0.message}'.format(cancel_result)
+                    logError(logger, request, message)
+                    return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        self.user_subs = user_subs
+        form_data = request.data.copy()
+        logDebug(logger, request, str(form_data))
+        payment_token = form_data.get('payment_method_token', None)
+        payment_nonce = form_data.get('payment_method_nonce', None)
+        if payment_nonce:
+            # Convert nonce into token because it is required by subs
+            customer = user.customer
+            try:
+                pm_result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
+            except braintree.exceptions.not_found_error.NotFoundError:
+                context = {
+                    'success': False,
+                    'message': 'BT Customer object not found.'
+                }
+                message = context['message'] + ' customerId: {0.customerId}'.format(customer)
+                logError(logger, request, message)
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            except ValueError, e:
+                context = {
+                    'success': False,
+                    'message': str(e)
+                }
+                logException(logger, request, 'UpgradePlan addOrUpdatePaymentMethod ValueError')
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            # Get converted token
+            if not pm_result.is_success:
+                context = {
+                    'success': False,
+                    'message': 'Customer vault update failed.'
+                }
+                message = 'UpgradePlan: Customer vault update failed. Result message: {0.message}'.format(pm_result)
+                logError(logger, request, message)
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            bc = Customer.objects.findBtCustomer(customer)
+            tokens = [m.token for m in bc.payment_methods]
+            payment_token = tokens[0]
+        # update form_data for serializer
+        form_data['payment_method_token'] = payment_token
+        in_serializer = self.get_serializer(data=form_data)
+        in_serializer.is_valid(raise_exception=True)
+        result, new_user_subs = self.perform_create(in_serializer)
+        context = {'success': result.is_success}
+        if not result.is_success:
+            context['message'] = 'Upgrade Plan failed.'
+            message = 'UpgradePlan failed. Result message: {0.message}'.format(result)
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        logInfo(logger, request, 'UpgradePlan: complete for subscriptionId={0.subscriptionId}'.format(new_user_subs))
+        out_serializer = ReadUserSubsSerializer(new_user_subs)
+        context['subscription'] = out_serializer.data
+        # Return permissions b/c new_user_subs may allow different perms than prior subscription.
+        context['permissions'] = UserSubscription.objects.serialize_permissions(user, new_user_subs)
+        return Response(context, status=status.HTTP_201_CREATED)
+
+
+class DowngradePlan(APIView):
+    """
+    User is currently in Plus plan and wants to downgrade back to Standard.
+    This will take effect at the end of the current billing cycle.
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, *args, **kwargs):
+        user_subs = UserSubscription.objects.getLatestSubscription(request.user)
+        try:
+            result = UserSubscription.objects.makeActiveDowngrade(user_subs)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            context = {
+                'success': False,
+                'message': 'BT Subscription not found.'
+            }
+            message = 'DowngradePlan: BT Subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs)
+            logException(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            if not result.is_success:
+                context = {
+                    'success': False,
+                    'message': 'BT Subscription update failed.'
+                }
+                message = 'DowngradePlan failed for subscriptionId: {0.subscriptionId}. Result message: {1.message}'.format(user_subs, result)
+                logError(logger, request, message)
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                context = {
+                    'success': True,
+                    'bt_status': user_subs.status,
+                    'display_status': user_subs.display_status
+                }
+                message = 'DowngradePlan set for subscriptionId: {0.subscriptionId}.'.format(user_subs)
+                logInfo(logger, request, message)
+                return Response(context, status=status.HTTP_200_OK)
 
 
 class SwitchTrialToActive(APIView):
@@ -330,7 +581,7 @@ class SwitchTrialToActive(APIView):
 
 class CancelSubscription(APIView):
     """
-    This view expects a JSON object from the POST:
+    This view expects a JSON object in the POST data:
     {"subscription-id": BT subscriptionid to cancel}
     If the subscription Id is valid:
         If the subscription is in UI_TRIAL:
@@ -434,7 +685,7 @@ class ResumeSubscription(APIView):
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # check current status
-        if user_subs.display_status != UserSubscription.UI_ACTIVE_CANCELED:
+        if user_subs.display_status not in (UserSubscription.UI_ACTIVE_CANCELED, UserSubscription.UI_ACTIVE_DOWNGRADE):
             context = {
                 'success': False,
                 'message': 'UserSubscription status is already: ' + user_subs.display_status

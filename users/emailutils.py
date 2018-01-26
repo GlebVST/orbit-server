@@ -1,4 +1,8 @@
 from dateutil.relativedelta import *
+from datetime import timedelta
+import logging
+import premailer
+from io import StringIO
 import pytz
 from operator import itemgetter
 from django.conf import settings
@@ -9,13 +13,13 @@ from .models import *
 from pprint import pprint
 
 ROCKET_ICON = u'\U0001F680'
+REPLY_TO = settings.SUPPORT_EMAIL if settings.ENV_TYPE == settings.ENV_PROD else 'faria@orbitcme.com'
 
 def sendNewUserReportEmail(profiles, email_to):
     """Send report of new user signups. Info included:
     email, getFullNameAndDegree, npiNumber, plan_name, subscriptionId,referral
     Can raise SMTPException
     """
-    from .models import UserSubscription
     from_email = settings.EMAIL_FROM
     tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
     now = timezone.now()
@@ -117,7 +121,6 @@ def sendAfflConsolationEmail(affl, start_monyear):
         start_monyear:str e.g. October 2017
     """
     from_email = settings.EMAIL_FROM
-    reply_to = settings.SUPPORT_EMAIL
     email_to = affl.paymentEmail
     addressee = affl.user.profile.firstName
     if not addressee:
@@ -141,8 +144,8 @@ def sendAfflConsolationEmail(affl, start_monyear):
             message,
             from_email=from_email,
             to=[email_to],
-            bcc=[reply_to,],
-            reply_to=[reply_to,]
+            bcc=[REPLY_TO,],
+            reply_to=[REPLY_TO,]
         )
     msg.content_subtype = 'html'
     msg.send()
@@ -158,7 +161,6 @@ def sendAfflEarningsStatementEmail(batchPayout, affl, afp_data):
         afp_data: list of dicts [{convertee:User, amount:Decimal, created:datetime}]
     """
     from_email = settings.EMAIL_FROM
-    reply_to = settings.SUPPORT_EMAIL
     email_to = affl.paymentEmail
     start = batchPayout.created - relativedelta(months=1)
     start_monyear = start.strftime('%B %Y')
@@ -210,8 +212,8 @@ def sendAfflEarningsStatementEmail(batchPayout, affl, afp_data):
             message,
             from_email=from_email,
             to=[email_to],
-            bcc=[reply_to,],
-            reply_to=[reply_to,]
+            bcc=[REPLY_TO,],
+            reply_to=[REPLY_TO,]
         )
     msg.content_subtype = 'html'
     msg.send()
@@ -255,5 +257,47 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
     }
     message = get_template('email/affl_payout_report.html').render(ctx)
     msg = EmailMessage(subject, message, to=[email_to], from_email=from_email)
+    msg.content_subtype = 'html'
+    msg.send()
+
+
+def sendCardExpiredAlertEmail(user_subs, payment_method):
+    """Send email alert about expired card to user
+    Args:
+        user_subs: UserSubscription instance
+        payment_method:dict from Customer vault (getPaymentMethods)
+    """
+    from_email = settings.EMAIL_FROM
+    user = user_subs.user
+    email_to = user.email
+    subject = u'Heads up! Your Orbit payment method has expired'
+    if settings.ENV_TYPE != settings.ENV_PROD:
+        subject = u'[test-only] ' + subject
+    nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
+    ctx = {
+        'profile': user.profile,
+        'nextBillingDate': nextBillingDate,
+        'card_type': payment_method['type'],
+        'card_last4': payment_method['number'][-4:],
+        'expiry': payment_method['expiry'],
+        'support_email': settings.SUPPORT_EMAIL,
+        'server_hostname': settings.SERVER_HOSTNAME
+    }
+    orig_message = get_template('email/card_expired_alert.html').render(ctx)
+    # setup premailer
+    plog = StringIO()
+    phandler = logging.StreamHandler(plog)
+    p = premailer.Premailer(orig_message,
+            cssutils_logging_handler=phandler,
+            cssutils_logging_level=logging.INFO)
+    # transformed message
+    message = p.transform()
+    msg = EmailMessage(subject,
+            message,
+            from_email=from_email,
+            to=[email_to],
+            bcc=[REPLY_TO,],
+            reply_to=[REPLY_TO,]
+        )
     msg.content_subtype = 'html'
     msg.send()

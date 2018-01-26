@@ -54,12 +54,15 @@ api_patterns = [
 
     # BRAINTREE & SHOP
     url(r'^shop/client-token/?$', payment_views.GetToken.as_view(), name='get-client-token'),
-    url(r'^shop/client-methods/?$', payment_views.GetPaymentMethods.as_view(), name='get-client-payment-methods'),
-    url(r'^shop/new-subscription/?$', payment_views.NewSubscription.as_view(), name='payment-new-subscription'),
-    url(r'^shop/cancel-subscription/?$', payment_views.CancelSubscription.as_view(), name='payment-cancel-subscription'),
-    url(r'^shop/resume-subscription/?$', payment_views.ResumeSubscription.as_view(), name='payment-resume-subscription'),
-    url(r'^shop/update-token/?$', payment_views.UpdatePaymentToken.as_view(), name='payment-update-token'),
-    url(r'^shop/trial-to-active/?$', payment_views.SwitchTrialToActive.as_view(), name='payment-trial-to-active'),
+    url(r'^shop/client-methods/?$', payment_views.GetPaymentMethods.as_view(), name='shop-client-payment-methods'),
+    url(r'^shop/new-subscription/?$', payment_views.NewSubscription.as_view(), name='shop-new-subscription'),
+    url(r'^shop/cancel-subscription/?$', payment_views.CancelSubscription.as_view(), name='shop-cancel-subscription'),
+    url(r'^shop/resume-subscription/?$', payment_views.ResumeSubscription.as_view(), name='shop-resume-subscription'),
+    url(r'^shop/update-token/?$', payment_views.UpdatePaymentToken.as_view(), name='shop-update-token'),
+    url(r'^shop/trial-to-active/?$', payment_views.SwitchTrialToActive.as_view(), name='shop-trial-to-active'),
+    url(r'^shop/upgrade-plan/?$', payment_views.UpgradePlan.as_view(), name='shop-upgrade-plan'),
+    url(r'^shop/upgrade-plan-amount/(?P<plan_pk>[0-9]+)/?$', payment_views.UpgradePlanAmount.as_view(), name='shop-upgrade-plan-amount'),
+    url(r'^shop/downgrade-plan/?$', payment_views.DowngradePlan.as_view(), name='shop-downgrade-plan'),
     url(r'^shop/plans/?$', views.SubscriptionPlanList.as_view(), name='shop-plans'),
     url(r'^shop/plans-public/?$', views.SubscriptionPlanPublic.as_view(), name='shop-plan-public'),
     url(r'^shop/signup-discounts/?$', views.SignupDiscountList.as_view(), name='shop-signup-discounts'),
@@ -108,12 +111,15 @@ api_patterns = [
 
     # pinned message
     url(r'^pinned-message/?$', views.PinnedMessageDetail.as_view()),
+    # story
+    url(r'^story/?$', views.StoryDetail.as_view()),
     # user feedback (list/create)
     url(r'^feedback/?$', views.UserFeedbackList.as_view()),
     # dashboard
     url(r'^dashboard/cme-aggregate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CmeAggregateStats.as_view()),
     url(r'^dashboard/cme-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CreateCmeCertificatePdf.as_view()),
     url(r'^dashboard/cme-specialty-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/(?P<tag_id>[0-9]+)/?$', views.CreateSpecialtyCmeCertificatePdf.as_view()),
+    url(r'^dashboard/story-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CreateStoryCmeCertificatePdf.as_view()),
     url(r'^dashboard/cme-certificate/(?P<referenceId>\w+)/?$', views.AccessCmeCertificate.as_view()),
     url(r'^dashboard/audit-report/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CreateAuditReport.as_view()),
     url(r'^dashboard/audit-report/(?P<referenceId>\w+)/?$', views.AccessAuditReport.as_view()),
@@ -132,10 +138,12 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
         url(r'^debug/make-pinned-message/?$', debug_views.MakePinnedMessage.as_view()),
         url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
+        url(r'^debug/feed/storycme/?$', debug_views.MakeStoryCme.as_view()),
         url(r'^debug/email-receipt/?$', debug_views.EmailSubscriptionReceipt.as_view()),
         url(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view()),
         url(r'^debug/invitation-discount/?$', debug_views.InvitationDiscountList.as_view()),
         url(r'^debug/premail/?$', debug_views.PreEmail.as_view()),
+        url(r'^debug/email-card-expired/?$', debug_views.EmailCardExpired.as_view()),
     ])
 
 
