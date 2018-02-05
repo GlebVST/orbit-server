@@ -1272,14 +1272,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         user = request.user
-        try:
-            profile = Profile.objects.get(user=user)
-        except Profile.DoesNotExist:
-            context = {
-                'error': 'Invalid user. No profile found.'
-            }
-            logWarning(logger, request, context['error'])
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        profile = user.profile
         # get total self-reported cme credits earned by user in date range
         srCmeTotal = Entry.objects.sumSRCme(user, startdt, enddt)
         # get total Browser-cme credits earned by user in date range
@@ -1295,8 +1288,13 @@ class CreateAuditReport(CertificateMixin, APIView):
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         certificate = None
+        state_license = None
+        certClass = MDCertificate
         if browserCmeTotal > 0:
-            certificate = self.makeCertificate(profile, brcme_startdt, enddt, cmeTotal)
+            if profile.isNurse() and user.statelicenses.exists():
+                state_license = user.statelicenses.all()[0]
+                certClass = NurseCertificate
+            certificate = self.makeCertificate(certClass, profile, brcme_startdt, enddt, cmeTotal, state_license=state_license)
         report = self.makeReport(profile, startdt, enddt, certificate)
         if report is None:
             context = {

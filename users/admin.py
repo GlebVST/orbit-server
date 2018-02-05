@@ -160,7 +160,7 @@ class SignupDiscountAdmin(admin.ModelAdmin):
 
 
 class InvitationDiscountAdmin(admin.ModelAdmin):
-    list_display = ('invitee_id', 'invitee', 'inviteeDiscount', 'inviter', 'inviterDiscount', 'inviterBillingCycle', 'creditEarned', 'created')
+    list_display = ('invitee', 'inviteeDiscount', 'inviter', 'inviterDiscount', 'inviterBillingCycle', 'creditEarned', 'created')
     list_select_related = True
     list_filter = ('creditEarned',)
     ordering = ('-created',)
