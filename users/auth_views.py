@@ -72,7 +72,7 @@ def login_via_code(request):
     user_info = auth0_users.userinfo(token['access_token'])
     user_info_dict = json.loads(user_info)
     logInfo(logger, request, 'user_id: {user_id} email:{email}'.format(**user_info_dict))
-    user = authenticate(user_info=user_info_dict) # must specify the keyword user_info
+    user = authenticate(request, user_info=user_info_dict) # must specify the keyword user_info
     if user:
         auth_login(request, user)
         token = new_access_token(user)
@@ -216,7 +216,7 @@ def login_via_token(request, access_token):
     elif inviterId:
         msg += " invitedBy:{inviterId}".format(**user_info_dict)
     logInfo(logger, request, msg)
-    user = authenticate(user_info=user_info_dict) # must specify the keyword user_info
+    user = authenticate(request, user_info=user_info_dict) # must specify the keyword user_info
     if user:
         auth_login(request, user)
         token = new_access_token(user)

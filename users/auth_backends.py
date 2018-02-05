@@ -17,7 +17,7 @@ HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ12345678
 #  authenticate() now passes a request argument to the authenticate() method of authentication backends.
 #  Support for methods that dont accept request as the first positional argument will be removed in Django 2.1.
 class Auth0Backend(object):
-    def authenticate(self, user_info):
+    def authenticate(self, request, user_info):
         # check if this is an Auth0 authentication attempt
         if 'user_id' not in user_info or 'email' not in user_info:
             return None

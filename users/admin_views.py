@@ -2,7 +2,7 @@
 from django.utils import timezone
 from rest_framework import generics, exceptions, permissions, status, serializers
 from rest_framework.pagination import PageNumberPagination
-from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
+from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # app
 from .models import *
 from .serializers import ProfileCmetagSerializer, DegreeSerializer, PracticeSpecialtyListSerializer
