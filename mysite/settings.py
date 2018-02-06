@@ -129,6 +129,7 @@ AUTH0_SECRET = get_environment_variable('ORBIT_AUTH0_SECRET')
 AUTH0_DOMAIN = get_environment_variable('ORBIT_AUTH0_DOMAIN')
 
 AUTHENTICATION_BACKENDS = (
+    'users.auth_backends.ImpersonateBackend',
     'users.auth_backends.Auth0Backend',
     'django.contrib.auth.backends.ModelBackend',
 )

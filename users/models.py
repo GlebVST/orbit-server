@@ -3,7 +3,7 @@ import logging
 import braintree
 import calendar
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import *
 from decimal import Decimal, ROUND_HALF_UP
 import pytz
@@ -74,6 +74,34 @@ def asLocalTz(dt):
     Returns dt in the LOCAL_TIME_ZONE
     """
     return dt.astimezone(LOCAL_TZ)
+
+def default_expire():
+    """1 hour from now"""
+    return timezone.now() + timedelta(seconds=3600)
+
+@python_2_unicode_compatible
+class AuthImpersonation(models.Model):
+    """A way for an admin user to enable impersonate of a particular user for a fixed time period. This model is used by ImpersonateBackend."""
+    impersonator = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='impersonators',
+        limit_choices_to={'is_staff': True}
+    )
+    impersonatee = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='impersonatees'
+    )
+    expireDate = models.DateTimeField(default=default_expire)
+    valid = models.BooleanField(default=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+
+    def __str__(self):
+        return '{0.email}/{1.email}'.format(
+                self.impersonator, self.impersonatee)
 
 @python_2_unicode_compatible
 class Country(models.Model):

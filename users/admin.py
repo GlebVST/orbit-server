@@ -4,6 +4,9 @@ from django.db.models import Count
 from pagedown.widgets import AdminPagedownWidget
 from .models import *
 
+class AuthImpersonationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'impersonator', 'impersonatee', 'valid', 'expireDate')
+
 class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'sort_order', 'created')
 
@@ -270,6 +273,7 @@ admin_site = MyAdminSite()
 admin_site.register(Affiliate, AffiliateAdmin)
 admin_site.register(AffiliateDetail, AffiliateDetailAdmin)
 admin_site.register(AffiliatePayout, AffiliatePayoutAdmin)
+admin_site.register(AuthImpersonation, AuthImpersonationAdmin)
 admin_site.register(AuditReport, AuditReportAdmin)
 admin_site.register(BatchPayout, BatchPayoutAdmin)
 admin_site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)

@@ -5,7 +5,8 @@ from hashids import Hashids
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
-from .models import Profile, Customer, Affiliate, AffiliateDetail
+from django.utils import timezone
+from .models import AuthImpersonation, Profile, Customer, Affiliate, AffiliateDetail
 
 logger = logging.getLogger('gen.auth')
 HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
@@ -102,3 +103,33 @@ class Auth0Backend(object):
             return User.objects.get(pk=user_id)
         except User.DoesNotExist:
             return None
+
+
+class ImpersonateBackend(object):
+    def authenticate(self, request, user_info):
+        if 'user_id' not in user_info or 'email' not in user_info:
+            return None
+        user_id = user_info['user_id']
+        email = user_info['email']
+        try:
+            staff_user = User.objects.get(username=email) 
+        except User.DoesNotExist:
+            return None
+        if not staff_user.is_staff:
+            return None
+        # check AuthImpersonation
+        now = timezone.now()
+        qset = AuthImpersonation.objects.filter(impersonator=staff_user, expireDate__gt=now, valid=True).order_by('-expireDate')
+        if not qset.exists():
+            return None
+        m = qset[0]
+        logger.info(m)
+        return m.impersonatee
+
+    def get_user(self, user_id):
+        """Primary key identifier"""
+        try:
+            return User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return None
+
