@@ -16,7 +16,7 @@ Including another URLconf
 from django.conf.urls import url, include
 from django.conf import settings
 from django.conf.urls.static import static
-from users import views, auth_views, debug_views, payment_views, admin_views
+from users import views, auth_views, debug_views, payment_views, admin_views, ac_views
 from users.admin import admin_site
 from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
@@ -39,6 +39,10 @@ bt_patterns = [
     # display payment form (for testing only)
     url(r'^test-form/?$', payment_views.TestForm.as_view(), name='bt-test-form'),
     url(r'^test-form-checkout/?$', payment_views.TestFormCheckout.as_view(), name='bt-test-form-checkout'),
+]
+
+ac_patterns = [
+    url(r'^useremail-autocomplete/$', ac_views.UserEmailAutocomplete.as_view(), name='useremail-autocomplete'),
 ]
 
 api_patterns = [
@@ -161,6 +165,7 @@ def swagger_view(request):
 urlpatterns = [
     # api
     url(r'^api/v1/', include(api_patterns)),
+    url(r'^ac/', include(ac_patterns)),
     # Django admin interface
     url(r'^admin/', admin_site.urls),
     # Swagger

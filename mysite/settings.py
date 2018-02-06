@@ -66,6 +66,8 @@ APP_EXPIRE_SECONDS = 86400*60  # 60 days
 # Application definition
 
 INSTALLED_APPS = [
+    'dal', # django-autocomplete-light (dal)
+    'dal_select2',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
