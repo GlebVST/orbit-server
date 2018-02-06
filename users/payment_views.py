@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import generic, View
-from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
+from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 from rest_framework import generics, exceptions, permissions, status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response

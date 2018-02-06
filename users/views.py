@@ -20,7 +20,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from oauth2_provider.ext.rest_framework import TokenHasReadWriteScope, TokenHasScope
+from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
 # app

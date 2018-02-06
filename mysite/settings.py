@@ -66,6 +66,8 @@ APP_EXPIRE_SECONDS = 86400*60  # 60 days
 # Application definition
 
 INSTALLED_APPS = [
+    'dal', # django-autocomplete-light (dal)
+    'dal_select2',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -129,6 +131,7 @@ AUTH0_SECRET = get_environment_variable('ORBIT_AUTH0_SECRET')
 AUTH0_DOMAIN = get_environment_variable('ORBIT_AUTH0_DOMAIN')
 
 AUTHENTICATION_BACKENDS = (
+    'users.auth_backends.ImpersonateBackend',
     'users.auth_backends.Auth0Backend',
     'django.contrib.auth.backends.ModelBackend',
 )
@@ -142,7 +145,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         # OAuth
-        'oauth2_provider.ext.rest_framework.OAuth2Authentication',
+        'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
     )
 }
 

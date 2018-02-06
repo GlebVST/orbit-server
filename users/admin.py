@@ -2,7 +2,25 @@ from django import forms
 from django.contrib import admin
 from django.db.models import Count
 from pagedown.widgets import AdminPagedownWidget
+from dal import autocomplete
 from .models import *
+
+class AuthImpersonationForm(forms.ModelForm):
+    class Meta:
+        model = AuthImpersonation
+        fields = ('__all__')
+        widgets = {
+            'impersonatee': autocomplete.ModelSelect2(
+                url='useremail-autocomplete',
+                attrs={
+                    'data-minimum-input-length': 2
+                }
+            )
+        }
+
+class AuthImpersonationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'impersonator', 'impersonatee', 'valid', 'expireDate')
+    form = AuthImpersonationForm
 
 class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'sort_order', 'created')
@@ -270,6 +288,7 @@ admin_site = MyAdminSite()
 admin_site.register(Affiliate, AffiliateAdmin)
 admin_site.register(AffiliateDetail, AffiliateDetailAdmin)
 admin_site.register(AffiliatePayout, AffiliatePayoutAdmin)
+admin_site.register(AuthImpersonation, AuthImpersonationAdmin)
 admin_site.register(AuditReport, AuditReportAdmin)
 admin_site.register(BatchPayout, BatchPayoutAdmin)
 admin_site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
