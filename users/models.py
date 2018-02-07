@@ -15,7 +15,7 @@ from django.contrib.auth.models import User, Group
 from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Prefetch, Count, Sum
+from django.db.models import Q, Prefetch, Count, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 
@@ -62,6 +62,9 @@ LOCAL_TZ = pytz.timezone(settings.LOCAL_TIME_ZONE)
 TWO_PLACES = Decimal('.01')
 TEST_CARD_EMAIL_PATTERN = re.compile(r'testcode-(?P<code>\d+)')
 
+# Q objects
+Q_ADMIN = Q(username__in=('admin','radmin')) # django admin users not in auth0
+Q_IMPERSONATOR = Q(is_staff=True) & ~Q_ADMIN
 
 def makeAwareDatetime(a_date, tzinfo=pytz.utc):
     """Convert <date> to <datetime> with timezone info"""
@@ -86,7 +89,8 @@ class AuthImpersonation(models.Model):
         on_delete=models.CASCADE,
         db_index=True,
         related_name='impersonators',
-        limit_choices_to={'is_staff': True}
+        # staff users only (and exclude django-only admin users)
+        limit_choices_to=Q_IMPERSONATOR
     )
     impersonatee = models.ForeignKey(User,
         on_delete=models.CASCADE,
