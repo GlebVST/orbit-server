@@ -3,7 +3,14 @@ from django.contrib import admin
 from django.db.models import Count
 from pagedown.widgets import AdminPagedownWidget
 from dal import autocomplete
+from dal_admin_filters import AutocompleteFilter
 from .models import *
+
+class UserFilter(AutocompleteFilter):
+    title = 'User'
+    field_name = 'user'
+    autocomplete_url = 'useremail-autocomplete'
+
 
 class AuthImpersonationForm(forms.ModelForm):
     class Meta:
@@ -93,11 +100,14 @@ class BrowserCmeOfferAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'activityDateLocalTz', 'redeemed', 'url', 'suggestedDescr', 'valid', 'modified')
     #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
     list_select_related = ('user','eligible_site')
-    list_filter = ('redeemed','eligible_site','user','valid')
     ordering = ('-modified',)
     inlines = [
         OfferTagInline,
     ]
+    list_filter = ('redeemed','valid', UserFilter, 'eligible_site')
+
+    class Media:
+        pass
 
 
 class EntryTypeAdmin(admin.ModelAdmin):
@@ -109,11 +119,15 @@ class DocumentAdmin(admin.ModelAdmin):
 
 class EntryAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'entryType', 'activityDate', 'valid', 'description', 'created')
-    list_filter = ('entryType', 'valid', 'user')
+    list_filter = ('entryType', 'valid', UserFilter)
     list_select_related = ('user',)
     raw_id_fields = ('documents',)
     ordering = ('-created',)
     filter_horizontal = ('tags',)
+
+    class Media:
+        pass
+
 
 class EligibleSiteAdmin(admin.ModelAdmin):
     #list_display = ('id', 'domain_name', 'domain_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
@@ -153,7 +167,7 @@ class StoryAdmin(admin.ModelAdmin):
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')
-    list_filter = ('reviewed', 'hasBias', 'hasUnfairContent')
+    list_filter = ('reviewed', 'hasBias', 'hasUnfairContent', UserFilter)
     ordering = ('-created',)
     actions = ['mark_reviewed', 'clear_reviewed',]
 
@@ -166,6 +180,9 @@ class UserFeedbackAdmin(admin.ModelAdmin):
         rows_updated = queryset.update(reviewed=False)
         self.message_user(request, "Number of rows updated: %s" % rows_updated)
     clear_reviewed.short_description = "Clear reviewed flag of selected rows"
+
+    class Media:
+        pass
 
 
 class DiscountAdmin(admin.ModelAdmin):
@@ -214,14 +231,22 @@ class CertificateAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'referenceId', 'tag','name', 'startDate', 'endDate', 'credits', 'created')
     list_select_related = ('user',)
     search_fields = ['referenceId',]
-    list_filter = ('tag',)
+    list_filter = (UserFilter, 'tag')
     ordering = ('-created',)
 
+    class Media:
+        pass
+
 class AuditReportAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'referenceId', 'name', 'startDate', 'endDate', 'saCredits', 'otherCredits', 'created')
+    list_display = ('id', 'user', 'referenceId', 'name', 'startDate', 'endDate', 'created')
     list_select_related = ('user',)
+    list_filter = (UserFilter,)
     search_fields = ['referenceId',]
     ordering = ('-created',)
+
+    class Media:
+        pass
+
 
 class BatchPayoutAdmin(admin.ModelAdmin):
     list_display = ('id','sender_batch_id','payout_batch_id','status','amount','date_completed','modified')
