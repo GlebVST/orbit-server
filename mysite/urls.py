@@ -68,7 +68,7 @@ api_patterns = [
     url(r'^shop/upgrade-plan-amount/(?P<plan_pk>[0-9]+)/?$', payment_views.UpgradePlanAmount.as_view(), name='shop-upgrade-plan-amount'),
     url(r'^shop/downgrade-plan/?$', payment_views.DowngradePlan.as_view(), name='shop-downgrade-plan'),
     url(r'^shop/plans/?$', views.SubscriptionPlanList.as_view(), name='shop-plans'),
-    url(r'^shop/plans-public/?$', views.SubscriptionPlanPublic.as_view(), name='shop-plan-public'),
+    url(r'^shop/plans-public/(?P<landing_key>[a-zA-Z0-9_/\-]+)/?$', views.SubscriptionPlanPublic.as_view(), name='shop-plan-public'),
     url(r'^shop/signup-discounts/?$', views.SignupDiscountList.as_view(), name='shop-signup-discounts'),
 
     # Account and Profile-related

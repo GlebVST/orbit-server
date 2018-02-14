@@ -822,6 +822,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0.01'))
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
     displayMonthlyPrice = serializers.SerializerMethodField()
+    plan_key = serializers.PrimaryKeyRelatedField(read_only=True)
 
     def get_displayMonthlyPrice(self, obj):
         """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
@@ -832,6 +833,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'planId',
+            'plan_key',
             'name',
             'price',
             'discountPrice',
@@ -847,6 +849,7 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     displayMonthlyPrice = serializers.SerializerMethodField()
+    plan_key = serializers.StringRelatedField(read_only=True)
 
     def get_displayMonthlyPrice(self, obj):
         """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
@@ -855,6 +858,8 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionPlan
         fields = (
+            'id',
+            'plan_key',
             'name',
             'price',
             'discountPrice',

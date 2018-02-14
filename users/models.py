@@ -1517,6 +1517,30 @@ class AffiliatePayout(models.Model):
         return '{0.convertee} by {0.affiliate}/{0.status}'.format(self)
 
 
+class SubscriptionPlanKey(models.Model):
+    name = models.CharField(max_length=64, unique=True,
+            help_text='Must be unique. Must match the landing_key in the pricing page URL')
+    description = models.TextField(blank=True, default='')
+    degree = models.ForeignKey(Degree,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='plan_keys'
+    )
+    specialty = models.ForeignKey(PracticeSpecialty,
+        null=True,
+        blank=True,
+        default=None,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='plan_keys'
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
 # Recurring Billing Plans
 # https://developers.braintreepayments.com/guides/recurring-billing/plans
 # A Plan must be created in the Braintree Control Panel, and synced with the db.
@@ -1529,6 +1553,30 @@ class SubscriptionPlan(models.Model):
     billingCycleMonths = models.IntegerField(default=12, help_text='Billing Cycle in months')
     discountPrice = models.DecimalField(max_digits=6, decimal_places=2, help_text='discounted price in USD')
     active = models.BooleanField(default=True)
+    plan_key = models.ForeignKey(SubscriptionPlanKey,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='plans',
+    )
+    upgrade_plan = models.ForeignKey('self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        related_name='upgrade_plans',
+    )
+    downgrade_plan = models.ForeignKey('self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        related_name='downgrade_plans',
+    )
+    maxCmeWeek = models.IntegerField(default=0, help_text='maximum allowed CME per week')
+    maxCmeMonth = models.IntegerField(default=0, help_text='maximum allowed CME per month')
+    maxCmeYear = models.IntegerField(default=0, help_text='maximum allowed CME per year')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -1536,10 +1584,12 @@ class SubscriptionPlan(models.Model):
         return self.name
 
     def monthlyPrice(self):
-        return self.price/Decimal('12.0')
+        """returns formatted str"""
+        return "{0:.2f}".format(self.price/Decimal('12.0'))
 
     def discountMonthlyPrice(self):
-        return self.discountPrice/Decimal('12.0')
+        """returns formatted str"""
+        return "{0:.2f}".format(self.discountPrice/Decimal('12.0'))
 
 
 # User Subscription

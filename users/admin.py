@@ -201,10 +201,42 @@ class InvitationDiscountAdmin(admin.ModelAdmin):
     ordering = ('-created',)
 
 
-class SubscriptionPlanAdmin(admin.ModelAdmin):
-    list_display = ('id', 'planId', 'name', 'price', 'monthlyPrice', 'discountPrice', 'discountMonthlyPrice', 'trialDays', 'billingCycleMonths', 'active', 'modified')
+class SubscriptionPlanKeyAdmin(admin.ModelAdmin):
+    list_display = ('id','name','degree','specialty','description','created')
+    list_select_related = True
+    list_filter = ('degree','specialty')
     ordering = ('-created',)
 
+class SubscriptionPlanAdmin(admin.ModelAdmin):
+    list_display = ('id',
+        'plan_key',
+        'planId',
+        'name',
+        'price',
+        'monthlyPrice',
+        'discountPrice',
+        'discountMonthlyPrice',
+        'upgrade_plan',
+        'trialDays',
+        'modified'
+    )
+    list_select_related = True
+    list_filter = ('active', 'plan_key',)
+    ordering = ('-created',)
+    fieldsets = (
+        (None, {
+            'fields': ('plan_key','name','planId','upgrade_plan','downgrade_plan'),
+        }),
+        ('Price', {
+            'fields': ('price', 'discountPrice')
+        }),
+        ('CME', {
+            'fields': ('maxCmeWeek','maxCmeMonth','maxCmeYear')
+        }),
+        ('Other', {
+            'fields': ('trialDays','billingCycleMonths','active',)
+        })
+    )
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
@@ -340,6 +372,7 @@ admin_site.register(StateLicense, StateLicenseAdmin)
 admin_site.register(Story, StoryAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
+admin_site.register(SubscriptionPlanKey, SubscriptionPlanKeyAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
 admin_site.register(SubscriptionEmail, SubscriptionEmailAdmin)
 admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)

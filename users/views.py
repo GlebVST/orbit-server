@@ -365,11 +365,12 @@ class UserStateLicenseDetail(generics.RetrieveUpdateDestroyAPIView):
         instance = serializer.save(user=user)
         return instance
 
-# SubscriptionPlan : new payment model
+# SubscriptionPlan
 class SubscriptionPlanList(generics.ListCreateAPIView):
     queryset = SubscriptionPlan.objects.filter(active=True).order_by('created')
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
 
 class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = SubscriptionPlan.objects.all()
@@ -381,10 +382,22 @@ class SubscriptionPlanPublic(generics.ListAPIView):
     """Returns a list of available plans using the SubscriptionPlanPublicSerializer
     Note: plans in db must be in sync with the plans defined in the BT Control Panel
     """
-    queryset = SubscriptionPlan.objects.filter(active=True).order_by('created')
     serializer_class = SubscriptionPlanPublicSerializer
     permission_classes = (permissions.AllowAny,)
 
+    def get_queryset(self):
+        """Filter plans by plan_key in url"""
+        lkey = self.kwargs['landing_key']
+        if lkey.endswith('/'):
+            lkey = lkey[0:-1]
+        try:
+            plan_key = SubscriptionPlanKey.objects.get(name=lkey)
+        except SubscriptionPlanKey.DoesNotExist:
+            logWarning(logger, self.request, "Invalid key: {0}".format(lkey))
+            return SubscriptionPlan.objects.none().order_by('id')
+        else:
+            filter_kwargs = dict(active=True, plan_key=plan_key)
+            return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price')
 
 # custom pagination for BrowserCmeOfferList
 class BrowserCmeOfferPagination(PageNumberPagination):
