@@ -1300,11 +1300,24 @@ class CreateAuditReport(CertificateMixin, APIView):
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if profile.isPhysician() and not profile.isNPIComplete():
+            context = {
+                'error': 'Please update your profile with your NPI Number.'
+            }
+            logInfo(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        elif profile.isNurse() and not user.statelicenses.exists():
+            context = {
+                'error': 'Please update your profile with your State License.'
+            }
+            logInfo(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
         certificate = None
         state_license = None
         certClass = MDCertificate
         if browserCmeTotal > 0:
-            if profile.isNurse() and user.statelicenses.exists():
+            if profile.isNurse():
                 state_license = user.statelicenses.all()[0]
                 certClass = NurseCertificate
             certificate = self.makeCertificate(certClass, profile, brcme_startdt, enddt, cmeTotal, state_license=state_license)

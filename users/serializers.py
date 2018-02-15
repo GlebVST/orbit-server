@@ -158,7 +158,6 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'lastName',
             'contactEmail',
             'country',
-            'jobTitle',
             'inviteId',
             'socialId',
             'pictureUrl',
@@ -273,7 +272,6 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'lastName',
             'contactEmail',
             'country',
-            'jobTitle',
             'inviteId',
             'socialId',
             'pictureUrl',
@@ -859,6 +857,7 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
         model = SubscriptionPlan
         fields = (
             'id',
+            'planId',
             'plan_key',
             'name',
             'price',

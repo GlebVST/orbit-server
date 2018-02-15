@@ -186,6 +186,11 @@ class Degree(models.Model):
         abbrev = self.abbrev
         return abbrev == DEGREE_RN or abbrev == DEGREE_NP
 
+    def isPhysician(self):
+        """Returns True if degree is MD/DO"""
+        abbrev = self.abbrev
+        return abbrev == DEGREE_MD or abbrev == DEGREE_DO
+
     class Meta:
         ordering = ['sort_order',]
 
@@ -287,7 +292,7 @@ class Profile(models.Model):
         blank=True,
         help_text='Set during profile creation to the user whose inviteId was provided upon first login.'
     )
-    jobTitle = models.CharField(max_length=100, blank=True)
+    planId = models.CharField(max_length=36, blank=True, help_text='planId selected at signup')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
     npiLastName = models.CharField(max_length=30, blank=True, help_text='Last name from NPI Registry')
@@ -352,18 +357,9 @@ class Profile(models.Model):
 
 
     def isSignupComplete(self):
-        """Signup is complete if the following fields are populated
-            1. Country is provided
-            2. One or more PracticeSpecialty
-            3. One or more Degree (now called primaryRole in UI, and only 1 selection is currently allowed)
-            4. user has saved a UserSubscription
+        """Signup is complete if:
+            1. user has saved a UserSubscription
         """
-        if not self.country:
-            return False
-        if not self.specialties.exists():
-            return False
-        if not self.degrees.exists():
-            return False
         if not self.user.subscriptions.exists():
             return False
         return True
@@ -399,6 +395,10 @@ class Profile(models.Model):
     def isNurse(self):
         degrees = self.degrees.all()
         return any([m.isNurse() for m in degrees])
+
+    def isPhysician(self):
+        degrees = self.degrees.all()
+        return any([m.isPhysician() for m in degrees])
 
     def getActiveCmetags(self):
         """Need to query the through relation to filter by is_active=True"""
@@ -1546,12 +1546,18 @@ class SubscriptionPlanKey(models.Model):
 # A Plan must be created in the Braintree Control Panel, and synced with the db.
 @python_2_unicode_compatible
 class SubscriptionPlan(models.Model):
-    planId = models.CharField(max_length=36, unique=True)
-    name = models.CharField(max_length=80)
+    planId = models.CharField(max_length=36,
+            unique=True,
+            help_text='Unique. No whitespace. Must be in sync with the actual plan in Braintree')
+    name = models.CharField(max_length=80,
+            help_text='Display name (e.g. NP Standard)')
     price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
-    trialDays = models.IntegerField(default=0, help_text='Trial period in days')
-    billingCycleMonths = models.IntegerField(default=12, help_text='Billing Cycle in months')
-    discountPrice = models.DecimalField(max_digits=6, decimal_places=2, help_text='discounted price in USD')
+    trialDays = models.IntegerField(default=7,
+            help_text='Trial period in days')
+    billingCycleMonths = models.IntegerField(default=12,
+            help_text='Billing Cycle in months')
+    discountPrice = models.DecimalField(max_digits=6, decimal_places=2,
+            help_text='discounted price in USD')
     active = models.BooleanField(default=True)
     plan_key = models.ForeignKey(SubscriptionPlanKey,
         null=True,
