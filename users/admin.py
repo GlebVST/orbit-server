@@ -237,12 +237,11 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'plan_key',
         'planId',
         'name',
+        'display_name',
         'price',
         'monthlyPrice',
         'discountPrice',
         'discountMonthlyPrice',
-        'upgrade_plan',
-        'modified'
     )
     list_select_related = True
     list_filter = ('active', 'plan_key',)
@@ -250,7 +249,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     form = PlanForm
     fieldsets = (
         (None, {
-            'fields': ('plan_key','name','upgrade_plan','downgrade_plan'),
+            'fields': ('plan_key','name','display_name', 'upgrade_plan','downgrade_plan'),
         }),
         ('Price', {
             'fields': ('price', 'discountPrice')

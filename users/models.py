@@ -1549,6 +1549,7 @@ class SubscriptionPlanManager(models.Manager):
         """
         HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyz1234567890' # lowercase + digits
         SALT = 'SubscriptionPlan'
+        MAX_NAME_LENGTH = 32
         cursor = connection.cursor()
         cursor.execute("select nextval('users_subscriptionplan_id_seq')")
         result = cursor.fetchone()
@@ -1561,6 +1562,8 @@ class SubscriptionPlanManager(models.Manager):
         )
         hash_pk = hashgen.encode(next_pk)
         cleaned_name = '-'.join(name.strip().lower().split())
+        if len(cleaned_name) > MAX_NAME_LENGTH:
+            cleaned_name = cleaned_name[0:MAX_NAME_LENGTH]
         return cleaned_name + '-{0}'.format(hash_pk)
 
 
@@ -1573,7 +1576,9 @@ class SubscriptionPlan(models.Model):
             unique=True,
             help_text='Unique. No whitespace. Must be in sync with the actual plan in Braintree')
     name = models.CharField(max_length=80,
-            help_text='Display name (e.g. NP Standard)')
+            help_text='Internal Plan name (alphanumeric only). Must match value in Braintree. Will be used to set planId.')
+    display_name = models.CharField(max_length=40,
+            help_text='Display name - what the user sees (e.g. Standard).')
     price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
     trialDays = models.IntegerField(default=7,
             help_text='Trial period in days')
