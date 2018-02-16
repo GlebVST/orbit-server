@@ -194,7 +194,7 @@ def login_via_token(request, access_token):
     """
     This view expects an auth0 access_token parameter as part of the URL.
     Server logs in the user, and returns user info, and internal access_token.
-
+    2018-02-14: For new user signup, this expects GET parameter 'plan' which contains a valid planId.
     parameters:
         - name: access_token
           description: auth0 access token obtained via external means like Javascript SDK
@@ -205,9 +205,21 @@ def login_via_token(request, access_token):
     remote_addr = request.META.get('REMOTE_ADDR')
     inviterId = request.GET.get('inviteid') # if present, this is the inviteId of the inviter
     affiliateId = request.GET.get('affid') # if present, this is the affiliateId of the converter
+    planId = request.GET.get('plan')
+    if planId:
+        try:
+            plan = SubscriptionPlan.objects.get(planId=planId)
+        except SubscriptionPlan.DoesNotExist:
+            context = {
+                'success': False,
+                'message': 'User authentication failed. Invalid plan.'
+            }
+            logWarning(logger, request, msg)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
     auth0_users = Users(settings.AUTH0_DOMAIN)
     user_info = auth0_users.userinfo(access_token) # return str as json
     user_info_dict = json.loads(user_info) # create dict
+    user_info_dict['planId'] = planId
     user_info_dict['inviterId'] = inviterId
     user_info_dict['affiliateId'] = affiliateId
     msg = 'user_id:{user_id} email:{email} v:{email_verified}'.format(**user_info_dict)

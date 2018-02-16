@@ -150,13 +150,13 @@ class UpdatePaymentToken(APIView):
 
 
 class NewSubscription(generics.CreateAPIView):
-    """Create new subscription for the user
+    """Create first-time subscription for the user
     This view expects a JSON object in the POST data:
     Example when using existing customer payment method with token obtained from Vault:
-        {"plan":1,"payment_method_token":"5wfrrp", "do_trial":0}
+        {"payment_method_token":"5wfrrp", "do_trial":0}
 
     Example when using a new payment method with a Nonce prepared on client:
-        {"plan":1,"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9", "do_trial":0}
+        {"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9", "do_trial":0}
     If a Nonce is given, it takes precedence and will be saved to the Customer vault and converted into a token.
     If do_trial == 0: the trial period is skipped and the subscription starts immediately.
     If do_trial == 1 (or key not present), the trial period is activated. This is the default.
@@ -174,6 +174,7 @@ class NewSubscription(generics.CreateAPIView):
         """Override method to handle custom input/output data structures"""
         # first check if user is allowed to create a new subscription
         logDebug(logger, request, 'NewSubscription begin')
+        profile = request.user.profile
         if not UserSubscription.objects.allowNewSubscription(request.user):
             context = {
                 'success': False,
@@ -227,10 +228,9 @@ class NewSubscription(generics.CreateAPIView):
                         message = 'NewSubscription: Cancel pastdue subs failed. Result message: {0.message}'.format(cancel_result)
                         logError(logger, request, message)
                         return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        if request.user.profile.inviter and ((last_subscription is None) or (last_subscription.display_status == UserSubscription.UI_TRIAL_CANCELED)):
+        if profile.inviter and ((last_subscription is None) or (last_subscription.display_status == UserSubscription.UI_TRIAL_CANCELED)):
             # Check if inviter is an affiliate
-            inviter = request.user.profile.inviter
-            if Affiliate.objects.filter(user=inviter).exists():
+            if Affiliate.objects.filter(user=profile.inviter).exists():
                 convertee_discount = True
             else:
                 invitee_discount = True
@@ -277,6 +277,8 @@ class NewSubscription(generics.CreateAPIView):
         form_data['convertee_discount'] = convertee_discount
         if not do_trial:
             form_data['trial_duration'] = 0 # 0 days of trial. Subs starts immediately
+        # set plan from profile.planId
+        form_data['plan'] = SubscriptionPlan.objects.get(planId=profile.planId)
         logDebug(logger, request, str(form_data))
         in_serializer = self.get_serializer(data=form_data)
         in_serializer.is_valid(raise_exception=True)

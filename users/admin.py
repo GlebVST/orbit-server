@@ -151,6 +151,10 @@ class PinnedMessageAdmin(admin.ModelAdmin):
 class StoryForm(forms.ModelForm):
     description = forms.CharField(widget=AdminPagedownWidget())
 
+    class Meta:
+        model = Story
+        fields = ('__all__')
+
     def clean(self):
         """Check that startDate is earlier than endDate"""
         cleaned_data = super(StoryForm, self).clean()
@@ -207,6 +211,27 @@ class SubscriptionPlanKeyAdmin(admin.ModelAdmin):
     list_filter = ('degree','specialty')
     ordering = ('-created',)
 
+class PlanForm(forms.ModelForm):
+
+    class Meta:
+        model = SubscriptionPlan
+        exclude = (
+            'planId',
+            'created',
+            'modified'
+        )
+
+    def save(self, commit=True):
+        """Auto assign planId based on plan name and hashid of next id"""
+        m = super(PlanForm, self).save(commit=False)
+        if not m.planId:
+            #hyphen_name = '-'.join(m.name.strip().lower().split())
+            #m.planId = hyphen_name + '-xkcd'
+            m.planId = SubscriptionPlan.objects.makePlanId(m.name)
+            #print(m.planId)
+        m.save()
+        return m
+
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ('id',
         'plan_key',
@@ -217,15 +242,15 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'discountPrice',
         'discountMonthlyPrice',
         'upgrade_plan',
-        'trialDays',
         'modified'
     )
     list_select_related = True
     list_filter = ('active', 'plan_key',)
-    ordering = ('-created',)
+    ordering = ('plan_key__name','price')
+    form = PlanForm
     fieldsets = (
         (None, {
-            'fields': ('plan_key','name','planId','upgrade_plan','downgrade_plan'),
+            'fields': ('plan_key','name','upgrade_plan','downgrade_plan'),
         }),
         ('Price', {
             'fields': ('price', 'discountPrice')

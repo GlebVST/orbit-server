@@ -6,6 +6,7 @@ from collections import namedtuple
 from datetime import datetime, timedelta
 from dateutil.relativedelta import *
 from decimal import Decimal, ROUND_HALF_UP
+from hashids import Hashids
 import pytz
 import re
 import uuid
@@ -14,7 +15,7 @@ from django.conf import settings
 from django.contrib.auth.models import User, Group
 from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, connection
 from django.db.models import Q, Prefetch, Count, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
@@ -1541,6 +1542,28 @@ class SubscriptionPlanKey(models.Model):
         return self.name
 
 
+class SubscriptionPlanManager(models.Manager):
+    def makePlanId(self, name):
+        """Create a planId based on name and hashid of next pk
+        This is only by Admin interface to auto-set planId.
+        """
+        HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyz1234567890' # lowercase + digits
+        SALT = 'SubscriptionPlan'
+        cursor = connection.cursor()
+        cursor.execute("select nextval('users_subscriptionplan_id_seq')")
+        result = cursor.fetchone()
+        next_pk = result[0]+1
+        #print('next_pk: {0}'.format(next_pk))
+        hashgen = Hashids(
+            salt=SALT,
+            alphabet=HASHIDS_ALPHABET,
+            min_length=4
+        )
+        hash_pk = hashgen.encode(next_pk)
+        cleaned_name = '-'.join(name.strip().lower().split())
+        return cleaned_name + '-{0}'.format(hash_pk)
+
+
 # Recurring Billing Plans
 # https://developers.braintreepayments.com/guides/recurring-billing/plans
 # A Plan must be created in the Braintree Control Panel, and synced with the db.
@@ -1585,6 +1608,7 @@ class SubscriptionPlan(models.Model):
     maxCmeYear = models.IntegerField(default=0, help_text='maximum allowed CME per year')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = SubscriptionPlanManager()
 
     def __str__(self):
         return self.name
