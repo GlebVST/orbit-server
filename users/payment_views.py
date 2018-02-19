@@ -278,7 +278,7 @@ class NewSubscription(generics.CreateAPIView):
         if not do_trial:
             form_data['trial_duration'] = 0 # 0 days of trial. Subs starts immediately
         # set plan from profile.planId
-        form_data['plan'] = SubscriptionPlan.objects.get(planId=profile.planId)
+        form_data['plan'] = SubscriptionPlan.objects.get(planId=profile.planId).pk
         logDebug(logger, request, str(form_data))
         in_serializer = self.get_serializer(data=form_data)
         in_serializer.is_valid(raise_exception=True)
