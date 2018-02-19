@@ -66,6 +66,7 @@ class DegreeList(generics.ListCreateAPIView):
     serializer_class = DegreeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
+
 class DegreeDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Degree.objects.all()
     serializer_class = DegreeSerializer
@@ -77,7 +78,7 @@ class LongPagination(PageNumberPagination):
 
 # PracticeSpecialty - list only
 class PracticeSpecialtyList(generics.ListAPIView):
-    queryset = PracticeSpecialty.objects.filter(is_abms_board=True).order_by('name')
+    queryset = PracticeSpecialty.objects.all().order_by('name')
     serializer_class = PracticeSpecialtyListSerializer
     pagination_class = LongPagination
     permission_classes = (IsContentAdminOrAny,)
@@ -90,13 +91,13 @@ class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
 
 # CmeTag
 class CmeTagList(generics.ListCreateAPIView):
-    queryset = CmeTag.objects.all().order_by('-priority', 'name')
+    #queryset = CmeTag.objects.all().order_by('-priority', 'name')
     serializer_class = CmeTagWithSpecSerializer
     pagination_class = LongPagination
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
     def get_queryset(self):
-        return CmeTag.objects.all().prefetch_related('specialties')
+        return CmeTag.objects.all().prefetch_related('specialties').order_by('-priority','name')
 
 class CmeTagDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = CmeTag.objects.all()

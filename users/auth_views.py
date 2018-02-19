@@ -205,7 +205,7 @@ def login_via_token(request, access_token):
     remote_addr = request.META.get('REMOTE_ADDR')
     inviterId = request.GET.get('inviteid') # if present, this is the inviteId of the inviter
     affiliateId = request.GET.get('affid') # if present, this is the affiliateId of the converter
-    planId = request.GET.get('plan')
+    planId = request.GET.get('plan') # expected to be present for new user signup
     if planId:
         try:
             plan = SubscriptionPlan.objects.get(planId=planId)
@@ -223,6 +223,8 @@ def login_via_token(request, access_token):
     user_info_dict['inviterId'] = inviterId
     user_info_dict['affiliateId'] = affiliateId
     msg = 'user_id:{user_id} email:{email} v:{email_verified}'.format(**user_info_dict)
+    if planId:
+        msg += " plan:{planId}".format(**user_info_dict)
     if affiliateId:
         msg += " from-affl:{affiliateId}".format(**user_info_dict)
     elif inviterId:
