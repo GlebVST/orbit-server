@@ -1545,7 +1545,7 @@ class SubscriptionPlanKey(models.Model):
 class SubscriptionPlanManager(models.Manager):
     def makePlanId(self, name):
         """Create a planId based on name and hashid of next pk
-        This is only by Admin interface to auto-set planId.
+        This is used by Admin interface to auto-set planId.
         """
         HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyz1234567890' # lowercase + digits
         SALT = 'SubscriptionPlan'

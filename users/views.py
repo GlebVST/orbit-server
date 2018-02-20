@@ -368,10 +368,21 @@ class UserStateLicenseDetail(generics.RetrieveUpdateDestroyAPIView):
 
 # SubscriptionPlan
 class SubscriptionPlanList(generics.ListCreateAPIView):
-    queryset = SubscriptionPlan.objects.filter(active=True).order_by('created')
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
+    def get_queryset(self):
+        """Filter plans by plan_key sourced from the planId in request.user.profile"""
+        profile = self.request.user.profile
+        try:
+            plan = SubscriptionPlan.objects.get(planId=profile.planId)
+            plan_key = plan.plan_key
+        except SubscriptionPlan.DoesNotExist:
+            logWarning(logger, self.request, "Invalid key: {0}".format(lkey))
+            return SubscriptionPlan.objects.none().order_by('id')
+        else:
+            filter_kwargs = dict(active=True, plan_key=plan_key)
+            return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price')
 
 class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = SubscriptionPlan.objects.all()

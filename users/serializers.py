@@ -158,6 +158,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'lastName',
             'contactEmail',
             'country',
+            'planId',
             'inviteId',
             'socialId',
             'pictureUrl',
@@ -180,6 +181,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         )
         read_only_fields = (
             'cmeTags',
+            'planId',
             'inviteId',
             'socialId',
             'pictureUrl',
@@ -272,6 +274,7 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'lastName',
             'contactEmail',
             'country',
+            'planId',
             'inviteId',
             'socialId',
             'pictureUrl',
@@ -821,6 +824,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
     displayMonthlyPrice = serializers.SerializerMethodField()
     plan_key = serializers.PrimaryKeyRelatedField(read_only=True)
+    upgrade_plan = serializers.PrimaryKeyRelatedField(read_only=True)
 
     def get_displayMonthlyPrice(self, obj):
         """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
@@ -839,6 +843,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'billingCycleMonths',
             'displayMonthlyPrice',
             'active',
+            'upgrade_plan',
             'created',
             'modified'
         )
