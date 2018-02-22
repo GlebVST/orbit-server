@@ -214,6 +214,7 @@ def login_via_token(request, access_token):
                 'success': False,
                 'message': 'User authentication failed. Invalid plan.'
             }
+            msg = "Invalid planId: {0}. No plan found".format(planId)
             logWarning(logger, request, msg)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
     auth0_users = Users(settings.AUTH0_DOMAIN)

@@ -2723,6 +2723,7 @@ class AllowedHost(models.Model):
     has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
     allow_page_download = models.BooleanField(blank=True, default=True,
             help_text='False if pages under this host should not be downloaded')
+    is_secure = models.BooleanField(blank=True, default=False, help_text='True if site uses a secure connection (https).')
     created = models.DateTimeField(auto_now_add=True, blank=True)
     modified = models.DateTimeField(auto_now=True, blank=True)
 

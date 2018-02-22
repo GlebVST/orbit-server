@@ -319,8 +319,9 @@ class AffiliatePayoutAdmin(admin.ModelAdmin):
 # plugin models
 #
 class AllowedHostAdmin(admin.ModelAdmin):
-    list_display = ('id', 'hostname', 'description', 'has_paywall', 'allow_page_download', 'accept_query_keys', 'created')
+    list_display = ('id', 'hostname', 'is_secure', 'description', 'has_paywall', 'allow_page_download', 'accept_query_keys', 'created')
     ordering = ('hostname',)
+    list_filter = ('is_secure',)
 
 class HostPatternAdmin(admin.ModelAdmin):
     list_display = ('id', 'host', 'eligible_site', 'pattern_key', 'path_contains', 'path_reject')
