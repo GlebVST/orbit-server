@@ -345,6 +345,36 @@ class BrowserCmeOfferSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
+# Entire offer is read-only because offers are created by the plugin server.
+# A separate serializer exists to redeem the offer (and create br-cme entry in the user's feed).
+class OrbitCmeOfferSerializer(serializers.ModelSerializer):
+    userId = serializers.IntegerField(source='user.id', read_only=True)
+    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
+    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
+    url = serializers.StringRelatedField(read_only=True)
+    pageTitle = serializers.CharField(source='url.page_title', max_length=500, read_only=True, default='')
+    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
+    cmeTags = serializers.PrimaryKeyRelatedField(source='tags', many=True, read_only=True)
+
+    class Meta:
+        model = OrbitCmeOffer
+        fields = (
+            'id',
+            'userId',
+            'activityDate',
+            'url',
+            'pageTitle',
+            'suggestedDescr',
+            'expireDate',
+            'credits',
+            'sponsor',
+            'logo_url',
+            'cmeTags'
+        )
+        read_only_fields = fields
+
+
+
 class SponsorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sponsor
@@ -376,12 +406,8 @@ class SRCmeSubSerializer(serializers.ModelSerializer):
 
 # intended to be used by SerializerMethodField on EntrySerializer
 class BRCmeSubSerializer(serializers.ModelSerializer):
-    offer = serializers.PrimaryKeyRelatedField(read_only=True)
+    offer = serializers.ReadOnlyField(source='offerId')
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    url = serializers.ReadOnlyField()
-    pageTitle = serializers.ReadOnlyField()
-    purpose = serializers.ReadOnlyField()
-    planEffect = serializers.ReadOnlyField()
 
     class Meta:
         model = BrowserCme
@@ -393,6 +419,7 @@ class BRCmeSubSerializer(serializers.ModelSerializer):
             'purpose',
             'planEffect'
         )
+        read_only_fields = fields
 
 # intended to be used by SerializerMethodField on EntrySerializer
 class StoryCmeSubSerializer(serializers.ModelSerializer):
@@ -506,14 +533,14 @@ class EntryReadSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-# Serializer for Create BrowserCme entry
+# Serializer for Create brcme entry
 class BRCmeCreateSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
     offerId = serializers.PrimaryKeyRelatedField(
-        queryset=BrowserCmeOffer.objects.filter(redeemed=False)
+        queryset=OrbitCmeOffer.objects.filter(redeemed=False)
     )
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
@@ -552,29 +579,22 @@ class BRCmeCreateSerializer(serializers.Serializer):
         )
         # associate tags with saved entry
         tag_ids = validated_data.get('tags', [])
-        num_specialties = offer.eligible_site.specialties.count()
-        if num_specialties == 1:
-            spec = offer.eligible_site.specialties.first()
-            if user.profile.specialties.filter(pk=spec.pk).exists():
-                try:
-                    spec_tag = CmeTag.objects.get(name=spec.name)
-                except CmeTag.DoesNotExist:
-                    pass
-                else:
-                    if spec_tag.pk not in tag_ids:
-                        tag_ids.append(spec_tag.pk)
         if tag_ids:
             entry.tags.set(tag_ids)
         # Using parent entry, create BrowserCme instance
+        aurl = offer.url # AllowedUrl instance
         instance = BrowserCme.objects.create(
             entry=entry,
-            offer=offer,
+            offerId=offer.pk,
             purpose=validated_data.get('purpose'),
             planEffect=validated_data.get('planEffect'),
-            url=offer.url,
-            pageTitle=offer.pageTitle,
+            url=aurl.url,
+            pageTitle=aurl.page_title,
             credits=offer.credits
         )
+        # set redeemed flag on offer
+        offer.redeemed = True
+        offer.save()
         return instance
 
 # Serializer for Update BrowserCme entry

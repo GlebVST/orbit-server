@@ -267,8 +267,12 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
         'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle', 'nextBillingAmount',
         'modified')
     list_select_related = ('user','plan')
-    list_filter = ('status', 'display_status', 'plan')
+    list_filter = ('status', 'display_status', 'plan', UserFilter)
     ordering = ('-modified',)
+
+    class Media:
+        pass
+
 
 class SubscriptionEmailAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscription', 'billingCycle', 'remind_renew_sent', 'expire_alert_sent')
@@ -355,6 +359,15 @@ class RequestedUrlAdmin(admin.ModelAdmin):
     num_users.short_description = 'Number of users who requested it'
     num_users.admin_order_field = 'num_users'
 
+class OrbitCmeOfferAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'valid', 'modified')
+    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
+    list_select_related = True
+    ordering = ('-modified',)
+    list_filter = ('redeemed','valid', UserFilter, 'eligible_site')
+
+    class Media:
+        pass
 
 # http://stackoverflow.com/questions/32612400/auto-register-django-auth-models-using-custom-admin-site
 class MyAdminSite(admin.AdminSite):
@@ -409,3 +422,4 @@ admin_site.register(HostPattern, HostPatternAdmin)
 admin_site.register(AllowedUrl, AllowedUrlAdmin)
 admin_site.register(RejectedUrl, RejectedUrlAdmin)
 admin_site.register(RequestedUrl, RequestedUrlAdmin)
+admin_site.register(OrbitCmeOffer, OrbitCmeOfferAdmin)

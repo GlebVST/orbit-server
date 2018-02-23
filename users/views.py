@@ -411,17 +411,17 @@ class SubscriptionPlanPublic(generics.ListAPIView):
             filter_kwargs = dict(active=True, plan_key=plan_key)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price')
 
-# custom pagination for BrowserCmeOfferList
-class BrowserCmeOfferPagination(PageNumberPagination):
+# custom pagination for OrbitCmeOfferList
+class OrbitCmeOfferPagination(PageNumberPagination):
     page_size = 5
 
-class BrowserCmeOfferList(generics.ListAPIView):
+class OrbitCmeOfferList(generics.ListAPIView):
     """
     Get the un-redeemed and unexpired valid offers order by modified desc
     (latest modified first) for the authenticated user.
     """
-    serializer_class = BrowserCmeOfferSerializer
-    pagination_class = BrowserCmeOfferPagination
+    serializer_class = OrbitCmeOfferSerializer
+    pagination_class = OrbitCmeOfferPagination
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewOffer)
 
     def get_queryset(self):
@@ -432,7 +432,7 @@ class BrowserCmeOfferList(generics.ListAPIView):
             user=user,
             expireDate__gt=now,
             redeemed=False)
-        return BrowserCmeOffer.objects.filter(**filter_kwargs).select_related('sponsor').order_by('-modified')
+        return OrbitCmeOffer.objects.filter(**filter_kwargs).select_related('sponsor','url').order_by('-modified')
 
 
 #
@@ -491,23 +491,19 @@ class InvalidateEntry(generics.UpdateAPIView):
         instance = self.get_object()
         msg = 'Invalidate entry {0}'.format(instance)
         logInfo(logger, request, msg)
-        with transaction.atomic():
-            instance.valid = False
-            instance.save()
-            if hasattr(instance, 'brcme'):
-                instance.brcme.offer.valid = False
-                instance.brcme.offer.save()
+        instance.valid = False
+        instance.save()
         context = {'success': True}
         return Response(context)
 
 
 class InvalidateOffer(generics.UpdateAPIView):
-    serializer_class = BrowserCmeOfferSerializer
+    serializer_class = OrbitCmeOfferSerializer
     permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         user = self.request.user
-        return BrowserCmeOffer.objects.filter(user=user, valid=True)
+        return OrbitCmeOffer.objects.filter(user=user, valid=True)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -546,8 +542,7 @@ class TagsMixin(object):
 class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
     """
     Create a BrowserCme Entry in the user's feed.
-    This action redeems the BrowserCmeOffer specified in the
-    request, and sets the redeemed flag on the offer.
+    This action redeems the offer specified in the request.
     """
     serializer_class = BRCmeCreateSerializer
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanPostBRCme)
@@ -555,11 +550,8 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
     def perform_create(self, serializer, format=None):
         user = self.request.user
         with transaction.atomic():
+            # Create entry, brcme instances and redeem offer
             brcme = serializer.save(user=user)
-            offer = brcme.offer
-            # set redeemed flag on offer
-            offer.redeemed = True
-            offer.save()
         return brcme
 
     def create(self, request, *args, **kwargs):
@@ -570,13 +562,12 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
         serializer.is_valid(raise_exception=True)
         brcme = self.perform_create(serializer)
         entry = brcme.entry
-        offer = brcme.offer
         context = {
             'success': True,
             'id': entry.pk,
             'logo_url': entry.sponsor.logo_url,
             'created': entry.created,
-            'credits': offer.credits
+            'credits': brcme.credits
         }
         return Response(context, status=status.HTTP_201_CREATED)
 

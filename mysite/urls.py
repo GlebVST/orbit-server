@@ -105,7 +105,7 @@ api_patterns = [
     url(r'^feed/(?P<pk>[0-9]+)/?$', views.FeedEntryDetail.as_view()),
     url(r'^feed/invalidate-entry/(?P<pk>[0-9]+)/?$', views.InvalidateEntry.as_view()),
     url(r'^feed/invalidate-offer/(?P<pk>[0-9]+)/?$', views.InvalidateOffer.as_view()),
-    url(r'^feed/browser-cme-offers/?$', views.BrowserCmeOfferList.as_view()),
+    url(r'^feed/browser-cme-offers/?$', views.OrbitCmeOfferList.as_view()),
     url(r'^feed/browser-cme/?$', views.CreateBrowserCme.as_view()),
     url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', views.UpdateBrowserCme.as_view()),
     url(r'^feed/cme/?$', views.CreateSRCme.as_view()),
@@ -139,7 +139,7 @@ api_patterns = [
 if settings.ENV_TYPE != settings.ENV_PROD:
     # debug
     api_patterns.extend([
-        url(r'^debug/make-browser-cme-offer/?$', debug_views.MakeBrowserCmeOffer.as_view()),
+        url(r'^debug/make-offer/?$', debug_views.MakeOrbitCmeOffer.as_view()),
         url(r'^debug/make-pinned-message/?$', debug_views.MakePinnedMessage.as_view()),
         url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
         url(r'^debug/feed/storycme/?$', debug_views.MakeStoryCme.as_view()),

@@ -1142,6 +1142,7 @@ class BrowserCme(models.Model):
         related_name='brcme',
         db_index=True
     )
+    offerId = models.PositiveIntegerField(null=True, default=None)
     credits = models.DecimalField(max_digits=5, decimal_places=2)
     url = models.URLField(max_length=500)
     pageTitle = models.TextField()
@@ -2774,7 +2775,7 @@ class AllowedUrl(models.Model):
     url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
     valid = models.BooleanField(default=True)
     page_title = models.TextField(blank=True, default='')
-    abstract = models.TextField(blank=True, default='')
+    metadata = models.TextField(blank=True, default='')
     doi = models.CharField(max_length=100, blank=True,
         help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
     pmid = models.CharField(max_length=20, blank=True, help_text='PubMed Identifier (PMID)')
@@ -2840,3 +2841,57 @@ class WhitelistRequest(models.Model):
 
     def __str__(self):
         return '{0}-{1}'.format(self.user, self.req_url.url)
+
+# OrbitCmeOffer
+# An offer for a user is generated based on the user's plugin activity.
+@python_2_unicode_compatible
+class OrbitCmeOffer(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        related_name='new_offers',
+        db_index=True
+    )
+    sponsor = models.ForeignKey(Sponsor,
+        on_delete=models.PROTECT,
+        related_name='new_offers',
+        db_index=True
+    )
+    eligible_site = models.ForeignKey(EligibleSite,
+        on_delete=models.PROTECT,
+        related_name='new_offers',
+        db_index=True)
+    url = models.ForeignKey(AllowedUrl,
+        on_delete=models.PROTECT,
+        related_name='new_offers',
+        db_index=True)
+    activityDate = models.DateTimeField()
+    suggestedDescr = models.TextField(blank=True, default='')
+    expireDate = models.DateTimeField()
+    redeemed = models.BooleanField(default=False)
+    valid = models.BooleanField(default=True)
+    credits = models.DecimalField(max_digits=5, decimal_places=2,
+        help_text='CME credits to be awarded upon redemption')
+    tags = models.ManyToManyField(
+        CmeTag,
+        blank=True,
+        related_name='new_offers',
+        help_text='Suggested tags (intersected with user cmeTags by UI)'
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.url.url
+
+    def activityDateLocalTz(self):
+        return self.activityDate.astimezone(LOCAL_TZ)
+
+    def formatSuggestedTags(self):
+        return ", ".join([t.name for t in self.tags.all()])
+    formatSuggestedTags.short_description = "suggestedTags"
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_orbitcmeoffer'
+        verbose_name_plural = 'OrbitCME Offers'

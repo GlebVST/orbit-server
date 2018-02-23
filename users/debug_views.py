@@ -21,9 +21,9 @@ from .models import *
 from .permissions import *
 from .serializers import *
 
-class MakeBrowserCmeOffer(APIView):
+class MakeOrbitCmeOffer(APIView):
     """
-    Create a test BrowserCmeOffer for the authenticated user.
+    Create a test OrbitCmeOffer for the authenticated user.
     Pick a random AllowedUrl for the url for the offer.
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
@@ -34,35 +34,31 @@ class MakeBrowserCmeOffer(APIView):
         expireDate = datetime(now.year+1, 1,1, tzinfo=pytz.utc)
         esiteids = EligibleSite.objects.getSiteIdsForProfile(user.profile)
         # exclude urls for which user already has un-redeemed un-expired offers waiting to be redeemed
-        exclude_urls = BrowserCmeOffer.objects.filter(
+        exclude_urls = OrbitCmeOffer.objects.filter(
             user=user,
             redeemed=False,
             eligible_site__in=esiteids,
             expireDate__gte=now
         ).values_list('url', flat=True).distinct()
         #print('Num exclude_urls: {0}'.format(len(exclude_urls)))
-        aurl = AllowedUrl.objects.filter(eligible_site__in=esiteids).exclude(url__in=exclude_urls).order_by('?')[0]
-        url = aurl.url
-        pageTitle = 'Sample page title'
-        suggestedDescr = 'Sample suggested description'
+        aurl = AllowedUrl.objects.filter(eligible_site__in=esiteids).exclude(pk__in=exclude_urls).order_by('?')[0]
         esite = aurl.eligible_site
         specnames = [p.name for p in esite.specialties.all()]
         #print(specnames)
         spectags = CmeTag.objects.filter(name__in=specnames)
         with transaction.atomic():
-            offer = BrowserCmeOffer.objects.create(
+            offer = OrbitCmeOffer.objects.create(
                 user=user,
                 eligible_site=esite,
-                url=aurl.url,
+                url=aurl,
                 activityDate=activityDate,
                 expireDate=expireDate,
-                pageTitle=pageTitle,
-                suggestedDescr=suggestedDescr,
+                pageTitle=aurl.page_title,
+                suggestedDescr=aurl.page_title,
                 credits=Decimal('0.5'),
                 sponsor_id=1
             )
-            for t in spectags:
-                OfferCmeTag.objects.create(offer=offer, tag=t)
+            offer.tags.set(list(spectags))
         context = {'success': True, 'id': offer.pk}
         return Response(context, status=status.HTTP_201_CREATED)
 
