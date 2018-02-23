@@ -1140,7 +1140,10 @@ class BrowserCme(models.Model):
     offer = models.OneToOneField(BrowserCmeOffer,
         on_delete=models.PROTECT,
         related_name='brcme',
-        db_index=True
+        db_index=True,
+        null=True,
+        blank=True,
+        default=None
     )
     offerId = models.PositiveIntegerField(null=True, default=None)
     credits = models.DecimalField(max_digits=5, decimal_places=2)
