@@ -398,12 +398,12 @@ class SubscriptionPlanPublic(generics.ListAPIView):
     permission_classes = (permissions.AllowAny,)
 
     def get_queryset(self):
-        """Filter plans by plan_key in url"""
+        """Filter plans by plan_key in url using iexact search"""
         lkey = self.kwargs['landing_key']
         if lkey.endswith('/'):
             lkey = lkey[0:-1]
         try:
-            plan_key = SubscriptionPlanKey.objects.get(name=lkey)
+            plan_key = SubscriptionPlanKey.objects.get(name__iexact=lkey)
         except SubscriptionPlanKey.DoesNotExist:
             logWarning(logger, self.request, "Invalid key: {0}".format(lkey))
             return SubscriptionPlan.objects.none().order_by('id')
