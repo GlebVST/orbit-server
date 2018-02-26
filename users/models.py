@@ -54,7 +54,6 @@ INVITER_DISCOUNT_TYPE = 'inviter'
 INVITEE_DISCOUNT_TYPE = 'invitee'
 CONVERTEE_DISCOUNT_TYPE = 'convertee'
 ORG_DISCOUNT_TYPE = 'org'
-STANDARD_PLAN_NAME = 'Standard'
 
 # maximum number of invites for which a discount is applied to the inviter's subscription.
 INVITER_MAX_NUM_DISCOUNT = 10
@@ -2088,11 +2087,17 @@ class UserSubscriptionManager(models.Manager):
         Need separate management task that creates new subscription in Standard at end of the billing cycle.
         Returns Braintree result object
         """
-        standard_plan = SubscriptionPlan.objects.get(name=STANDARD_PLAN_NAME)
+        # find the downgrade_plan for the current plan
+        qset = = SubscriptionPlan.objects.filter(upgrade_plan=user_subs.plan)
+        if qset.exists():
+            downgrade_plan = qset[0]
+            logger.debug('makeActiveDowngrade: next_plan is {0}/{0.planId} for user_subs {1}'.format(downgrade_plan, user_subs))
+        else:
+            raise ValueError('No downgrade_plan found for: {0}/{0.plan}'.format(user_subs))
         result = self.setExpireAtBillingCycleEnd(user_subs)
         if result.is_success:
             user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
-            user_subs.next_plan = standard_plan
+            user_subs.next_plan = downgrade_plan
             user_subs.save()
         return result
 

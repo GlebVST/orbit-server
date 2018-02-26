@@ -507,7 +507,7 @@ class DowngradePlan(APIView):
         user_subs = UserSubscription.objects.getLatestSubscription(request.user)
         try:
             result = UserSubscription.objects.makeActiveDowngrade(user_subs)
-        except braintree.exceptions.not_found_error.NotFoundError:
+        except:
             context = {
                 'success': False,
                 'message': 'BT Subscription not found.'
