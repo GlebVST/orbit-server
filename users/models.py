@@ -2088,7 +2088,7 @@ class UserSubscriptionManager(models.Manager):
         Returns Braintree result object
         """
         # find the downgrade_plan for the current plan
-        qset = = SubscriptionPlan.objects.filter(upgrade_plan=user_subs.plan)
+        qset = SubscriptionPlan.objects.filter(upgrade_plan=user_subs.plan)
         if qset.exists():
             downgrade_plan = qset[0]
             logger.debug('makeActiveDowngrade: next_plan is {0}/{0.planId} for user_subs {1}'.format(downgrade_plan, user_subs))
