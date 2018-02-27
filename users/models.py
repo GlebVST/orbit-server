@@ -681,6 +681,8 @@ class EligibleSite(models.Model):
     example_title = models.CharField(max_length=300, blank=True,
         help_text='Label for the example URL')
     is_valid_expurl = models.BooleanField(default=True, help_text='Is example_url a valid URL')
+    verify_journal = models.BooleanField(default=False,
+            help_text='If True, need to verify article belongs to an allowed journal before making offer.')
     description = models.CharField(max_length=500, blank=True)
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     needs_ad_block = models.BooleanField(default=False)
@@ -2088,18 +2090,17 @@ class UserSubscriptionManager(models.Manager):
         Returns Braintree result object
         """
         # find the downgrade_plan for the current plan
-        qset = SubscriptionPlan.objects.filter(upgrade_plan=user_subs.plan)
-        if qset.exists():
-            downgrade_plan = qset[0]
-            logger.debug('makeActiveDowngrade: next_plan is {0}/{0.planId} for user_subs {1}'.format(downgrade_plan, user_subs))
-        else:
+        downgrade_plan = user_subs.plan.downgrade_plan
+        if not downgrade_plan:
             raise ValueError('No downgrade_plan found for: {0}/{0.plan}'.format(user_subs))
-        result = self.setExpireAtBillingCycleEnd(user_subs)
-        if result.is_success:
-            user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
-            user_subs.next_plan = downgrade_plan
-            user_subs.save()
-        return result
+        else:
+            logger.debug('makeActiveDowngrade to {0}/{0.planId} for user_subs {1}'.format(downgrade_plan, user_subs))
+            result = self.setExpireAtBillingCycleEnd(user_subs)
+            if result.is_success:
+                user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
+                user_subs.next_plan = downgrade_plan
+                user_subs.save()
+            return result
 
 
     def reactivateBtSubscription(self, user_subs, payment_token=None):
