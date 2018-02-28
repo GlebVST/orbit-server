@@ -57,7 +57,7 @@ class ProfileCmetagInline(admin.TabularInline):
     model = ProfileCmetag
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'nbcrnaId', 'formatSpecialties', 'modified')
+    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'planId', 'formatSpecialties', 'modified')
     list_filter = ('verified','npiType')
     search_fields = ['npiNumber', 'lastName']
     filter_horizontal = ('specialties',)
@@ -132,7 +132,7 @@ class EntryAdmin(admin.ModelAdmin):
 class EligibleSiteAdmin(admin.ModelAdmin):
     #list_display = ('id', 'domain_name', 'domain_title', 'example_url', 'is_valid_expurl', 'needs_ad_block', 'modified')
     list_display = ('id', 'domain_name', 'domain_title', 'page_title_suffix', 'needs_ad_block', 'is_unlisted', 'modified')
-    list_filter = ('is_valid_expurl', 'needs_ad_block', 'all_specialties', 'is_unlisted')
+    list_filter = ('needs_ad_block', 'all_specialties', 'is_unlisted', 'verify_journal')
     ordering = ('domain_name',)
     filter_horizontal = ('specialties',)
 
@@ -150,6 +150,10 @@ class PinnedMessageAdmin(admin.ModelAdmin):
 
 class StoryForm(forms.ModelForm):
     description = forms.CharField(widget=AdminPagedownWidget())
+
+    class Meta:
+        model = Story
+        fields = ('__all__')
 
     def clean(self):
         """Check that startDate is earlier than endDate"""
@@ -201,18 +205,74 @@ class InvitationDiscountAdmin(admin.ModelAdmin):
     ordering = ('-created',)
 
 
-class SubscriptionPlanAdmin(admin.ModelAdmin):
-    list_display = ('id', 'planId', 'name', 'price', 'monthlyPrice', 'discountPrice', 'discountMonthlyPrice', 'trialDays', 'billingCycleMonths', 'active', 'modified')
+class SubscriptionPlanKeyAdmin(admin.ModelAdmin):
+    list_display = ('id','name','degree','specialty','description','created')
+    list_select_related = True
+    list_filter = ('degree','specialty')
     ordering = ('-created',)
 
+class PlanForm(forms.ModelForm):
+
+    class Meta:
+        model = SubscriptionPlan
+        exclude = (
+            'planId',
+            'created',
+            'modified'
+        )
+
+    def save(self, commit=True):
+        """Auto assign planId based on plan name and hashid of next id"""
+        m = super(PlanForm, self).save(commit=False)
+        if not m.planId:
+            #hyphen_name = '-'.join(m.name.strip().lower().split())
+            #m.planId = hyphen_name + '-xkcd'
+            m.planId = SubscriptionPlan.objects.makePlanId(m.name)
+            #print(m.planId)
+        m.save()
+        return m
+
+class SubscriptionPlanAdmin(admin.ModelAdmin):
+    list_display = ('id',
+        'plan_key',
+        'planId',
+        'name',
+        'display_name',
+        'price',
+        'monthlyPrice',
+        'discountPrice',
+        'discountMonthlyPrice',
+    )
+    list_select_related = True
+    list_filter = ('active', 'plan_key',)
+    ordering = ('plan_key__name','price')
+    form = PlanForm
+    fieldsets = (
+        (None, {
+            'fields': ('plan_key','name','display_name', 'upgrade_plan','downgrade_plan'),
+        }),
+        ('Price', {
+            'fields': ('price', 'discountPrice')
+        }),
+        ('CME', {
+            'fields': ('maxCmeWeek','maxCmeMonth','maxCmeYear')
+        }),
+        ('Other', {
+            'fields': ('trialDays','billingCycleMonths','active',)
+        })
+    )
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
         'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle', 'nextBillingAmount',
         'modified')
     list_select_related = ('user','plan')
-    list_filter = ('status', 'display_status', 'plan')
+    list_filter = ('status', 'display_status', 'plan', UserFilter)
     ordering = ('-modified',)
+
+    class Media:
+        pass
+
 
 class SubscriptionEmailAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscription', 'billingCycle', 'remind_renew_sent', 'expire_alert_sent')
@@ -263,8 +323,9 @@ class AffiliatePayoutAdmin(admin.ModelAdmin):
 # plugin models
 #
 class AllowedHostAdmin(admin.ModelAdmin):
-    list_display = ('id', 'hostname', 'description', 'has_paywall', 'allow_page_download', 'accept_query_keys', 'created')
+    list_display = ('id', 'hostname', 'is_secure', 'description', 'has_paywall', 'allow_page_download', 'accept_query_keys', 'created')
     ordering = ('hostname',)
+    list_filter = ('is_secure',)
 
 class HostPatternAdmin(admin.ModelAdmin):
     list_display = ('id', 'host', 'eligible_site', 'pattern_key', 'path_contains', 'path_reject')
@@ -298,6 +359,15 @@ class RequestedUrlAdmin(admin.ModelAdmin):
     num_users.short_description = 'Number of users who requested it'
     num_users.admin_order_field = 'num_users'
 
+class OrbitCmeOfferAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'valid', 'modified')
+    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
+    list_select_related = True
+    ordering = ('-modified',)
+    list_filter = ('redeemed','valid', UserFilter, 'eligible_site')
+
+    class Media:
+        pass
 
 # http://stackoverflow.com/questions/32612400/auto-register-django-auth-models-using-custom-admin-site
 class MyAdminSite(admin.AdminSite):
@@ -340,6 +410,7 @@ admin_site.register(StateLicense, StateLicenseAdmin)
 admin_site.register(Story, StoryAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
+admin_site.register(SubscriptionPlanKey, SubscriptionPlanKeyAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
 admin_site.register(SubscriptionEmail, SubscriptionEmailAdmin)
 admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
@@ -351,3 +422,4 @@ admin_site.register(HostPattern, HostPatternAdmin)
 admin_site.register(AllowedUrl, AllowedUrlAdmin)
 admin_site.register(RejectedUrl, RejectedUrlAdmin)
 admin_site.register(RequestedUrl, RequestedUrlAdmin)
+admin_site.register(OrbitCmeOffer, OrbitCmeOfferAdmin)

@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
-from .models import AuthImpersonation, Profile, Customer, Affiliate, AffiliateDetail
+from .models import AuthImpersonation, Profile, Customer, Affiliate, AffiliateDetail, SubscriptionPlan
 
 logger = logging.getLogger('gen.auth')
 HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
@@ -29,9 +29,14 @@ class Auth0Backend(object):
         # optional keys passed by login_via_token
         inviterId = user_info.get('inviterId', None)
         affiliateId = user_info.get('affiliateId', None)
+        planId = user_info.get('planId', None) # required for new user creation (signup)
         try:
             user = User.objects.get(username=email) # the unique constraint is on the username field in the users table
         except User.DoesNotExist:
+            if not planId:
+                logger.error('New user signup: planId must be provided')
+                return None
+            plan = SubscriptionPlan.objects.get(planId=planId)
             hashgen = Hashids(salt=settings.HASHIDS_SALT, alphabet=HASHIDS_ALPHABET, min_length=5)
             with transaction.atomic():
                 user = User.objects.create(
@@ -41,6 +46,7 @@ class Auth0Backend(object):
                 profile = Profile(user=user)
                 profile.socialId = user_id
                 profile.inviteId = hashgen.encode(user.pk)
+                profile.planId = planId
                 if picture:
                     profile.pictureUrl = picture
                 profile.verified = bool(email_verified)
@@ -61,6 +67,10 @@ class Auth0Backend(object):
                     else:
                         logger.warning('Invalid inviterId: {0}'.format(inviterId))
                 profile.save()
+                # after saving profile instance, can add m2m rows
+                profile.degrees.add(plan.plan_key.degree)
+                if plan.plan_key.specialty:
+                    profile.specialties.add(plan.plan_key.specialty)
                 # create local customer object
                 customer = Customer(user=user)
                 customer.save()

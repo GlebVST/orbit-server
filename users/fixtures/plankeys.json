@@ -1,0 +1,98 @@
+[
+{
+  "model": "users.subscriptionplankey",
+  "pk": 1,
+  "fields": {
+    "name": "PA/pricing",
+    "description": "Physician Assistant",
+    "degree": 3,
+    "specialty": null,
+    "created": "2018-02-14T08:17:42.743Z",
+    "modified": "2018-02-14T08:17:42.743Z"
+  }
+},
+{
+  "model": "users.subscriptionplankey",
+  "pk": 2,
+  "fields": {
+    "name": "NP/pricing",
+    "description": "Nurse Practitioner",
+    "degree": 5,
+    "specialty": null,
+    "created": "2018-02-14T08:18:15.870Z",
+    "modified": "2018-02-14T08:18:15.870Z"
+  }
+},
+{
+  "model": "users.subscriptionplankey",
+  "pk": 3,
+  "fields": {
+    "name": "RN/pricing",
+    "description": "Registered Nurse",
+    "degree": 9,
+    "specialty": null,
+    "created": "2018-02-14T08:18:40.004Z",
+    "modified": "2018-02-14T08:18:40.004Z"
+  }
+},
+{
+  "model": "users.subscriptionplankey",
+  "pk": 4,
+  "fields": {
+    "name": "pathology/pricing",
+    "description": "",
+    "degree": 1,
+    "specialty": 14,
+    "created": "2018-02-14T08:19:15.683Z",
+    "modified": "2018-02-14T08:19:15.683Z"
+  }
+},
+{
+  "model": "users.subscriptionplankey",
+  "pk": 5,
+  "fields": {
+    "name": "anesthesiology/pricing",
+    "description": "",
+    "degree": 1,
+    "specialty": 2,
+    "created": "2018-02-14T08:19:53.831Z",
+    "modified": "2018-02-14T08:19:53.832Z"
+  }
+},
+{
+  "model": "users.subscriptionplankey",
+  "pk": 6,
+  "fields": {
+    "name": "radiology/pricing",
+    "description": "",
+    "degree": 1,
+    "specialty": 19,
+    "created": "2018-02-14T08:21:06.472Z",
+    "modified": "2018-02-14T08:21:06.472Z"
+  }
+},
+{
+  "model": "users.subscriptionplankey",
+  "pk": 7,
+  "fields": {
+    "name": "EM/pricing",
+    "description": "ER Physician",
+    "degree": 1,
+    "specialty": 5,
+    "created": "2018-02-14T08:21:48.185Z",
+    "modified": "2018-02-14T08:21:48.185Z"
+  }
+},
+{
+  "model": "users.subscriptionplankey",
+  "pk": 8,
+  "fields": {
+    "name": "original",
+    "description": "Key used for the original Standard and Plus plans",
+    "degree": 1,
+    "specialty": null,
+    "created": "2018-02-14T08:24:18.158Z",
+    "modified": "2018-02-14T08:24:18.158Z"
+  }
+}
+]

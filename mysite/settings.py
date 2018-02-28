@@ -49,8 +49,7 @@ DEBUG = True if ENV_TYPE == ENV_DEV else False
 
 ADMINS = [
     ('Faria Chowdhury',     'faria.chowdhury@gmail.com'),
-#    ('Max Hwang',           'mch@codeabovelab.com'),
-#    ('Gleb Starodubstev',   'gleb@codeabovelab.com')
+    #('Gleb Starodubstev',   'gleb@codeabovelab.com')
 ]
 
 # Note: This value should match the X_FORWARDED_HOST in the nginx conf file.
@@ -61,7 +60,7 @@ if SERVER_IP:
     ALLOWED_HOSTS.append(SERVER_IP)
 
 # This value used by various expiration-related settings
-APP_EXPIRE_SECONDS = 86400*60  # 60 days
+APP_EXPIRE_SECONDS = 86400*90  # 90 days
 
 # Application definition
 

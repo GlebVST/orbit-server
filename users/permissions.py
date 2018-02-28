@@ -100,7 +100,8 @@ def hasUserSubscriptionPerm(user, codename):
     user_subs = UserSubscription.objects.getLatestSubscription(user)
     if not user_subs:
         return False
-    p = Permission.objects.get(codename=codename)
+    #p = Permission.objects.get(codename=codename)
+    p = Permission.objects.filter(codename=codename).order_by('id')[0]
     return p.group_set.filter(name=user_subs.display_status)
 
 class CanViewOffer(permissions.BasePermission):

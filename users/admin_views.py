@@ -78,10 +78,11 @@ class UserDetail(generics.RetrieveAPIView):
 
 class ReadOfferSerializer(serializers.ModelSerializer):
     userId = serializers.IntegerField(source='user.id')
-    cmeTags = serializers.StringRelatedField(many=True)
+    tags = serializers.StringRelatedField(many=True)
+    url = serializers.StringRelatedField(read_only=True)
 
     class Meta:
-        model = BrowserCmeOffer
+        model = OrbitCmeOffer
         fields = (
             'id',
             'userId',
@@ -89,8 +90,9 @@ class ReadOfferSerializer(serializers.ModelSerializer):
             'expireDate',
             'url',
             'suggestedDescr',
-            'cmeTags',
-            'valid'
+            'tags',
+            'valid',
+            'modified'
         )
         read_only_fields = fields
 
@@ -102,7 +104,7 @@ class UserOfferList(generics.ListAPIView):
     def get_queryset(self):
         userid = self.kwargs['pk']
         now = timezone.now()
-        return BrowserCmeOffer.objects.filter(
+        return OrbitCmeOffer.objects.filter(
             user=userid,
             expireDate__gt=now,
             valid=True,

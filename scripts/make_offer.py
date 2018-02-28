@@ -32,14 +32,14 @@ def makeOffers(user):
     esiteids = EligibleSite.objects.getSiteIdsForProfile(user.profile)
     # exclude urls for which user already has un-redeemed un-expired offers waiting to be redeemed
     now = timezone.now()
-    exclude_urls = BrowserCmeOffer.objects.filter(
+    exclude_urls = OrbitCmeOffer.objects.filter(
         user=user,
         redeemed=False,
         eligible_site__in=esiteids,
         expireDate__gte=now
     ).values_list('url', flat=True).distinct()
     print('Num exclude_urls: {0}'.format(len(exclude_urls)))
-    aurls = AllowedUrl.objects.filter(eligible_site__in=esiteids).exclude(url__in=exclude_urls).order_by('?')[:NUM_OFFERS]
+    aurls = AllowedUrl.objects.filter(eligible_site__in=esiteids).exclude(pk__in=exclude_urls).order_by('?')[:NUM_OFFERS]
     num_aurls = aurls.count()
     t1 = now - timedelta(days=num_aurls)
     for j, aurl in enumerate(aurls):
@@ -47,10 +47,8 @@ def makeOffers(user):
         print(url)
         if not aurl.page_title:
             urlname = viewutils.getUrlLastPart(url)
-            pageTitle = urlname
             suggestedDescr = urlname
         else:
-            pageTitle = aurl.page_title
             suggestedDescr = aurl.page_title
         activityDate = t1 + timedelta(days=j)
         expireDate = now + timedelta(days=20)
@@ -58,53 +56,15 @@ def makeOffers(user):
         specnames = [p.name for p in esite.specialties.all()]
         spectags = CmeTag.objects.filter(name__in=specnames)
         with transaction.atomic():
-            offer = BrowserCmeOffer.objects.create(
+            offer = OrbitCmeOffer.objects.create(
                 user=user,
                 eligible_site=esite,
                 activityDate=activityDate,
-                url=url,
-                pageTitle=pageTitle,
+                url=aurl,
                 suggestedDescr=suggestedDescr,
                 expireDate=expireDate,
                 credits=0.5,
                 sponsor=sponsor
             )
-            for t in spectags:
-                OfferCmeTag.objects.create(offer=offer, tag=t)
-        print user.username, pageTitle, offer.pk, activityDate.strftime('%Y-%m-%d')
-
-def redeemOffers(user):
-    """Redeem unexpired offers and create BrowserCme entries in feed"""
-    etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
-    userTags = user.profile.cmeTags.all().order_by('name')
-    num_tags = userTags.count()
-    now = timezone.now()
-    offers = BrowserCmeOffer.objects.filter(
-        user=user,
-        redeemed=False,
-        expireDate__gt=now
-    ).order_by('activityDate')
-    for offer in offers:
-        rtag = userTags[randint(0, num_tags-1)]
-        print offer.pk, offer.url, offer.activityDate
-        with transaction.atomic():
-            entry = Entry.objects.create(
-                entryType=etype,
-                user=user,
-                sponsor=offer.sponsor,
-                description='some description text',
-                activityDate=offer.activityDate
-            )
-            entry.tags.set([rtag.pk,])
-            brcme = BrowserCme.objects.create(
-                entry=entry,
-                offer=offer,
-                url=offer.url,
-                pageTitle=offer.pageTitle,
-                credits=offer.credits,
-                purpose=randint(0,1),
-                planEffect=randint(0,1)
-            )
-            offer.redeemed = True
-            offer.save()
-            print('Entry {0.pk} tag:{1.name}'.format(entry, rtag))
+            offer.tags.set(list(spectags))
+        print('{0.pk}|{0.user}|{0.url}|{1}'.format(offer, activityDate.strftime('%Y-%m-%d'))

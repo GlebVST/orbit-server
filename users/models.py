@@ -6,6 +6,7 @@ from collections import namedtuple
 from datetime import datetime, timedelta
 from dateutil.relativedelta import *
 from decimal import Decimal, ROUND_HALF_UP
+from hashids import Hashids
 import pytz
 import re
 import uuid
@@ -14,7 +15,7 @@ from django.conf import settings
 from django.contrib.auth.models import User, Group
 from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, connection
 from django.db.models import Q, Prefetch, Count, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
@@ -53,7 +54,6 @@ INVITER_DISCOUNT_TYPE = 'inviter'
 INVITEE_DISCOUNT_TYPE = 'invitee'
 CONVERTEE_DISCOUNT_TYPE = 'convertee'
 ORG_DISCOUNT_TYPE = 'org'
-STANDARD_PLAN_NAME = 'Standard'
 
 # maximum number of invites for which a discount is applied to the inviter's subscription.
 INVITER_MAX_NUM_DISCOUNT = 10
@@ -186,6 +186,11 @@ class Degree(models.Model):
         abbrev = self.abbrev
         return abbrev == DEGREE_RN or abbrev == DEGREE_NP
 
+    def isPhysician(self):
+        """Returns True if degree is MD/DO"""
+        abbrev = self.abbrev
+        return abbrev == DEGREE_MD or abbrev == DEGREE_DO
+
     class Meta:
         ordering = ['sort_order',]
 
@@ -287,7 +292,7 @@ class Profile(models.Model):
         blank=True,
         help_text='Set during profile creation to the user whose inviteId was provided upon first login.'
     )
-    jobTitle = models.CharField(max_length=100, blank=True)
+    planId = models.CharField(max_length=36, blank=True, help_text='planId selected at signup')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
     npiLastName = models.CharField(max_length=30, blank=True, help_text='Last name from NPI Registry')
@@ -352,18 +357,9 @@ class Profile(models.Model):
 
 
     def isSignupComplete(self):
-        """Signup is complete if the following fields are populated
-            1. Country is provided
-            2. One or more PracticeSpecialty
-            3. One or more Degree (now called primaryRole in UI, and only 1 selection is currently allowed)
-            4. user has saved a UserSubscription
+        """Signup is complete if:
+            1. user has saved a UserSubscription
         """
-        if not self.country:
-            return False
-        if not self.specialties.exists():
-            return False
-        if not self.degrees.exists():
-            return False
         if not self.user.subscriptions.exists():
             return False
         return True
@@ -399,6 +395,10 @@ class Profile(models.Model):
     def isNurse(self):
         degrees = self.degrees.all()
         return any([m.isNurse() for m in degrees])
+
+    def isPhysician(self):
+        degrees = self.degrees.all()
+        return any([m.isPhysician() for m in degrees])
 
     def getActiveCmetags(self):
         """Need to query the through relation to filter by is_active=True"""
@@ -681,6 +681,8 @@ class EligibleSite(models.Model):
     example_title = models.CharField(max_length=300, blank=True,
         help_text='Label for the example URL')
     is_valid_expurl = models.BooleanField(default=True, help_text='Is example_url a valid URL')
+    verify_journal = models.BooleanField(default=False,
+            help_text='If True, need to verify article belongs to an allowed journal before making offer.')
     description = models.CharField(max_length=500, blank=True)
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     needs_ad_block = models.BooleanField(default=False)
@@ -1139,8 +1141,12 @@ class BrowserCme(models.Model):
     offer = models.OneToOneField(BrowserCmeOffer,
         on_delete=models.PROTECT,
         related_name='brcme',
-        db_index=True
+        db_index=True,
+        null=True,
+        blank=True,
+        default=None
     )
+    offerId = models.PositiveIntegerField(null=True, default=None)
     credits = models.DecimalField(max_digits=5, decimal_places=2)
     url = models.URLField(max_length=500)
     pageTitle = models.TextField()
@@ -1517,29 +1523,113 @@ class AffiliatePayout(models.Model):
         return '{0.convertee} by {0.affiliate}/{0.status}'.format(self)
 
 
-# Recurring Billing Plans
-# https://developers.braintreepayments.com/guides/recurring-billing/plans
-# A Plan must be created in the Braintree Control Panel, and synced with the db.
-@python_2_unicode_compatible
-class SubscriptionPlan(models.Model):
-    planId = models.CharField(max_length=36, unique=True)
-    name = models.CharField(max_length=80)
-    price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
-    trialDays = models.IntegerField(default=0, help_text='Trial period in days')
-    billingCycleMonths = models.IntegerField(default=12, help_text='Billing Cycle in months')
-    discountPrice = models.DecimalField(max_digits=6, decimal_places=2, help_text='discounted price in USD')
-    active = models.BooleanField(default=True)
+class SubscriptionPlanKey(models.Model):
+    name = models.CharField(max_length=64, unique=True,
+            help_text='Must be unique. Must match the landing_key in the pricing page URL')
+    description = models.TextField(blank=True, default='')
+    degree = models.ForeignKey(Degree,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='plan_keys'
+    )
+    specialty = models.ForeignKey(PracticeSpecialty,
+        null=True,
+        blank=True,
+        default=None,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='plan_keys'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
 
+
+class SubscriptionPlanManager(models.Manager):
+    def makePlanId(self, name):
+        """Create a planId based on name and hashid of next pk
+        This is used by Admin interface to auto-set planId.
+        """
+        HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyz1234567890' # lowercase + digits
+        SALT = 'SubscriptionPlan'
+        MAX_NAME_LENGTH = 32
+        cursor = connection.cursor()
+        cursor.execute("select nextval('users_subscriptionplan_id_seq')")
+        result = cursor.fetchone()
+        next_pk = result[0]+1
+        #print('next_pk: {0}'.format(next_pk))
+        hashgen = Hashids(
+            salt=SALT,
+            alphabet=HASHIDS_ALPHABET,
+            min_length=4
+        )
+        hash_pk = hashgen.encode(next_pk)
+        cleaned_name = '-'.join(name.strip().lower().split())
+        if len(cleaned_name) > MAX_NAME_LENGTH:
+            cleaned_name = cleaned_name[0:MAX_NAME_LENGTH]
+        return cleaned_name + '-{0}'.format(hash_pk)
+
+
+# Recurring Billing Plans
+# https://developers.braintreepayments.com/guides/recurring-billing/plans
+# A Plan must be created in the Braintree Control Panel, and synced with the db.
+@python_2_unicode_compatible
+class SubscriptionPlan(models.Model):
+    planId = models.CharField(max_length=36,
+            unique=True,
+            help_text='Unique. No whitespace. Must be in sync with the actual plan in Braintree')
+    name = models.CharField(max_length=80,
+            help_text='Internal Plan name (alphanumeric only). Must match value in Braintree. Will be used to set planId.')
+    display_name = models.CharField(max_length=40,
+            help_text='Display name - what the user sees (e.g. Standard).')
+    price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
+    trialDays = models.IntegerField(default=7,
+            help_text='Trial period in days')
+    billingCycleMonths = models.IntegerField(default=12,
+            help_text='Billing Cycle in months')
+    discountPrice = models.DecimalField(max_digits=6, decimal_places=2,
+            help_text='discounted price in USD')
+    active = models.BooleanField(default=True)
+    plan_key = models.ForeignKey(SubscriptionPlanKey,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='plans',
+    )
+    upgrade_plan = models.ForeignKey('self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        related_name='upgrade_plans',
+    )
+    downgrade_plan = models.ForeignKey('self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        related_name='downgrade_plans',
+    )
+    maxCmeWeek = models.IntegerField(default=0, help_text='maximum allowed CME per week')
+    maxCmeMonth = models.IntegerField(default=0, help_text='maximum allowed CME per month')
+    maxCmeYear = models.IntegerField(default=0, help_text='maximum allowed CME per year')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = SubscriptionPlanManager()
+
+    def __str__(self):
+        return self.name
+
     def monthlyPrice(self):
-        return self.price/Decimal('12.0')
+        """returns formatted str"""
+        return "{0:.2f}".format(self.price/Decimal('12.0'))
 
     def discountMonthlyPrice(self):
-        return self.discountPrice/Decimal('12.0')
+        """returns formatted str"""
+        return "{0:.2f}".format(self.discountPrice/Decimal('12.0'))
 
 
 # User Subscription
@@ -1999,13 +2089,18 @@ class UserSubscriptionManager(models.Manager):
         Need separate management task that creates new subscription in Standard at end of the billing cycle.
         Returns Braintree result object
         """
-        standard_plan = SubscriptionPlan.objects.get(name=STANDARD_PLAN_NAME)
-        result = self.setExpireAtBillingCycleEnd(user_subs)
-        if result.is_success:
-            user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
-            user_subs.next_plan = standard_plan
-            user_subs.save()
-        return result
+        # find the downgrade_plan for the current plan
+        downgrade_plan = user_subs.plan.downgrade_plan
+        if not downgrade_plan:
+            raise ValueError('No downgrade_plan found for: {0}/{0.plan}'.format(user_subs))
+        else:
+            logger.debug('makeActiveDowngrade to {0}/{0.planId} for user_subs {1}'.format(downgrade_plan, user_subs))
+            result = self.setExpireAtBillingCycleEnd(user_subs)
+            if result.is_success:
+                user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
+                user_subs.next_plan = downgrade_plan
+                user_subs.save()
+            return result
 
 
     def reactivateBtSubscription(self, user_subs, payment_token=None):
@@ -2638,6 +2733,7 @@ class AllowedHost(models.Model):
     has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
     allow_page_download = models.BooleanField(blank=True, default=True,
             help_text='False if pages under this host should not be downloaded')
+    is_secure = models.BooleanField(blank=True, default=False, help_text='True if site uses a secure connection (https).')
     created = models.DateTimeField(auto_now_add=True, blank=True)
     modified = models.DateTimeField(auto_now=True, blank=True)
 
@@ -2688,7 +2784,7 @@ class AllowedUrl(models.Model):
     url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
     valid = models.BooleanField(default=True)
     page_title = models.TextField(blank=True, default='')
-    abstract = models.TextField(blank=True, default='')
+    metadata = models.TextField(blank=True, default='')
     doi = models.CharField(max_length=100, blank=True,
         help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
     pmid = models.CharField(max_length=20, blank=True, help_text='PubMed Identifier (PMID)')
@@ -2754,3 +2850,57 @@ class WhitelistRequest(models.Model):
 
     def __str__(self):
         return '{0}-{1}'.format(self.user, self.req_url.url)
+
+# OrbitCmeOffer
+# An offer for a user is generated based on the user's plugin activity.
+@python_2_unicode_compatible
+class OrbitCmeOffer(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        related_name='new_offers',
+        db_index=True
+    )
+    sponsor = models.ForeignKey(Sponsor,
+        on_delete=models.PROTECT,
+        related_name='new_offers',
+        db_index=True
+    )
+    eligible_site = models.ForeignKey(EligibleSite,
+        on_delete=models.PROTECT,
+        related_name='new_offers',
+        db_index=True)
+    url = models.ForeignKey(AllowedUrl,
+        on_delete=models.PROTECT,
+        related_name='new_offers',
+        db_index=True)
+    activityDate = models.DateTimeField()
+    suggestedDescr = models.TextField(blank=True, default='')
+    expireDate = models.DateTimeField()
+    redeemed = models.BooleanField(default=False)
+    valid = models.BooleanField(default=True)
+    credits = models.DecimalField(max_digits=5, decimal_places=2,
+        help_text='CME credits to be awarded upon redemption')
+    tags = models.ManyToManyField(
+        CmeTag,
+        blank=True,
+        related_name='new_offers',
+        help_text='Suggested tags (intersected with user cmeTags by UI)'
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.url.url
+
+    def activityDateLocalTz(self):
+        return self.activityDate.astimezone(LOCAL_TZ)
+
+    def formatSuggestedTags(self):
+        return ", ".join([t.name for t in self.tags.all()])
+    formatSuggestedTags.short_description = "suggestedTags"
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_orbitcmeoffer'
+        verbose_name_plural = 'OrbitCME Offers'

@@ -66,6 +66,7 @@ class DegreeList(generics.ListCreateAPIView):
     serializer_class = DegreeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
+
 class DegreeDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Degree.objects.all()
     serializer_class = DegreeSerializer
@@ -77,7 +78,7 @@ class LongPagination(PageNumberPagination):
 
 # PracticeSpecialty - list only
 class PracticeSpecialtyList(generics.ListAPIView):
-    queryset = PracticeSpecialty.objects.filter(is_abms_board=True).order_by('name')
+    queryset = PracticeSpecialty.objects.all().order_by('name')
     serializer_class = PracticeSpecialtyListSerializer
     pagination_class = LongPagination
     permission_classes = (IsContentAdminOrAny,)
@@ -90,13 +91,13 @@ class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
 
 # CmeTag
 class CmeTagList(generics.ListCreateAPIView):
-    queryset = CmeTag.objects.all().order_by('-priority', 'name')
+    #queryset = CmeTag.objects.all().order_by('-priority', 'name')
     serializer_class = CmeTagWithSpecSerializer
     pagination_class = LongPagination
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
     def get_queryset(self):
-        return CmeTag.objects.all().prefetch_related('specialties')
+        return CmeTag.objects.all().prefetch_related('specialties').order_by('-priority','name')
 
 class CmeTagDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = CmeTag.objects.all()
@@ -365,11 +366,23 @@ class UserStateLicenseDetail(generics.RetrieveUpdateDestroyAPIView):
         instance = serializer.save(user=user)
         return instance
 
-# SubscriptionPlan : new payment model
+# SubscriptionPlan
 class SubscriptionPlanList(generics.ListCreateAPIView):
-    queryset = SubscriptionPlan.objects.filter(active=True).order_by('created')
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        """Filter plans by plan_key sourced from the planId in request.user.profile"""
+        profile = self.request.user.profile
+        try:
+            plan = SubscriptionPlan.objects.get(planId=profile.planId)
+            plan_key = plan.plan_key
+        except SubscriptionPlan.DoesNotExist:
+            logWarning(logger, self.request, "Invalid key: {0}".format(lkey))
+            return SubscriptionPlan.objects.none().order_by('id')
+        else:
+            filter_kwargs = dict(active=True, plan_key=plan_key)
+            return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price')
 
 class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = SubscriptionPlan.objects.all()
@@ -381,22 +394,34 @@ class SubscriptionPlanPublic(generics.ListAPIView):
     """Returns a list of available plans using the SubscriptionPlanPublicSerializer
     Note: plans in db must be in sync with the plans defined in the BT Control Panel
     """
-    queryset = SubscriptionPlan.objects.filter(active=True).order_by('created')
     serializer_class = SubscriptionPlanPublicSerializer
     permission_classes = (permissions.AllowAny,)
 
+    def get_queryset(self):
+        """Filter plans by plan_key in url using iexact search"""
+        lkey = self.kwargs['landing_key']
+        if lkey.endswith('/'):
+            lkey = lkey[0:-1]
+        try:
+            plan_key = SubscriptionPlanKey.objects.get(name__iexact=lkey)
+        except SubscriptionPlanKey.DoesNotExist:
+            logWarning(logger, self.request, "Invalid key: {0}".format(lkey))
+            return SubscriptionPlan.objects.none().order_by('id')
+        else:
+            filter_kwargs = dict(active=True, plan_key=plan_key)
+            return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price')
 
-# custom pagination for BrowserCmeOfferList
-class BrowserCmeOfferPagination(PageNumberPagination):
+# custom pagination for OrbitCmeOfferList
+class OrbitCmeOfferPagination(PageNumberPagination):
     page_size = 5
 
-class BrowserCmeOfferList(generics.ListAPIView):
+class OrbitCmeOfferList(generics.ListAPIView):
     """
     Get the un-redeemed and unexpired valid offers order by modified desc
     (latest modified first) for the authenticated user.
     """
-    serializer_class = BrowserCmeOfferSerializer
-    pagination_class = BrowserCmeOfferPagination
+    serializer_class = OrbitCmeOfferSerializer
+    pagination_class = OrbitCmeOfferPagination
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewOffer)
 
     def get_queryset(self):
@@ -407,7 +432,7 @@ class BrowserCmeOfferList(generics.ListAPIView):
             user=user,
             expireDate__gt=now,
             redeemed=False)
-        return BrowserCmeOffer.objects.filter(**filter_kwargs).select_related('sponsor').order_by('-modified')
+        return OrbitCmeOffer.objects.filter(**filter_kwargs).select_related('sponsor','url').order_by('-modified')
 
 
 #
@@ -466,23 +491,19 @@ class InvalidateEntry(generics.UpdateAPIView):
         instance = self.get_object()
         msg = 'Invalidate entry {0}'.format(instance)
         logInfo(logger, request, msg)
-        with transaction.atomic():
-            instance.valid = False
-            instance.save()
-            if hasattr(instance, 'brcme'):
-                instance.brcme.offer.valid = False
-                instance.brcme.offer.save()
+        instance.valid = False
+        instance.save()
         context = {'success': True}
         return Response(context)
 
 
 class InvalidateOffer(generics.UpdateAPIView):
-    serializer_class = BrowserCmeOfferSerializer
+    serializer_class = OrbitCmeOfferSerializer
     permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         user = self.request.user
-        return BrowserCmeOffer.objects.filter(user=user, valid=True)
+        return OrbitCmeOffer.objects.filter(user=user, valid=True)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -521,8 +542,7 @@ class TagsMixin(object):
 class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
     """
     Create a BrowserCme Entry in the user's feed.
-    This action redeems the BrowserCmeOffer specified in the
-    request, and sets the redeemed flag on the offer.
+    This action redeems the offer specified in the request.
     """
     serializer_class = BRCmeCreateSerializer
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanPostBRCme)
@@ -530,11 +550,8 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
     def perform_create(self, serializer, format=None):
         user = self.request.user
         with transaction.atomic():
+            # Create entry, brcme instances and redeem offer
             brcme = serializer.save(user=user)
-            offer = brcme.offer
-            # set redeemed flag on offer
-            offer.redeemed = True
-            offer.save()
         return brcme
 
     def create(self, request, *args, **kwargs):
@@ -545,13 +562,12 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
         serializer.is_valid(raise_exception=True)
         brcme = self.perform_create(serializer)
         entry = brcme.entry
-        offer = brcme.offer
         context = {
             'success': True,
             'id': entry.pk,
             'logo_url': entry.sponsor.logo_url,
             'created': entry.created,
-            'credits': offer.credits
+            'credits': brcme.credits
         }
         return Response(context, status=status.HTTP_201_CREATED)
 
@@ -1287,11 +1303,24 @@ class CreateAuditReport(CertificateMixin, APIView):
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if profile.isPhysician() and not profile.isNPIComplete():
+            context = {
+                'error': 'Please update your profile with your NPI Number.'
+            }
+            logInfo(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        elif profile.isNurse() and not user.statelicenses.exists():
+            context = {
+                'error': 'Please update your profile with your State License.'
+            }
+            logInfo(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
         certificate = None
         state_license = None
         certClass = MDCertificate
         if browserCmeTotal > 0:
-            if profile.isNurse() and user.statelicenses.exists():
+            if profile.isNurse():
                 state_license = user.statelicenses.all()[0]
                 certClass = NurseCertificate
             certificate = self.makeCertificate(certClass, profile, brcme_startdt, enddt, cmeTotal, state_license=state_license)
