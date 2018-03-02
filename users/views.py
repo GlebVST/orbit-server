@@ -217,8 +217,10 @@ class InviteIdLookup(APIView):
                     username = profile.npiLastName
                 else:
                     username = 'Your friend'
+                inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
                 context = {
-                    'username': username
+                    'username': username,
+                    'invitee_discount': inv_discount.amount
                 }
                 return Response(context, status=status.HTTP_200_OK)
         return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
@@ -378,7 +380,7 @@ class SubscriptionPlanList(generics.ListCreateAPIView):
             plan = SubscriptionPlan.objects.get(planId=profile.planId)
             plan_key = plan.plan_key
         except SubscriptionPlan.DoesNotExist:
-            logWarning(logger, self.request, "Invalid key: {0}".format(lkey))
+            logWarning(logger, self.request, "Invalid profile.planId: {0.planId}".format(profile))
             return SubscriptionPlan.objects.none().order_by('id')
         else:
             filter_kwargs = dict(active=True, plan_key=plan_key)

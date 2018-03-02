@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
-from .models import AuthImpersonation, Profile, Customer, Affiliate, AffiliateDetail, SubscriptionPlan
+from .models import AuthImpersonation, Profile, Customer, ProfileCmetag, Affiliate, AffiliateDetail, SubscriptionPlan
 
 logger = logging.getLogger('gen.auth')
 HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
@@ -70,7 +70,11 @@ class Auth0Backend(object):
                 # after saving profile instance, can add m2m rows
                 profile.degrees.add(plan.plan_key.degree)
                 if plan.plan_key.specialty:
-                    profile.specialties.add(plan.plan_key.specialty)
+                    ps = plan.plan_key.specialty
+                    profile.specialties.add(ps)
+                    specTags = ps.cmeTags.all()
+                    for t in specTags:
+                        pct = ProfileCmetag.objects.create(tag=t, profile=profile, is_active=True)
                 # create local customer object
                 customer = Customer(user=user)
                 customer.save()
