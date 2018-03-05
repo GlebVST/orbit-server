@@ -67,4 +67,4 @@ def makeOffers(user):
                 sponsor=sponsor
             )
             offer.tags.set(list(spectags))
-        print('{0.pk}|{0.user}|{0.url}|{1}'.format(offer, activityDate.strftime('%Y-%m-%d'))
+        print('{0.pk}|{0.user}|{0.url}|{1}'.format(offer, activityDate.strftime('%Y-%m-%d')))
