@@ -75,7 +75,7 @@ class PracticeSpecialtyListSerializer(serializers.ModelSerializer):
 
 class PracticeSpecialtySerializer(serializers.ModelSerializer):
     cmeTags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
+        queryset=CmeTag.objects.all(),
         many=True
     )
     class Meta:
@@ -95,7 +95,8 @@ class ProfileCmetagSerializer(serializers.ModelSerializer):
 
 class UpdateProfileCmetagSerializer(serializers.ModelSerializer):
     tag = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.exclude(name=CMETAG_SACME))
+        queryset=CmeTag.objects.all(),
+    )
     is_active = serializers.BooleanField()
 
     class Meta:
@@ -543,7 +544,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
         queryset=OrbitCmeOffer.objects.filter(redeemed=False)
     )
     tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
+        queryset=CmeTag.objects.all(),
         many=True,
         required=False
     )
@@ -562,9 +563,6 @@ class BRCmeCreateSerializer(serializers.Serializer):
         """Create parent Entry and BrowserCme instances.
         Note: this expects the following keys in validated_data:
             user: User instance
-        2017-07-05: If offer.eligible_site is associated with only 1 PracSpec,
-        and this specialty is contained in user.specialties, then add its
-        named cmeTag to the tags for this entry.
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
         offer = validated_data['offerId']
@@ -604,7 +602,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
     tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.exclude(name=CMETAG_SACME),
+        queryset=CmeTag.objects.all(),
         many=True,
         required=False
     )

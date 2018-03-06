@@ -967,7 +967,8 @@ class CmeAggregateStats(APIView):
         stats = {
             ENTRYTYPE_BRCME: {
                 'total': Entry.objects.sumBrowserCme(user, startdt, enddt),
-                'Untagged': Entry.objects.sumBrowserCme(user, startdt, enddt, untaggedOnly=True)
+                'Untagged': Entry.objects.sumBrowserCme(user, startdt, enddt, untaggedOnly=True),
+                satag.name: Entry.objects.sumBrowserCme(user, startdt, enddt, satag)
             },
             ENTRYTYPE_SRCME: {
                 'total': Entry.objects.sumSRCme(user, startdt, enddt),

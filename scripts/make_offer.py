@@ -39,12 +39,11 @@ def makeOffers(user):
         expireDate__gte=now
     ).values_list('url', flat=True).distinct()
     print('Num exclude_urls: {0}'.format(len(exclude_urls)))
-    aurls = AllowedUrl.objects.filter(eligible_site__in=esiteids).exclude(pk__in=exclude_urls).order_by('?')[:NUM_OFFERS]
+    aurls = AllowedUrl.objects.filter(valid=True, eligible_site__in=esiteids).exclude(pk__in=exclude_urls).order_by('?')[:NUM_OFFERS]
     num_aurls = aurls.count()
     t1 = now - timedelta(days=num_aurls)
     for j, aurl in enumerate(aurls):
         url = aurl.url
-        print(url)
         if not aurl.page_title:
             urlname = viewutils.getUrlLastPart(url)
             suggestedDescr = urlname
@@ -53,8 +52,6 @@ def makeOffers(user):
         activityDate = t1 + timedelta(days=j)
         expireDate = now + timedelta(days=20)
         esite = aurl.eligible_site
-        specnames = [p.name for p in esite.specialties.all()]
-        spectags = CmeTag.objects.filter(name__in=specnames)
         with transaction.atomic():
             offer = OrbitCmeOffer.objects.create(
                 user=user,
@@ -66,5 +63,6 @@ def makeOffers(user):
                 credits=0.5,
                 sponsor=sponsor
             )
-            offer.tags.set(list(spectags))
-        print('{0.pk}|{0.user}|{0.url}|{1}'.format(offer, activityDate.strftime('%Y-%m-%d')))
+            offer.assignCmeTags()
+        print('{0.pk}|{0.url}|{0.activityDate:%Y-%m-%d}'.format(offer))
+        print(offer.tags.all())
