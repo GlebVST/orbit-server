@@ -2923,7 +2923,6 @@ class OrbitCmeOffer(models.Model):
         for t in self.url.cmeTags.all():
             self.tags.add(t)
         # check if can add SA-CME tag
-        if esite.specialties.filter(name__in=SACME_SPECIALTIES).exists():
-            profile = self.user.profile
-            if profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
-                self.tags.add(CmeTag.objects.get(name=CMETAG_SACME))
+        profile = self.user.profile
+        if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
+            self.tags.add(CmeTag.objects.get(name=CMETAG_SACME))
