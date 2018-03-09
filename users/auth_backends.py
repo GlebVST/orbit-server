@@ -75,6 +75,10 @@ class Auth0Backend(object):
                     specTags = ps.cmeTags.all()
                     for t in specTags:
                         pct = ProfileCmetag.objects.create(tag=t, profile=profile, is_active=True)
+                    # check if can add SA-CME tag
+                    if profile.isPhysician() and ps.name in SACME_SPECIALTIES:
+                        satag = CmeTag.objects.get(name=CMETAG_SACME)
+                        pct = ProfileCmetag.objects.create(tag=satag, profile=profile, is_active=True)
                 # create local customer object
                 customer = Customer(user=user)
                 customer.save()

@@ -20,3 +20,13 @@ def updateProfiles():
                     pct = ProfileCmetag.objects.create(profile=p, tag=t)
                     print('Add pct {0} to profile {1} for ps: {2}'.format(pct, p, ps))
     return psTagDict
+
+def assignPctSaCme():
+    satag = CmeTag.objects.get(name=CMETAG_SACME)
+    profiles = Profile.objects.all().prefetch_related('degrees')
+    for p in profiles:
+        if p.isPhysician() and p.specialties.filter(name__in=SACME_SPECIALTIES).exists():
+            qset = ProfileCmetag.objects.filter(tag=satag, profile=p)
+            if not qset.exists():
+                pct = ProfileCmetag.objects.create(tag=satag, profile=profile, is_active=True)
+                print('Add pct {0} to profile {1}'.format(pct, p))
