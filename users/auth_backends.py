@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
-from .models import AuthImpersonation, Profile, Customer, ProfileCmetag, Affiliate, AffiliateDetail, SubscriptionPlan, SACME_SPECIALTIES
+from .models import AuthImpersonation, Profile, Customer, CmeTag, ProfileCmetag, Affiliate, AffiliateDetail, SubscriptionPlan, SACME_SPECIALTIES
 
 logger = logging.getLogger('gen.auth')
 HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
