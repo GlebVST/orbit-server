@@ -55,6 +55,12 @@ INVITEE_DISCOUNT_TYPE = 'invitee'
 CONVERTEE_DISCOUNT_TYPE = 'convertee'
 ORG_DISCOUNT_TYPE = 'org'
 
+# specialties that have SA-CME tag pre-selected on OrbitCmeOffer
+SACME_SPECIALTIES = (
+    'Radiology',
+    'Radiation Oncology'
+)
+
 # maximum number of invites for which a discount is applied to the inviter's subscription.
 INVITER_MAX_NUM_DISCOUNT = 10
 
@@ -853,6 +859,7 @@ class EntryManager(models.Manager):
             The non SA-CME entries are further partitioned into:
             brcmeEntries: entries with entryType=ENTRYTYPE_BRCME
             otherSrCmeEntries: non SA-CME entries (sr-cme only)
+        Note that for some users, their br-cme entries will fall into the saEntries bucket.
         Returns AuditReportResult
         """
         satag = CmeTag.objects.get(name=CMETAG_SACME)
@@ -2890,6 +2897,11 @@ class OrbitCmeOffer(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        managed = False
+        db_table = 'trackers_orbitcmeoffer'
+        verbose_name_plural = 'OrbitCME Offers'
+
     def __str__(self):
         return self.url.url
 
@@ -2900,7 +2912,17 @@ class OrbitCmeOffer(models.Model):
         return ", ".join([t.name for t in self.tags.all()])
     formatSuggestedTags.short_description = "suggestedTags"
 
-    class Meta:
-        managed = False
-        db_table = 'trackers_orbitcmeoffer'
-        verbose_name_plural = 'OrbitCME Offers'
+    def assignCmeTags(self):
+        """Assign tags based on: eligible_site, url, and user"""
+        esite = self.eligible_site
+        # get suggested cmetags from the eligible_site.specialties
+        specnames = [p.name for p in esite.specialties.all()]
+        spectags = CmeTag.objects.filter(name__in=specnames) # tags whose name=pracspec.name
+        self.tags.set(list(spectags))
+        # tags from allowed_url
+        for t in self.url.cmeTags.all():
+            self.tags.add(t)
+        # check if can add SA-CME tag
+        profile = self.user.profile
+        if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
+            self.tags.add(CmeTag.objects.get(name=CMETAG_SACME))
