@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
-from .models import AuthImpersonation, Profile, Customer, CmeTag, ProfileCmetag, Affiliate, AffiliateDetail, SubscriptionPlan, SACME_SPECIALTIES
+from .models import AuthImpersonation, Profile, Customer, CmeTag, ProfileCmetag, Affiliate, AffiliateDetail, SubscriptionPlan, SACME_SPECIALTIES, CMETAG_SACME
 
 logger = logging.getLogger('gen.auth')
 HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
@@ -79,6 +79,7 @@ class Auth0Backend(object):
                     if profile.isPhysician() and ps.name in SACME_SPECIALTIES:
                         satag = CmeTag.objects.get(name=CMETAG_SACME)
                         pct = ProfileCmetag.objects.create(tag=satag, profile=profile, is_active=True)
+                        logger.debug('Add SA-CME tag to profile: {0.user}'.format(p))
                 # create local customer object
                 customer = Customer(user=user)
                 customer.save()
