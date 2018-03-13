@@ -703,73 +703,6 @@ class EligibleSite(models.Model):
         return self.domain_title
 
 
-# Browser CME offer
-# An offer for a user is generated based on the user's plugin activity.
-@python_2_unicode_compatible
-class BrowserCmeOffer(models.Model):
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='offers',
-        db_index=True
-    )
-    sponsor = models.ForeignKey(Sponsor,
-        on_delete=models.PROTECT,
-        related_name='offers',
-        db_index=True
-    )
-    eligible_site = models.ForeignKey(EligibleSite,
-        on_delete=models.CASCADE,
-        related_name='offers',
-        db_index=True)
-    activityDate = models.DateTimeField()
-    url = models.URLField(max_length=500, db_index=True)
-    pageTitle = models.TextField(blank=True)
-    suggestedDescr = models.TextField(blank=True, default='')
-    expireDate = models.DateTimeField()
-    redeemed = models.BooleanField(default=False)
-    valid = models.BooleanField(default=True)
-    credits = models.DecimalField(max_digits=5, decimal_places=2,
-        help_text='CME credits to be awarded upon redemption')
-    cmeTags = models.ManyToManyField(
-        CmeTag,
-        blank=True,
-        related_name='brcmeoffers',
-        through='OfferCmeTag',
-        help_text='Suggested tags (intersected with user cmeTags by UI)'
-    )
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.url
-
-    def activityDateLocalTz(self):
-        return self.activityDate.astimezone(LOCAL_TZ)
-
-    def formatSuggestedTags(self):
-        return ", ".join([t.name for t in self.cmeTags.all()])
-    formatSuggestedTags.short_description = "suggestedTags"
-
-    class Meta:
-        verbose_name_plural = 'BrowserCME Offers'
-        # list of (codename, human_readable_permission_name)
-        permissions = (
-            (PERM_VIEW_OFFER, 'Can view BrowserCmeOffer'),
-        )
-
-# BrowserCmeOffer-CmeTag association
-@python_2_unicode_compatible
-class OfferCmeTag(models.Model):
-    offer = models.ForeignKey(BrowserCmeOffer, on_delete=models.CASCADE)
-    tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return '{0.tag.name}'.format(self)
-
-    class Meta:
-        unique_together = ('offer','tag')
-
 # A Story is broadcast to many users.
 # The launch_url must be customized to include the user id when sending
 # it in the response for a given user.
@@ -1144,14 +1077,6 @@ class BrowserCme(models.Model):
         on_delete=models.CASCADE,
         related_name='brcme',
         primary_key=True
-    )
-    offer = models.OneToOneField(BrowserCmeOffer,
-        on_delete=models.PROTECT,
-        related_name='brcme',
-        db_index=True,
-        null=True,
-        blank=True,
-        default=None
     )
     offerId = models.PositiveIntegerField(null=True, default=None)
     credits = models.DecimalField(max_digits=5, decimal_places=2)

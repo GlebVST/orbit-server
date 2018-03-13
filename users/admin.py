@@ -93,23 +93,6 @@ class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
 
 
-class OfferTagInline(admin.TabularInline):
-    model = OfferCmeTag
-
-class BrowserCmeOfferAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'activityDateLocalTz', 'redeemed', 'url', 'suggestedDescr', 'valid', 'modified')
-    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
-    list_select_related = ('user','eligible_site')
-    ordering = ('-modified',)
-    inlines = [
-        OfferTagInline,
-    ]
-    list_filter = ('redeemed','valid', UserFilter, 'eligible_site')
-
-    class Media:
-        pass
-
-
 class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
 
@@ -386,7 +369,6 @@ admin_site.register(AffiliatePayout, AffiliatePayoutAdmin)
 admin_site.register(AuthImpersonation, AuthImpersonationAdmin)
 admin_site.register(AuditReport, AuditReportAdmin)
 admin_site.register(BatchPayout, BatchPayoutAdmin)
-admin_site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
 admin_site.register(Certificate, CertificateAdmin)
 admin_site.register(CmeTag, CmeTagAdmin)
 admin_site.register(Country, CountryAdmin)

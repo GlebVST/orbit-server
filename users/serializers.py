@@ -322,32 +322,6 @@ class StateLicenseSerializer(serializers.ModelSerializer):
 
 # Entire offer is read-only because offers are created by the plugin server.
 # A separate serializer exists to redeem the offer (and create br-cme entry in the user's feed).
-class BrowserCmeOfferSerializer(serializers.ModelSerializer):
-    userId = serializers.IntegerField(source='user.id', read_only=True)
-    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
-    cmeTags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-
-    class Meta:
-        model = BrowserCmeOffer
-        fields = (
-            'id',
-            'userId',
-            'activityDate',
-            'url',
-            'pageTitle',
-            'suggestedDescr',
-            'expireDate',
-            'credits',
-            'sponsor',
-            'logo_url',
-            'cmeTags'
-        )
-        read_only_fields = fields
-
-# Entire offer is read-only because offers are created by the plugin server.
-# A separate serializer exists to redeem the offer (and create br-cme entry in the user's feed).
 class OrbitCmeOfferSerializer(serializers.ModelSerializer):
     userId = serializers.IntegerField(source='user.id', read_only=True)
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
