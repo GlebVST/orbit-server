@@ -204,6 +204,16 @@ class PlanForm(forms.ModelForm):
             'modified'
         )
 
+    def clean(self):
+        """If given, check that maxCmeMonth < maxCmeYear"""
+        cleaned_data = super(PlanForm, self).clean()
+        maxCmeMonth = cleaned_data.get('maxCmeMonth')
+        maxCmeYear = cleaned_data.get('maxCmeYear')
+        if maxCmeYear and maxCmeMonth and (maxCmeMonth >= maxCmeYear):
+            self.add_error('maxCmeMonth', 'maxCmeMonth must be strictly less than maxCmeYear.')
+        if maxCmeYear == 0 and maxCmeMonth != 0:
+            self.add_error('maxCmeMonth', 'If maxCmeYear=0, then maxCmeMonth must also be 0 (for unlimited CME).')
+
     def save(self, commit=True):
         """Auto assign planId based on plan name and hashid of next id"""
         m = super(PlanForm, self).save(commit=False)
@@ -212,6 +222,9 @@ class PlanForm(forms.ModelForm):
             #m.planId = hyphen_name + '-xkcd'
             m.planId = SubscriptionPlan.objects.makePlanId(m.name)
             #print(m.planId)
+        if m.maxCmeYear > 0:
+            if not m.maxCmeMonth:
+                m.maxCmeMonth = m.maxCmeYear/12 + 1
         m.save()
         return m
 
@@ -225,6 +238,8 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'monthlyPrice',
         'discountPrice',
         'discountMonthlyPrice',
+        'maxCmeYear',
+        'maxCmeMonth'
     )
     list_select_related = True
     list_filter = ('active', 'plan_key',)
@@ -238,7 +253,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('price', 'discountPrice')
         }),
         ('CME', {
-            'fields': ('maxCmeWeek','maxCmeMonth','maxCmeYear')
+            'fields': ('maxCmeYear','maxCmeMonth',)
         }),
         ('Other', {
             'fields': ('trialDays','billingCycleMonths','active',)

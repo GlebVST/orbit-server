@@ -1547,9 +1547,12 @@ class SubscriptionPlan(models.Model):
         db_index=True,
         related_name='downgrade_plans',
     )
-    maxCmeWeek = models.IntegerField(default=0, help_text='maximum allowed CME per week')
-    maxCmeMonth = models.IntegerField(default=0, help_text='maximum allowed CME per month')
-    maxCmeYear = models.IntegerField(default=0, help_text='maximum allowed CME per year')
+    maxCmeMonth = models.PositiveIntegerField(
+        default=0,
+        help_text='maximum allowed CME per month')
+    maxCmeYear = models.PositiveIntegerField(
+        default=0,
+        help_text='Maximum allowed CME per year. 0 for unlimited.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()
@@ -1565,6 +1568,9 @@ class SubscriptionPlan(models.Model):
         """returns formatted str"""
         return "{0:.2f}".format(self.discountPrice/Decimal('12.0'))
 
+    def isUnlimitedCme(self):
+        """True if this is an un-limited CME plan, else False"""
+        return self.maxCmeYear == 0
 
 # User Subscription
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
@@ -1595,6 +1601,8 @@ class UserSubscriptionManager(models.Manager):
         if user_subs:
             qset = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
+            if user_subs.plan.isUnlimitedCme():
+                allowed_codes.append(PERM_DELETE_BRCME)
         allowed_codes = set(allowed_codes)
         perms = [{
                 'codename': codename,

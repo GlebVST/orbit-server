@@ -1,7 +1,4 @@
 """Constants used by the apps in the Orbit project"""
-from datetime import datetime
-import pytz
-
 MAX_URL_LENGTH = 500
 
 # Note: all groups must be created in the database using the Django Group model.

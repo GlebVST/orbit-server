@@ -483,7 +483,7 @@ class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
 
 class InvalidateEntry(generics.UpdateAPIView):
     serializer_class = EntryReadSerializer
-    permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
+    permission_classes = (CanInvalidateEntry, IsOwnerOrAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         user = self.request.user
