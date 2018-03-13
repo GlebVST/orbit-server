@@ -7,6 +7,7 @@ from common.appconstants import (
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
     PERM_POST_BRCME,
+    PERM_DELETE_BRCME,
     PERM_POST_SRCME,
     PERM_PRINT_AUDIT_REPORT,
     PERM_PRINT_BRCME_CERT

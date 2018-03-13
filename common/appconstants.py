@@ -13,6 +13,7 @@ PERM_VIEW_OFFER = u'view_offer'
 PERM_VIEW_FEED = u'view_feed'
 PERM_POST_SRCME = u'post_srcme'
 PERM_POST_BRCME = u'post_brcme'
+PERM_DELETE_BRCME = u'delete_brcme'
 PERM_VIEW_DASH = u'view_dashboard'
 PERM_PRINT_BRCME_CERT = u'print_brcme_cert'
 PERM_PRINT_AUDIT_REPORT = u'print_audit_report'
@@ -24,8 +25,9 @@ ALL_PERMS = (
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
-    PERM_POST_BRCME,
     PERM_POST_SRCME,
+    PERM_POST_BRCME,
+    PERM_DELETE_BRCME,
     PERM_PRINT_AUDIT_REPORT,
     PERM_PRINT_BRCME_CERT,
     PERM_POST_WHITELIST,

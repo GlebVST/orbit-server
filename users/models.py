@@ -30,8 +30,9 @@ from common.appconstants import (
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
-    PERM_POST_BRCME,
     PERM_POST_SRCME,
+    PERM_POST_BRCME,
+    PERM_DELETE_BRCME,
     PERM_PRINT_AUDIT_REPORT,
     PERM_PRINT_BRCME_CERT
 )
@@ -1024,6 +1025,7 @@ class Entry(models.Model):
             (PERM_VIEW_FEED, 'Can view Feed'),
             (PERM_VIEW_DASH, 'Can view Dashboard'),
             (PERM_POST_BRCME, 'Can redeem BrowserCmeOffer'),
+            (PERM_DELETE_BRCME, 'Can delete BrowserCme entry'),
             (PERM_POST_SRCME, 'Can post Self-reported Cme entry'),
             (PERM_PRINT_AUDIT_REPORT, 'Can print/share audit report'),
             (PERM_PRINT_BRCME_CERT, 'Can print/share BrowserCme certificate'),
