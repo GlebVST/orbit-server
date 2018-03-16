@@ -34,7 +34,9 @@ from common.appconstants import (
     PERM_POST_BRCME,
     PERM_DELETE_BRCME,
     PERM_PRINT_AUDIT_REPORT,
-    PERM_PRINT_BRCME_CERT
+    PERM_PRINT_BRCME_CERT,
+    MONTH_CME_LIMIT_MESSAGE,
+    YEAR_CME_LIMIT_MESSAGE
 )
 #
 # constants (should match the database values)
@@ -1059,6 +1061,43 @@ class SRCme(models.Model):
         return str(self.credits)
 
 
+class BrowserCmeManager(models.Manager):
+
+    def hasEarnedMonthLimit(self, user_subs, year, month):
+        """Returns True if user has reached the monthly limit set by user_subs.plan
+        Note: this should only be called for LimitedCme plans.
+        Args:
+            user_subs: UserSubscription instance
+            year:int
+            month:int
+        """
+        user = user_subs.user
+        plan = user_subs.plan
+        qs = self.model.objects.select_related('entry').filter(
+            entry__user=user,
+            entry__created__year=year,
+            entry__created__month=month,
+            entry__valid=True
+        ).aggregate(cme_total=Sum('credits'))
+        return qs['cme_total'] >= plan.maxCmeMonth
+
+    def hasEarnedYearLimit(self, user_subs, year):
+        """Returns True if user has reached the monthly limit set by user_subs.plan
+        Note: this should only be called for LimitedCme plans.
+        Args:
+            user_subs: UserSubscription instance
+            dt: datetime - used for year count
+        """
+        user = user_subs.user
+        plan = user_subs.plan
+        qs = self.model.objects.select_related('entry').filter(
+            entry__user=user,
+            entry__created__year=year,
+            entry__valid=True
+        ).aggregate(cme_total=Sum('credits'))
+        return qs['cme_total'] >= plan.maxCmeYear
+
+
 # Browser CME entry
 # An entry is created when a Browser CME offer is redeemed by the user
 @python_2_unicode_compatible
@@ -1093,6 +1132,7 @@ class BrowserCme(models.Model):
         default=0,
         choices=PLAN_EFFECT_CHOICES
     )
+    objects = BrowserCmeManager()
 
     def __str__(self):
         return self.url
@@ -1549,10 +1589,10 @@ class SubscriptionPlan(models.Model):
     )
     maxCmeMonth = models.PositiveIntegerField(
         default=0,
-        help_text='maximum allowed CME per month')
+        help_text='Maximum allowed CME per month. 0 for unlimited rate.')
     maxCmeYear = models.PositiveIntegerField(
         default=0,
-        help_text='Maximum allowed CME per year. 0 for unlimited.')
+        help_text='Target CME per year. For limited plans, this is also a maximum allowed per year.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()
@@ -1569,8 +1609,8 @@ class SubscriptionPlan(models.Model):
         return "{0:.2f}".format(self.discountPrice/Decimal('12.0'))
 
     def isUnlimitedCme(self):
-        """True if this is an un-limited CME plan, else False"""
-        return self.maxCmeYear == 0
+        """True if this is an un-limited rate CME plan (no throttling), else False"""
+        return self.maxCmeMonth == 0
 
 # User Subscription
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
@@ -1582,10 +1622,26 @@ class UserSubscriptionManager(models.Manager):
 
     def getPermissions(self, user_subs):
         """Return the permissions for the group given by user_subs.display_status
-        Returns: Permission queryset
+        Returns: tuple (Permission queryset, is_brcme_month_limit, is_brcme_year_limit)
         """
+        is_brcme_month_limit = False
+        is_brcme_year_limit = False
         g = Group.objects.get(name=user_subs.display_status)
-        return g.permissions.all().order_by('codename')
+        if user_subs.plan.isUnlimitedCme():
+            qs1 = g.permissions.all()
+            qs2 = Permission.objects.filter(codename=PERM_DELETE_BRCME)
+            qset = qs1.union(qs2).order_by('codename')
+        else:
+            filter_kwargs = {}
+            user = user_subs.user
+            now = timezone.now()
+            is_brcme_month_limit = BrowserCme.objects.hasEarnedMonthLimit(user_subs, now.year, now.month)
+            is_brcme_year_limit = BrowserCme.objects.hasEarnedYearLimit(user_subs, now.year)
+            if is_brcme_month_limit or is_brcme_year_limit:
+                qset = g.permissions.exclude(codename=PERM_POST_BRCME).order_by('codename')
+            else:
+                qset = g.permissions.all().order_by('codename')
+        return (qset, is_brcme_month_limit, is_brcme_year_limit)
 
 
     def serialize_permissions(self, user, user_subs):
@@ -1593,23 +1649,29 @@ class UserSubscriptionManager(models.Manager):
         the allowed permissions for the user in the response.
         Returns list of dicts: [{codename:str, allowed:bool}]
         for the permissions in appconstants.ALL_PERMS.
+        Returns:dict w. keys: permissions, brcme_limit_message
         """
         allowed_codes = []
         # get any special admin groups that user is a member of
         for g in user.groups.all():
             allowed_codes.extend([p.codename for p in g.permissions.all()])
         if user_subs:
-            qset = self.getPermissions(user_subs) # Permission queryset
+            qset, is_brcme_month_limit, is_brcme_year_limit = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
-            if user_subs.plan.isUnlimitedCme():
-                allowed_codes.append(PERM_DELETE_BRCME)
         allowed_codes = set(allowed_codes)
         perms = [{
                 'codename': codename,
                 'allow': codename in allowed_codes
             } for codename in ALL_PERMS]
-        #print(perms)
-        return perms
+        data = {
+            'permissions': perms,
+            'brcme_limit_message': ''
+        }
+        if is_brcme_year_limit:
+            data['brcme_limit_message'] = YEAR_CME_LIMIT_MESSAGE
+        elif is_brcme_month_limit:
+            data['brcme_limit_message'] = MONTH_CME_LIMIT_MESSAGE
+        return data
 
 
     def allowNewSubscription(self, user):

@@ -564,12 +564,17 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
         serializer.is_valid(raise_exception=True)
         brcme = self.perform_create(serializer)
         entry = brcme.entry
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context = {
             'success': True,
             'id': entry.pk,
             'logo_url': entry.sponsor.logo_url,
             'created': entry.created,
-            'credits': brcme.credits
+            'credits': brcme.credits,
+            'permissions': pdata['permissions'],
+            'brcme_limit_message': pdata['brcme_limit_message']
         }
         return Response(context, status=status.HTTP_201_CREATED)
 

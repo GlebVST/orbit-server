@@ -39,3 +39,11 @@ SELF_REPORTED_AUTHORITY = u'Self Reported'
 #   development of measurable educational objectives.
 # Category 2: activities that are self-designated/self-assessed. They do not need to be documented or verified by an external party.
 AMA_PRA_CATEGORY_LABEL = u'AMA PRA Category '
+
+#
+# Messages for reaching month/year CME limit
+#
+YEAR_CME_LIMIT_MESSAGE = u'You have earned your credit limit for the year.'
+
+MONTH_CME_LIMIT_MESSAGE = u'You have reached your credit limit for the month. Upgrade your plan to earn credits at unlimited rate.'
+
