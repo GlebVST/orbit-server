@@ -35,7 +35,6 @@ def makeOffers(user):
     exclude_urls = OrbitCmeOffer.objects.filter(
         user=user,
         redeemed=False,
-        eligible_site__in=esiteids,
         expireDate__gte=now
     ).values_list('url', flat=True).distinct()
     print('Num exclude_urls: {0}'.format(len(exclude_urls)))
