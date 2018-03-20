@@ -33,6 +33,7 @@ from common.appconstants import (
     PERM_POST_SRCME,
     PERM_POST_BRCME,
     PERM_DELETE_BRCME,
+    PERM_EDIT_BRCME,
     PERM_PRINT_AUDIT_REPORT,
     PERM_PRINT_BRCME_CERT,
     MONTH_CME_LIMIT_MESSAGE,
@@ -1028,6 +1029,7 @@ class Entry(models.Model):
             (PERM_VIEW_DASH, 'Can view Dashboard'),
             (PERM_POST_BRCME, 'Can redeem BrowserCmeOffer'),
             (PERM_DELETE_BRCME, 'Can delete BrowserCme entry'),
+            (PERM_EDIT_BRCME, 'Can edit BrowserCme entry'),
             (PERM_POST_SRCME, 'Can post Self-reported Cme entry'),
             (PERM_PRINT_AUDIT_REPORT, 'Can print/share audit report'),
             (PERM_PRINT_BRCME_CERT, 'Can print/share BrowserCme certificate'),
@@ -2470,6 +2472,7 @@ class UserSubscription(models.Model):
         on_delete=models.CASCADE,
         db_index=True,
         null=True,
+        blank=True,
         default=None,
         help_text='Used to store plan for pending downgrade'
     )
