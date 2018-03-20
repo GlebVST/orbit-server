@@ -1654,6 +1654,8 @@ class UserSubscriptionManager(models.Manager):
         Returns:dict w. keys: permissions, brcme_limit_message
         """
         allowed_codes = []
+        is_brcme_month_limit = False
+        is_brcme_year_limit = False
         # get any special admin groups that user is a member of
         for g in user.groups.all():
             allowed_codes.extend([p.codename for p in g.permissions.all()])
