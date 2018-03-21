@@ -264,7 +264,7 @@ class PreEmail(APIView):
         user = request.user
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
         now = timezone.now()
-        cutoff = now - timedelta(days=300)
+        cutoff = now - timedelta(days=90)
         entries = Entry.objects.filter(
                 user=user,
                 entryType=etype,
@@ -274,7 +274,7 @@ class PreEmail(APIView):
         for m in entries:
             data.append(dict(
                 id=m.pk,
-                url=m.brcme.offer.url,
+                url=m.brcme.url,
                 created=m.created
             ))
         from_email = settings.SUPPORT_EMAIL

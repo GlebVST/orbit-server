@@ -868,6 +868,7 @@ class ReadUserSubsSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     plan = serializers.PrimaryKeyRelatedField(read_only=True)
     plan_name = serializers.ReadOnlyField(source='plan.name')
+    display_name = serializers.ReadOnlyField(source='plan.display_name')
     bt_status = serializers.ReadOnlyField(source='status')
     class Meta:
         model = UserSubscription
@@ -877,6 +878,7 @@ class ReadUserSubsSerializer(serializers.ModelSerializer):
             'user',
             'plan',
             'plan_name',
+            'display_name',
             'bt_status',
             'display_status',
             'billingFirstDate',

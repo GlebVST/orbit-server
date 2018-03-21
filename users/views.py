@@ -1011,10 +1011,13 @@ class CertificateMixin(object):
         """
         user = profile.user
         degrees = profile.degrees.all()
-        # does user have PERM_PRINT_BRCME_CERT
         can_print_cert = hasUserSubscriptionPerm(user, PERM_PRINT_BRCME_CERT)
         if can_print_cert:
-            certificateName = profile.getFullNameAndDegree()
+            user_subs = UserSubscription.objects.getLatestSubscription(user)
+            if user_subs.display_status != UserSubscription.UI_TRIAL:
+                certificateName = profile.getFullNameAndDegree()
+            else:
+                certificateName = SAMPLE_CERTIFICATE_NAME
         else:
             certificateName = SAMPLE_CERTIFICATE_NAME
         certificate = Certificate(
