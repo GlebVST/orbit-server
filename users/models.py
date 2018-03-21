@@ -12,7 +12,7 @@ import re
 import uuid
 from urlparse import urlparse
 from django.conf import settings
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import User, Group, Permission
 from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ValidationError
 from django.db import models, connection
@@ -30,10 +30,14 @@ from common.appconstants import (
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
-    PERM_POST_BRCME,
     PERM_POST_SRCME,
+    PERM_POST_BRCME,
+    PERM_DELETE_BRCME,
+    PERM_EDIT_BRCME,
     PERM_PRINT_AUDIT_REPORT,
-    PERM_PRINT_BRCME_CERT
+    PERM_PRINT_BRCME_CERT,
+    MONTH_CME_LIMIT_MESSAGE,
+    YEAR_CME_LIMIT_MESSAGE
 )
 #
 # constants (should match the database values)
@@ -703,73 +707,6 @@ class EligibleSite(models.Model):
         return self.domain_title
 
 
-# Browser CME offer
-# An offer for a user is generated based on the user's plugin activity.
-@python_2_unicode_compatible
-class BrowserCmeOffer(models.Model):
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='offers',
-        db_index=True
-    )
-    sponsor = models.ForeignKey(Sponsor,
-        on_delete=models.PROTECT,
-        related_name='offers',
-        db_index=True
-    )
-    eligible_site = models.ForeignKey(EligibleSite,
-        on_delete=models.CASCADE,
-        related_name='offers',
-        db_index=True)
-    activityDate = models.DateTimeField()
-    url = models.URLField(max_length=500, db_index=True)
-    pageTitle = models.TextField(blank=True)
-    suggestedDescr = models.TextField(blank=True, default='')
-    expireDate = models.DateTimeField()
-    redeemed = models.BooleanField(default=False)
-    valid = models.BooleanField(default=True)
-    credits = models.DecimalField(max_digits=5, decimal_places=2,
-        help_text='CME credits to be awarded upon redemption')
-    cmeTags = models.ManyToManyField(
-        CmeTag,
-        blank=True,
-        related_name='brcmeoffers',
-        through='OfferCmeTag',
-        help_text='Suggested tags (intersected with user cmeTags by UI)'
-    )
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.url
-
-    def activityDateLocalTz(self):
-        return self.activityDate.astimezone(LOCAL_TZ)
-
-    def formatSuggestedTags(self):
-        return ", ".join([t.name for t in self.cmeTags.all()])
-    formatSuggestedTags.short_description = "suggestedTags"
-
-    class Meta:
-        verbose_name_plural = 'BrowserCME Offers'
-        # list of (codename, human_readable_permission_name)
-        permissions = (
-            (PERM_VIEW_OFFER, 'Can view BrowserCmeOffer'),
-        )
-
-# BrowserCmeOffer-CmeTag association
-@python_2_unicode_compatible
-class OfferCmeTag(models.Model):
-    offer = models.ForeignKey(BrowserCmeOffer, on_delete=models.CASCADE)
-    tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return '{0.tag.name}'.format(self)
-
-    class Meta:
-        unique_together = ('offer','tag')
-
 # A Story is broadcast to many users.
 # The launch_url must be customized to include the user id when sending
 # it in the response for a given user.
@@ -1091,6 +1028,8 @@ class Entry(models.Model):
             (PERM_VIEW_FEED, 'Can view Feed'),
             (PERM_VIEW_DASH, 'Can view Dashboard'),
             (PERM_POST_BRCME, 'Can redeem BrowserCmeOffer'),
+            (PERM_DELETE_BRCME, 'Can delete BrowserCme entry'),
+            (PERM_EDIT_BRCME, 'Can edit BrowserCme entry'),
             (PERM_POST_SRCME, 'Can post Self-reported Cme entry'),
             (PERM_PRINT_AUDIT_REPORT, 'Can print/share audit report'),
             (PERM_PRINT_BRCME_CERT, 'Can print/share BrowserCme certificate'),
@@ -1124,6 +1063,43 @@ class SRCme(models.Model):
         return str(self.credits)
 
 
+class BrowserCmeManager(models.Manager):
+
+    def hasEarnedMonthLimit(self, user_subs, year, month):
+        """Returns True if user has reached the monthly limit set by user_subs.plan
+        Note: this should only be called for LimitedCme plans.
+        Args:
+            user_subs: UserSubscription instance
+            year:int
+            month:int
+        """
+        user = user_subs.user
+        plan = user_subs.plan
+        qs = self.model.objects.select_related('entry').filter(
+            entry__user=user,
+            entry__created__year=year,
+            entry__created__month=month,
+            entry__valid=True
+        ).aggregate(cme_total=Sum('credits'))
+        return qs['cme_total'] >= plan.maxCmeMonth
+
+    def hasEarnedYearLimit(self, user_subs, year):
+        """Returns True if user has reached the monthly limit set by user_subs.plan
+        Note: this should only be called for LimitedCme plans.
+        Args:
+            user_subs: UserSubscription instance
+            dt: datetime - used for year count
+        """
+        user = user_subs.user
+        plan = user_subs.plan
+        qs = self.model.objects.select_related('entry').filter(
+            entry__user=user,
+            entry__created__year=year,
+            entry__valid=True
+        ).aggregate(cme_total=Sum('credits'))
+        return qs['cme_total'] >= plan.maxCmeYear
+
+
 # Browser CME entry
 # An entry is created when a Browser CME offer is redeemed by the user
 @python_2_unicode_compatible
@@ -1145,14 +1121,6 @@ class BrowserCme(models.Model):
         related_name='brcme',
         primary_key=True
     )
-    offer = models.OneToOneField(BrowserCmeOffer,
-        on_delete=models.PROTECT,
-        related_name='brcme',
-        db_index=True,
-        null=True,
-        blank=True,
-        default=None
-    )
     offerId = models.PositiveIntegerField(null=True, default=None)
     credits = models.DecimalField(max_digits=5, decimal_places=2)
     url = models.URLField(max_length=500)
@@ -1166,6 +1134,7 @@ class BrowserCme(models.Model):
         default=0,
         choices=PLAN_EFFECT_CHOICES
     )
+    objects = BrowserCmeManager()
 
     def __str__(self):
         return self.url
@@ -1620,9 +1589,12 @@ class SubscriptionPlan(models.Model):
         db_index=True,
         related_name='downgrade_plans',
     )
-    maxCmeWeek = models.IntegerField(default=0, help_text='maximum allowed CME per week')
-    maxCmeMonth = models.IntegerField(default=0, help_text='maximum allowed CME per month')
-    maxCmeYear = models.IntegerField(default=0, help_text='maximum allowed CME per year')
+    maxCmeMonth = models.PositiveIntegerField(
+        default=0,
+        help_text='Maximum allowed CME per month. 0 for unlimited rate.')
+    maxCmeYear = models.PositiveIntegerField(
+        default=0,
+        help_text='Target CME per year. For limited plans, this is also a maximum allowed per year.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()
@@ -1638,6 +1610,9 @@ class SubscriptionPlan(models.Model):
         """returns formatted str"""
         return "{0:.2f}".format(self.discountPrice/Decimal('12.0'))
 
+    def isUnlimitedCme(self):
+        """True if this is an un-limited rate CME plan (no throttling), else False"""
+        return self.maxCmeMonth == 0
 
 # User Subscription
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
@@ -1649,10 +1624,26 @@ class UserSubscriptionManager(models.Manager):
 
     def getPermissions(self, user_subs):
         """Return the permissions for the group given by user_subs.display_status
-        Returns: Permission queryset
+        Returns: tuple (Permission queryset, is_brcme_month_limit, is_brcme_year_limit)
         """
+        is_brcme_month_limit = False
+        is_brcme_year_limit = False
         g = Group.objects.get(name=user_subs.display_status)
-        return g.permissions.all().order_by('codename')
+        if user_subs.plan.isUnlimitedCme():
+            qs1 = g.permissions.all()
+            qs2 = Permission.objects.filter(codename=PERM_DELETE_BRCME)
+            qset = qs1.union(qs2).order_by('codename')
+        else:
+            filter_kwargs = {}
+            user = user_subs.user
+            now = timezone.now()
+            is_brcme_month_limit = BrowserCme.objects.hasEarnedMonthLimit(user_subs, now.year, now.month)
+            is_brcme_year_limit = BrowserCme.objects.hasEarnedYearLimit(user_subs, now.year)
+            if is_brcme_month_limit or is_brcme_year_limit:
+                qset = g.permissions.exclude(codename=PERM_POST_BRCME).order_by('codename')
+            else:
+                qset = g.permissions.all().order_by('codename')
+        return (qset, is_brcme_month_limit, is_brcme_year_limit)
 
 
     def serialize_permissions(self, user, user_subs):
@@ -1660,21 +1651,31 @@ class UserSubscriptionManager(models.Manager):
         the allowed permissions for the user in the response.
         Returns list of dicts: [{codename:str, allowed:bool}]
         for the permissions in appconstants.ALL_PERMS.
+        Returns:dict w. keys: permissions, brcme_limit_message
         """
         allowed_codes = []
+        is_brcme_month_limit = False
+        is_brcme_year_limit = False
         # get any special admin groups that user is a member of
         for g in user.groups.all():
             allowed_codes.extend([p.codename for p in g.permissions.all()])
         if user_subs:
-            qset = self.getPermissions(user_subs) # Permission queryset
+            qset, is_brcme_month_limit, is_brcme_year_limit = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
         allowed_codes = set(allowed_codes)
         perms = [{
                 'codename': codename,
                 'allow': codename in allowed_codes
             } for codename in ALL_PERMS]
-        #print(perms)
-        return perms
+        data = {
+            'permissions': perms,
+            'brcme_limit_message': ''
+        }
+        if is_brcme_year_limit:
+            data['brcme_limit_message'] = YEAR_CME_LIMIT_MESSAGE
+        elif is_brcme_month_limit:
+            data['brcme_limit_message'] = MONTH_CME_LIMIT_MESSAGE
+        return data
 
 
     def allowNewSubscription(self, user):
@@ -2473,6 +2474,7 @@ class UserSubscription(models.Model):
         on_delete=models.CASCADE,
         db_index=True,
         null=True,
+        blank=True,
         default=None,
         help_text='Used to store plan for pending downgrade'
     )

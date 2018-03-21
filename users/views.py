@@ -483,7 +483,7 @@ class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
 
 class InvalidateEntry(generics.UpdateAPIView):
     serializer_class = EntryReadSerializer
-    permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
+    permission_classes = (CanInvalidateEntry, IsOwnerOrAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         user = self.request.user
@@ -564,12 +564,17 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
         serializer.is_valid(raise_exception=True)
         brcme = self.perform_create(serializer)
         entry = brcme.entry
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context = {
             'success': True,
             'id': entry.pk,
             'logo_url': entry.sponsor.logo_url,
             'created': entry.created,
-            'credits': brcme.credits
+            'credits': brcme.credits,
+            'permissions': pdata['permissions'],
+            'brcme_limit_message': pdata['brcme_limit_message']
         }
         return Response(context, status=status.HTTP_201_CREATED)
 
@@ -1006,10 +1011,13 @@ class CertificateMixin(object):
         """
         user = profile.user
         degrees = profile.degrees.all()
-        # does user have PERM_PRINT_BRCME_CERT
         can_print_cert = hasUserSubscriptionPerm(user, PERM_PRINT_BRCME_CERT)
         if can_print_cert:
-            certificateName = profile.getFullNameAndDegree()
+            user_subs = UserSubscription.objects.getLatestSubscription(user)
+            if user_subs.display_status != UserSubscription.UI_TRIAL:
+                certificateName = profile.getFullNameAndDegree()
+            else:
+                certificateName = SAMPLE_CERTIFICATE_NAME
         else:
             certificateName = SAMPLE_CERTIFICATE_NAME
         certificate = Certificate(

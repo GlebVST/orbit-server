@@ -28,5 +28,5 @@ def assignPctSaCme():
         if p.isPhysician() and p.specialties.filter(name__in=SACME_SPECIALTIES).exists():
             qset = ProfileCmetag.objects.filter(tag=satag, profile=p)
             if not qset.exists():
-                pct = ProfileCmetag.objects.create(tag=satag, profile=profile, is_active=True)
+                pct = ProfileCmetag.objects.create(tag=satag, profile=p, is_active=True)
                 print('Add pct {0} to profile {1}'.format(pct, p))

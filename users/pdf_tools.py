@@ -22,7 +22,7 @@ from reportlab.pdfbase import pdfmetrics
 
 logger = logging.getLogger('api.pdf')
 
-SAMPLE_CERTIFICATE_NAME = "Sample Only - Upgrade to Receive Official CME"
+SAMPLE_CERTIFICATE_NAME = "Sample Only - Start Subscription to Receive Official CME"
 # files in settings.PDF_TEMPLATES_DIR
 BLANK_FILE = 'blank.pdf'
 

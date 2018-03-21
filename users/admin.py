@@ -93,23 +93,6 @@ class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
 
 
-class OfferTagInline(admin.TabularInline):
-    model = OfferCmeTag
-
-class BrowserCmeOfferAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'activityDateLocalTz', 'redeemed', 'url', 'suggestedDescr', 'valid', 'modified')
-    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
-    list_select_related = ('user','eligible_site')
-    ordering = ('-modified',)
-    inlines = [
-        OfferTagInline,
-    ]
-    list_filter = ('redeemed','valid', UserFilter, 'eligible_site')
-
-    class Media:
-        pass
-
-
 class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
 
@@ -221,6 +204,16 @@ class PlanForm(forms.ModelForm):
             'modified'
         )
 
+    def clean(self):
+        """If given, check that maxCmeMonth < maxCmeYear"""
+        cleaned_data = super(PlanForm, self).clean()
+        maxCmeMonth = cleaned_data.get('maxCmeMonth')
+        maxCmeYear = cleaned_data.get('maxCmeYear')
+        if maxCmeYear and maxCmeMonth and (maxCmeMonth >= maxCmeYear):
+            self.add_error('maxCmeMonth', 'maxCmeMonth must be strictly less than maxCmeYear.')
+        if maxCmeYear == 0 and maxCmeMonth != 0:
+            self.add_error('maxCmeMonth', 'If maxCmeYear=0, then maxCmeMonth must also be 0 (for unlimited CME).')
+
     def save(self, commit=True):
         """Auto assign planId based on plan name and hashid of next id"""
         m = super(PlanForm, self).save(commit=False)
@@ -229,6 +222,9 @@ class PlanForm(forms.ModelForm):
             #m.planId = hyphen_name + '-xkcd'
             m.planId = SubscriptionPlan.objects.makePlanId(m.name)
             #print(m.planId)
+        if m.maxCmeYear > 0:
+            if not m.maxCmeMonth:
+                m.maxCmeMonth = m.maxCmeYear/12 + 1
         m.save()
         return m
 
@@ -242,6 +238,8 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'monthlyPrice',
         'discountPrice',
         'discountMonthlyPrice',
+        'maxCmeYear',
+        'maxCmeMonth'
     )
     list_select_related = True
     list_filter = ('active', 'plan_key',)
@@ -255,7 +253,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('price', 'discountPrice')
         }),
         ('CME', {
-            'fields': ('maxCmeWeek','maxCmeMonth','maxCmeYear')
+            'fields': ('maxCmeYear','maxCmeMonth',)
         }),
         ('Other', {
             'fields': ('trialDays','billingCycleMonths','active',)
@@ -386,7 +384,6 @@ admin_site.register(AffiliatePayout, AffiliatePayoutAdmin)
 admin_site.register(AuthImpersonation, AuthImpersonationAdmin)
 admin_site.register(AuditReport, AuditReportAdmin)
 admin_site.register(BatchPayout, BatchPayoutAdmin)
-admin_site.register(BrowserCmeOffer, BrowserCmeOfferAdmin)
 admin_site.register(Certificate, CertificateAdmin)
 admin_site.register(CmeTag, CmeTagAdmin)
 admin_site.register(Country, CountryAdmin)

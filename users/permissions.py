@@ -7,11 +7,12 @@ from common.appconstants import (
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
     PERM_POST_BRCME,
+    PERM_DELETE_BRCME,
     PERM_POST_SRCME,
     PERM_PRINT_AUDIT_REPORT,
     PERM_PRINT_BRCME_CERT
 )
-from .models import UserSubscription
+from .models import ENTRYTYPE_BRCME, UserSubscription
 
 class IsAdminOrAuthenticated(permissions.BasePermission):
     """Global permission (can be used for both list/detail) to check
@@ -87,6 +88,7 @@ class IsEntryOwner(permissions.BasePermission):
             return False
         is_owner = obj.entry.user.pk == request.user.pk
         return is_owner
+
 
 def hasUserSubscriptionPerm(user, codename):
     """Gets the latest UserSubscription for the user
@@ -168,3 +170,18 @@ class CanPostBRCme(permissions.BasePermission):
         if not (request.user and request.user.is_active and request.user.is_authenticated()):
             return False
         return hasUserSubscriptionPerm(request.user, codename=PERM_POST_BRCME)
+
+
+class CanInvalidateEntry(permissions.BasePermission):
+    """Object-level permission used by InvalidateEntry view
+    For br-cme: only allow it for users with UnlimitedCme plans
+    """
+    def has_object_permission(self, request, view, obj):
+        if obj.entryType.name == ENTRYTYPE_BRCME:
+            # get user's plan
+            user_subs = UserSubscription.objects.getLatestSubscription(request.user)
+            if not user_subs:
+                return False
+            return user_subs.plan.isUnlimitedCme()
+        else:
+            return True
