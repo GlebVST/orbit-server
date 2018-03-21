@@ -361,8 +361,8 @@ class UpgradePlanAmount(APIView):
                 'message': '',
             }
             return Response(context, status=status.HTTP_200_OK)
-        if user_subs.status == UserSubscription.ACTIVE:
-            # user_subs.display_status is one of Active/Active-Canceled
+        if user_subs.status == UserSubscription.ACTIVE or (user_subs.status == UserSubscription.CANCELED and user_subs.display_status == UserSubscription.UI_EXPIRED):
+            # if Active: user_subs.display_status is one of Active/Active-Canceled
             now = timezone.now()
             daysInYear = 365 if not calendar.isleap(now.year) else 366
             td = now - user_subs.billingStartDate
