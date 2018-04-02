@@ -47,7 +47,7 @@ class PayPalApi(object):
         data = r.json()
         data['created'] = now # add extra key for reference point for expires_in
         if 'access_token' in data:
-            logger.debug('Token {access_token} expires in {expires_in} seconds starting from {created}'.format(**data))
+            logger.info('Token {access_token} expires in {expires_in} seconds starting from {created}'.format(**data))
             #logger.debug(data['scope'])
         self.token = data
 
@@ -61,7 +61,7 @@ class PayPalApi(object):
         esecs = self.token['expires_in']
         expires = created + timedelta(seconds=esecs)
         if now >= expires:
-            logger.debug('Getting new token')
+            logger.info('Getting new token')
             self.getToken()
         return self.token['access_token']
 
@@ -109,10 +109,11 @@ class PayPalApi(object):
                 service,
                 data=json.dumps(payload),
                 headers=headers)
-        logger.debug('status: {0.status_code}'.format(r))
+        logger.info('status: {0.status_code}'.format(r))
         if r.status_code != 201:
-            logger.warning(r.text)
-            raise ValueError('Bad status code: {0.status_code}'.format(r))
+            error_message = "makePayout: bad status code: {0.status_code}. Text: {0.text}".format(r)
+            logger.warning(r)
+            raise ValueError(error_message)
         data = r.json()
         bh = data['batch_header']
         recvd_sbid = bh['sender_batch_header']['sender_batch_id']

@@ -1594,7 +1594,7 @@ class SubscriptionPlan(models.Model):
         help_text='Maximum allowed CME per month. 0 for unlimited rate.')
     maxCmeYear = models.PositiveIntegerField(
         default=0,
-        help_text='Target CME per year. For limited plans, this is also a maximum allowed per year.')
+        help_text='Maximum allowed CME per year. 0 for unlimited total.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()
@@ -1611,8 +1611,12 @@ class SubscriptionPlan(models.Model):
         return "{0:.2f}".format(self.discountPrice/Decimal('12.0'))
 
     def isUnlimitedCme(self):
-        """True if this is an un-limited rate CME plan (no throttling), else False"""
-        return self.maxCmeMonth == 0
+        """True if this is an un-limited plan, else False"""
+        return self.maxCmeMonth == 0 and self.maxCmeYear == 0
+
+    def isLimitedCmeRate(self):
+        """True if this is an limited CME rate plan, else False"""
+        return self.maxCmeMonth > 0
 
 # User Subscription
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
@@ -1637,7 +1641,8 @@ class UserSubscriptionManager(models.Manager):
             filter_kwargs = {}
             user = user_subs.user
             now = timezone.now()
-            is_brcme_month_limit = BrowserCme.objects.hasEarnedMonthLimit(user_subs, now.year, now.month)
+            if user_subs.plan.isLimitedCmeRate():
+                is_brcme_month_limit = BrowserCme.objects.hasEarnedMonthLimit(user_subs, now.year, now.month)
             is_brcme_year_limit = BrowserCme.objects.hasEarnedYearLimit(user_subs, now.year)
             if is_brcme_month_limit or is_brcme_year_limit:
                 qset = g.permissions.exclude(codename=PERM_POST_BRCME).order_by('codename')
@@ -1964,8 +1969,8 @@ class UserSubscriptionManager(models.Manager):
         old_plan = user_subs.plan
         if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
             return self.switchTrialToActive(user_subs, payment_token, new_plan)
-        # Check we can get plan discount before making any changes
-        plan_discount = Discount.objects.get(discountType=new_plan.planId, activeForType=True)
+        # Get discountId for plan (must exist in Braintree)
+        newPlanDiscountId = 'firstyear-' + str(int(new_plan.price - new_plan.discountPrice))
         discount_amount = None
         now = timezone.now()
         if user_subs.status == UserSubscription.EXPIRED:
@@ -1973,7 +1978,7 @@ class UserSubscriptionManager(models.Manager):
             owed = new_plan.price
             # this value will be used to override the default plan first-year discount
             discount_amount = 0
-        elif user_subs.status == UserSubscription.PASTDUE:
+        elif user_subs.status == UserSubscription.CANCELED:
             # This method expects the user_subs to be canceled already
             owed = new_plan.discountPrice
             discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
@@ -2035,7 +2040,7 @@ class UserSubscriptionManager(models.Manager):
             'discounts': {
                 'update': [
                     {
-                        'existing_id': plan_discount.discountId,
+                        'existing_id': newPlanDiscountId,
                         'amount': discount_amount.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
                     }
                 ]
@@ -2160,7 +2165,9 @@ class UserSubscriptionManager(models.Manager):
             user_subs.status = result.subscription.status
             if old_display_status == self.model.UI_TRIAL:
                 user_subs.display_status = self.model.UI_TRIAL_CANCELED
-            else:
+                # reset billingEndDate because it was set to billingStartDate + billingCycleMonths by createBtSubscription
+                user_subs.billingEndDate = user_subs.billingStartDate
+            elif old_display_status != self.model.UI_SUSPENDED:  # leave UI_SUSPENDED as is to preserve this info
                 user_subs.display_status = self.model.UI_EXPIRED
             user_subs.save()
         return result
@@ -2223,10 +2230,8 @@ class UserSubscriptionManager(models.Manager):
         elif bt_subs.status == self.model.PASTDUE:
             user_subs.display_status = self.model.UI_SUSPENDED
         elif bt_subs.status == self.model.CANCELED:
-            if user_subs.transactions.exists():
-                user_subs.display_status = self.model.UI_EXPIRED
-            else:
-                user_subs.display_status = self.model.UI_TRIAL_CANCELED
+            if user_subs.display_status not in (self.model.UI_EXPIRED, self.model.UI_SUSPENDED, self.model.UI_TRIAL_CANCELED):
+                logger.error('Invalid display_status for canceled subscriptionId: {0.subcriptionId}'.format(user_subs))
         startDate = bt_subs.billing_period_start_date
         endDate = bt_subs.billing_period_end_date
         if startDate:

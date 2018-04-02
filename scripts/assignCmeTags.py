@@ -17,8 +17,10 @@ def updateProfiles():
             ps_tags = psTagDict[ps.pk]
             for t in ps_tags:
                 if t.pk not in cur_tag_pks:
-                    pct = ProfileCmetag.objects.create(profile=p, tag=t)
-                    print('Add pct {0} to profile {1} for ps: {2}'.format(pct, p, ps))
+                    # since user might have multiple specialties that share a common new tag, use get_or_create
+                    pct, created = ProfileCmetag.objects.get_or_create(profile=p, tag=t)
+                    if created:
+                        print('Add pct {0} to profile {1} for ps: {2}'.format(pct, p, ps))
     return psTagDict
 
 def assignPctSaCme():
