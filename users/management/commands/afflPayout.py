@@ -94,7 +94,7 @@ class Command(BaseCommand):
                         logger.info('Update afp {0.pk}'.format(m))
         # For any Affiliate who did not earn any payout in this interval, send consolation email
         if aff_pks:
-            affls = Affilate.objects.exclude(pk__in=aff_pks).order_by('paymentEmail')
+            affls = Affiliate.objects.exclude(pk__in=aff_pks).order_by('paymentEmail')
         else:
             affls = Affiliate.objects.all().order_by('paymentEmail')
         for affl in affls:

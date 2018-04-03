@@ -26,7 +26,7 @@ def getUser(firstName=None, lastName=None, email=None):
         print('User filter parameter is required.')
 
 def makeOffers(user):
-    NUM_OFFERS = 3
+    NUM_OFFERS = 10
     sponsor = Sponsor.objects.get(pk=1)
     # the EligibleSites appropriate for this user
     esiteids = EligibleSite.objects.getSiteIdsForProfile(user.profile)
@@ -34,7 +34,7 @@ def makeOffers(user):
     now = timezone.now()
     exclude_urls = OrbitCmeOffer.objects.filter(
         user=user,
-        redeemed=False,
+        #redeemed=False,
         expireDate__gte=now
     ).values_list('url', flat=True).distinct()
     print('Num exclude_urls: {0}'.format(len(exclude_urls)))
@@ -64,4 +64,4 @@ def makeOffers(user):
             )
             offer.assignCmeTags()
         print('{0.pk}|{0.url}|{0.activityDate:%Y-%m-%d}'.format(offer))
-        print(offer.tags.all())
+        #print(offer.tags.all())
