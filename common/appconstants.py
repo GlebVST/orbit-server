@@ -45,6 +45,6 @@ AMA_PRA_CATEGORY_LABEL = u'AMA PRA Category '
 #
 # Messages for reaching month/year CME limit
 #
-YEAR_CME_LIMIT_MESSAGE = u'You have earned your credit limit for the year. Please contact us for assistance.'
+YEAR_CME_LIMIT_MESSAGE = u'Congratulations! You have earned your credit limit for the year.'
 
 MONTH_CME_LIMIT_MESSAGE = u'You have reached your credit limit for the month. Upgrade your plan to earn credits at unlimited rate.'
