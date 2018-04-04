@@ -155,7 +155,7 @@ class MDCertificate(BaseCertificate):
         """
         if self.certificate.name == SAMPLE_CERTIFICATE_NAME:
             self.styleOpenSans.textColor = colors.Color(0, 0, 0.9) # blue
-            text = """<u><a href="https://{0}{1}">{0}</a></u>""".format(
+            text = """<u><a href="https://{0}{1}">{2}</a></u>""".format(
                     settings.SERVER_HOSTNAME,
                     settings.UI_LINK_SUBSCRIPTION,
                     self.certificate.name)
@@ -278,7 +278,7 @@ class NurseCertificate(BaseCertificate):
         """
         if self.certificate.name == SAMPLE_CERTIFICATE_NAME:
             self.styleOpenSans.textColor = colors.Color(0, 0, 0.9) # blue
-            text = """<u><a href="https://{0}{1}">{0}</a></u>""".format(
+            text = """<u><a href="https://{0}{1}">{2}</a></u>""".format(
                     settings.SERVER_HOSTNAME,
                     settings.UI_LINK_SUBSCRIPTION,
                     self.certificate.name)
