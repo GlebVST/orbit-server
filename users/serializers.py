@@ -1053,8 +1053,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
             host=host,
             eligible_site=instance,
             url=example_url,
-            page_title=validated_data.get('example_title'),
-            abstract=''
+            page_title=validated_data.get('example_title')
         )
         if created:
             logger.info('EligibleSite: new AllowedUrl: {0.url}'.format(allowed_url))
@@ -1094,9 +1093,14 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
     degree = serializers.SerializerMethodField()
     statelicense = serializers.SerializerMethodField()
     country = serializers.SerializerMethodField()
+    isSampleName = serializers.SerializerMethodField()
 
     def get_degree(self, obj):
         return obj.user.profile.formatDegrees()
+
+    def get_isSampleName(self, obj):
+        """Return True if obj.name starts with Sample Only, else False"""
+        return obj.name.startswith('Sample Only')
 
     def get_statelicense(self, obj):
         """2017-12-20: Add isNurse if condition since we currently
@@ -1131,7 +1135,8 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
             'saCredits',
             'otherCredits',
             'data',
-            'created'
+            'created',
+            'isSampleName'
         )
         read_only_fields = fields
 

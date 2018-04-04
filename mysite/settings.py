@@ -49,7 +49,7 @@ DEBUG = True if ENV_TYPE == ENV_DEV else False
 
 ADMINS = [
     ('Faria Chowdhury',     'faria.chowdhury@gmail.com'),
-    ('Gleb Starodubstev',   'gleb@codeabovelab.com')
+#    ('Gleb Starodubstev',   'gleb@codeabovelab.com')
 ]
 
 # Note: This value should match the X_FORWARDED_HOST in the nginx conf file.
@@ -405,3 +405,6 @@ STORY_CERT_EXPIRE_DATE = datetime(2019, 3, 1, tzinfo=pytz.utc)
 COMPANY_NAME = 'Transcend Review Inc.'
 COMPANY_BRN_CEP = 'BRN CEP#16946'
 COMPANY_ADDRESS = '265 Cambridge Ave, #61224, Palo Alto CA 94306'
+
+# UI links (relative to SERVER_HOSTNAME)
+UI_LINK_SUBSCRIPTION = '/subscription'

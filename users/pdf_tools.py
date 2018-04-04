@@ -148,6 +148,22 @@ class MDCertificate(BaseCertificate):
                 'numCredits': self.certificate.credits
                 })
 
+    def makeCertNameParagraph(self):
+        """If self.certificate.name == SAMPLE_CERTIFICATE_NAME, then write it as a link,
+        else write it normal text
+        Returns: Paragraph object to be drawn on the overlay
+        """
+        if self.certificate.name == SAMPLE_CERTIFICATE_NAME:
+            self.styleOpenSans.textColor = colors.Color(0, 0, 0.9) # blue
+            text = """<u><a href="https://{0}{1}">{0}</a></u>""".format(
+                    settings.SERVER_HOSTNAME,
+                    settings.UI_LINK_SUBSCRIPTION,
+                    self.certificate.name)
+            paragraph = Paragraph(text, self.styleOpenSans)
+        else:
+            paragraph = Paragraph(self.certificate.name, self.styleOpenSans)
+        return paragraph
+
     def makeCmeCertOverlay(self):
         """Populate self.overlayBuffer"""
         pdfCanvas = canvas.Canvas(self.overlayBuffer, pagesize=landscape(A4))
@@ -164,9 +180,11 @@ class MDCertificate(BaseCertificate):
         self.styleOpenSansLight.alignment = TA_LEFT
 
         # CERT NAME
-        paragraph = Paragraph(self.certificate.name, self.styleOpenSans)
+        paragraph = self.makeCertNameParagraph()
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
         paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
+        # return color to normal in case it was changed
+        self.styleOpenSans.textColor = colors.Color(0, 0, 0)
 
         # dates
         paragraph = Paragraph("Total credits earned between {0} - {1}".format(
@@ -253,6 +271,25 @@ class NurseCertificate(BaseCertificate):
                 'numCredits': self.certificate.credits
                 })
 
+    def makeCertNameParagraph(self):
+        """If self.certificate.name == SAMPLE_CERTIFICATE_NAME, then write it as a link,
+        else write it normal text
+        Returns: Paragraph object to be drawn on the overlay
+        """
+        if self.certificate.name == SAMPLE_CERTIFICATE_NAME:
+            self.styleOpenSans.textColor = colors.Color(0, 0, 0.9) # blue
+            text = """<u><a href="https://{0}{1}">{0}</a></u>""".format(
+                    settings.SERVER_HOSTNAME,
+                    settings.UI_LINK_SUBSCRIPTION,
+                    self.certificate.name)
+        else:
+            text = "{0} <font size=13>({1})</font>".format(
+                    self.certificate.name,
+                    self.certificate.state_license.getLabelForCertificate())
+        paragraph = Paragraph(text, self.styleOpenSans)
+        return paragraph
+
+
     def makeCmeCertOverlay(self):
         """Populate self.overlayBuffer"""
         pdfCanvas = canvas.Canvas(self.overlayBuffer, pagesize=landscape(A4))
@@ -269,13 +306,11 @@ class NurseCertificate(BaseCertificate):
         self.styleOpenSansLight.alignment = TA_LEFT
 
         # CERT NAME
-        self.styleOpenSans.fontSize = 20
-        text = "{0} <font size=13>({1})</font>".format(
-                self.certificate.name,
-                self.certificate.state_license.getLabelForCertificate())
-        paragraph = Paragraph(text, self.styleOpenSans)
+        paragraph = self.makeCertNameParagraph()
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
         paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
+        # return color to normal in case it was changed
+        self.styleOpenSans.textColor = colors.Color(0, 0, 0)
 
         # dates
         paragraph = Paragraph("Total credits earned between {0} - {1}".format(
