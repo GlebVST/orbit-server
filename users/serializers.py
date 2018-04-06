@@ -392,7 +392,8 @@ class BRCmeSubSerializer(serializers.ModelSerializer):
             'url',
             'pageTitle',
             'purpose',
-            'planEffect'
+            'planEffect',
+            'planText',
         )
         read_only_fields = fields
 
@@ -514,6 +515,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
+    planText = serializers.CharField(max_length=500, default='')
     offerId = serializers.PrimaryKeyRelatedField(
         queryset=OrbitCmeOffer.objects.filter(redeemed=False)
     )
@@ -530,6 +532,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             'description',
             'purpose',
             'planEffect',
+            'planText',
             'tags'
         )
 
@@ -1007,9 +1010,13 @@ class PinnedMessageSerializer(serializers.ModelSerializer):
 
 class UserFeedbackSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
+    entry = serializers.PrimaryKeyRelatedField(
+            queryset=Entry.objects.all(),
+            allow_null=True
+    )
     class Meta:
         model = UserFeedback
-        fields = ('id', 'user', 'message', 'hasBias', 'hasUnfairContent')
+        fields = ('id', 'user', 'entry', 'message', 'hasBias', 'hasUnfairContent')
 
 class EligibleSiteSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(

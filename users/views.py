@@ -855,8 +855,10 @@ class UserFeedbackList(generics.ListCreateAPIView):
         return UserFeedback.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        """Create UserFeedback instance and send EmailMessage"""
+        """Create UserFeedback instance and send EmailMessage for regular feedback (entry-specific does not send email)"""
         instance = serializer.save(user=self.request.user)
+        if instance.entry:
+            return instance
         user = self.request.user
         profile = user.profile
         from_email = settings.EMAIL_FROM

@@ -1134,6 +1134,9 @@ class BrowserCme(models.Model):
         default=0,
         choices=PLAN_EFFECT_CHOICES
     )
+    planText = models.CharField(max_length=500, blank=True, default='',
+            help_text='Optional explanation of changes to clinical plan'
+    )
     objects = BrowserCmeManager()
 
     def __str__(self):
@@ -1172,6 +1175,13 @@ class UserFeedback(models.Model):
         on_delete=models.CASCADE,
         db_index=True
     )
+    entry = models.OneToOneField(Entry,
+        on_delete=models.SET_NULL,
+        related_name='feedback',
+        null=True,
+        blank=True,
+        default=None
+    )
     message = models.CharField(max_length=500)
     hasBias = models.BooleanField(default=False)
     hasUnfairContent = models.BooleanField(default=False)
@@ -1193,6 +1203,7 @@ class UserFeedback(models.Model):
 
     class Meta:
         verbose_name_plural = 'User Feedback'
+
 
 # Pinned Messages (different from in-feed Notification).
 # Message is pinned and exactly 0 or 1 active Message exists for a user at any given time.
