@@ -1667,7 +1667,14 @@ class UserSubscriptionManager(models.Manager):
         the allowed permissions for the user in the response.
         Returns list of dicts: [{codename:str, allowed:bool}]
         for the permissions in appconstants.ALL_PERMS.
-        Returns:dict w. keys: permissions, brcme_limit_message
+        Returns:dict {
+            permissions:list of dicts {codename, allow:bool},
+            brcme_limit:dict {
+                is_year_limit:bool
+                is_month_limit:bool
+            }
+            brcme_limit_message:str deprecated (will be removed after UI stops using it)
+        }
         """
         allowed_codes = []
         is_brcme_month_limit = False
@@ -1685,7 +1692,11 @@ class UserSubscriptionManager(models.Manager):
             } for codename in ALL_PERMS]
         data = {
             'permissions': perms,
-            'brcme_limit_message': ''
+            'brcme_limit_message': '',
+            'brcme_limit': {
+                'is_year_limit': is_brcme_year_limit,
+                'is_month_limit': is_brcme_month_limit
+            }
         }
         if is_brcme_year_limit:
             data['brcme_limit_message'] = YEAR_CME_LIMIT_MESSAGE

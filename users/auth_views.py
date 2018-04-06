@@ -140,13 +140,15 @@ def make_login_context(token, user):
         'sacmetag': serialize_active_cmetag(sacme_tag),
         'statelicense': None,
         'invitation': None,
-        'brcme_limit_message': ''
+        'brcme_limit_message': '',  # TODO: remove this after UI uses brcme_limit instead
+        'brcme_limit': None
     }
     context['subscription'] = serialize_subscription(user_subs) if user_subs else None
     context['allowTrial'] = user_subs is None  # allow a trial period if user has never had a subscription
     pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
     context['permissions'] = pdata['permissions']
     context['brcme_limit_message'] = pdata['brcme_limit_message']
+    context['brcme_limit'] = pdata['brcme_limit']
 
     context['creditTypes'] = [
         dict(value=Entry.CREDIT_CATEGORY_1, label=Entry.CREDIT_CATEGORY_1_LABEL, needs_tm=True),
