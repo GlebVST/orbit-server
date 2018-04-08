@@ -563,6 +563,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             offerId=offer.pk,
             purpose=validated_data.get('purpose'),
             planEffect=validated_data.get('planEffect'),
+            planText=validated_data.get('planText'),
             url=aurl.url,
             pageTitle=aurl.page_title,
             credits=offer.credits
