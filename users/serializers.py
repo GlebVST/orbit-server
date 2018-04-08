@@ -579,6 +579,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
+    planText = serializers.CharField(max_length=500, default='')
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -591,6 +592,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
             'description',
             'purpose',
             'planEffect',
+            'planText',
             'tags'
         )
 
@@ -607,6 +609,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
                 entry.tags.set([])
         instance.purpose = validated_data.get('purpose', instance.purpose)
         instance.planEffect = validated_data.get('planEffect', instance.planEffect)
+        instance.planText = validated_data.get('planText', instance.planText)
         instance.save()
         return instance
 
