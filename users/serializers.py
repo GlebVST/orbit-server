@@ -515,7 +515,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
-    planText = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    planText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     offerId = serializers.PrimaryKeyRelatedField(
         queryset=OrbitCmeOffer.objects.filter(redeemed=False)
     )
@@ -544,6 +544,9 @@ class BRCmeCreateSerializer(serializers.Serializer):
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
         offer = validated_data['offerId']
         user=validated_data.get('user')
+        planText=validated_data.get('planText')
+        if planText is None:
+            planText = ''
         entry = Entry.objects.create(
             entryType=etype,
             sponsor=offer.sponsor,
@@ -563,7 +566,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             offerId=offer.pk,
             purpose=validated_data.get('purpose'),
             planEffect=validated_data.get('planEffect'),
-            planText=validated_data.get('planText'),
+            planText=planText,
             url=aurl.url,
             pageTitle=aurl.page_title,
             credits=offer.credits
@@ -579,7 +582,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
-    planText = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    planText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -609,7 +612,11 @@ class BRCmeUpdateSerializer(serializers.Serializer):
                 entry.tags.set([])
         instance.purpose = validated_data.get('purpose', instance.purpose)
         instance.planEffect = validated_data.get('planEffect', instance.planEffect)
-        instance.planText = validated_data.get('planText', instance.planText)
+        if 'planText' in validated_data:
+            planText=validated_data.get('planText')
+            if planText is None:
+                planText = ''
+            instance.planText = planText
         instance.save()
         return instance
 

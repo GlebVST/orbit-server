@@ -53,7 +53,6 @@ class MakeOrbitCmeOffer(APIView):
                 url=aurl,
                 activityDate=activityDate,
                 expireDate=expireDate,
-                pageTitle=aurl.page_title,
                 suggestedDescr=aurl.page_title,
                 credits=Decimal('0.5'),
                 sponsor_id=1
