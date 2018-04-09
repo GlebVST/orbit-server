@@ -515,7 +515,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
-    planText = serializers.CharField(max_length=500, default='')
+    planText = serializers.CharField(max_length=500, required=False, allow_blank=True)
     offerId = serializers.PrimaryKeyRelatedField(
         queryset=OrbitCmeOffer.objects.filter(redeemed=False)
     )
@@ -579,7 +579,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
-    planText = serializers.CharField(max_length=500, default='')
+    planText = serializers.CharField(max_length=500, required=False, allow_blank=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
