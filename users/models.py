@@ -46,7 +46,7 @@ ENTRYTYPE_BRCME = 'browser-cme'
 ENTRYTYPE_SRCME = 'sr-cme'
 ENTRYTYPE_STORY_CME = 'story-cme'
 ENTRYTYPE_NOTIFICATION = 'notification'
-CMETAG_SACME = 'SA-CME'
+CMETAG_SACME = 'SAM/SA-CME'
 COUNTRY_USA = 'USA'
 DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
@@ -62,7 +62,8 @@ ORG_DISCOUNT_TYPE = 'org'
 # specialties that have SA-CME tag pre-selected on OrbitCmeOffer
 SACME_SPECIALTIES = (
     'Radiology',
-    'Radiation Oncology'
+    'Radiation Oncology',
+    'Pathology',
 )
 
 # maximum number of invites for which a discount is applied to the inviter's subscription.
