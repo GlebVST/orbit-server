@@ -34,7 +34,7 @@ class Auth0Backend(object):
             user = User.objects.get(username=email) # the unique constraint is on the username field in the users table
         except User.DoesNotExist:
             if not planId:
-                logger.error('New user signup: planId must be provided')
+                logger.error('New user signup error for {0}: planId was not provided.'.format(email))
                 return None
             plan = SubscriptionPlan.objects.get(planId=planId)
             hashgen = Hashids(salt=settings.HASHIDS_SALT, alphabet=HASHIDS_ALPHABET, min_length=5)

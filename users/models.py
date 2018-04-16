@@ -690,15 +690,18 @@ class EligibleSite(models.Model):
         help_text='A URL within the given domain')
     example_title = models.CharField(max_length=300, blank=True,
         help_text='Label for the example URL')
-    is_valid_expurl = models.BooleanField(default=True, help_text='Is example_url a valid URL')
     verify_journal = models.BooleanField(default=False,
             help_text='If True, need to verify article belongs to an allowed journal before making offer.')
+    issn = models.CharField(max_length=9, blank=True, default='', help_text='ISSN')
+    electronic_issn = models.CharField(max_length=9, blank=True, default='', help_text='Electronic ISSN')
     description = models.CharField(max_length=500, blank=True)
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     needs_ad_block = models.BooleanField(default=False)
     all_specialties = models.BooleanField(default=False)
     is_unlisted = models.BooleanField(default=False, blank=True, help_text='True if site should be unlisted')
     page_title_suffix = models.CharField(max_length=60, blank=True, default='', help_text='Common suffix for page titles')
+    doi_prefixes = models.CharField(max_length=80, blank=True, default='',
+            help_text='Comma separated list of common doi prefixes of articles of this site')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = EligibleSiteManager()
