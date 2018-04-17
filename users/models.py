@@ -46,7 +46,7 @@ ENTRYTYPE_BRCME = 'browser-cme'
 ENTRYTYPE_SRCME = 'sr-cme'
 ENTRYTYPE_STORY_CME = 'story-cme'
 ENTRYTYPE_NOTIFICATION = 'notification'
-CMETAG_SACME = 'SA-CME'
+CMETAG_SACME = 'SAM/SA-CME'
 COUNTRY_USA = 'USA'
 DEGREE_MD = 'MD'
 DEGREE_DO = 'DO'
@@ -62,7 +62,8 @@ ORG_DISCOUNT_TYPE = 'org'
 # specialties that have SA-CME tag pre-selected on OrbitCmeOffer
 SACME_SPECIALTIES = (
     'Radiology',
-    'Radiation Oncology'
+    'Radiation Oncology',
+    'Pathology',
 )
 
 # maximum number of invites for which a discount is applied to the inviter's subscription.
@@ -690,15 +691,18 @@ class EligibleSite(models.Model):
         help_text='A URL within the given domain')
     example_title = models.CharField(max_length=300, blank=True,
         help_text='Label for the example URL')
-    is_valid_expurl = models.BooleanField(default=True, help_text='Is example_url a valid URL')
     verify_journal = models.BooleanField(default=False,
             help_text='If True, need to verify article belongs to an allowed journal before making offer.')
+    issn = models.CharField(max_length=9, blank=True, default='', help_text='ISSN')
+    electronic_issn = models.CharField(max_length=9, blank=True, default='', help_text='Electronic ISSN')
     description = models.CharField(max_length=500, blank=True)
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     needs_ad_block = models.BooleanField(default=False)
     all_specialties = models.BooleanField(default=False)
     is_unlisted = models.BooleanField(default=False, blank=True, help_text='True if site should be unlisted')
     page_title_suffix = models.CharField(max_length=60, blank=True, default='', help_text='Common suffix for page titles')
+    doi_prefixes = models.CharField(max_length=80, blank=True, default='',
+            help_text='Comma separated list of common doi prefixes of articles of this site')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = EligibleSiteManager()
@@ -1134,6 +1138,9 @@ class BrowserCme(models.Model):
         default=0,
         choices=PLAN_EFFECT_CHOICES
     )
+    planText = models.CharField(max_length=500, blank=True, default='',
+            help_text='Optional explanation of changes to clinical plan'
+    )
     objects = BrowserCmeManager()
 
     def __str__(self):
@@ -1172,6 +1179,13 @@ class UserFeedback(models.Model):
         on_delete=models.CASCADE,
         db_index=True
     )
+    entry = models.OneToOneField(Entry,
+        on_delete=models.SET_NULL,
+        related_name='feedback',
+        null=True,
+        blank=True,
+        default=None
+    )
     message = models.CharField(max_length=500)
     hasBias = models.BooleanField(default=False)
     hasUnfairContent = models.BooleanField(default=False)
@@ -1193,6 +1207,7 @@ class UserFeedback(models.Model):
 
     class Meta:
         verbose_name_plural = 'User Feedback'
+
 
 # Pinned Messages (different from in-feed Notification).
 # Message is pinned and exactly 0 or 1 active Message exists for a user at any given time.
@@ -1656,7 +1671,14 @@ class UserSubscriptionManager(models.Manager):
         the allowed permissions for the user in the response.
         Returns list of dicts: [{codename:str, allowed:bool}]
         for the permissions in appconstants.ALL_PERMS.
-        Returns:dict w. keys: permissions, brcme_limit_message
+        Returns:dict {
+            permissions:list of dicts {codename, allow:bool},
+            brcme_limit:dict {
+                is_year_limit:bool
+                is_month_limit:bool
+            }
+            brcme_limit_message:str deprecated (will be removed after UI stops using it)
+        }
         """
         allowed_codes = []
         is_brcme_month_limit = False
@@ -1674,7 +1696,11 @@ class UserSubscriptionManager(models.Manager):
             } for codename in ALL_PERMS]
         data = {
             'permissions': perms,
-            'brcme_limit_message': ''
+            'brcme_limit_message': '',
+            'brcme_limit': {
+                'is_year_limit': is_brcme_year_limit,
+                'is_month_limit': is_brcme_month_limit
+            }
         }
         if is_brcme_year_limit:
             data['brcme_limit_message'] = YEAR_CME_LIMIT_MESSAGE

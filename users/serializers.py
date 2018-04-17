@@ -392,7 +392,8 @@ class BRCmeSubSerializer(serializers.ModelSerializer):
             'url',
             'pageTitle',
             'purpose',
-            'planEffect'
+            'planEffect',
+            'planText',
         )
         read_only_fields = fields
 
@@ -514,6 +515,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
+    planText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     offerId = serializers.PrimaryKeyRelatedField(
         queryset=OrbitCmeOffer.objects.filter(redeemed=False)
     )
@@ -530,6 +532,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             'description',
             'purpose',
             'planEffect',
+            'planText',
             'tags'
         )
 
@@ -541,6 +544,9 @@ class BRCmeCreateSerializer(serializers.Serializer):
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
         offer = validated_data['offerId']
         user=validated_data.get('user')
+        planText=validated_data.get('planText')
+        if planText is None:
+            planText = ''
         entry = Entry.objects.create(
             entryType=etype,
             sponsor=offer.sponsor,
@@ -560,6 +566,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             offerId=offer.pk,
             purpose=validated_data.get('purpose'),
             planEffect=validated_data.get('planEffect'),
+            planText=planText,
             url=aurl.url,
             pageTitle=aurl.page_title,
             credits=offer.credits
@@ -575,6 +582,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
+    planText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True,
@@ -587,6 +595,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
             'description',
             'purpose',
             'planEffect',
+            'planText',
             'tags'
         )
 
@@ -603,6 +612,11 @@ class BRCmeUpdateSerializer(serializers.Serializer):
                 entry.tags.set([])
         instance.purpose = validated_data.get('purpose', instance.purpose)
         instance.planEffect = validated_data.get('planEffect', instance.planEffect)
+        if 'planText' in validated_data:
+            planText=validated_data.get('planText')
+            if planText is None:
+                planText = ''
+            instance.planText = planText
         instance.save()
         return instance
 
@@ -1007,9 +1021,13 @@ class PinnedMessageSerializer(serializers.ModelSerializer):
 
 class UserFeedbackSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
+    entry = serializers.PrimaryKeyRelatedField(
+            queryset=Entry.objects.all(),
+            allow_null=True
+    )
     class Meta:
         model = UserFeedback
-        fields = ('id', 'user', 'message', 'hasBias', 'hasUnfairContent')
+        fields = ('id', 'user', 'entry', 'message', 'hasBias', 'hasUnfairContent')
 
 class EligibleSiteSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(
@@ -1053,8 +1071,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
             host=host,
             eligible_site=instance,
             url=example_url,
-            page_title=validated_data.get('example_title'),
-            abstract=''
+            page_title=validated_data.get('example_title')
         )
         if created:
             logger.info('EligibleSite: new AllowedUrl: {0.url}'.format(allowed_url))
@@ -1094,9 +1111,14 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
     degree = serializers.SerializerMethodField()
     statelicense = serializers.SerializerMethodField()
     country = serializers.SerializerMethodField()
+    isSampleName = serializers.SerializerMethodField()
 
     def get_degree(self, obj):
         return obj.user.profile.formatDegrees()
+
+    def get_isSampleName(self, obj):
+        """Return True if obj.name starts with Sample Only, else False"""
+        return obj.name.startswith('Sample Only')
 
     def get_statelicense(self, obj):
         """2017-12-20: Add isNurse if condition since we currently
@@ -1131,7 +1153,8 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
             'saCredits',
             'otherCredits',
             'data',
-            'created'
+            'created',
+            'isSampleName'
         )
         read_only_fields = fields
 
