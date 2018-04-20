@@ -493,7 +493,9 @@ class UpgradePlan(generics.CreateAPIView):
         out_serializer = ReadUserSubsSerializer(new_user_subs)
         context['subscription'] = out_serializer.data
         # Return permissions b/c new_user_subs may allow different perms than prior subscription.
-        context['permissions'] = UserSubscription.objects.serialize_permissions(user, new_user_subs)
+        pdata = UserSubscription.objects.serialize_permissions(user, new_user_subs)
+        context['permissions'] = pdata['permissions']
+        context['brcme_limit'] = pdata['brcme_limit']
         return Response(context, status=status.HTTP_201_CREATED)
 
 
