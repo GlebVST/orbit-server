@@ -179,6 +179,10 @@ class SignupDiscountAdmin(admin.ModelAdmin):
     list_display = ('id','organization','email_domain','discount','expireDate')
     ordering = ('organization','expireDate')
 
+class SignupEmailPromoAdmin(admin.ModelAdmin):
+    list_display = ('id','email','first_year_price','created')
+    ordering = ('email',)
+
 
 class InvitationDiscountAdmin(admin.ModelAdmin):
     list_display = ('invitee', 'inviteeDiscount', 'inviter', 'inviterDiscount', 'inviterBillingCycle', 'creditEarned', 'created')
@@ -384,6 +388,7 @@ admin_site.register(Customer, CustomerAdmin)
 admin_site.register(Degree, DegreeAdmin)
 admin_site.register(Discount, DiscountAdmin)
 admin_site.register(SignupDiscount, SignupDiscountAdmin)
+admin_site.register(SignupEmailPromo, SignupEmailPromoAdmin)
 admin_site.register(Document, DocumentAdmin)
 admin_site.register(EligibleSite, EligibleSiteAdmin)
 admin_site.register(Entry, EntryAdmin)
