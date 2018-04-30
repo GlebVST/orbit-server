@@ -1319,6 +1319,8 @@ class SignupDiscount(models.Model):
 class SignupEmailPromo(models.Model):
     email = models.EmailField(unique=True)
     first_year_price = models.DecimalField(max_digits=5, decimal_places=2, help_text='First year promotional price')
+    display_label = models.CharField(max_length=60, blank=True, default='',
+            help_text='Display label shown to the user in the discount screen')
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

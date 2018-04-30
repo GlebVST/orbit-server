@@ -170,8 +170,8 @@ class SignupDiscountList(APIView):
                 data = [{
                     'discountId': d.discountId,
                     'amount': discount_amount,
-                    'discountType': 'signup-email',
-                    'displayLabel': 'Signup Promotion'
+                    'displayLabel': promo.display_label,
+                    'discountType': 'signup-email'
                 }]
             else:
                 discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)

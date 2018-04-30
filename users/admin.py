@@ -180,7 +180,7 @@ class SignupDiscountAdmin(admin.ModelAdmin):
     ordering = ('organization','expireDate')
 
 class SignupEmailPromoAdmin(admin.ModelAdmin):
-    list_display = ('id','email','first_year_price','created')
+    list_display = ('id','email','first_year_price','display_label', 'created')
     ordering = ('email',)
 
 
