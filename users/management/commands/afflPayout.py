@@ -22,7 +22,7 @@ class Command(BaseCommand):
             action='store_true',
             dest='report_only',
             default=False,
-            help='Only send email report, do not submit any payment'
+            help='Only send email report, and any consolation emails if needed. Do not submit any payment'
         )
 
     def handle(self, *args, **options):
@@ -64,6 +64,20 @@ class Command(BaseCommand):
                 logger.exception('sendAffiliateReportEmail to {0} failed'.format(email_to))
             else:
                 logger.info('sendAffiliateReportEmail to {0} sent.'.format(email_to))
+            # For any Affiliate who did not earn any payout in this interval, send consolation email
+            if aff_pks:
+                affls = Affiliate.objects.exclude(pk__in=aff_pks).order_by('paymentEmail')
+            else:
+                affls = Affiliate.objects.all().order_by('paymentEmail')
+            for affl in affls:
+                print('No payout for {0}'.format(affl))
+                aff_email = affl.paymentEmail
+                try:
+                    sendAfflConsolationEmail(affl, monyr)
+                except SMTPException as e:
+                    logger.exception('Send Consolation Email to {0} failed'.format(aff_email))
+                else:
+                    logger.info('Consolation Email to {0} sent.'.format(aff_email))
         elif grandTotal:
             now = timezone.now()
             bp = BatchPayout.objects.create(
@@ -92,18 +106,3 @@ class Command(BaseCommand):
                         m.batchpayout = bp
                         m.save()
                         logger.info('Update afp {0.pk}'.format(m))
-        # For any Affiliate who did not earn any payout in this interval, send consolation email
-        if aff_pks:
-            affls = Affiliate.objects.exclude(pk__in=aff_pks).order_by('paymentEmail')
-        else:
-            affls = Affiliate.objects.all().order_by('paymentEmail')
-        for affl in affls:
-            print('No payout for {0}'.format(affl))
-            aff_email = affl.paymentEmail
-            try:
-                sendAfflConsolationEmail(affl, monyr)
-            except SMTPException as e:
-                logger.exception('Send Consolation Email to {0} failed'.format(aff_email))
-            else:
-                logger.info('Consolation Email to {0} sent.'.format(aff_email))
-                print('Consolation Email to {0} sent.'.format(aff_email))
