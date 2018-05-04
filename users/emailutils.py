@@ -175,14 +175,18 @@ def sendAfflEarningsStatementEmail(batchPayout, affl, afp_data):
     print(encoded_subject)
     # get affiliateId(s) for this Affiliate
     affIds = AffiliateDetail.objects.filter(affiliate=affl).values_list('affiliateId', flat=True).order_by('affiliateId')
-    data_by_affid = dict() # affiliateId => {num_convertees:int, total:Decimal}
+    data_by_affid = {'Other': dict(num_convertees=0, total=0)} # affiliateId => {num_convertees:int, total:Decimal}
     for affId in affIds:
         data_by_affid[affId] = dict(num_convertees=0, total=0)
     # group afp_data by affiliateId(s)
     for d in afp_data:
         p = d['convertee'].profile
         affId = p.affiliateId
-        dd = data_by_affid[affId]
+        if not affId or affId not in data_by_affid:
+            # if convertee's profile has stale (or blank) affiliateId, then fallback to Other
+            print('Invalid profile.affiliateId for convertee: {0}'.format(p))
+            affId = 'Other'
+        dd = data_by_affid.get[affId]
         dd['num_convertees'] += 1
         dd['total'] += d['amount']
     display_data = []
