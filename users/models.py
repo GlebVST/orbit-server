@@ -1871,6 +1871,8 @@ class UserSubscriptionManager(models.Manager):
             inviter = user.profile.inviter # User instance (used below)
             if not inviter:
                 raise ValueError('createBtSubscription: Invalid inviter')
+            # used below in saving InvitationDiscount/AffiliatePayout model instance
+            inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
         qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
         is_signup = not qset.exists() # if True, this will be the first Active subs for the user
         # If user's email exists in SignupEmailPromo then it overrides any other discounts
@@ -1891,7 +1893,6 @@ class UserSubscriptionManager(models.Manager):
             logger.info('SignupEmailPromo subs_price: {0}'.format(subs_price))
         else:
             if is_invitee or is_convertee:
-                inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
                 discounts.append(inv_discount)
                 # calculate subs_price
                 subs_price = plan.discountPrice - inv_discount.amount
