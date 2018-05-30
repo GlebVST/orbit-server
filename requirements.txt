@@ -2,9 +2,9 @@ appdirs==1.4.3
 argon2-cffi==18.1.0
 auth0-python==3.1.4
 backports.functools-lru-cache==1.4
-boto3==1.7.4
-botocore==1.10.4
-braintree==3.45.0
+boto3==1.7.29
+botocore==1.10.29
+braintree==3.46.0
 certifi==2018.4.16
 cffi==1.11.5
 chardet==3.0.4
@@ -15,7 +15,7 @@ cssselect==1.0.3
 cssutils==1.0.2
 cycler==0.10.0
 dal-admin-filters==0.2.2
-Django==1.11.12
+Django==1.11.13
 django-autocomplete-light==3.2.10
 django-braces==1.11.0
 django-cors-middleware==1.3.1
@@ -24,7 +24,7 @@ django-extensions==1.9.8
 django-oauth-toolkit==1.1.0
 django-pagedown==0.1.3
 django-rest-swagger==2.1.2
-django-storages==1.6.5
+django-storages==1.6.6
 djangorestframework==3.8.2
 docutils==0.14
 enum34==1.1.6
@@ -53,7 +53,7 @@ pygraphviz==1.3.1
 PyJWT==1.5.3
 pyparsing==2.2.0
 PyPDF2==1.26.0
-python-dateutil==2.6.1
+python-dateutil==2.7.2
 python-openid==2.2.5
 pytz==2018.4
 PyYAML==3.12

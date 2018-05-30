@@ -1315,6 +1315,15 @@ class SignupDiscount(models.Model):
         return '{0.organization}|{0.email_domain}|{0.discount.discountId}|{0.expireDate}'.format(self)
 
 
+class SignupEmailPromoManager(models.Manager):
+
+    def get_casei(self, email):
+        """Search by email.lower() and return model Instance or None if none exists"""
+        lc_email = email.lower()
+        if self.model.objects.filter(email=lc_email).exists():
+            return self.model.objects.get(email=lc_email)
+        return None
+
 @python_2_unicode_compatible
 class SignupEmailPromo(models.Model):
     email = models.EmailField(unique=True)
@@ -1322,6 +1331,7 @@ class SignupEmailPromo(models.Model):
     display_label = models.CharField(max_length=60, blank=True, default='',
             help_text='Display label shown to the user in the discount screen')
     created = models.DateTimeField(auto_now_add=True)
+    objects = SignupEmailPromoManager()
 
     def __str__(self):
         return '{0.email}|{0.first_year_price}'.format(self)
@@ -1876,21 +1886,22 @@ class UserSubscriptionManager(models.Manager):
         qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
         is_signup = not qset.exists() # if True, this will be the first Active subs for the user
         # If user's email exists in SignupEmailPromo then it overrides any other discounts
-        if is_signup and SignupEmailPromo.objects.filter(email=user.email).exists():
-            promo = SignupEmailPromo.objects.get(email=user.email)
-            subs_price = promo.first_year_price
-            baseDiscount = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
-            discount_amount = plan.discountPrice - subs_price
-            # Add discounts:add key to subs_params
-            subs_params['discounts'] = {
-                'add': [
-                    {
-                        "inherited_from_id": baseDiscount.discountId,
-                        "amount": discount_amount
-                    }
-                ]
-            }
-            logger.info('SignupEmailPromo subs_price: {0}'.format(subs_price))
+        if is_signup:
+            promo = SignupEmailPromo.objects.get_casei(user.email)
+            if promo:
+                subs_price = promo.first_year_price
+                baseDiscount = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
+                discount_amount = plan.discountPrice - subs_price
+                # Add discounts:add key to subs_params
+                subs_params['discounts'] = {
+                    'add': [
+                        {
+                            "inherited_from_id": baseDiscount.discountId,
+                            "amount": discount_amount
+                        }
+                    ]
+                }
+                logger.info('SignupEmailPromo subs_price: {0}'.format(subs_price))
         else:
             if is_invitee or is_convertee:
                 discounts.append(inv_discount)
