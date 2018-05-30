@@ -1321,7 +1321,7 @@ class SignupEmailPromoManager(models.Manager):
         """Search by email.lower() and return model Instance or None if none exists"""
         lc_email = email.lower()
         if self.model.objects.filter(email=lc_email).exists():
-            return self.model.get(email=lc_email)
+            return self.model.objects.get(email=lc_email)
         return None
 
 @python_2_unicode_compatible
