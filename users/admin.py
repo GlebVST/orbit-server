@@ -179,10 +179,29 @@ class SignupDiscountAdmin(admin.ModelAdmin):
     list_display = ('id','organization','email_domain','discount','expireDate')
     ordering = ('organization','expireDate')
 
+class SignupEmailPromoForm(forms.ModelForm):
+
+    class Meta:
+        model = SignupEmailPromo
+        exclude = (
+            'created',
+            'modified'
+        )
+
+    def clean_email(self):
+        self.cleaned_data['email'] = self.cleaned_data['email'].lower()
+        return self.cleaned_data['email']
+
+    def clean(self):
+        cleaned_data = super(SignupEmailPromoForm, self).clean()
+        v = cleaned_data['email']
+        if v and SignupEmailPromo.objects.filter(email=v).exists():
+            self.add_error('email', 'Case-insensitive email address already exists for this email.')
+
 class SignupEmailPromoAdmin(admin.ModelAdmin):
     list_display = ('id','email','first_year_price','display_label', 'created')
     ordering = ('email',)
-
+    form = SignupEmailPromoForm
 
 class InvitationDiscountAdmin(admin.ModelAdmin):
     list_display = ('invitee', 'inviteeDiscount', 'inviter', 'inviterDiscount', 'inviterBillingCycle', 'creditEarned', 'created')

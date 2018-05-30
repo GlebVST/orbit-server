@@ -161,9 +161,9 @@ class SignupDiscountList(APIView):
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         if user_subs is None or (user_subs.display_status == UserSubscription.UI_TRIAL) or (user_subs.display_status == UserSubscription.UI_TRIAL_CANCELED):
             # User has never had an active subscription.
-            if SignupEmailPromo.objects.filter(email=user.email).exists():
+            promo = SignupEmailPromo.objects.get_casei(user.email)
+            if promo:
                 # this overrides any other discount
-                promo = SignupEmailPromo.objects.get(email=user.email)
                 plan = SubscriptionPlan.objects.get(planId=profile.planId)
                 d = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
                 discount_amount = plan.discountPrice - promo.first_year_price
@@ -340,7 +340,7 @@ class UserStateLicenseList(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return StateLicense.objects.filter(user=user)
+        return StateLicense.objects.filter(user=user).order_by('-created')
 
     def perform_create(self, serializer, format=None):
         """At present time, only RN StateLicense is supported
