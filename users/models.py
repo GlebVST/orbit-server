@@ -373,9 +373,11 @@ class Profile(models.Model):
 
     def isSignupComplete(self):
         """Signup is complete if:
-            1. user has saved a UserSubscription
+            1. User has entered first and last name
+            2. user has saved a UserSubscription
+
         """
-        if not self.user.subscriptions.exists():
+        if not self.firstName or not self.lastName or not self.user.subscriptions.exists():
             return False
         return True
 
