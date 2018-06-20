@@ -60,6 +60,9 @@ CONVERTEE_DISCOUNT_TYPE = 'convertee'
 ORG_DISCOUNT_TYPE = 'org'
 BASE_DISCOUNT_TYPE = 'base'
 
+PLAN_TYPE_BRAINTREE = 'Braintree'
+PLAN_TYPE_FREE = 'Free'
+
 # specialties that have SA-CME tag pre-selected on OrbitCmeOffer
 SACME_SPECIALTIES = (
     'Radiology',
@@ -1279,7 +1282,9 @@ class Discount(models.Model):
 class SignupDiscountManager(models.Manager):
 
     def getForUser(self, user):
-        """Returns SignupDiscount instance/None for the given user"""
+        """Returns SignupDiscount instance/None for the given user
+        If user joined before a specific cutoff date, and their email domain matches an existing row, then return the matching SignupDiscount instance, else None.
+        """
         L = user.email.split('@')
         if len(L) != 2:
             return None
@@ -1541,6 +1546,8 @@ class SubscriptionPlanKey(models.Model):
     name = models.CharField(max_length=64, unique=True,
             help_text='Must be unique. Must match the landing_key in the pricing page URL')
     description = models.TextField(blank=True, default='')
+    use_free_plan = models.BooleanField(default=False,
+            help_text='If true: expects a Free Standard Plan assigned to it, to be used in place of the BT Standard Plan for signup')
     degree = models.ForeignKey(Degree,
         on_delete=models.PROTECT,
         db_index=True,
@@ -1560,6 +1567,16 @@ class SubscriptionPlanKey(models.Model):
     def __str__(self):
         return self.name
 
+class SubscriptionPlanType(models.Model):
+    name = models.CharField(max_length=64, unique=True,
+            help_text='Name of plan type. Must be unique.')
+    needs_payment_method = models.BooleanField(default=False,
+            help_text='If true: requires payment method on signup to create a subscription.')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
 
 class SubscriptionPlanManager(models.Manager):
     def makePlanId(self, name):
@@ -1585,27 +1602,65 @@ class SubscriptionPlanManager(models.Manager):
             cleaned_name = cleaned_name[0:MAX_NAME_LENGTH]
         return cleaned_name + '-{0}'.format(hash_pk)
 
+    def getPlansForKey(self, plan_key):
+        """This swaps out the Braintree Standard Plan for the Free Standard Plan depending on plan_key.use_free_plan.
+        Args:
+            plan_key: SubscriptionPlanKey instance
+        If plan_key.use_free_plan is True:
+            The BT Standard Plan is swapped out for the Free Standard Plan.
+            return [
+                Free Standard Plan,  # no payment method at signup
+                BT Plus Plan         # needs payment method at signup
+            ]
+        else:
+            Only Braintree-type plans are returned. These require a payment method at signup
+            return [
+                BT Standard Plan,
+                BT Plus Plan
+            ]
+        Note: Plus plan is unaffected by plan_key and is always the Braintree plan.
+        Returns: SubscriptionPlan queryset order by price
+        """
+        pt_bt = SubscriptionPlanType.objects.get(name=PLAN_TYPE_BRAINTREE)
+        pt_free = SubscriptionPlanType.objects.get(name=PLAN_TYPE_FREE)
+        filter_kwargs = dict(active=True, plan_key=plan_key)
+        if plan_key.use_free_plan:
+            qset = self.model.objects.filter(
+                Q(plan_type=pt_free, display_name='Standard') | Q(plan_type=pt_bt, display_name='Plus'),
+                **filter_kwargs
+            )
+        else:
+            filter_kwargs['plan_type'] = pt_bt
+            qset = self.model.objects.filter(**filter_kwargs)
+        return qset.order_by('price')
 
 # Recurring Billing Plans
 # https://developers.braintreepayments.com/guides/recurring-billing/plans
-# A Plan must be created in the Braintree Control Panel, and synced with the db.
+# All plans with plan_type=Braintree must be created in the Braintree Control Panel, and synced with the db.
 @python_2_unicode_compatible
 class SubscriptionPlan(models.Model):
     planId = models.CharField(max_length=36,
             unique=True,
-            help_text='Unique. No whitespace. Must be in sync with the actual plan in Braintree')
+            help_text='Unique. No whitespace. If plan_type is Braintree, the planId must be in sync with the actual plan in Braintree')
     name = models.CharField(max_length=80,
             help_text='Internal Plan name (alphanumeric only). Must match value in Braintree. Will be used to set planId.')
     display_name = models.CharField(max_length=40,
             help_text='Display name - what the user sees (e.g. Standard).')
     price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
-    trialDays = models.IntegerField(default=7,
+    trialDays = models.IntegerField(default=0,
             help_text='Trial period in days')
     billingCycleMonths = models.IntegerField(default=12,
             help_text='Billing Cycle in months')
     discountPrice = models.DecimalField(max_digits=6, decimal_places=2,
             help_text='discounted price in USD')
     active = models.BooleanField(default=True)
+    plan_type = models.ForeignKey(SubscriptionPlanType,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='plans',
+    )
     plan_key = models.ForeignKey(SubscriptionPlanKey,
         null=True,
         blank=True,
@@ -1655,6 +1710,13 @@ class SubscriptionPlan(models.Model):
     def isLimitedCmeRate(self):
         """True if this is an limited CME rate plan, else False"""
         return self.maxCmeMonth > 0
+
+    def isFree(self):
+        return not self.plan_type.needs_payment_method
+
+    def isPaid(self):
+        return self.plan_type.needs_payment_method
+
 
 # User Subscription
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
@@ -1738,11 +1800,36 @@ class UserSubscriptionManager(models.Manager):
 
     def findBtSubscription(self, subscriptionId):
         try:
-            subscription = braintree.Subscription.find(subscriptionId)
+            bt_subs = braintree.Subscription.find(subscriptionId)
         except braintree.exceptions.not_found_error.NotFoundError:
             return None
         else:
-            return subscription
+            return bt_subs
+
+    def createFreeSubscription(self, user, plan):
+        """Create free UserSubscription instance for the given plan.
+        The display_status of the new subs is UI_TRIAL.
+        The subscriptionId is constructed from the profile.inviteId so it is guaranteed to be unique.
+        The date fields are not billing dates, they only represent the duration of the free trial period.
+        Args:
+            user: User instance
+            plan: SubscriptionPlan instance that is free
+        Returns UserSubscription instance
+        """
+        startDate = timezone.now()
+        endDate = startDate + timedelta(days=plan.trialDays)
+        subsId = "fr.{0}".format(user.profile.inviteId) # a unique id
+        user_subs = UserSubscription.objects.create(
+            user=user,
+            plan=plan,
+            subscriptionId=subsId,
+            display_status=UserSubscription.UI_TRIAL,
+            status=UserSubscription.ACTIVE,
+            billingFirstDate=startDate,
+            billingStartDate=startDate,
+            billingEndDate=endDate
+        )
+        return user_subs
 
     def createSubscriptionFromBt(self, user, plan, bt_subs):
         """Handle the result of calling braintree.Subscription.create
@@ -2237,18 +2324,27 @@ class UserSubscriptionManager(models.Manager):
 
 
     def switchTrialToActive(self, user_subs, payment_token, new_plan=None):
-        """User wants to upgrade to Active right now and their current status
-        is either UI_TRIAL or UI_TRIAL_CANCELED.
+        """
         Args:
             user_subs: existing UserSubscription
             payment_token:str payment method token
             new_plan: SubscriptionPlan / None (if None, use existing plan)
-        Cancel existing subs (if in TRIAL).
-        Create new Active subscription with any signup discounts for which the user is eligible.
-        Returns (Braintree result object, UserSubscription)
+        Returns: (Braintree result object, UserSubscription)
+        If current subscription is a paid plan in Trial status:
+            User wants to start billing right now, and their current status is either UI_TRIAL or UI_TRIAL_CANCELED.
+            Steps:
+                Cancel existing subscription if display_status is UI_TRIAL.
+                Create new Active subscription with any signup discounts for which the user is eligible.
+        else:
+            Call startActivePaidPlan. Arg new_plan must be a paid SubscriptionPlan
         """
+        cur_plan = user_subs.plan
+        if cur_plan.isFree():
+            return self.startActivePaidPlan(user_subs, payment_token, new_plan)
 
-        plan = new_plan if new_plan else user_subs.plan
+        # If not given: new_plan is cur_plan
+        # If given (e.g. by UpgradePlan): switch to new_plan
+        plan = new_plan if new_plan else cur_plan
         user = user_subs.user
         subs_params = {
             'plan_id': plan.planId,
@@ -2266,7 +2362,7 @@ class UserSubscriptionManager(models.Manager):
                 else:
                     subs_params['invitee_discount'] = True
                     logger.info('SwitchTrialToActive: apply invitee discount to new subscription for {0}'.format(user))
-        if user_subs.display_status == UserSubscription.UI_TRIAL:
+        if user_subs.display_status == UserSubscription.UI_TRIAL: # omit UI_TRIAL_CANCELED since it is already canceled
             cancel_result = self.terminalCancelBtSubscription(user_subs)
             if not cancel_result.is_success:
                 logger.warning('SwitchTrialToActive: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
@@ -2274,6 +2370,37 @@ class UserSubscriptionManager(models.Manager):
         # Create new subscription. Returns (result, new_user_subs)
         return self.createBtSubscription(user, plan, subs_params)
 
+
+    def startActivePaidPlan(self, user_subs, payment_token, new_plan):
+        """Switch user from their current free plan to their first active paid plan.
+        Args:
+            user_subs: existing UserSubscription
+            payment_token:str payment method token
+            new_plan: SubscriptionPlan
+        Steps:
+            End existing free subscription.
+            Create new Active paid subscription with any signup discounts for which the user is eligible.
+        Returns: (Braintree result object, UserSubscription)
+        """
+        user = user_subs.user
+        subs_params = {
+            'plan_id': new_plan.planId,
+            'trial_duration': 0,
+            'payment_method_token': payment_token
+        }
+        if user.profile.inviter:
+            if Affiliate.objects.filter(user=user.profile.inviter).exists():
+                subs_params['convertee_discount'] = True
+                logger.info('startActivePaidPlan: apply convertee discount to new subscription for {0}'.format(user))
+            else:
+                subs_params['invitee_discount'] = True
+                logger.info('startActivePaidPlan: apply invitee discount to new subscription for {0}'.format(user))
+        # cancel existing subs (status is consistent with the new active subs being eligible for discounts)
+        user_subs.status = self.model.CANCELED
+        user_subs.display_status = self.model.UI_TRIAL_CANCELED
+        user_subs.save()
+        # Create new BT subscription. Returns (result, new_user_subs)
+        return self.createBtSubscription(user, new_plan, subs_params)
 
     def updateSubscriptionFromBt(self, user_subs, bt_subs):
         """Update UserSubscription instance from braintree Subscription object
@@ -2372,17 +2499,30 @@ class UserSubscriptionManager(models.Manager):
             return (invDisc, True)
 
 
-    def checkTrialToActive(self, user_subs):
+    def checkTrialStatus(self, user_subs):
         """Check if user_subs is out of trial period.
-            Returns: bool if user_subs was saved with new data from bt subscription.
+        For free plans:
+            If trial period is over: switch to UI_TRIAL_CANCELED. This status is
+            consistent with: if user starts active paid plan, it will be their first,
+            and user is eligible for any signup discounts.
+        For BT plans:
+            Get up-to-date subscription status from BT and update user_subs as needed.
+        Returns: bool if user_subs was updated
         """
         today = timezone.now()
         saved = False
-        if user_subs.display_status == self.model.UI_TRIAL and (today > user_subs.billingFirstDate):
+        if user_subs.plan.isFree():
+            if user_subs.display_status == self.model.UI_TRIAL and (today > user_subs.billingEndDate):
+                # free subscription period is over. Switch to UI_TRIAL_CANCELED.
+                user_subs.status = self.model.CANCELED
+                user_subs.display_status = self.model.UI_TRIAL_CANCELED
+                user_subs.save()
+                saved = True
+        elif user_subs.display_status == self.model.UI_TRIAL and (today > user_subs.billingFirstDate):
             try:
                 bt_subs = braintree.Subscription.find(user_subs.subscriptionId)
             except braintree.exceptions.not_found_error.NotFoundError:
-                logger.error('checkTrialToActive: subscriptionId:{0.subscriptionId} for user {0.user} not found in Braintree.'.format(user_subs))
+                logger.error('checkTrialStatus: subscriptionId:{0.subscriptionId} for user {0.user} not found in BT.'.format(user_subs))
             else:
                 self.updateSubscriptionFromBt(user_subs, bt_subs)
                 saved = True
