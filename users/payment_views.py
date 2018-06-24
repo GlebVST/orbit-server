@@ -197,8 +197,6 @@ class NewSubscription(generics.CreateAPIView):
             logError(logger, request, context['message'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
-        invitee_discount = False
-        convertee_discount = False # used for affiliate conversion
         # Get last subscription of User (if any)
         last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
         # If user has had a prior subscription, do_trial must be 0
@@ -292,6 +290,108 @@ class NewSubscription(generics.CreateAPIView):
         logInfo(logger, request, 'NewSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
         out_serializer = ReadUserSubsSerializer(user_subs)
         context['subscription'] = out_serializer.data
+        return Response(context, status=status.HTTP_201_CREATED)
+
+class ActivatePaidSubscription(generics.CreateAPIView):
+    """
+    This expects a nonce in the POST data:
+        {"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9"}
+    Switch user from free plan to their first active subscription on paid plan: BT Standard Plan that shares the same plan_key as the user's current free plan.
+    It creates new active BT subscription with no trial period (billing starts immediately).
+    """
+    serializer_class = ActivatePaidUserSubsSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def perform_create(self, serializer, format=None):
+        user = self.request.user
+        last_subscription = UserSubscription.objects.getLatestSubscription(user)
+        with transaction.atomic():
+            result, user_subs = serializer.save(user_subs=last_subscription)
+        return (result, user_subs)
+
+    def create(self, request, *args, **kwargs):
+        logDebug(logger, request, 'ActivatePaidSubscription begin')
+        profile = request.user.profile
+        last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
+        old_plan = last_subscription.plan
+        if not old_plan.isFree():
+            context = {
+                'success': False,
+                'message': 'Current subscription must be free.'
+            }
+            message = context['message'] + ' last_subscription id: {0}'.format(last_subscription.pk)
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # get the partner paid standard plan
+        try:
+            new_plan = SubscriptionPlan.objects.getPaidPlanForFreePlan(old_plan)
+        except SubscriptionPlan.DoesNotExist:
+            context = {
+                'success': False,
+                'message': 'Partner paid plan does not exist.'
+            }
+            message = context['message'] + ' last_subscription id: {0}'.format(last_subscription.pk)
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
+        # get local customer object and braintree customer
+        customer = request.user.customer
+        try:
+            bc = Customer.objects.findBtCustomer(customer)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            context = {
+                'success': False,
+                'message': 'BT Customer object not found.'
+            }
+            message = context['message'] + ' customerId: {0.customerId}'.format(customer)
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
+        # form_data will be modified before passing it to serializer
+        form_data = request.data.copy()
+        payment_nonce = form_data['payment_method_nonce']
+        # Convert nonce into token because it is required by subs
+        # If user has multiple tokens, then delete their tokens
+        Customer.objects.makeSureNoMultipleMethods(customer)
+        try:
+            result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
+        except ValueError, e:
+            context = {
+                'success': False,
+                'message': str(e)
+            }
+            logException(logger, request, 'ActivatePaidSubscription: addOrUpdatePaymentMethod ValueError')
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if not result.is_success:
+            context = {
+                'success': False,
+                'message': 'Customer vault update failed.'
+            }
+            message = 'ActivatePaidSubscription: Customer vault update failed. Result message: {0.message}'.format(result)
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        bc2 = Customer.objects.findBtCustomer(customer)
+        tokens = [m.token for m in bc2.payment_methods]
+        payment_token = tokens[0]
+        # finally update form_data for serializer
+        form_data['payment_method_token'] = payment_token
+        form_data['plan'] = new_plan
+        logDebug(logger, request, str(form_data))
+        in_serializer = self.get_serializer(data=form_data)
+        in_serializer.is_valid(raise_exception=True)
+        result, user_subs = self.perform_create(in_serializer)
+        context = {'success': result.is_success}
+        if not result.is_success:
+            context['message'] = 'Create Subscription failed.'
+            message = 'ActivatePaidSubscription: Create Subscription failed. Result message: {0.message}'.format(result)
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        logInfo(logger, request, 'ActivatePaidSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
+        out_serializer = ReadUserSubsSerializer(user_subs)
+        context['subscription'] = out_serializer.data
+        pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
+        context['permissions'] = pdata['permissions']
+        context['brcme_limit'] = pdata['brcme_limit']
         return Response(context, status=status.HTTP_201_CREATED)
 
 

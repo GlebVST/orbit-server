@@ -1636,6 +1636,21 @@ class SubscriptionPlanManager(models.Manager):
             qset = self.model.objects.filter(**filter_kwargs)
         return qset.order_by('price')
 
+    def getPaidPlanForFreePlan(self, free_plan):
+        """Finds the partner BT Standard Plan for the given free plan
+        Args:
+            free_plan: SubscriptionPlan that is free
+        Returns: SubscriptionPlan
+        Raises SubscriptionPlan.DoesNotExist exception if none found.
+        """
+        pt_bt = SubscriptionPlanType.objects.get(name=PLAN_TYPE_BRAINTREE)
+        filter_kwargs = dict(
+                plan_key=free_plan.plan_key,
+                active=True,
+                display_name='Standard',
+                plan_type=pt_bt)
+        return self.model.objects.get(**filter_kwargs)
+
 # Recurring Billing Plans
 # https://developers.braintreepayments.com/guides/recurring-billing/plans
 # All plans with plan_type=Braintree must be created in the Braintree Control Panel, and synced with the db.
@@ -2374,7 +2389,7 @@ class UserSubscriptionManager(models.Manager):
 
 
     def startActivePaidPlan(self, user_subs, payment_token, new_plan):
-        """Switch user from their current free plan to their first active paid plan.
+        """Switch user from their current free plan to their first active paid plan. This is called either by the ActivatePaidSubscription view (via the ActivatePaidUserSubsSerializer) or by switchTrialToActive manager method above.
         Args:
             user_subs: existing UserSubscription
             payment_token:str payment method token
@@ -2403,6 +2418,7 @@ class UserSubscriptionManager(models.Manager):
         user_subs.save()
         # Create new BT subscription. Returns (result, new_user_subs)
         return self.createBtSubscription(user, new_plan, subs_params)
+
 
     def updateSubscriptionFromBt(self, user_subs, bt_subs):
         """Update UserSubscription instance from braintree Subscription object

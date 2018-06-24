@@ -963,6 +963,23 @@ class CreateUserSubsSerializer(serializers.Serializer):
             return UserSubscription.objects.createBtSubscriptionWithTestAmount(user, plan, subs_params)
 
 
+class ActivatePaidUserSubsSerializer(serializers.Serializer):
+    plan = serializers.PrimaryKeyRelatedField(
+        queryset=SubscriptionPlan.objects.all())
+    payment_method_token = serializers.CharField(max_length=64)
+
+    def save(self, **kwargs):
+        """This expects user_subs passed in to kwargs
+        Call Manager method UserSubscription startActivePaidPlan
+        Returns: tuple (result object, UserSubscription instance)
+        """
+        user_subs = kwargs['user_subs']
+        validated_data = self.validated_data
+        plan = validated_data['plan']
+        payment_method_token = validated_data['payment_method_token']
+        return UserSubscription.objects.startActivePaidPlan(user_subs, payment_token, plan)
+
+
 class UpgradePlanSerializer(serializers.Serializer):
     plan = serializers.PrimaryKeyRelatedField(
         queryset=SubscriptionPlan.objects.all())
