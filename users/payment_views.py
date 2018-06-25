@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from common.logutils import *
 # app
 from .models import *
-from .serializers import ReadUserSubsSerializer, CreateUserSubsSerializer, UpgradePlanSerializer
+from .serializers import ReadUserSubsSerializer, CreateUserSubsSerializer, UpgradePlanSerializer, ActivatePaidUserSubsSerializer
 
 TPL_DIR = 'users'
 
@@ -226,6 +226,8 @@ class NewSubscription(generics.CreateAPIView):
                         message = 'NewSubscription: Cancel pastdue subs failed. Result message: {0.message}'.format(cancel_result)
                         logError(logger, request, message)
                         return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        invitee_discount = False
+        convertee_discount = False # used for affiliate conversion
         if profile.inviter and ((last_subscription is None) or (last_subscription.display_status == UserSubscription.UI_TRIAL_CANCELED)):
             # Check if inviter is an affiliate
             if Affiliate.objects.filter(user=profile.inviter).exists():
