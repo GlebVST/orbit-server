@@ -149,6 +149,8 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/invitation-discount/?$', debug_views.InvitationDiscountList.as_view()),
         url(r'^debug/premail/?$', debug_views.PreEmail.as_view()),
         url(r'^debug/email-card-expired/?$', debug_views.EmailCardExpired.as_view()),
+        url(r'^debug/email-subs-renewal-reminder/?$', debug_views.EmailSubscriptionRenewalReminder.as_view()),
+        url(r'^debug/email-subs-cancel-reminder/?$', debug_views.EmailSubscriptionCancelReminder.as_view()),
     ])
 
 

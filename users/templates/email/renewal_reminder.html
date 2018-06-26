@@ -1,0 +1,53 @@
+<html>
+    <head>
+        <title>Your Orbit annual subscription renewal</title>
+        <style type="text/css">
+            .orbit-href {
+                color: #008cdd;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                text-decoration: none; 
+            }
+            .expiry-warning {
+                font-style: italic;
+            }
+            .signature {
+                margin-top: 15px;
+            }
+            .signature p {
+                line-height: 0.5;
+            }
+            .footer {
+                margin-top: 15px;
+                border-top: 1px solid #eee;
+            }
+            .footer p {
+                font-size: 11px;
+                color: #999;
+            }
+        </style>
+    </head>
+    <body>
+    <div>
+        <p>Dear {{ profile.firstName|default:"Provider" }},</p>
+        
+        <p>We hope you're having a good year in Orbit! We wanted to check in and see if you have any <a class="orbit-href" target="_blank" rel="noreferrer" href="https://{{ server_hostname }}{{ feedback_link }}">feedback</a> for us.</p>
+        
+        <p>Your subscription to the {{ plan.display_name }} plan renews on {{ nextBillingDate|date:" d M Y" }} when your {{ card.type }} card ending in {{ card.last4 }} expiring on {{ card.expiry }} will be charged 
+        {% if nextBillingAmount == plan.price %}
+            ${{ plan.price }} which is ${{ plan.monthlyPrice }}/month billed annually.
+        {% else %}
+            ${{ nextPrice }} which is ${{ plan.monthlyPrice }}/month billed annually minus your earned discounts.
+        {% endif %}
+        </p> 
+        {% if card.needs_update %}
+            <p class="expiry-warning">Please update your credit card information before your renewal date.</p>
+        {% endif %}
+        <p>To change or cancel your subscription, please click <a class="orbit-href" target="_blank" rel="noreferrer" href="https://{{ server_hostname }}{{ subscription_link }}">here</a>.</p>
+
+        {% include "email/orbit_highlights.html" %}
+        {% include "email/mailto_support_snippet.html" %}
+        {% include "email/founder_signature.html" %}
+        {% include "email/basic_footer.html" %}
+    </div>
+    </body>
+</html>

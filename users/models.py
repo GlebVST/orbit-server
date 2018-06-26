@@ -558,6 +558,23 @@ class CustomerManager(models.Manager):
             } for m in bc.payment_methods]
         return results
 
+    def formatCard(self, payment_method):
+        """Create card info used for emails
+        Args:
+            payment_method: dict from getPaymentMethods
+        Returns: dict {
+            card_type:str
+            last4:str
+            expiry:str as mm/yyyy
+            expiration_date:datetime
+        """
+        return {
+            'type': payment_method['type'],
+            'last4': payment_method['number'][-4:],
+            'expiry': payment_method['expiry'],
+            'expiration_date': self.getDateFromExpiry(payment_method['expiry'])
+        }
+
     def addNewPaymentMethod(self, customer, payment_nonce):
         """Update bt_customer Vault: add new payment method
             customer: Customer instance from db
@@ -641,7 +658,7 @@ class CustomerManager(models.Manager):
         start_dt = datetime(int(expiry_yyyy), int(expiry_mm), 1, tzinfo=pytz.utc)
         # last day of the month, 23:59:59 utc
         end_dt = start_dt + relativedelta(day=1, months=+1, seconds=-1)
-        return endt_dt
+        return end_dt
 
 @python_2_unicode_compatible
 class Customer(models.Model):
@@ -1109,6 +1126,14 @@ class BrowserCmeManager(models.Manager):
         ).aggregate(cme_total=Sum('credits'))
         return qs['cme_total'] >= plan.maxCmeYear
 
+    def totalCredits(self):
+        """Calculate total BrowserCme credits earned over all time
+        Returns: Decimal
+        """
+        qs = self.model.objects.select_related('entry').filter(
+            entry__valid=True
+        ).aggregate(cme_total=Sum('credits'))
+        return qs['cme_total']
 
 # Browser CME entry
 # An entry is created when a Browser CME offer is redeemed by the user

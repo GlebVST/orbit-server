@@ -15,6 +15,21 @@ from pprint import pprint
 ROCKET_ICON = u'\U0001F680'
 REPLY_TO = settings.SUPPORT_EMAIL if settings.ENV_TYPE == settings.ENV_PROD else 'faria@orbitcme.com'
 
+TEST_ONLY_PREFIX = u'[test-only] '
+
+def makeSubject(subject):
+    if settings.ENV_TYPE != settings.ENV_PROD:
+        subject = TEST_ONLY_PREFIX + subject
+    return subject
+
+def setCommonContext(ctx):
+    ctx.update({
+        'server_hostname': settings.SERVER_HOSTNAME,
+        'feedback_link': settings.UI_LINK_FEEDBACK,
+        'subscription_link': settings.UI_LINK_SUBSCRIPTION,
+        'support_email': settings.SUPPORT_EMAIL,
+    })
+
 def sendNewUserReportEmail(profiles, email_to):
     """Send report of new user signups. Info included:
     email, getFullNameAndDegree, npiNumber, plan_name, subscriptionId,referral
@@ -23,9 +38,7 @@ def sendNewUserReportEmail(profiles, email_to):
     from_email = settings.EMAIL_FROM
     tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
     now = timezone.now()
-    subject = 'New User Accounts Report - {0:%b %d %Y}'.format(now.astimezone(tz))
-    if settings.ENV_TYPE != settings.ENV_PROD:
-        subject = u'[test-only] ' + subject
+    subject = makeSubject('New User Accounts Report - {0:%b %d %Y}'.format(now.astimezone(tz)))
     data = []
     for p in profiles:
         user = p.user
@@ -70,17 +83,15 @@ def sendReceiptEmail(user, user_subs, subs_trans):
     """
     from_email = settings.SUPPORT_EMAIL
     plan_name = u'Orbit ' + user_subs.plan.name
-    subject = u'Your receipt for annual subscription to {0}'.format(plan_name)
-    if settings.ENV_TYPE != settings.ENV_PROD:
-        subject = u'[test-only] ' + subject
+    subject = makeSubject(u'Your receipt for annual subscription to {0}'.format(plan_name))
     ctx = {
         'profile': user.profile,
         'subscription': user_subs,
         'transaction': subs_trans,
         'plan_name': plan_name,
         'plan_monthly_price': user_subs.plan.monthlyPrice(),
-        'support_email': settings.SUPPORT_EMAIL
     }
+    setCommonContext(ctx)
     message = get_template('email/receipt.html').render(ctx)
     msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
     msg.content_subtype = 'html'
@@ -91,9 +102,7 @@ def sendPaymentFailureEmail(user, subs_trans):
     Can raise SMTPException
     """
     from_email = settings.SUPPORT_EMAIL
-    subject = u'Your Orbit Invoice Payment Failed [#{0.transactionId}]'.format(subs_trans)
-    if settings.ENV_TYPE != settings.ENV_PROD:
-        subject = u'[test-only] ' + subject
+    subject = makeSubject(u'Your Orbit Invoice Payment Failed [#{0.transactionId}]'.format(subs_trans))
     username = None
     if user.profile.firstName:
         username = user.profile.firstName
@@ -104,9 +113,8 @@ def sendPaymentFailureEmail(user, subs_trans):
     ctx = {
         'username': username,
         'transaction': subs_trans,
-        'server_hostname': settings.SERVER_HOSTNAME,
-        'support_email': settings.SUPPORT_EMAIL
     }
+    setCommonContext(ctx)
     message = get_template('email/payment_failed.html').render(ctx)
     msg = EmailMessage(subject, message, to=[user.email], from_email=from_email, bcc=[from_email,])
     msg.content_subtype = 'html'
@@ -125,9 +133,7 @@ def sendAfflConsolationEmail(affl, start_monyear):
     addressee = affl.user.profile.firstName
     if not addressee:
         addressee = 'Greetings'
-    subject = u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear)
-    if settings.ENV_TYPE != settings.ENV_PROD:
-        subject = u'[test-only] ' + subject
+    subject = makeSubject(u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear))
     subject_with_icon = u"{0} {1}".format(ROCKET_ICON, subject)
     encoded_subject = subject_with_icon.encode('utf-8')
     #print(encoded_subject)
@@ -167,9 +173,7 @@ def sendAfflEarningsStatementEmail(batchPayout, affl, afp_data):
     addressee = affl.user.profile.firstName
     if not addressee:
         addressee = 'Greetings'
-    subject = u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear)
-    if settings.ENV_TYPE != settings.ENV_PROD:
-        subject = u'[test-only] ' + subject
+    subject = makeSubject(u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear))
     subject_with_icon = u"{0} {1}".format(ROCKET_ICON, subject)
     encoded_subject = subject_with_icon.encode('utf-8')
     print(encoded_subject)
@@ -230,9 +234,7 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
     from_email = settings.EMAIL_FROM
     tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
     now = timezone.now()
-    subject = 'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(tz))
-    if settings.ENV_TYPE != settings.ENV_PROD:
-        subject = u'[test-only] ' + subject
+    subject = makeSubject(u'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(tz)))
     data = []
     grandTotal = 0
     totalUsers = 0
@@ -274,9 +276,7 @@ def sendCardExpiredAlertEmail(user_subs, payment_method):
     from_email = settings.EMAIL_FROM
     user = user_subs.user
     email_to = user.email
-    subject = u'Heads up! Your Orbit payment method has expired'
-    if settings.ENV_TYPE != settings.ENV_PROD:
-        subject = u'[test-only] ' + subject
+    subject = makeSubject(u'Heads up! Your Orbit payment method has expired')
     nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
     ctx = {
         'profile': user.profile,
@@ -301,6 +301,86 @@ def sendCardExpiredAlertEmail(user_subs, payment_method):
             from_email=from_email,
             to=[email_to],
             bcc=[REPLY_TO,],
+            reply_to=[REPLY_TO,]
+        )
+    msg.content_subtype = 'html'
+    msg.send()
+
+
+def sendRenewalReminderEmail(user_subs, payment_method, extra_data):
+    """Send reminder email about annual subscription renewal.
+    If payment_method has expired, then inform user.
+    Args:
+        user_subs: UserSubscription instance
+        payment_method:dict from Customer vault (getPaymentMethods)
+        extra_data:dict {totalCredits:Decimal}
+    """
+    from_email = settings.EMAIL_FROM
+    user = user_subs.user
+    email_to = user.email
+    subject = makeSubject(u'Your Orbit annual subscription renewal')
+    nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
+    card = Customer.objects.formatCard(payment_method)
+    card['needs_update'] = card['expiration_date'] <= nextBillingDate
+    ctx = {
+        'profile': user.profile,
+        'card': card,
+        'plan': user_subs.plan,
+        'nextBillingDate': nextBillingDate,
+        'nextBillingAmount': user_subs.nextBillingAmount,
+        'totalCredits': extra_data['totalCredits']
+    }
+    setCommonContext(ctx)
+    orig_message = get_template('email/renewal_reminder.html').render(ctx)
+    # setup premailer
+    plog = StringIO()
+    phandler = logging.StreamHandler(plog)
+    p = premailer.Premailer(orig_message,
+            cssutils_logging_handler=phandler,
+            cssutils_logging_level=logging.INFO)
+    # transformed message
+    message = p.transform()
+    msg = EmailMessage(subject,
+            message,
+            from_email=from_email,
+            to=[user.email],
+            reply_to=[REPLY_TO,]
+        )
+    msg.content_subtype = 'html'
+    msg.send()
+
+def sendCancelReminderEmail(user_subs, payment_method, extra_data):
+    """Send reminder email to user that their subscription is set to expire at billingEndDate and will not renew.
+    This is called when user_subs status is ACTIVE_CANCELED.
+    Args:
+        user_subs: UserSubscription instance
+        payment_method:dict from Customer vault (getPaymentMethods)
+        extra_data:dict {totalCredits:Decimal}
+    """
+    from_email = settings.EMAIL_FROM
+    user = user_subs.user
+    email_to = user.email
+    subject = makeSubject(u'Your Orbit annual subscription cancellation')
+    ctx = {
+        'profile': user.profile,
+        'subscription': user_subs,
+        'plan': user_subs.plan,
+        'totalCredits': extra_data['totalCredits']
+    }
+    setCommonContext(ctx)
+    orig_message = get_template('email/cancel_reminder.html').render(ctx)
+    # setup premailer
+    plog = StringIO()
+    phandler = logging.StreamHandler(plog)
+    p = premailer.Premailer(orig_message,
+            cssutils_logging_handler=phandler,
+            cssutils_logging_level=logging.INFO)
+    # transformed message
+    message = p.transform()
+    msg = EmailMessage(subject,
+            message,
+            from_email=from_email,
+            to=[user.email],
             reply_to=[REPLY_TO,]
         )
     msg.content_subtype = 'html'
