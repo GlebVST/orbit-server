@@ -377,7 +377,7 @@ class ActivatePaidSubscription(generics.CreateAPIView):
         payment_token = tokens[0]
         # finally update form_data for serializer
         form_data['payment_method_token'] = payment_token
-        form_data['plan'] = new_plan
+        form_data['plan'] = new_plan.pk
         logDebug(logger, request, str(form_data))
         in_serializer = self.get_serializer(data=form_data)
         in_serializer.is_valid(raise_exception=True)
