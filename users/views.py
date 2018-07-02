@@ -397,7 +397,8 @@ class SubscriptionPlanList(generics.ListAPIView):
             logWarning(logger, self.request, "Invalid profile.planId: {0.planId}".format(profile))
             return SubscriptionPlan.objects.none().order_by('id')
         else:
-            return SubscriptionPlan.objects.getPlansForKey(plan_key)
+            filter_kwargs = dict(active=True, plan_key=plan_key)
+            return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
 
 class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = SubscriptionPlan.objects.all()
