@@ -313,8 +313,9 @@ class ActivatePaidSubscription(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         logDebug(logger, request, 'ActivatePaidSubscription begin')
-        profile = request.user.profile
-        last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
+        user = request.user
+        profile = user.profile
+        last_subscription = UserSubscription.objects.getLatestSubscription(user)
         old_plan = last_subscription.plan
         if not old_plan.isFree():
             context = {
@@ -337,7 +338,7 @@ class ActivatePaidSubscription(generics.CreateAPIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
         # get local customer object and braintree customer
-        customer = request.user.customer
+        customer = user.customer
         try:
             bc = Customer.objects.findBtCustomer(customer)
         except braintree.exceptions.not_found_error.NotFoundError:
