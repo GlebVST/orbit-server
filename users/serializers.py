@@ -976,7 +976,7 @@ class ActivatePaidUserSubsSerializer(serializers.Serializer):
         user_subs = kwargs['user_subs']
         validated_data = self.validated_data
         plan = validated_data['plan']
-        payment_method_token = validated_data['payment_method_token']
+        payment_token = validated_data['payment_method_token']
         return UserSubscription.objects.startActivePaidPlan(user_subs, payment_token, plan)
 
 
