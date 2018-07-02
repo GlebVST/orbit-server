@@ -383,7 +383,7 @@ class UserStateLicenseDetail(generics.RetrieveUpdateDestroyAPIView):
         return instance
 
 # SubscriptionPlan
-class SubscriptionPlanList(generics.ListCreateAPIView):
+class SubscriptionPlanList(generics.ListAPIView):
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
@@ -398,7 +398,7 @@ class SubscriptionPlanList(generics.ListCreateAPIView):
             return SubscriptionPlan.objects.none().order_by('id')
         else:
             filter_kwargs = dict(active=True, plan_key=plan_key)
-            return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price')
+            return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
 
 class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = SubscriptionPlan.objects.all()
@@ -407,8 +407,7 @@ class SubscriptionPlanDetail(generics.RetrieveUpdateDestroyAPIView):
 
 # SubscriptionPlanPublic : for AllowAny
 class SubscriptionPlanPublic(generics.ListAPIView):
-    """Returns a list of available plans using the SubscriptionPlanPublicSerializer
-    Note: plans in db must be in sync with the plans defined in the BT Control Panel
+    """Returns a list of eligible plans for a given landing page key using the SubscriptionPlanPublicSerializer
     """
     serializer_class = SubscriptionPlanPublicSerializer
     permission_classes = (permissions.AllowAny,)
@@ -424,8 +423,7 @@ class SubscriptionPlanPublic(generics.ListAPIView):
             logWarning(logger, self.request, "Invalid key: {0}".format(lkey))
             return SubscriptionPlan.objects.none().order_by('id')
         else:
-            filter_kwargs = dict(active=True, plan_key=plan_key)
-            return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price')
+            return SubscriptionPlan.objects.getPlansForKey(plan_key)
 
 # custom pagination for OrbitCmeOfferList
 class OrbitCmeOfferPagination(PageNumberPagination):

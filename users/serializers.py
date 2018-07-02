@@ -826,11 +826,13 @@ class SRCmeFormSerializer(serializers.Serializer):
 DISPLAY_PRICE_AS_MONTHLY = True
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    plan_type = serializers.StringRelatedField(read_only=True)
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0.01'))
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
     displayMonthlyPrice = serializers.SerializerMethodField()
     plan_key = serializers.PrimaryKeyRelatedField(read_only=True)
     upgrade_plan = serializers.PrimaryKeyRelatedField(read_only=True)
+    needs_payment_method = serializers.BooleanField(source='plan_type.needs_payment_method')
 
     def get_displayMonthlyPrice(self, obj):
         """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
@@ -841,6 +843,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'planId',
+            'plan_type',
             'plan_key',
             'display_name',
             'price',
@@ -850,15 +853,18 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'displayMonthlyPrice',
             'active',
             'upgrade_plan',
+            'needs_payment_method',
             'created',
             'modified'
         )
 
 class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
+    plan_type = serializers.StringRelatedField(read_only=True)
+    plan_key = serializers.StringRelatedField(read_only=True)
+    needs_payment_method = serializers.BooleanField(source='plan_type.needs_payment_method')
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     displayMonthlyPrice = serializers.SerializerMethodField()
-    plan_key = serializers.StringRelatedField(read_only=True)
 
     def get_displayMonthlyPrice(self, obj):
         """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
@@ -869,21 +875,26 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'planId',
+            'plan_type',
             'plan_key',
             'display_name',
             'price',
             'discountPrice',
             'displayMonthlyPrice',
+            'needs_payment_method',
             'trialDays',
         )
 
 
 class ReadUserSubsSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
+    plan_type = serializers.StringRelatedField(source='plan.plan_type', read_only=True)
     plan = serializers.PrimaryKeyRelatedField(read_only=True)
     plan_name = serializers.ReadOnlyField(source='plan.name')
     display_name = serializers.ReadOnlyField(source='plan.display_name')
     bt_status = serializers.ReadOnlyField(source='status')
+    needs_payment_method = serializers.BooleanField(source='plan.plan_type.needs_payment_method')
+
     class Meta:
         model = UserSubscription
         fields = (
@@ -891,6 +902,7 @@ class ReadUserSubsSerializer(serializers.ModelSerializer):
             'subscriptionId',
             'user',
             'plan',
+            'plan_type',
             'plan_name',
             'display_name',
             'bt_status',
@@ -898,6 +910,7 @@ class ReadUserSubsSerializer(serializers.ModelSerializer):
             'billingFirstDate',
             'billingStartDate',
             'billingEndDate',
+            'needs_payment_method',
             'created',
             'modified'
         )
@@ -916,7 +929,7 @@ class CreateUserSubsSerializer(serializers.Serializer):
         """This expects user passed in to kwargs
         Call Manager method UserSubscription createBtSubscription
         with the following parameters:
-            plan_id: BT planId of plan
+            plan_id: planId of plan
             payment_method_token:str for Customer
             trial_duration:int number of days of trial (if not given, use plan default)
             invitee_discount:bool - used for InvitationDiscount
@@ -948,6 +961,23 @@ class CreateUserSubsSerializer(serializers.Serializer):
             subs_params.pop('invitee_discount')
             subs_params.pop('convertee_discount')
             return UserSubscription.objects.createBtSubscriptionWithTestAmount(user, plan, subs_params)
+
+
+class ActivatePaidUserSubsSerializer(serializers.Serializer):
+    plan = serializers.PrimaryKeyRelatedField(
+        queryset=SubscriptionPlan.objects.all())
+    payment_method_token = serializers.CharField(max_length=64)
+
+    def save(self, **kwargs):
+        """This expects user_subs passed in to kwargs
+        Call Manager method UserSubscription startActivePaidPlan
+        Returns: tuple (result object, UserSubscription instance)
+        """
+        user_subs = kwargs['user_subs']
+        validated_data = self.validated_data
+        plan = validated_data['plan']
+        payment_token = validated_data['payment_method_token']
+        return UserSubscription.objects.startActivePaidPlan(user_subs, payment_token, plan)
 
 
 class UpgradePlanSerializer(serializers.Serializer):

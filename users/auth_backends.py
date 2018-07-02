@@ -6,17 +6,24 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
-from .models import AuthImpersonation, Profile, Customer, CmeTag, ProfileCmetag, Affiliate, AffiliateDetail, SubscriptionPlan, SACME_SPECIALTIES, CMETAG_SACME
-
+from .models import (
+        SACME_SPECIALTIES,
+        CMETAG_SACME,
+        AuthImpersonation,
+        Profile,
+        Customer,
+        CmeTag,
+        ProfileCmetag,
+        Affiliate,
+        AffiliateDetail,
+        SubscriptionPlan,
+        UserSubscription
+    )
 logger = logging.getLogger('gen.auth')
 HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
 # https://auth0.com/docs/user-profile/normalized
 # format of user_id: {identity provider id}|{unique id in the provider}
 
-# https://docs.djangoproject.com/en/1.10/topics/auth/customizing/
-# Notes from 1.11 release notes:
-#  authenticate() now passes a request argument to the authenticate() method of authentication backends.
-#  Support for methods that dont accept request as the first positional argument will be removed in Django 2.1.
 class Auth0Backend(object):
     def authenticate(self, request, user_info):
         # check if this is an Auth0 authentication attempt
@@ -93,6 +100,10 @@ class Auth0Backend(object):
                         logger.error('braintree.Customer.create failed. Result message: {0.message}'.format(result))
                 except:
                     logger.exception('braintree.Customer.create exception')
+            # 2018-06-19: if free plan, create UserSubscription
+            if plan.isFree():
+                us = UserSubscription.objects.createFreeSubscription(user, plan)
+                logger.info('Create free UserSubs {0.subscriptionId}'.format(us))
         else:
             profile = user.profile
             # profile.socialId must match user_id

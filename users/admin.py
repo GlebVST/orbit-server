@@ -210,10 +210,13 @@ class InvitationDiscountAdmin(admin.ModelAdmin):
     ordering = ('-created',)
 
 
+class SubscriptionPlanTypeAdmin(admin.ModelAdmin):
+    list_display = ('id','name', 'needs_payment_method')
+
 class SubscriptionPlanKeyAdmin(admin.ModelAdmin):
-    list_display = ('id','name','degree','specialty','description','created')
+    list_display = ('id','name','degree','specialty','description','use_free_plan', 'created')
     list_select_related = True
-    list_filter = ('degree','specialty')
+    list_filter = ('use_free_plan', 'degree','specialty')
     ordering = ('-created',)
 
 class PlanForm(forms.ModelForm):
@@ -246,6 +249,7 @@ class PlanForm(forms.ModelForm):
 
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ('id',
+        'plan_type',
         'plan_key',
         'planId',
         'name',
@@ -258,12 +262,12 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'maxCmeMonth'
     )
     list_select_related = True
-    list_filter = ('active', 'plan_key',)
-    ordering = ('plan_key__name','price')
+    list_filter = ('active', 'plan_type', 'plan_key',)
+    ordering = ('plan_type', 'plan_key__name','price')
     form = PlanForm
     fieldsets = (
         (None, {
-            'fields': ('plan_key','name','display_name', 'upgrade_plan','downgrade_plan'),
+            'fields': ('plan_type', 'plan_key','name','display_name', 'upgrade_plan','downgrade_plan'),
         }),
         ('Price', {
             'fields': ('price', 'discountPrice')
@@ -425,6 +429,7 @@ admin_site.register(Story, StoryAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin_site.register(SubscriptionPlanKey, SubscriptionPlanKeyAdmin)
+admin_site.register(SubscriptionPlanType, SubscriptionPlanTypeAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
 admin_site.register(SubscriptionEmail, SubscriptionEmailAdmin)
 admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)

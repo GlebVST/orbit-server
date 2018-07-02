@@ -1,3 +1,4 @@
+"""Autocomplete views: used by autocomplete widget in the admin interface"""
 from dal import autocomplete
 from .models import User
 

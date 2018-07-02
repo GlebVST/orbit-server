@@ -20,6 +20,7 @@ from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, Token
 from .models import *
 from .permissions import *
 from .serializers import *
+from .emailutils import sendCancelReminderEmail, sendRenewalReminderEmail, sendCardExpiredAlertEmail
 
 class MakeOrbitCmeOffer(APIView):
     """
@@ -341,7 +342,6 @@ class EmailCardExpired(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
-        from .emailutils import sendCardExpiredAlertEmail
         user = request.user
         paymentMethods = Customer.objects.getPaymentMethods(user.customer)
         pm = paymentMethods[0]
@@ -357,5 +357,57 @@ class EmailCardExpired(APIView):
                 'success': True,
                 'message': 'A message was emailed to {0.email}'.format(user),
                 'paymentMethod': pm
+            }
+            return Response(context, status=status.HTTP_200_OK)
+
+class EmailSubscriptionRenewalReminder(APIView):
+    """Call emailutils.SendRenewalReminderEmail for request.user
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, format=None):
+        user = request.user
+        paymentMethods = Customer.objects.getPaymentMethods(user.customer)
+        pm = paymentMethods[0]
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        extra_data = {
+            'totalCredits': int(BrowserCme.objects.totalCredits())
+        }
+        try:
+            sendRenewalReminderEmail(user_subs, pm, extra_data)
+        except SMTPException as e:
+            logException(logger, request, 'EmailSubscriptionRenewalReminder failed.')
+            context = {'success': False, 'message': 'Failure sending email'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            context = {
+                'success': True,
+                'message': 'A message was emailed to {0.email}'.format(user),
+                'paymentMethod': pm
+            }
+            return Response(context, status=status.HTTP_200_OK)
+
+
+class EmailSubscriptionCancelReminder(APIView):
+    """Call emailutils.SendCancelReminderEmail for request.user
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    def post(self, request, format=None):
+        user = request.user
+        paymentMethods = Customer.objects.getPaymentMethods(user.customer)
+        pm = paymentMethods[0]
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        extra_data = {
+            'totalCredits': int(BrowserCme.objects.totalCredits())
+        }
+        try:
+            sendCancelReminderEmail(user_subs, pm, extra_data)
+        except SMTPException as e:
+            logException(logger, request, 'EmailSubscriptionCancelReminder failed.')
+            context = {'success': False, 'message': 'Failure sending email'}
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            context = {
+                'success': True,
+                'message': 'A message was emailed to {0.email}'.format(user),
             }
             return Response(context, status=status.HTTP_200_OK)
