@@ -55,7 +55,7 @@ pyparsing==2.2.0
 PyPDF2==1.26.0
 python-dateutil==2.7.3
 python-openid==2.2.5
-pytz==2018.4
+pytz==2018.5
 PyYAML==3.12
 reportlab==3.4.0
 requests==2.19.1

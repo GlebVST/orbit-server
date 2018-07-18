@@ -71,16 +71,18 @@ class StateSerializer(serializers.ModelSerializer):
 class PracticeSpecialtyListSerializer(serializers.ModelSerializer):
     class Meta:
         model = PracticeSpecialty
-        fields = ('id', 'name')
+        fields = ('id', 'name', 'planText')
 
 class PracticeSpecialtySerializer(serializers.ModelSerializer):
     cmeTags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
         many=True
     )
+    planText = serializers.CharField(max_length=500, default='')
+
     class Meta:
         model = PracticeSpecialty
-        fields = ('id', 'name', 'cmeTags')
+        fields = ('id', 'name', 'cmeTags', 'planText')
 
 class ProfileCmetagSerializer(serializers.ModelSerializer):
     """Used by ReadProfileSerializer and UpdateProfileSerializer"""
@@ -394,6 +396,8 @@ class BRCmeSubSerializer(serializers.ModelSerializer):
             'purpose',
             'planEffect',
             'planText',
+            'competence',
+            'performance'
         )
         read_only_fields = fields
 
@@ -515,6 +519,8 @@ class BRCmeCreateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
+    competence = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
+    performance = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
     planText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     offerId = serializers.PrimaryKeyRelatedField(
         queryset=OrbitCmeOffer.objects.filter(redeemed=False)
@@ -533,6 +539,8 @@ class BRCmeCreateSerializer(serializers.Serializer):
             'purpose',
             'planEffect',
             'planText',
+            'competence',
+            'performance',
             'tags'
         )
 
@@ -544,9 +552,18 @@ class BRCmeCreateSerializer(serializers.Serializer):
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
         offer = validated_data['offerId']
         user=validated_data.get('user')
-        planText=validated_data.get('planText')
+        planText = validated_data.get('planText')
         if planText is None:
             planText = ''
+        competence = validated_data.get('competence')
+        if competence is None:
+            competence = BrowserCme.objects.randResponse()
+        performance = validated_data.get('performance')
+        if performance is None:
+            performance = BrowserCme.objects.randResponse()
+        planEffect = validated_data.get('planEffect')
+        if not planEffect:
+            planEffect, planText = BrowserCme.objects.randPlanChange(user)
         entry = Entry.objects.create(
             entryType=etype,
             sponsor=offer.sponsor,
@@ -565,7 +582,9 @@ class BRCmeCreateSerializer(serializers.Serializer):
             entry=entry,
             offerId=offer.pk,
             purpose=validated_data.get('purpose'),
-            planEffect=validated_data.get('planEffect'),
+            competence=competence,
+            performance=performance,
+            planEffect=planEffect,
             planText=planText,
             url=aurl.url,
             pageTitle=aurl.page_title,
@@ -582,6 +601,8 @@ class BRCmeUpdateSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=500)
     purpose = serializers.IntegerField(min_value=0, max_value=1)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
+    competence = serializers.IntegerField(min_value=0, max_value=2)
+    performance = serializers.IntegerField(min_value=0, max_value=2)
     planText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
@@ -596,6 +617,8 @@ class BRCmeUpdateSerializer(serializers.Serializer):
             'purpose',
             'planEffect',
             'planText',
+            'competence',
+            'performance',
             'tags'
         )
 
@@ -611,6 +634,8 @@ class BRCmeUpdateSerializer(serializers.Serializer):
             else:
                 entry.tags.set([])
         instance.purpose = validated_data.get('purpose', instance.purpose)
+        instance.competence = validated_data.get('competence', instance.competence)
+        instance.performance = validated_data.get('performance', instance.performance)
         instance.planEffect = validated_data.get('planEffect', instance.planEffect)
         if 'planText' in validated_data:
             planText=validated_data.get('planText')
