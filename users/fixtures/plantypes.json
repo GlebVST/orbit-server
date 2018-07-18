@@ -1,0 +1,22 @@
+[
+{
+  "model": "users.subscriptionplantype",
+  "pk": 1,
+  "fields": {
+    "name": "Braintree",
+    "needs_payment_method": true,
+    "created": "2018-07-02T05:39:21.739Z",
+    "modified": "2018-07-02T05:39:21.739Z"
+  }
+},
+{
+  "model": "users.subscriptionplantype",
+  "pk": 2,
+  "fields": {
+    "name": "Free",
+    "needs_payment_method": false,
+    "created": "2018-07-02T05:39:26.121Z",
+    "modified": "2018-07-02T05:39:26.121Z"
+  }
+}
+]
