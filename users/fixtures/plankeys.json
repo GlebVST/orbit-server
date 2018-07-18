@@ -5,6 +5,7 @@
   "fields": {
     "name": "PA/pricing",
     "description": "Physician Assistant",
+    "use_free_plan": false,
     "degree": 3,
     "specialty": null,
     "created": "2018-02-14T08:17:42.743Z",
@@ -17,6 +18,7 @@
   "fields": {
     "name": "NP/pricing",
     "description": "Nurse Practitioner",
+    "use_free_plan": false,
     "degree": 5,
     "specialty": null,
     "created": "2018-02-14T08:18:15.870Z",
@@ -29,6 +31,7 @@
   "fields": {
     "name": "RN/pricing",
     "description": "Registered Nurse",
+    "use_free_plan": false,
     "degree": 9,
     "specialty": null,
     "created": "2018-02-14T08:18:40.004Z",
@@ -41,6 +44,7 @@
   "fields": {
     "name": "pathology/pricing",
     "description": "",
+    "use_free_plan": false,
     "degree": 1,
     "specialty": 14,
     "created": "2018-02-14T08:19:15.683Z",
@@ -53,10 +57,11 @@
   "fields": {
     "name": "anesthesiology/pricing",
     "description": "",
+    "use_free_plan": true,
     "degree": 1,
     "specialty": 2,
     "created": "2018-02-14T08:19:53.831Z",
-    "modified": "2018-02-14T08:19:53.832Z"
+    "modified": "2018-07-02T05:40:58.860Z"
   }
 },
 {
@@ -65,6 +70,7 @@
   "fields": {
     "name": "radiology/pricing",
     "description": "",
+    "use_free_plan": false,
     "degree": 1,
     "specialty": 19,
     "created": "2018-02-14T08:21:06.472Z",
@@ -77,6 +83,7 @@
   "fields": {
     "name": "EM/pricing",
     "description": "ER Physician",
+    "use_free_plan": false,
     "degree": 1,
     "specialty": 5,
     "created": "2018-02-14T08:21:48.185Z",
@@ -89,10 +96,37 @@
   "fields": {
     "name": "original",
     "description": "Key used for the original Standard and Plus plans",
+    "use_free_plan": false,
     "degree": 1,
     "specialty": null,
     "created": "2018-02-14T08:24:18.158Z",
     "modified": "2018-02-14T08:24:18.158Z"
+  }
+},
+{
+  "model": "users.subscriptionplankey",
+  "pk": 9,
+  "fields": {
+    "name": "original-plus",
+    "description": "Move to its own group so that it is no longer grouped with Original Standard under the same plan_key.",
+    "use_free_plan": false,
+    "degree": 1,
+    "specialty": null,
+    "created": "2018-03-21T07:12:53.100Z",
+    "modified": "2018-03-21T07:12:53.100Z"
+  }
+},
+{
+  "model": "users.subscriptionplankey",
+  "pk": 10,
+  "fields": {
+    "name": "radiation-oncology/pricing",
+    "description": "",
+    "use_free_plan": false,
+    "degree": 1,
+    "specialty": 21,
+    "created": "2018-04-16T03:27:01.851Z",
+    "modified": "2018-04-16T03:27:01.851Z"
   }
 }
 ]
