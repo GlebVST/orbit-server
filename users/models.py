@@ -1141,6 +1141,20 @@ class BrowserCmeManager(models.Manager):
     def randResponse(self):
         return random.randint(0, 2)
 
+    def getDefaultPlanText(self, user):
+        """Args:
+            user: User instance
+        Returns: str default value for planText based on user specialty
+        """
+        profile = user.profile
+        ps = set([p.name for p in profile.specialties.all()])
+        s = ps.intersection(SACME_SPECIALTIES)
+        if s:
+            planText = self.model.DIFFERENTIAL_DIAGNOSIS
+        else:
+            planText = self.model.TREATMENT_PLAN
+        return planText
+
     def randPlanChange(self, user):
         """Args:
         user: User instance
@@ -1149,12 +1163,7 @@ class BrowserCmeManager(models.Manager):
         planEffect = random.randint(0, 1)
         planText = ''
         if planEffect:
-            profile = user.profile
-            ps = [p.name for p in profile.specialties.all()]
-            if 'Radiology' in ps or 'Pathology' in ps:
-                planText = self.model.DIFFERENTIAL_DIAGNOSIS
-            else:
-                planText = self.model.TREATMENT_PLAN
+            planText = self.getDefaultPlanText(user)
         return (planEffect, planText)
 
 # Browser CME entry

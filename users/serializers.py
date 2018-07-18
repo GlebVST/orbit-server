@@ -517,7 +517,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
 class BRCmeCreateSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     description = serializers.CharField(max_length=500)
-    purpose = serializers.IntegerField(min_value=0, max_value=1)
+    purpose = serializers.IntegerField(min_value=0, max_value=1, required=False)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
     competence = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
     performance = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
@@ -562,7 +562,10 @@ class BRCmeCreateSerializer(serializers.Serializer):
         if performance is None:
             performance = BrowserCme.objects.randResponse()
         planEffect = validated_data.get('planEffect')
-        if not planEffect:
+        if planEffect:
+            if not planText:
+                planText = BrowserCme.objects.getDefaultPlanText(user)
+        else:
             planEffect, planText = BrowserCme.objects.randPlanChange(user)
         entry = Entry.objects.create(
             entryType=etype,
@@ -581,7 +584,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
         instance = BrowserCme.objects.create(
             entry=entry,
             offerId=offer.pk,
-            purpose=validated_data.get('purpose'),
+            purpose=validated_data.get('purpose', 0),
             competence=competence,
             performance=performance,
             planEffect=planEffect,
@@ -599,7 +602,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
 class BRCmeUpdateSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     description = serializers.CharField(max_length=500)
-    purpose = serializers.IntegerField(min_value=0, max_value=1)
+    purpose = serializers.IntegerField(min_value=0, max_value=1, required=False)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
     competence = serializers.IntegerField(min_value=0, max_value=2)
     performance = serializers.IntegerField(min_value=0, max_value=2)
