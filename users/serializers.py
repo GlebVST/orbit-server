@@ -393,7 +393,6 @@ class BRCmeSubSerializer(serializers.ModelSerializer):
             'credits',
             'url',
             'pageTitle',
-            'purpose',
             'planEffect',
             'planText',
             'competence',
@@ -517,7 +516,6 @@ class EntryReadSerializer(serializers.ModelSerializer):
 class BRCmeCreateSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     description = serializers.CharField(max_length=500)
-    purpose = serializers.IntegerField(min_value=0, max_value=1, required=False)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
     competence = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
     performance = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
@@ -536,7 +534,6 @@ class BRCmeCreateSerializer(serializers.Serializer):
             'id',
             'offerId',
             'description',
-            'purpose',
             'planEffect',
             'planText',
             'competence',
@@ -584,7 +581,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
         instance = BrowserCme.objects.create(
             entry=entry,
             offerId=offer.pk,
-            purpose=validated_data.get('purpose', 0),
+            purpose=0, # deprecated field
             competence=competence,
             performance=performance,
             planEffect=planEffect,
@@ -602,7 +599,6 @@ class BRCmeCreateSerializer(serializers.Serializer):
 class BRCmeUpdateSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     description = serializers.CharField(max_length=500)
-    purpose = serializers.IntegerField(min_value=0, max_value=1, required=False)
     planEffect = serializers.IntegerField(min_value=0, max_value=1)
     competence = serializers.IntegerField(min_value=0, max_value=2)
     performance = serializers.IntegerField(min_value=0, max_value=2)
@@ -636,7 +632,6 @@ class BRCmeUpdateSerializer(serializers.Serializer):
                 entry.tags.set(tag_ids)
             else:
                 entry.tags.set([])
-        instance.purpose = validated_data.get('purpose', instance.purpose)
         instance.competence = validated_data.get('competence', instance.competence)
         instance.performance = validated_data.get('performance', instance.performance)
         instance.planEffect = validated_data.get('planEffect', instance.planEffect)
