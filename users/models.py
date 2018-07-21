@@ -1187,8 +1187,8 @@ class BrowserCme(models.Model):
     PLAN_EFFECT_N = 0 # no change to plan
     PLAN_EFFECT_Y = 1 # change to plan
     PLAN_EFFECT_CHOICES = (
-        (PLAN_EFFECT_N, 'No change'),
-        (PLAN_EFFECT_Y, 'Change')
+        (RESPONSE_NO, 'No change'),
+        (RESPONSE_YES, 'Change')
     )
     DIFFERENTIAL_DIAGNOSIS = u'Differential diagnosis'
     TREATMENT_PLAN = u'Treatment plan'
@@ -1222,7 +1222,15 @@ class BrowserCme(models.Model):
         choices=PLAN_EFFECT_CHOICES
     )
     planText = models.CharField(max_length=500, blank=True, default='',
-            help_text='Optional explanation of changes to clinical plan'
+            help_text='Explanation of changes to clinical plan'
+    )
+    commercialBias = models.IntegerField(
+        default=0,
+        choices=RESPONSE_CHOICES,
+        help_text='Commercial bias in content'
+    )
+    commercialBiasText = models.CharField(max_length=500, blank=True, default='',
+            help_text='Explanation of commercial bias in content'
     )
     objects = BrowserCmeManager()
 
@@ -1387,7 +1395,7 @@ class SignupDiscount(models.Model):
         related_name='signupdiscounts',
         help_text='Discount to be applied to first billingCycle'
     )
-    expireDate = models.DateTimeField('Cutoff for user signup date [UTC]')
+    expireDate = models.DateTimeField(help_text='Cutoff for user signup date [UTC]')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SignupDiscountManager()
