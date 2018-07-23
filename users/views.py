@@ -296,24 +296,6 @@ class VerifyProfileEmail(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def get(self, request, *args, **kwargs):
-        #user = request.user
-        #customer = Customer.objects.get(user=request.user)
-        #subject = settings.EMAIL_VERIFICATION_SUBJECT
-        #from_email = settings.EMAIL_FROM
-        #ctx = {
-        #    'profile': user.profile,
-        #    'customer': customer,
-        #    'domain': settings.SERVER_HOSTNAME
-        #}
-        #message = get_template('email/verification.html').render(ctx)
-        #msg = EmailMessage(subject, message, to=[user.profile.contactEmail], from_email=from_email)
-        #msg.content_subtype = 'html'
-        #try:
-        #    msg.send()
-        #except SMTPException as e:
-        #    logException(logger, request, 'VerifyProfileEmail send email failed.')
-        #    context = {'success': False, 'message': 'Failure sending email'}
-        #    return Response(context, status=status.HTTP_400_BAD_REQUEST)
         context = {'success': True}
         return Response(context, status=status.HTTP_200_OK)
 

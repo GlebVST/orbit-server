@@ -25,11 +25,13 @@ class Command(BaseCommand):
                 UserSubscription.UI_ACTIVE_CANCELED,
                 #UserSubscription.UI_ACTIVE_DOWNGRADE, # TODO: once we have appropriate email message for this case
             )
-        qset = UserSubscription.objects.filter(
-            status__in=f_status,
+        qset = UserSubscription.objects.select_related('plan').filter(
+            display_status__in=f_status,
             billingEndDate__lte=cutoffDate
             ).order_by('billingEndDate')
         for m in qset:
+            if m.plan.isFree():
+                continue
             user = m.user
             subs_email, created = SubscriptionEmail.objects.getOrCreate(m)
             if not subs_email.remind_renew_sent:
