@@ -75,7 +75,7 @@ class DegreeDetail(generics.RetrieveUpdateDestroyAPIView):
 
 # custom pagination for large page size
 class LongPagination(PageNumberPagination):
-    page_size = 10000
+    page_size = 1000
 
 # PracticeSpecialty - list only
 class PracticeSpecialtyList(generics.ListAPIView):

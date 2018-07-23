@@ -243,13 +243,6 @@ class PracticeSpecialty(models.Model):
     """Names of practice specialties.
     """
     name = models.CharField(max_length=100, unique=True)
-    parent = models.ForeignKey('self',
-        null=True,
-        blank=True,
-        on_delete=models.CASCADE,
-        db_index=True,
-        help_text='If this entry is a sub-specialty, then specify its GeneralCert parent.'
-    )
     cmeTags = models.ManyToManyField(CmeTag,
         blank=True,
         related_name='specialties',
@@ -269,8 +262,32 @@ class PracticeSpecialty(models.Model):
         return ", ".join([t.name for t in self.cmeTags.all()])
     formatTags.short_description = "cmeTags"
 
+    def formatSubSpecialties(self):
+        return ", ".join([t.name for t in self.subspecialties.all()])
+    formatSubSpecialties.short_description = "SubSpecialties"
+
     class Meta:
         verbose_name_plural = 'Practice Specialties'
+
+@python_2_unicode_compatible
+class SubSpecialty(models.Model):
+    specialty = models.ForeignKey(PracticeSpecialty,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='subspecialties',
+    )
+    name = models.CharField(max_length=60)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name_plural = 'Practice Sub Specialties'
+        unique_together = ('specialty', 'name')
+        ordering = ['name',]
+
 
 @python_2_unicode_compatible
 class Organization(models.Model):

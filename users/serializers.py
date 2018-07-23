@@ -68,10 +68,18 @@ class StateSerializer(serializers.ModelSerializer):
         model = State
         fields = ('id', 'country', 'abbrev', 'name', 'rnCertValid')
 
+
+class NestedSubSpecialtySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = SubSpecialty
+        fields = ('id', 'name',)
+
 class PracticeSpecialtyListSerializer(serializers.ModelSerializer):
+    subspecialties = NestedSubSpecialtySerializer(many=True, read_only=True)
     class Meta:
         model = PracticeSpecialty
-        fields = ('id', 'name', 'planText')
+        fields = ('id', 'name', 'planText','subspecialties')
 
 class PracticeSpecialtySerializer(serializers.ModelSerializer):
     cmeTags = serializers.PrimaryKeyRelatedField(
