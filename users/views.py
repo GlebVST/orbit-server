@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.core.mail import EmailMessage
 from django.db import transaction
+from django.forms.models import model_to_dict
 from django.template.loader import get_template
 from django.utils import timezone
 
@@ -566,7 +567,7 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
             'id': entry.pk,
             'logo_url': entry.sponsor.logo_url,
             'created': entry.created,
-            'credits': brcme.credits,
+            'brcme': model_to_dict(brcme),
             'permissions': pdata['permissions'],
             'brcme_limit': pdata['brcme_limit']
         }
