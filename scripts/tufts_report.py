@@ -1,4 +1,4 @@
-"""Tufts report - meant to be run on prod db"""
+"""Tufts participant report - to be run on prod db"""
 import csv
 from users.models import *
 
@@ -12,12 +12,6 @@ outputFields = (
     'Attendee Type',
     'TopicSearched',
     'Article/Website Consulted',
-    'Change in Diagnosis?',
-    'Change in Treatment?',
-    'Change in clinical plan?',
-    'How?',
-    'Commercial bias?',
-    'Comments'
 )
 
 IGNORE_USERS = (
@@ -55,6 +49,10 @@ def makeReport(fpath):
         for k in outputFields:
             d[k] = ''
         d['NPINumber'] = profile.npiNumber
+        if profile.isPhysician():
+            d['Attendee Type'] = 'Physician'
+        else:
+            d['Attendee Type'] = 'Other'
         if profile.lastName:
             d['LastName'] = profile.lastName.capitalize()
         elif profile.npiNumber:
@@ -72,16 +70,6 @@ def makeReport(fpath):
         d['Credit Earned'] = str(m.credits)
         d['TopicSearched'] = m.entry.description.encode("ascii", errors="ignore").decode()
         d['Article/Website Consulted'] = m.url
-        if m.planEffect == 0:
-            d['Change in Diagnosis?'] = 'N'
-            d['Change in Treatment?'] = 'N'
-        elif m.purpose == 0:
-            d['Change in Diagnosis?'] = 'Y'
-            d['Change in Treatment?'] = 'N'
-        else:
-            d['Change in Diagnosis?'] = 'N'
-            d['Change in Treatment?'] = 'Y'
-        d['Change in clinical plan?'] = 'N'
         results.append(d)
     # write results to file
     with open(fpath, 'wb') as f:

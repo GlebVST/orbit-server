@@ -32,13 +32,19 @@ class AuthImpersonationAdmin(admin.ModelAdmin):
 class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'sort_order', 'created')
 
+class SubSpecialtyInline(admin.TabularInline):
+    model = SubSpecialty
+
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'formatTags', 'created')
+    list_display = ('id', 'name', 'formatTags', 'formatSubSpecialties')
     filter_horizontal = ('cmeTags',)
+    inlines = [
+        SubSpecialtyInline,
+    ]
 
     def get_queryset(self, request):
         qs = super(PracticeSpecialtyAdmin, self).get_queryset(request)
-        return qs.prefetch_related('cmeTags')
+        return qs.prefetch_related('cmeTags', 'subspecialties')
 
 class OrgAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')

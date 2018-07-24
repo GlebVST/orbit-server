@@ -8,6 +8,7 @@ from dateutil.relativedelta import *
 from decimal import Decimal, ROUND_HALF_UP
 from hashids import Hashids
 import pytz
+import random
 import re
 import uuid
 from urlparse import urlparse
@@ -242,13 +243,6 @@ class PracticeSpecialty(models.Model):
     """Names of practice specialties.
     """
     name = models.CharField(max_length=100, unique=True)
-    parent = models.ForeignKey('self',
-        null=True,
-        blank=True,
-        on_delete=models.CASCADE,
-        db_index=True,
-        help_text='If this entry is a sub-specialty, then specify its GeneralCert parent.'
-    )
     cmeTags = models.ManyToManyField(CmeTag,
         blank=True,
         related_name='specialties',
@@ -256,6 +250,8 @@ class PracticeSpecialty(models.Model):
     )
     is_abms_board = models.BooleanField(default=False, help_text='True if this is an ABMS Board/General Cert')
     is_primary = models.BooleanField(default=False, help_text='True if this is a Primary Specialty Certificate')
+    planText = models.CharField(max_length=500, blank=True, default='',
+            help_text='Default response for changes to clinical plan')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -266,8 +262,32 @@ class PracticeSpecialty(models.Model):
         return ", ".join([t.name for t in self.cmeTags.all()])
     formatTags.short_description = "cmeTags"
 
+    def formatSubSpecialties(self):
+        return ", ".join([t.name for t in self.subspecialties.all()])
+    formatSubSpecialties.short_description = "SubSpecialties"
+
     class Meta:
         verbose_name_plural = 'Practice Specialties'
+
+@python_2_unicode_compatible
+class SubSpecialty(models.Model):
+    specialty = models.ForeignKey(PracticeSpecialty,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='subspecialties',
+    )
+    name = models.CharField(max_length=60)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name_plural = 'Practice Sub Specialties'
+        unique_together = ('specialty', 'name')
+        ordering = ['name',]
+
 
 @python_2_unicode_compatible
 class Organization(models.Model):
@@ -1135,10 +1155,46 @@ class BrowserCmeManager(models.Manager):
         ).aggregate(cme_total=Sum('credits'))
         return qs['cme_total']
 
+    def randResponse(self):
+        return random.randint(0, 2)
+
+    def getDefaultPlanText(self, user):
+        """Args:
+            user: User instance
+        Returns: str default value for planText based on user specialty
+        """
+        profile = user.profile
+        ps = set([p.name for p in profile.specialties.all()])
+        s = ps.intersection(SACME_SPECIALTIES)
+        if s:
+            planText = self.model.DIFFERENTIAL_DIAGNOSIS
+        else:
+            planText = self.model.TREATMENT_PLAN
+        return planText
+
+    def randPlanChange(self, user):
+        """Args:
+        user: User instance
+        Returns: tuple (planEffect:int, planText:str)
+        """
+        planEffect = random.randint(0, 1)
+        planText = ''
+        if planEffect:
+            planText = self.getDefaultPlanText(user)
+        return (planEffect, planText)
+
 # Browser CME entry
 # An entry is created when a Browser CME offer is redeemed by the user
 @python_2_unicode_compatible
 class BrowserCme(models.Model):
+    RESPONSE_NO = 0
+    RESPONSE_YES = 1
+    RESPONSE_UNSURE = 2
+    RESPONSE_CHOICES = (
+        (RESPONSE_YES, 'Yes'),
+        (RESPONSE_NO, 'No'),
+        (RESPONSE_UNSURE, 'Unsure')
+    )
     PURPOSE_DX = 0  # Diagnosis
     PURPOSE_TX = 1 # Treatment
     PURPOSE_CHOICES = (
@@ -1148,9 +1204,12 @@ class BrowserCme(models.Model):
     PLAN_EFFECT_N = 0 # no change to plan
     PLAN_EFFECT_Y = 1 # change to plan
     PLAN_EFFECT_CHOICES = (
-        (PLAN_EFFECT_N, 'No change'),
-        (PLAN_EFFECT_Y, 'Change')
+        (RESPONSE_NO, 'No change'),
+        (RESPONSE_YES, 'Change')
     )
+    DIFFERENTIAL_DIAGNOSIS = u'Differential diagnosis'
+    TREATMENT_PLAN = u'Treatment plan'
+    DIAGNOSTIC_TEST = u'Diagnostic tests'
     entry = models.OneToOneField(Entry,
         on_delete=models.CASCADE,
         related_name='brcme',
@@ -1165,12 +1224,30 @@ class BrowserCme(models.Model):
         choices=PURPOSE_CHOICES,
         help_text='DX = Diagnosis. TX = Treatment'
     )
+    competence = models.IntegerField(
+        default=1,
+        choices=RESPONSE_CHOICES,
+        help_text='Change in competence - conceptual understanding'
+    )
+    performance = models.IntegerField(
+        default=1,
+        choices=RESPONSE_CHOICES,
+        help_text='Change in performance - transfer of knowledge to practice'
+    )
     planEffect = models.IntegerField(
         default=0,
         choices=PLAN_EFFECT_CHOICES
     )
     planText = models.CharField(max_length=500, blank=True, default='',
-            help_text='Optional explanation of changes to clinical plan'
+            help_text='Explanation of changes to clinical plan'
+    )
+    commercialBias = models.IntegerField(
+        default=0,
+        choices=RESPONSE_CHOICES,
+        help_text='Commercial bias in content'
+    )
+    commercialBiasText = models.CharField(max_length=500, blank=True, default='',
+            help_text='Explanation of commercial bias in content'
     )
     objects = BrowserCmeManager()
 
@@ -1335,7 +1412,7 @@ class SignupDiscount(models.Model):
         related_name='signupdiscounts',
         help_text='Discount to be applied to first billingCycle'
     )
-    expireDate = models.DateTimeField('Cutoff for user signup date [UTC]')
+    expireDate = models.DateTimeField(help_text='Cutoff for user signup date [UTC]')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SignupDiscountManager()

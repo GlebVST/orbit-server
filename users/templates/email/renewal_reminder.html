@@ -30,13 +30,13 @@
     <div>
         <p>Dear {{ profile.firstName|default:"Provider" }},</p>
         
-        <p>We hope you're having a good year in Orbit! We wanted to check in and see if you have any <a class="orbit-href" target="_blank" rel="noreferrer" href="https://{{ server_hostname }}{{ feedback_link }}">feedback</a> for us.</p>
+        <p>We hope you're having a good year in Orbit!</p>
         
         <p>Your subscription to the {{ plan.display_name }} plan renews on {{ nextBillingDate|date:" d M Y" }} when your {{ card.type }} card ending in {{ card.last4 }} expiring on {{ card.expiry }} will be charged 
         {% if nextBillingAmount == plan.price %}
             ${{ plan.price }} which is ${{ plan.monthlyPrice }}/month billed annually.
         {% else %}
-            ${{ nextPrice }} which is ${{ plan.monthlyPrice }}/month billed annually minus your earned discounts.
+            ${{ nextBillingAmount }} which is ${{ plan.monthlyPrice }}/month billed annually minus your earned discounts.
         {% endif %}
         </p> 
         {% if card.needs_update %}
