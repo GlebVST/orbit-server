@@ -27,7 +27,7 @@ class HospitalSerializer(serializers.ModelSerializer):
     state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all())
     class Meta:
         model = Hospital
-        fields = ('id', 'state', 'name', 'city', 'hasResidencyProgram')
+        fields = ('id', 'state', 'name', 'city')
 
 class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(

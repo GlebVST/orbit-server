@@ -55,31 +55,22 @@ class PingTest(APIView):
         context = {'success': True}
         return Response(context, status=status.HTTP_200_OK)
 
-# Country
-class CountryList(generics.ListCreateAPIView):
+# Country - list only
+class CountryList(generics.ListAPIView):
     queryset = Country.objects.all().order_by('id')
     serializer_class = CountrySerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-class CountryDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Country.objects.all()
-    serializer_class = CountrySerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-# Degree
-class DegreeList(generics.ListCreateAPIView):
+# Degree - list only
+class DegreeList(generics.ListAPIView):
     queryset = Degree.objects.all().order_by('sort_order')
     serializer_class = DegreeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-class DegreeDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Degree.objects.all()
-    serializer_class = DegreeSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-
-# Hospital
-class HospitalList(generics.ListCreateAPIView):
+# Hospital - list only
+class HospitalList(generics.ListAPIView):
     serializer_class = HospitalSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
@@ -93,10 +84,6 @@ class HospitalList(generics.ListCreateAPIView):
             qset = qset.filter(search=q)
         return qset.order_by('state','city','name')
 
-class HospitalDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Hospital.objects.all()
-    serializer_class = HospitalSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 
 # PracticeSpecialty - list only
@@ -107,13 +94,8 @@ class PracticeSpecialtyList(generics.ListAPIView):
     permission_classes = (IsContentAdminOrAny,)
 
 
-class PracticeSpecialtyDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = PracticeSpecialty.objects.all()
-    serializer_class = PracticeSpecialtySerializer
-    permission_classes = (IsContentAdminOrAny,)
-
-# CmeTag
-class CmeTagList(generics.ListCreateAPIView):
+# CmeTag - list only
+class CmeTagList(generics.ListAPIView):
     #queryset = CmeTag.objects.all().order_by('-priority', 'name')
     serializer_class = CmeTagWithSpecSerializer
     pagination_class = LongPagination
@@ -122,32 +104,19 @@ class CmeTagList(generics.ListCreateAPIView):
     def get_queryset(self):
         return CmeTag.objects.all().prefetch_related('specialties').order_by('-priority','name')
 
-class CmeTagDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = CmeTag.objects.all()
-    serializer_class = CmeTagSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-# EntryType
-class EntryTypeList(generics.ListCreateAPIView):
+# EntryType - list only
+class EntryTypeList(generics.ListAPIView):
     queryset = EntryType.objects.all().order_by('name')
     serializer_class = EntryTypeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-class EntryTypeDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = EntryType.objects.all()
-    serializer_class = EntryTypeSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-# Sponsor
-class SponsorList(generics.ListCreateAPIView):
+# Sponsor - list only
+class SponsorList(generics.ListAPIView):
     queryset = Sponsor.objects.all().order_by('name')
     serializer_class = SponsorSerializer
     pagination_class = LongPagination
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
-
-class SponsorDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Sponsor.objects.all()
-    serializer_class = SponsorSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 
