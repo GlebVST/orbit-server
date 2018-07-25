@@ -160,6 +160,30 @@ class State(models.Model):
         ordering = ['country','name']
         unique_together = (('country', 'name'), ('country', 'abbrev'))
 
+
+@python_2_unicode_compatible
+class Hospital(models.Model):
+    state = models.ForeignKey(State,
+        on_delete=models.CASCADE,
+        related_name='hospitals',
+        db_index=True
+    )
+    name = models.CharField(max_length=120)
+    city = models.CharField(max_length=80) # non-blank: used in uniq constraint
+    website = models.URLField(max_length=500, blank=True)
+    county = models.CharField(max_length=60, blank=True)
+    hasResidencyProgram = models.BooleanField(default=True, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name',]
+        unique_together = ('state','city','name')
+
+
 class DegreeManager(models.Manager):
     def insertDegreeAfter(self, from_deg, abbrev, name):
         """Insert new degree after the given from_deg

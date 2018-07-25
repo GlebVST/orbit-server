@@ -8,6 +8,7 @@ from smtplib import SMTPException
 import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.contrib.postgres.search import SearchVector
 from django.core.files.base import ContentFile
 from django.core.mail import EmailMessage
 from django.db import transaction
@@ -42,6 +43,10 @@ class LogValidationErrorMixin(object):
             logWarning(logger, self.request, message)
         return response
 
+# custom pagination for large page size
+class LongPagination(PageNumberPagination):
+    page_size = 1000
+
 class PingTest(APIView):
     """ping test response"""
     permission_classes = (permissions.AllowAny,)
@@ -67,15 +72,32 @@ class DegreeList(generics.ListCreateAPIView):
     serializer_class = DegreeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-
 class DegreeDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Degree.objects.all()
     serializer_class = DegreeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
-# custom pagination for large page size
-class LongPagination(PageNumberPagination):
-    page_size = 1000
+
+# Hospital
+class HospitalList(generics.ListCreateAPIView):
+    serializer_class = HospitalSerializer
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        """Filter by GET parameter: q"""
+        qset = Hospital.objects.select_related('state').annotate(
+                search=SearchVector('name','city', 'state__name')).all()
+        q = self.request.query_params.get('q', '')
+        if q:
+            q = q.replace(' in', '')
+            qset = qset.filter(search=q)
+        return qset.order_by('state','city','name')
+
+class HospitalDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Hospital.objects.all()
+    serializer_class = HospitalSerializer
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+
 
 # PracticeSpecialty - list only
 class PracticeSpecialtyList(generics.ListAPIView):

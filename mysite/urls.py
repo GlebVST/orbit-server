@@ -43,6 +43,7 @@ bt_patterns = [
 
 ac_patterns = [
     url(r'^useremail-autocomplete/$', ac_views.UserEmailAutocomplete.as_view(), name='useremail-autocomplete'),
+    url(r'^statename-autocomplete/$', ac_views.StateNameAutocomplete.as_view(), name='statename-autocomplete'),
 ]
 
 api_patterns = [
@@ -86,6 +87,8 @@ api_patterns = [
     url(r'^degrees/(?P<pk>[0-9]+)/?$', views.DegreeDetail.as_view()),
     url(r'^countries/?$', views.CountryList.as_view()),
     url(r'^countries/(?P<pk>[0-9]+)/?$', views.CountryDetail.as_view()),
+    url(r'^hospitals/?$', views.HospitalList.as_view()),
+    url(r'^hospitals/(?P<pk>[0-9]+)/?$', views.HospitalDetail.as_view()),
     url(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view()),
     url(r'^practice-specialties/(?P<pk>[0-9]+)/?$', views.PracticeSpecialtyDetail.as_view()),
     url(r'^user-state-licenses/?$', views.UserStateLicenseList.as_view()),
@@ -114,8 +117,6 @@ api_patterns = [
     url(r'^feed/upload-document/?$', views.CreateDocument.as_view()),
     url(r'^feed/delete-document/?$', views.DeleteDocument.as_view()),
 
-    # pinned message
-    url(r'^pinned-message/?$', views.PinnedMessageDetail.as_view()),
     # story
     url(r'^story/?$', views.StoryDetail.as_view()),
     # user feedback (list/create)

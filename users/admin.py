@@ -11,6 +11,10 @@ class UserFilter(AutocompleteFilter):
     field_name = 'user'
     autocomplete_url = 'useremail-autocomplete'
 
+class StateFilter(AutocompleteFilter):
+    title = 'State'
+    field_name = 'state'
+    autocomplete_url = 'statename-autocomplete'
 
 class AuthImpersonationForm(forms.ModelForm):
     class Meta:
@@ -58,6 +62,16 @@ class CountryAdmin(admin.ModelAdmin):
 class StateAdmin(admin.ModelAdmin):
     list_display = ('id', 'country', 'name', 'abbrev', 'rnCertValid', 'created')
     list_filter = ('rnCertValid',)
+
+
+class HospitalAdmin(admin.ModelAdmin):
+    list_display = ('id','state','name','city','county','hasResidencyProgram')
+    list_filter = ('hasResidencyProgram', StateFilter)
+    list_select_related = ('state',)
+
+    class Media:
+        pass
+
 
 class ProfileCmetagInline(admin.TabularInline):
     model = ProfileCmetag
@@ -422,6 +436,7 @@ admin_site.register(Document, DocumentAdmin)
 admin_site.register(EligibleSite, EligibleSiteAdmin)
 admin_site.register(Entry, EntryAdmin)
 admin_site.register(EntryType, EntryTypeAdmin)
+admin_site.register(Hospital, HospitalAdmin)
 admin_site.register(InvitationDiscount, InvitationDiscountAdmin)
 admin_site.register(LicenseType, LicenseTypeAdmin)
 admin_site.register(Organization, OrgAdmin)
