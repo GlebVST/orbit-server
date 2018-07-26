@@ -15,6 +15,7 @@ from urlparse import urlparse
 from django.conf import settings
 from django.contrib.auth.models import User, Group, Permission
 from django.contrib.postgres.fields import JSONField
+from django.contrib.postgres.search import SearchVector
 from django.core.exceptions import ValidationError
 from django.db import models, connection
 from django.db.models import Q, Prefetch, Count, Sum
@@ -161,6 +162,38 @@ class State(models.Model):
         unique_together = (('country', 'name'), ('country', 'abbrev'))
 
 
+class HospitalManager(models.Manager):
+
+    def search_filter(self, search_term, base_qs=None):
+        """Returns a queryset that filters for the given search_term
+        Uses: django.contrib.postgres SearchVector
+        """
+        if not base_qs:
+            base_qs = self.model.objects.select_related('state')
+        qs_all = base_qs.annotate(
+                search=SearchVector('name','city', 'state__name', 'state__abbrev')).all()
+        qs_loc = base_qs.annotate(
+                search=SearchVector('city', 'state__name', 'state__abbrev')).all()
+        L = search_term.split(' in ')
+        if len(L) > 1: # e.g. "holy cross in los angeles"
+            qs1 = qs_all.filter(search=L[0])
+            qs1_ids = set([m.id for m in qs1])
+            qs2 = qs_loc.filter(search=L[-1])
+            qs2_ids = set([m.id for m in qs2])
+            common_ids = qs1_ids.intersection(qs2_ids)
+            qset = base_qs.filter(id__in=list(common_ids))
+        else:
+            qset = qs_all.filter(search=search_term)
+        return qset.order_by('name','city')
+
+class ResidencyProgramManager(models.Manager):
+    def get_queryset(self):
+        return super(ResidencyProgramManager, self).get_queryset().filter(hasResidencyProgram=True)
+
+    def search_filter(self, search_term):
+        base_qs = self.model.residency_objects.select_related('state')
+        return self.model.objects.search_filter(search_term, base_qs)
+
 @python_2_unicode_compatible
 class Hospital(models.Model):
     state = models.ForeignKey(State,
@@ -168,16 +201,20 @@ class Hospital(models.Model):
         related_name='hospitals',
         db_index=True
     )
-    name = models.CharField(max_length=120)
+    name = models.CharField(max_length=120, db_index=True)
+    display_name = models.CharField(max_length=200, blank=True, default='',
+            help_text='Used for display')
     city = models.CharField(max_length=80) # non-blank: used in uniq constraint
     website = models.URLField(max_length=500, blank=True)
     county = models.CharField(max_length=60, blank=True)
     hasResidencyProgram = models.BooleanField(default=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = HospitalManager() # default manager
+    residency_objects = ResidencyProgramManager()
 
     def __str__(self):
-        return self.name
+        return self.display_name
 
     class Meta:
         ordering = ['name',]
@@ -351,6 +388,29 @@ class Profile(models.Model):
         blank=True,
         help_text='Set during profile creation to the user whose inviteId was provided upon first login.'
     )
+    organization = models.ForeignKey(Organization,
+        on_delete=models.CASCADE,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='profiles'
+    )
+    residency = models.ForeignKey(Hospital,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='residencies',
+        help_text='Residency Program'
+    )
+    birthDate = models.DateField(null=True, blank=True)
+    residencyEndDate = models.DateField(null=True, blank=True,
+            help_text='Date of completion of residency program')
+    affiliationText = models.CharField(max_length=200, blank=True, default='',
+            help_text='User specified affiliation')
+    interestText = models.CharField(max_length=500, blank=True, default='',
+            help_text='User specified interests')
+
     planId = models.CharField(max_length=36, blank=True, help_text='planId selected at signup')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
@@ -371,9 +431,13 @@ class Profile(models.Model):
             related_name='profiles')
     degrees = models.ManyToManyField(Degree, blank=True) # called primaryrole in UI
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
+    subspecialties = models.ManyToManyField(SubSpecialty, blank=True)
+    states = models.ManyToManyField(State, blank=True)
+    hospitals = models.ManyToManyField(Hospital, blank=True)
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
+    # TODO: drop these cmeStartDate/EndDate? these are goal-specific
     cmeStartDate = models.DateTimeField(null=True, blank=True, help_text='Start date for CME requirements calculation')
     cmeEndDate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
     affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')
@@ -1225,8 +1289,6 @@ class BrowserCme(models.Model):
         (PURPOSE_DX, 'DX'),
         (PURPOSE_TX, 'TX')
     )
-    PLAN_EFFECT_N = 0 # no change to plan
-    PLAN_EFFECT_Y = 1 # change to plan
     PLAN_EFFECT_CHOICES = (
         (RESPONSE_NO, 'No change'),
         (RESPONSE_YES, 'Change')

@@ -65,7 +65,7 @@ class StateAdmin(admin.ModelAdmin):
 
 
 class HospitalAdmin(admin.ModelAdmin):
-    list_display = ('id','state','name','city','county','hasResidencyProgram')
+    list_display = ('id','state','display_name','name','city','hasResidencyProgram')
     list_filter = ('hasResidencyProgram', StateFilter)
     list_select_related = ('state',)
 
@@ -77,10 +77,26 @@ class ProfileCmetagInline(admin.TabularInline):
     model = ProfileCmetag
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'planId', 'formatSpecialties', 'modified')
-    list_filter = ('verified','npiType')
+    list_display = (
+        'user',
+        'firstName',
+        'lastName',
+        'formatDegrees',
+        'organization',
+        'verified',
+        'npiNumber',
+        'planId',
+        'formatSpecialties',
+    )
+    list_select_related = ('organization',)
+    list_filter = ('verified','npiType', 'organization')
     search_fields = ['npiNumber', 'lastName']
-    filter_horizontal = ('specialties',)
+    filter_horizontal = (
+        'specialties',
+        'subspecialties',
+        'hospitals',
+        'states'
+    )
     inlines = [
         ProfileCmetagInline,
     ]

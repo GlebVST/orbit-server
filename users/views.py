@@ -1,4 +1,5 @@
 import calendar
+import coreapi
 from datetime import datetime
 from hashids import Hashids
 import logging
@@ -8,7 +9,6 @@ from smtplib import SMTPException
 import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.contrib.postgres.search import SearchVector
 from django.core.files.base import ContentFile
 from django.core.mail import EmailMessage
 from django.db import transaction
@@ -17,6 +17,7 @@ from django.template.loader import get_template
 from django.utils import timezone
 
 from rest_framework import generics, exceptions, permissions, status, serializers
+from rest_framework.filters import BaseFilterBackend
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.renderers import JSONRenderer
@@ -69,21 +70,42 @@ class DegreeList(generics.ListAPIView):
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
 
+class HospitalFilterBackend(BaseFilterBackend):
+    def get_schema_fields(self, view):
+        return [coreapi.Field(
+            name='q',
+            location='query',
+            required=False,
+            type='string',
+            description='Search by name, city or state'
+        )]
+
+    def filter_queryset(self, request, queryset, view):
+        """This requires the model Manager to have a search_filter manager method"""
+        search_term = request.query_params.get('q', '').strip()
+        if search_term:
+            return Hospital.objects.search_filter(search_term)
+        return queryset.order_by('name','city')
+
 # Hospital - list only
 class HospitalList(generics.ListAPIView):
+    queryset = Hospital.objects.all()
+    serializer_class = HospitalSerializer
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    filter_backends = (HospitalFilterBackend,)
+
+
+# ResidencyProgram - list only
+class ResidencyProgramList(generics.ListAPIView):
     serializer_class = HospitalSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
     def get_queryset(self):
         """Filter by GET parameter: q"""
-        qset = Hospital.objects.select_related('state').annotate(
-                search=SearchVector('name','city', 'state__name')).all()
-        q = self.request.query_params.get('q', '')
-        if q:
-            q = q.replace(' in', '')
-            qset = qset.filter(search=q)
-        return qset.order_by('state','city','name')
-
+        search_term = self.request.query_params.get('q', '').strip()
+        if search_term:
+            return Hospital.residency_objects.search_filter(search_term)
+        return Hospital.residency_objects.all().order_by('name','city')
 
 
 # PracticeSpecialty - list only

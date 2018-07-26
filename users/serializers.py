@@ -27,7 +27,7 @@ class HospitalSerializer(serializers.ModelSerializer):
     state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all())
     class Meta:
         model = Hospital
-        fields = ('id', 'state', 'name', 'city')
+        fields = ('id', 'state', 'city', 'name', 'display_name')
 
 class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(
@@ -142,6 +142,14 @@ class ManageProfileCmetagSerializer(serializers.Serializer):
 
 class UpdateProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        allow_null=True
+    )
+    residency = serializers.PrimaryKeyRelatedField(
+        queryset=Hospital.objects.all(),
+        allow_null=True
+    )
     degrees = serializers.PrimaryKeyRelatedField(
         queryset=Degree.objects.all(),
         many=True
@@ -150,9 +158,17 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         queryset=PracticeSpecialty.objects.all(),
         many=True
     )
-    country = serializers.PrimaryKeyRelatedField(
-        queryset=Country.objects.all(),
-        allow_null=True
+    subspecialties = serializers.PrimaryKeyRelatedField(
+        queryset=SubSpecialty.objects.all(),
+        many=True
+    )
+    states = serializers.PrimaryKeyRelatedField(
+        queryset=State.objects.all(),
+        many=True
+    )
+    hospitals = serializers.PrimaryKeyRelatedField(
+        queryset=Hospital.objects.all(),
+        many=True
     )
     cmeTags = serializers.SerializerMethodField()
     isSignupComplete = serializers.SerializerMethodField()
@@ -174,8 +190,13 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'id',
             'firstName',
             'lastName',
-            'contactEmail',
             'country',
+            'organization',
+            'residency',
+            'birthDate',
+            'residencyEndDate',
+            'affiliationText',
+            'interestText',
             'planId',
             'inviteId',
             'socialId',
@@ -188,6 +209,9 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'cmeTags',
             'degrees',
             'specialties',
+            'subspecialties',
+            'states',
+            'hospitals',
             'verified',
             'accessedTour',
             'cmeStartDate',
@@ -198,6 +222,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'modified'
         )
         read_only_fields = (
+            'organization',
             'cmeTags',
             'planId',
             'inviteId',
@@ -266,10 +291,15 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
 
 class ReadProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
-    # degrees and specialties are list of pkeyids
+    country = serializers.PrimaryKeyRelatedField(read_only=True)
+    organization = serializers.PrimaryKeyRelatedField(read_only=True)
+    residency = serializers.PrimaryKeyRelatedField(read_only=True)
+    # list of pkeyids
     degrees = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     specialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-    country = serializers.PrimaryKeyRelatedField(read_only=True)
+    subspecialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    hospitals = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    states = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
     cmeTags = serializers.SerializerMethodField()
@@ -290,8 +320,13 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'id',
             'firstName',
             'lastName',
-            'contactEmail',
             'country',
+            'organization',
+            'residency',
+            'birthDate',
+            'residencyEndDate',
+            'affiliationText',
+            'interestText',
             'planId',
             'inviteId',
             'socialId',
@@ -304,6 +339,9 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'cmeTags',
             'degrees',
             'specialties',
+            'subspecialties',
+            'states',
+            'hospitals',
             'verified',
             'accessedTour',
             'cmeStartDate',
