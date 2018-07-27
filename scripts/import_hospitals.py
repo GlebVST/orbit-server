@@ -1,10 +1,56 @@
 import csv
 from collections import defaultdict
+from django.db.models import Q
 from users.models import Country, State, Hospital
 from pprint import pprint
 from operator import itemgetter
 
 APOSTROPHE = u"\u2019"
+GROUP_NAMES = (
+        u'AGNES',
+        u'ALBANS',
+        u'ALEXIUS',
+        u'ALOISIUS',
+        u'ANDREWS',
+        u'ANTHONY',
+        u'BERNARD',
+        u'CATHERINE',
+        u'CHARLES',
+        u'CHRISTOPHER',
+        u'CLAIR',
+        u'CLARE',
+        u'CLOUD',
+        u'CROIX',
+        u'DAVID',
+        u'DOMINIC-JACKSON',
+        u'ELIAS',
+        u'ELIZABETH',
+        u'FRANCIS',
+        u'GABRIEL',
+        u'HELENA',
+        u'JAMES',
+        u'JOHN',
+        u'JOSEPH',
+        u'JUDE',
+        u'LANDRY',
+        u'LOUIS',
+        u'LUCIE',
+        u'LUKE',
+        u'MARGARET',
+        u'MARK',
+        u'MARTIN',
+        u'MARY',
+        u'NICHOLAS',
+        u'PATRICK',
+        u'PETER',
+        u'ROSE',
+        u'SIMON',
+        u'TAMMANY',
+        u'THERESA',
+        u'THOMAS',
+        u'VINCENT'
+)
+
 
 def clean_name(name):
     n2 = name.decode('utf_8')
@@ -100,6 +146,32 @@ def find_dups():
         print(30*'-')
     print('len dups: {0}'.format(len(dups)))
 
+
+def collate_st_groups():
+    """Collate names beginning with ST or ST. into groups
+    Returns:dict key = name, value = list of collated names
+    """
+    groups = defaultdict(set)
+    qs = Hospital.objects.filter(Q(name__startswith='ST')|Q(name__startswith='ST.')).order_by('name')
+    for m in qs:
+        L = m.name.split()
+        st_name = L[1]
+        part = u' '.join([L[0], L[1]]) # e.g. ST. MARYS
+        for g_name in GROUP_NAMES:
+            if g_name in st_name:
+                groups[g_name].add(part)
+    filtered_groups = dict()
+    for g_name in sorted(groups):
+        parts = groups[g_name]
+        num_parts = len(parts)
+        if num_parts > 1:
+            print(g_name)
+            for part in parts:
+                print(" {0}".format(part))
+            filtered_groups[g_name] = parts
+    return filtered_groups
+
+
 def main():
     f = open('./scripts/US_hospitals.csv', 'rb')
     reader = csv.DictReader(f)
@@ -144,3 +216,20 @@ def main():
                     print('ID {0.pk} in {0.state}/{0.city} has non-ascii chars'.format(h))
     print('done')
     return data
+
+def old_search(search_term):
+    base_qs = Hospital.objects.select_related('state')
+    qs_all = base_qs.annotate(
+            search=SearchVector('name','city', 'state__name', 'state__abbrev')).all()
+    qs_loc = base_qs.annotate(
+            search=SearchVector('city', 'state__name', 'state__abbrev')).all()
+    L = search_term.split(' in ')
+    if len(L) > 1: # e.g. "holy cross in los angeles"
+        qs1 = qs_all.filter(search=L[0])
+        qs1_ids = set([m.id for m in qs1])
+        qs2 = qs_loc.filter(search=L[-1])
+        qs2_ids = set([m.id for m in qs2])
+        common_ids = qs1_ids.intersection(qs2_ids)
+        qset = base_qs.filter(id__in=list(common_ids))
+    else:
+        return qset.order_by('name','city')

@@ -173,12 +173,16 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
     cmeTags = serializers.SerializerMethodField()
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
+    isProfileComplete = serializers.SerializerMethodField()
 
     def get_isSignupComplete(self, obj):
         return obj.isSignupComplete()
 
     def get_isNPIComplete(self, obj):
         return obj.isNPIComplete()
+
+    def get_isProfileComplete(self, obj):
+        return obj.measureComplete()
 
     def get_cmeTags(self, obj):
         qset = ProfileCmetag.objects.filter(profile=obj)
@@ -218,6 +222,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'cmeEndDate',
             'isNPIComplete',
             'isSignupComplete',
+            'isProfileComplete',
             'created',
             'modified'
         )
@@ -302,6 +307,7 @@ class ReadProfileSerializer(serializers.ModelSerializer):
     states = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
+    isProfileComplete = serializers.SerializerMethodField()
     cmeTags = serializers.SerializerMethodField()
 
     def get_isSignupComplete(self, obj):
@@ -309,6 +315,9 @@ class ReadProfileSerializer(serializers.ModelSerializer):
 
     def get_isNPIComplete(self, obj):
         return obj.isNPIComplete()
+
+    def get_isProfileComplete(self, obj):
+        return obj.measureComplete()
 
     def get_cmeTags(self, obj):
         qset = ProfileCmetag.objects.filter(profile=obj)
@@ -348,6 +357,7 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'cmeEndDate',
             'isNPIComplete',
             'isSignupComplete',
+            'isProfileComplete',
             'created',
             'modified'
         )

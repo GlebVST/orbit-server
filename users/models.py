@@ -164,6 +164,18 @@ class State(models.Model):
 
 class HospitalManager(models.Manager):
 
+    def find_st_group(self, name):
+        uname = name.upper()
+        if uname.endswith("'S"):
+            uname.strip("'S")
+        if uname in self.model.ST_GROUPS:
+            return uname
+        if uname.endswith('S'):
+            uname = uname[0:-1]
+            if uname in self.model.ST_GROUPS:
+                return uname
+        return None
+
     def search_filter(self, search_term, base_qs=None):
         """Returns a queryset that filters for the given search_term
         Uses: django.contrib.postgres SearchVector
@@ -172,17 +184,20 @@ class HospitalManager(models.Manager):
             base_qs = self.model.objects.select_related('state')
         qs_all = base_qs.annotate(
                 search=SearchVector('name','city', 'state__name', 'state__abbrev')).all()
-        qs_loc = base_qs.annotate(
-                search=SearchVector('city', 'state__name', 'state__abbrev')).all()
-        L = search_term.split(' in ')
-        if len(L) > 1: # e.g. "holy cross in los angeles"
-            qs1 = qs_all.filter(search=L[0])
-            qs1_ids = set([m.id for m in qs1])
-            qs2 = qs_loc.filter(search=L[-1])
-            qs2_ids = set([m.id for m in qs2])
-            common_ids = qs1_ids.intersection(qs2_ids)
-            qset = base_qs.filter(id__in=list(common_ids))
-        else:
+        qset = None
+        L = search_term.split(); f = L[0].upper(); num_tokens = len(L)
+        if (num_tokens > 1) and (f == 'ST' or f == 'ST.'):
+            key = self.find_st_group(L[1])
+            if key:
+                name_list = self.model.ST_GROUPS[key]
+                if num_tokens > 2:
+                    rest = ' ' + u' '.join(L[2:])
+                else:
+                    rest = ''
+                Q_list = [Q(search=name+rest) for name in name_list]
+                Q_combined = reduce(lambda x,y: x|y, Q_list)
+                qset = qs_all.filter(Q_combined)
+        if not qset:
             qset = qs_all.filter(search=search_term)
         return qset.order_by('name','city')
 
@@ -196,15 +211,37 @@ class ResidencyProgramManager(models.Manager):
 
 @python_2_unicode_compatible
 class Hospital(models.Model):
+    ST_GROUPS = {
+        u'AGNES': (u'ST AGNES', u'ST. AGNES'),
+        u'ALEXIUS': (u'ST ALEXIUS', u'ST. ALEXIUS'),
+        u'ANTHONY': (u'ST ANTHONY', u"ST. ANTHONY'S", u"ST ANTHONY'S", u'ST. ANTHONY', u'ST ANTHONYS'),
+        u'BERNARD': (u'ST. BERNARD', u'ST. BERNARDINE', u'ST BERNARD', u'ST. BERNARDS'),
+        u'CATHERINE': (u'ST CATHERINE', u"ST CATHERINE'S", u'ST. CATHERINE'),
+        u'CHARLES': (u'ST CHARLES', u'ST. CHARLES'),
+        u'CLAIR': (u'ST CLAIR', u'ST. CLAIRE'),
+        u'CLARE': (u'ST. CLARE', u'ST CLARES'),
+        u'CLOUD': (u'ST CLOUD', u'ST. CLOUD'),
+        u'DAVID': (u"ST. DAVID'S", u'ST DAVIDS', u"ST DAVID'S"),
+        u'ELIZABETH': (u'ST. ELIZABETH', u"ST. ELIZABETH'S", u'ST ELIZABETH', u'ST ELIZABETHS'),
+        u'FRANCIS': (u'ST. FRANCIS', u'ST FRANCIS'),
+        u'JAMES': (u'ST JAMES', u'ST. JAMES'),
+        u'JOHN': (u'ST. JOHN', u'ST JOHN', u"ST. JOHN'S", u"ST JOHN'S", u'ST JOHNS'),
+        u'JOSEPH': (u"ST. JOSEPH'S", u"ST JOSEPH'S", u'ST JOSEPH', u'ST. JOSEPH', u'ST JOSEPHS'),
+        u'LOUIS': (u'ST. LOUIS', u'ST. LOUISE'),
+        u'LUKE': (u'ST. LUKE', u"ST. LUKES'S", u'ST LUKE', u"ST LUKE'S", u'ST LUKES', u"ST. LUKE'S", u'ST. LUKES'),
+        u'MARK': (u"ST. MARK'S", u'ST. MARKS'),
+        u'MARY': (u'ST MARYS', u"ST MARY'S", u'ST MARY', u'ST. MARY', u"ST. MARY'S"),
+        u'PETER': (u'ST PETERSBURG', u'ST PETERS', u"ST. PETER'S"),
+        u'VINCENT': (u'ST VINCENT', u"ST. VINCENT'S", u"ST VINCENT'S", u'ST. VINCENT'),
+    }
     state = models.ForeignKey(State,
         on_delete=models.CASCADE,
         related_name='hospitals',
         db_index=True
     )
     name = models.CharField(max_length=120, db_index=True)
-    display_name = models.CharField(max_length=200, blank=True, default='',
-            help_text='Used for display')
-    city = models.CharField(max_length=80) # non-blank: used in uniq constraint
+    display_name = models.CharField(max_length=200, help_text='Used for display')
+    city = models.CharField(max_length=80, db_index=True)
     website = models.URLField(max_length=500, blank=True)
     county = models.CharField(max_length=60, blank=True)
     hasResidencyProgram = models.BooleanField(default=True, blank=True)
@@ -215,6 +252,9 @@ class Hospital(models.Model):
 
     def __str__(self):
         return self.display_name
+
+    def str_long(self):
+        return "{0.pk}|{0.display_name}|{0.city}|{0.state.abbrev}".format(self)
 
     class Meta:
         ordering = ['name',]
@@ -478,7 +518,6 @@ class Profile(models.Model):
             return False
         return True
 
-
     def isSignupComplete(self):
         """Signup is complete if:
             1. User has entered first and last name
@@ -488,6 +527,36 @@ class Profile(models.Model):
         if not self.firstName or not self.lastName or not self.user.subscriptions.exists():
             return False
         return True
+
+    def measureComplete(self):
+        """Returns a integer in range (1,100) for a measure of profile completeness"""
+        total = 4
+        filled = 0
+        include_subspec = False
+        # multivalue fields
+        if self.degrees.exists():
+            filled += 1
+        if self.states.exists():
+            filled += 1
+        if self.hospitals.exists():
+            filled += 1
+        if self.specialties.exists():
+            filled += 1
+            for ps in self.specialties.all():
+                if ps.subspecialties.exists():
+                    include_subspec = True
+                    break
+            if include_subspec:
+                total += 1
+                if self.subspecialties.exists():
+                    filled += 1
+        # single-value fields
+        keys = ('country','birthDate','affiliationText','interestText','npiNumber','residency', 'residencyEndDate')
+        total += len(keys)
+        for key in keys:
+            if getattr(self, key): # count truthy values
+                filled += 1
+        return int(round(100.0*filled/total))
 
     def getFullName(self):
         return u"{0} {1}".format(self.firstName, self.lastName)
