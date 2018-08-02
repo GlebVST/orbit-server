@@ -1,7 +1,6 @@
 from django import forms
 from django.contrib import admin
 from django.db.models import Count
-from pagedown.widgets import AdminPagedownWidget
 from dal import autocomplete
 from dal_admin_filters import AutocompleteFilter
 from .models import *
@@ -154,38 +153,6 @@ class EligibleSiteAdmin(admin.ModelAdmin):
     ordering = ('domain_name',)
     filter_horizontal = ('specialties',)
 
-class PinnedMessageForm(forms.ModelForm):
-    title = forms.CharField(widget=forms.TextInput(attrs={'size': 80}))
-    #description = forms.CharField(widget=forms.Textarea(attrs={'cols': 80, 'rows': 5}))
-    description = forms.CharField(widget=AdminPagedownWidget())
-
-class PinnedMessageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'title', 'startDate', 'expireDate', 'sponsor')
-    list_select_related = ('user',)
-    date_hierarchy = 'startDate'
-    ordering = ('-created',)
-    form = PinnedMessageForm
-
-class StoryForm(forms.ModelForm):
-    description = forms.CharField(widget=AdminPagedownWidget())
-
-    class Meta:
-        model = Story
-        fields = ('__all__')
-
-    def clean(self):
-        """Check that startDate is earlier than endDate"""
-        cleaned_data = super(StoryForm, self).clean()
-        startdate = cleaned_data.get('startDate')
-        enddate = cleaned_data.get('endDate')
-        if startdate and enddate and (startdate >= enddate):
-            self.add_error('startDate', 'StartDate must be prior to EndDate')
-
-class StoryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'startDate', 'expireDate', 'title', 'launch_url')
-    date_hierarchy = 'startDate'
-    ordering = ('-startDate',)
-    form = StoryForm
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')
@@ -456,13 +423,11 @@ admin_site.register(Hospital, HospitalAdmin)
 admin_site.register(InvitationDiscount, InvitationDiscountAdmin)
 admin_site.register(LicenseType, LicenseTypeAdmin)
 admin_site.register(Organization, OrgAdmin)
-admin_site.register(PinnedMessage, PinnedMessageAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin_site.register(Sponsor, SponsorAdmin)
 admin_site.register(State, StateAdmin)
 admin_site.register(StateLicense, StateLicenseAdmin)
-admin_site.register(Story, StoryAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin_site.register(SubscriptionPlanKey, SubscriptionPlanKeyAdmin)

@@ -767,7 +767,7 @@ class UploadDocumentSerializer(serializers.Serializer):
         hashgen = Hashids(salt=settings.DOCUMENT_HASHIDS_SALT, min_length=10)
         newDoc = validated_data['document'] # UploadedFile (or subclass)
         fileName = validated_data.get('name', '')
-        logger.debug('uploaded filename: {0}'.format(fileName))
+        #logger.debug('uploaded filename: {0}'.format(fileName)) # this raised UnicodeError for unicode filenames
         basename, fileExt = os.path.splitext(fileName)
         fileMd5 = validated_data['fileMd5']
         docName = fileMd5 + fileExt
@@ -782,7 +782,6 @@ class UploadDocumentSerializer(serializers.Serializer):
                 im = Image.open(newDoc)
                 image_w, image_h = im.size
                 if image_w > thumb_size or image_h > thumb_size:
-                    logger.debug('Creating thumbnail: {0}'.format(fileName))
                     im.thumbnail((thumb_size, thumb_size), Image.ANTIALIAS)
                     mime = mimetypes.guess_type(fileName)
                     plain_ext = mime[0].split('/')[1]
@@ -1131,31 +1130,6 @@ class StorySerializer(serializers.ModelSerializer):
         )
 
 
-# Note: this will not be used for Orbit Stories as it has been superseded by the Story model.
-# It will be changed at a later date to be used for personalized PinnedMessages.
-class PinnedMessageSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
-    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
-    displayLabel = serializers.SerializerMethodField()
-
-    def get_displayLabel(self, obj):
-        return SACME_LABEL
-
-    class Meta:
-        model = PinnedMessage
-        fields = (
-            'id',
-            'user',
-            'title',
-            'description',
-            'startDate',
-            'expireDate',
-            'launch_url',
-            'sponsor',
-            'logo_url',
-            'displayLabel'
-        )
 
 class UserFeedbackSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
