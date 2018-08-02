@@ -19,6 +19,9 @@ class Command(BaseCommand):
             if not inviter_subs:
                 logger.info('Inviter {0} does not have a subscription yet.'.format(inviter))
                 continue
+            if not inviter_subs.plan.isPaid():
+                logger.info('Skip {0} until inviter is on paid plan.'.format(m))
+                continue
             # terminal states don't have a next billingCycle
             if (inviter_subs.status == UserSubscription.CANCELED) or (inviter_subs.status == UserSubscription.EXPIRED):
                 logger.info('Inviter {0} has terminal subscription status: {1}. Cannot apply discount.'.format(inviter, inviter_subs.status))

@@ -229,9 +229,9 @@ class NewSubscription(generics.CreateAPIView):
         invitee_discount = False
         convertee_discount = False # used for affiliate conversion
         if profile.inviter and ((last_subscription is None) or (last_subscription.display_status == UserSubscription.UI_TRIAL_CANCELED)):
-            # Check if inviter is an affiliate
-            if Affiliate.objects.filter(user=profile.inviter).exists():
-                convertee_discount = True
+            if profile.affiliateId and Affiliate.objects.filter(user=profile.inviter).exists():
+                # profile.inviter is an Affiliate and user was converted by one of their affiliateId
+                convertee_discount = True # profile.inviter is an affiliate
             else:
                 invitee_discount = True
 

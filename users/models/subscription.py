@@ -369,6 +369,7 @@ class InvitationDiscount(models.Model):
         on_delete=models.CASCADE,
         db_index=True,
         null=True,
+        blank=True,
         related_name='inviterdiscounts',
         help_text='Set when inviter subscription has been updated with the discount'
     )
@@ -955,7 +956,7 @@ class UserSubscriptionManager(models.Manager):
         is_convertee = False
         discounts = [] # Discount instances to be applied
         inv_discount = None # saved to either InvitationDiscount or AffiliatePayout
-        subs_price = None
+        subs_price = plan.discountPrice
         key = 'invitee_discount'
         if key in subs_params:
             is_invitee = subs_params.pop(key)
@@ -966,6 +967,8 @@ class UserSubscriptionManager(models.Manager):
             inviter = user.profile.inviter # User instance (used below)
             if not inviter:
                 raise ValueError('createBtSubscription: Invalid inviter')
+            if is_convertee:
+                affl = Affiliate.objects.get(user=inviter) # used below in saving AffiliatePayout instance
             # used below in saving InvitationDiscount/AffiliatePayout model instance
             inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
         qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
@@ -990,17 +993,14 @@ class UserSubscriptionManager(models.Manager):
         else:
             if is_invitee or is_convertee:
                 discounts.append(inv_discount)
-                # calculate subs_price
-                subs_price = plan.discountPrice - inv_discount.amount
+                subs_price -= inv_discount.amount # update subs_price
             if is_signup:
                 sd = SignupDiscount.objects.getForUser(user)
                 if sd:
                     discount = sd.discount
                     discounts.append(discount)
                     logger.info('Signup discount: {0} for user {1}'.format(discount, user))
-                    if not subs_price:
-                        subs_price = plan.discountPrice
-                    subs_price -= discount.amount # subtract signup discount
+                    subs_price -= discount.amount # signup discount stacks on top of any inv_discount
             if discounts:
                 # Add discounts:add key to subs_params
                 subs_params['discounts'] = {
@@ -1013,21 +1013,25 @@ class UserSubscriptionManager(models.Manager):
         logger.info('createBtSubscription result: {0.is_success}'.format(result))
         if result.is_success:
             user_subs = self.createSubscriptionFromBt(user, plan, result.subscription)
-            if is_invitee and not InvitationDiscount.objects.filter(invitee=user).exists():
-                # user can end/create subscription multiple times, but only add invitee once to InvitationDiscount.
-                InvitationDiscount.objects.create(
-                    inviter=inviter,
-                    invitee=user,
-                    inviteeDiscount=inv_discount
-                )
-            elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
-                afp_amount = inviter.affiliate.bonus*subs_price
-                AffiliatePayout.objects.create(
-                    convertee=user,
-                    converteeDiscount=inv_discount,
-                    affiliate=inviter.affiliate, # Affiliate instance
-                    amount=afp_amount
-                )
+            try:
+                if is_invitee and not InvitationDiscount.objects.filter(invitee=user).exists():
+                    # user can end/create subscription multiple times, but only add invitee once to InvitationDiscount.
+                    InvitationDiscount.objects.create(
+                        inviter=inviter,
+                        invitee=user,
+                        inviteeDiscount=inv_discount
+                    )
+                elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
+                    afp_amount = affl.bonus*subs_price
+                    AffiliatePayout.objects.create(
+                        convertee=user,
+                        converteeDiscount=inv_discount,
+                        affiliate=affl, # Affiliate instance
+                        amount=afp_amount
+                    )
+            except Exception, e:
+                # catch all and return user_subs since we need the db transaction to commit since bt_subs was successfully created
+                logger.error("createBtSubscription Exception after bt_subs was created: {0}".format(e))
         return (result, user_subs)
 
     def createBtSubscriptionWithTestAmount(self, user, plan, subs_params):
