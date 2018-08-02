@@ -114,15 +114,14 @@ class UserOfferList(generics.ListAPIView):
 
 # intended to be used by SerializerMethodField on ReadFeedSerializer
 class BRCmeSubSerializer(serializers.ModelSerializer):
-    offer = serializers.PrimaryKeyRelatedField(read_only=True) # must specifiy read_only despite also putting it read_only_fields
+    offer = serializers.PrimaryKeyRelatedField(read_only=True) # must specify read_only despite also putting it read_only_fields
 
     class Meta:
         model = BrowserCme
         fields = (
-            'offer',
+            'offerId',
             'credits',
             'url',
-            'purpose',
             'planEffect'
         )
         read_only_fields = fields
@@ -132,27 +131,6 @@ class SRCmeSubSerializer(serializers.ModelSerializer):
         model = SRCme
         fields = ('credits',)
         read_only_fields = fields
-
-class NotificationSubSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Notification
-        fields = ('expireDate',)
-        read_only_fields = fields
-
-class StoryCmeSubSerializer(serializers.ModelSerializer):
-    story = serializers.PrimaryKeyRelatedField(read_only=True)
-    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    url = serializers.ReadOnlyField()
-    title = serializers.ReadOnlyField()
-
-    class Meta:
-        model = StoryCme
-        fields = (
-            'story',
-            'credits',
-            'url',
-            'title'
-        )
 
 
 class ReadFeedSerializer(serializers.ModelSerializer):
@@ -169,10 +147,8 @@ class ReadFeedSerializer(serializers.ModelSerializer):
             s = BRCmeSubSerializer(obj.brcme)
         elif etype == ENTRYTYPE_SRCME:
             s = SRCmeSubSerializer(obj.srcme)
-        elif etype == ENTRYTYPE_STORY_CME:
-            s = StoryCmeSubSerializer(obj.storycme)
         else:
-            s = NotificationSubSerializer(obj.notification)
+            return {}
         return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>
 
     class Meta:

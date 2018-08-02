@@ -63,81 +63,6 @@ class MakeOrbitCmeOffer(APIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 
-class MakeNotification(APIView):
-    """
-    Create a test Notification Entry in the user's feed.
-    """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def post(self, request, format=None):
-        now = timezone.now()
-        activityDate = now - timedelta(seconds=10)
-        expireDate = now + timedelta(days=10)
-        entryType = EntryType.objects.get(name=ENTRYTYPE_NOTIFICATION)
-        with transaction.atomic():
-            entry = Entry.objects.create(
-                user=request.user,
-                entryType=entryType,
-                activityDate=activityDate,
-                description='Created for feed test'
-            )
-            Notification.objects.create(
-                entry=entry,
-                expireDate=expireDate,
-            )
-        context = {
-            'success': True,
-            'id': entry.pk,
-        }
-        return Response(context, status=status.HTTP_201_CREATED)
-
-
-class MakeStoryCme(APIView):
-    """
-    Create a test StoryCme entry for the user using the latest Story (if dne), else return the existing StoryCme.
-    The entry will be tagged with SA-CME.
-    """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def post(self, request, format=None):
-        story = Story.objects.all().order_by('-created')[0]
-        #user = User.objects.get(pk=3)
-        user = request.user
-        qset = StoryCme.objects.filter(story=story, entry__user=user)
-        if qset.exists():
-            m = qset[0]
-            context = {
-                'success': True,
-                'id': m.entry.pk,
-            }
-            return Response(context, status=status.HTTP_200_OK)
-        # else
-        now = timezone.now()
-        satag = CmeTag.objects.get(name=CMETAG_SACME)
-        activityDate = now - timedelta(seconds=5)
-        entryType = EntryType.objects.get(name=ENTRYTYPE_STORY_CME)
-        creditType = Entry.CREDIT_CATEGORY_1
-        with transaction.atomic():
-            entry = Entry.objects.create(
-                user=user,
-                entryType=entryType,
-                activityDate=activityDate,
-                ama_pra_catg=creditType,
-                sponsor=story.sponsor,
-                description='Created for feed test'
-            )
-            StoryCme.objects.create(
-                entry=entry,
-                story=story,
-                credits=story.credits,
-                url=story.entry_url,
-                title=story.entry_title
-            )
-            entry.tags.add(satag)
-        context = {
-            'success': True,
-            'id': entry.pk,
-        }
-        return Response(context, status=status.HTTP_201_CREATED)
-
 
 class EmailSubscriptionReceipt(APIView):
     """
@@ -309,32 +234,6 @@ class PreEmail(APIView):
             }
             return Response(context, status=status.HTTP_200_OK)
 
-
-class MakePinnedMessage(APIView):
-    """
-    Create a test PinnedMessage for the user.
-    The description field may contain Markdown syntax.
-    Reference: https://daringfireball.net/projects/markdown/syntax
-    """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def post(self, request, format=None):
-        now = timezone.now()
-        startDate = datetime(now.year, now.month, now.day, tzinfo=now.tzinfo)
-        expireDate = now + timedelta(days=30)
-        message = PinnedMessage.objects.create(
-            user=request.user,
-            startDate=startDate,
-            expireDate=expireDate,
-            title='Test PinnedMessage title',
-            description='This is the description',
-            sponsor_id=1,
-            launch_url='https://docs.google.com/'
-        )
-        context = {
-            'success': True,
-            'id': message.pk,
-        }
-        return Response(context, status=status.HTTP_201_CREATED)
 
 
 class EmailCardExpired(APIView):

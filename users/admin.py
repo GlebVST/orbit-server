@@ -64,7 +64,7 @@ class StateAdmin(admin.ModelAdmin):
 
 
 class HospitalAdmin(admin.ModelAdmin):
-    list_display = ('id','state','display_name','name','city','hasResidencyProgram')
+    list_display = ('id','state','display_name','city','hasResidencyProgram')
     list_filter = ('hasResidencyProgram', StateFilter)
     list_select_related = ('state',)
 

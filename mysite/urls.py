@@ -142,9 +142,6 @@ if settings.ENV_TYPE != settings.ENV_PROD:
     # debug
     api_patterns.extend([
         url(r'^debug/make-offer/?$', debug_views.MakeOrbitCmeOffer.as_view()),
-        url(r'^debug/make-pinned-message/?$', debug_views.MakePinnedMessage.as_view()),
-        url(r'^debug/feed/notification/?$', debug_views.MakeNotification.as_view()),
-        url(r'^debug/feed/storycme/?$', debug_views.MakeStoryCme.as_view()),
         url(r'^debug/email-receipt/?$', debug_views.EmailSubscriptionReceipt.as_view()),
         url(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view()),
         url(r'^debug/invitation-discount/?$', debug_views.InvitationDiscountList.as_view()),
