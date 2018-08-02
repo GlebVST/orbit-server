@@ -74,8 +74,6 @@ api_patterns = [
     url(r'^shop/signup-discounts/?$', views.SignupDiscountList.as_view(), name='shop-signup-discounts'),
 
     # Account and Profile-related
-    url(r'^accounts/?$', views.CustomerList.as_view()),
-    url(r'^accounts/(?P<pk>[0-9]+)/?$', views.CustomerDetail.as_view()),
     url(r'^profiles/?$', views.ProfileList.as_view()),
     url(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileUpdate.as_view()),
     url(r'^profiles/verify-email/?$', views.VerifyProfileEmail.as_view(), name='profile-verify-email'),
@@ -89,7 +87,6 @@ api_patterns = [
     #url(r'^countries/(?P<pk>[0-9]+)/?$', views.CountryDetail.as_view()),
     url(r'^hospitals/?$', views.HospitalList.as_view()),
     url(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view()),
-    #url(r'^practice-specialties/(?P<pk>[0-9]+)/?$', views.PracticeSpecialtyDetail.as_view()),
     url(r'^residency-programs/?$', views.ResidencyProgramList.as_view()),
     url(r'^user-state-licenses/?$', views.UserStateLicenseList.as_view()),
     url(r'^user-state-licenses/(?P<pk>[0-9]+)/?$', views.UserStateLicenseDetail.as_view()),

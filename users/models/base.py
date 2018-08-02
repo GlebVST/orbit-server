@@ -17,11 +17,6 @@ logger = logging.getLogger('gen.models')
 # constants (should match the database values)
 #
 CMETAG_SACME = 'SAM/SA-CME'
-COUNTRY_USA = 'USA'
-DEGREE_MD = 'MD'
-DEGREE_DO = 'DO'
-DEGREE_NP = 'NP'
-DEGREE_RN = 'RN'
 # specialties that have SA-CME tag pre-selected on OrbitCmeOffer
 SACME_SPECIALTIES = (
     'Radiology',
@@ -66,8 +61,9 @@ class AuthImpersonation(models.Model):
 
 @python_2_unicode_compatible
 class Country(models.Model):
-    """Names of countries for country of practice.
-    """
+    """Names of countries for country of practice."""
+    USA = 'USA'
+    # fields
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=5, blank=True, help_text='ISO Alpha-3 code')
     created = models.DateTimeField(auto_now_add=True)
@@ -220,6 +216,10 @@ class DegreeManager(models.Manager):
 
 @python_2_unicode_compatible
 class Degree(models.Model):
+    MD = 'MD'
+    DO = 'DO'
+    NP = 'NP'
+    RN = 'RN'
     """Names and abbreviations of professional degrees"""
     abbrev = models.CharField(max_length=7, unique=True)
     name = models.CharField(max_length=40)
@@ -236,17 +236,17 @@ class Degree(models.Model):
         Returns True if degree is MD/DO
         """
         abbrev = self.abbrev
-        return abbrev == DEGREE_MD or abbrev == DEGREE_DO
+        return abbrev == Degree.MD or abbrev == Degree.DO
 
     def isNurse(self):
         """Returns True if degree is RN/NP"""
         abbrev = self.abbrev
-        return abbrev == DEGREE_RN or abbrev == DEGREE_NP
+        return abbrev == Degree.RN or abbrev == Degree.NP
 
     def isPhysician(self):
         """Returns True if degree is MD/DO"""
         abbrev = self.abbrev
-        return abbrev == DEGREE_MD or abbrev == DEGREE_DO
+        return abbrev == Degree.MD or abbrev == Degree.DO
 
     class Meta:
         ordering = ['sort_order',]
@@ -429,34 +429,30 @@ class Profile(models.Model):
 
     def shouldReqNPINumber(self):
         """
-        If (country=COUNTRY_USA) and (MD or DO in self.degrees),
+        If (country=USA) and (MD or DO in self.degrees),
         then npiNumber should be requested
         """
         if self.country is None:
             return False
-        us = Country.objects.get(code=COUNTRY_USA)
+        us = Country.objects.get(code=Country.USA)
         if self.country.pk != us.pk:
             return False
         deg_abbrevs = [d.abbrev for d in self.degrees.all()]
-        has_md = DEGREE_MD in deg_abbrevs
+        has_md = Degree.MD in deg_abbrevs
         if has_md:
             return True
-        has_do = DEGREE_DO in deg_abbrevs
+        has_do = Degree.DO in deg_abbrevs
         if has_do:
             return True
         return False
 
     def isNPIComplete(self):
-        """
-        True: obj.shouldReqNPINumber is False
-        True: If obj.shouldReqNPINumber and npiNumber is non-blank.
-        False: If obj.shouldReqNPINumber and npiNumber is blank.
-        """
+        """Returns: bool"""
         if self.shouldReqNPINumber():
             if self.npiNumber:
-                return True
-            return False
-        return True
+                return True # required and filled
+            return False # required and not filled
+        return True # not required
 
     def isSignupComplete(self):
         """Signup is complete if:
@@ -645,12 +641,30 @@ class Document(models.Model):
         return self.md5sum
 
 class LicenseType(models.Model):
+    TYPE_RN = 'RN'
+    # fields
     name = models.CharField(max_length=10, unique=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
+
+class StateLicenseManager(models.Manager):
+    def getLatestLicenseForUser(self, user, license_type_name):
+        qset = user.statelicenses.filter(license_type__name=license_type_name).order_by('-expireDate')
+        if qset.exists():
+            return qset[0]
+        return None
+
+    def getLatestSetForUser(self, user):
+        """Finds the latest (by expireDate) license per (state, license_type)
+        for the given user. This uses Postgres SELECT DISTINCT ON to return the
+        first row of each (license_type, state, -expireDate) subset.
+        Reference: https://docs.djangoproject.com/en/1.11/ref/models/querysets/#django.db.models.query.QuerySet.distinct
+        Returns: queryset
+        """
+        return StateLicense.objects.filter(user=user).order_by('license_type', 'state', '-expireDate').distinct('license_type','state')
 
 class StateLicense(models.Model):
     user = models.ForeignKey(User,
@@ -670,15 +684,19 @@ class StateLicense(models.Model):
     )
     license_no = models.CharField(max_length=40, blank=True, default='',
             help_text='License number')
-    expiryDate = models.DateTimeField(null=True, blank=True)
+    expireDate = models.DateTimeField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = StateLicenseManager()
 
     class Meta:
-        unique_together = ('user','state','license_type','license_no')
+        unique_together = ('user','state','license_type','license_no','expireDate')
 
     def __str__(self):
         return self.license_no
+
+    def isUnInitialized(self):
+        return self.license_no == '' or not self.expireDate
 
     def getLabelForCertificate(self):
         """Returns str e.g. California RN License #12345

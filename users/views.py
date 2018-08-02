@@ -313,62 +313,20 @@ class VerifyProfileEmail(APIView):
         context = {'success': True}
         return Response(context, status=status.HTTP_200_OK)
 
-# Customer
-# A list of customers is readable by any Admin user
-# A customer cannot be created from the API because it is created by the psa pipeline for each user.
-class CustomerList(generics.ListAPIView):
-    queryset = Customer.objects.all().order_by('-created')
-    serializer_class = CustomerSerializer
-    permission_classes = [permissions.IsAdminUser, TokenHasReadWriteScope]
 
-# A customer is viewable by any Admin user (or the user that is the owner of the account)
-# A customer cannot be edited from the API because it only contains read-only fields
-# A customer cannot be deleted from the API
-class CustomerDetail(generics.RetrieveAPIView):
-    queryset = Customer.objects.all()
-    serializer_class = CustomerSerializer
-    permission_classes = [IsOwnerOrAdmin, TokenHasReadWriteScope]
-
-# Current usage is for nurse state licenses
-class UserStateLicenseList(generics.ListCreateAPIView):
+class UserStateLicenseList(generics.ListAPIView):
     serializer_class = StateLicenseSerializer
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
-        user = self.request.user
-        return StateLicense.objects.filter(user=user).order_by('-created')
-
-    def perform_create(self, serializer, format=None):
-        """At present time, only RN StateLicense is supported
-        Note: In order to handle unique constraint on ('user','state','license_type','license_no'), caller must instantiate serializer with the instance if the constraint already exists. In this case, the serializer.save will update the existing instance.
+        """Returns the latest (by expireDate) license per (state, license_type)
+        for the given user.
         """
         user = self.request.user
-        lt = LicenseType.objects.get(name='RN')
-        instance = serializer.save(user=user, license_type=lt)
-        return instance
+        return StateLicense.objects.getLatestSetForUser(user)
 
-    def create(self, request, *args, **kwargs):
-        """Override create to handle unique constraint on StateLicense model."""
-        form_data = request.data.copy()
-        serializer = self.get_serializer(data=form_data)
-        serializer.is_valid(raise_exception=True)
-        lt = LicenseType.objects.get(name='RN')
-        # check if unique constraint already exists
-        qset = StateLicense.objects.filter(
-                user=request.user,
-                license_type=lt,
-                state_id=form_data['state'],
-                license_no=form_data['license_no']
-            )
-        if qset.exists():
-            m = qset[0]
-            logDebug(logger, request, 'Update existing statelicense {0.pk}'.format(m))
-            serializer = self.get_serializer(instance=m, data=form_data)
-            serializer.is_valid(raise_exception=True)
-        instance = self.perform_create(serializer)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-class UserStateLicenseDetail(generics.RetrieveUpdateDestroyAPIView):
+class UserStateLicenseDetail(generics.RetrieveUpdateAPIView):
     queryset = StateLicense.objects.all()
     serializer_class = StateLicenseSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]

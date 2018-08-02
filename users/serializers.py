@@ -364,17 +364,6 @@ class ReadProfileSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class CustomerSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(source='user.id', read_only=True)
-    class Meta:
-        model = Customer
-        fields = (
-            'id',
-            'customerId',
-            'created',
-            'modified'
-        )
-        read_only_fields = fields
 
 class StateLicenseSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -382,7 +371,7 @@ class StateLicenseSerializer(serializers.ModelSerializer):
     license_type = serializers.StringRelatedField(read_only=True)
     class Meta:
         model = StateLicense
-        fields = ('id','user', 'state', 'license_type', 'license_no', 'expiryDate')
+        fields = ('id','user', 'state', 'license_type', 'license_no', 'expireDate')
 
 
 # Entire offer is read-only because offers are created by the plugin server.
@@ -1215,7 +1204,7 @@ class StateLicenseSubSerializer(serializers.ModelSerializer):
     license_type = serializers.StringRelatedField(read_only=True)
     class Meta:
         model = StateLicense
-        fields = ('state','license_type', 'license_no', 'expiryDate')
+        fields = ('state','license_type', 'license_no', 'expireDate')
 
 class AuditReportReadSerializer(serializers.ModelSerializer):
     npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
@@ -1234,11 +1223,16 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
 
     def get_statelicense(self, obj):
         """2017-12-20: Add isNurse if condition since we currently
-        only support Nurse statelicenses.
+        only support Nurse statelicenses in AuditReport.
+        TODO: If need to support multiple licenses, then add:
+            state FK and license_type FK to AuditReport model so that
+            serializer knows *which* statelicense to fetch.
         """
         user = obj.user
-        if user.profile.isNurse() and user.statelicenses.exists():
-            s =  StateLicenseSubSerializer(user.statelicenses.all()[0])
+        if user.profile.isNurse():
+            m = StateLicense.objects.getLatestLicenseForUser(user, LicenseType.TYPE_RN)
+            if m:
+                s =  StateLicenseSubSerializer(m)
             return s.data
         return None
 

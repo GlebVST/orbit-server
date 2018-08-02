@@ -121,7 +121,7 @@ class LicenseTypeAdmin(admin.ModelAdmin):
     list_display = ('id','name','created')
 
 class StateLicenseAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'state', 'license_type', 'license_no', 'expiryDate', 'created')
+    list_display = ('id', 'user', 'state', 'license_type', 'license_no', 'expireDate', 'created')
     list_select_related = True
 
 class SponsorAdmin(admin.ModelAdmin):
