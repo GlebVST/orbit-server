@@ -571,7 +571,7 @@ class UserGoalManager(models.Manager):
             dueDate = None
             userLicense = None
             # does user license exist with a non-null expireDate
-            qset = user.statelicenses.filter(state=goal.state, license_type=licenseType, expireDate__isnull=False).order_by('-expireDate')
+            qset = user.statelicenses.filter(state=goal.state, licenseType=licenseType, expireDate__isnull=False).order_by('-expireDate')
             if qset.exists():
                 userLicense = qset[0]
                 # does UserGoal for this license already exist
@@ -586,7 +586,7 @@ class UserGoalManager(models.Manager):
                     status = self.model.IN_PROGRESS
             else:
                 # does uninitialized license already exist
-                qset = user.statelicenses.filter(state=goal.state, license_type=licenseType, expireDate__isnull=True)
+                qset = user.statelicenses.filter(state=goal.state, licenseType=licenseType, expireDate__isnull=True)
                 if qset.exists():
                     userLicense = qset[0]
                     # does UserGoal for this license already exist
@@ -598,9 +598,9 @@ class UserGoalManager(models.Manager):
                     userLicense = StateLicense.objects.create(
                             user=user,
                             state=goal.state,
-                            license_type=licenseType
+                            licenseType=licenseType
                         )
-                    print('Create uninitialized {0.license_type} License for user {0.user}'.format(userLicense))
+                    logger.info('Create uninitialized {0.licenseType} License for user {0.user}'.format(userLicense))
                 # status is PASTDUE until user initializes their license
                 dueDate = now
                 status = self.model.PASTDUE
@@ -613,7 +613,6 @@ class UserGoalManager(models.Manager):
                     license=userLicense
                 )
             usergoals.append(usergoal)
-            print(usergoal)
         return usergoals
 
     def createWellnessGoals(self, profile):

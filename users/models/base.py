@@ -643,7 +643,7 @@ class Document(models.Model):
 class LicenseType(models.Model):
     TYPE_RN = 'RN'
     # fields
-    name = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=30, unique=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -651,21 +651,21 @@ class LicenseType(models.Model):
         return self.name
 
 class StateLicenseManager(models.Manager):
-    def getLatestLicenseForUser(self, user, license_type_name):
-        qset = user.statelicenses.filter(license_type__name=license_type_name).order_by('-expireDate')
+    def getLatestLicenseForUser(self, user, licenseTypeName):
+        qset = user.statelicenses.filter(licenseType__name=licenseTypeName).order_by('-expireDate')
         if qset.exists():
             return qset[0]
         return None
 
     def getLatestSetForUser(self, user):
-        """Finds the latest (by expireDate) license per (state, license_type)
+        """Finds the latest (by expireDate) license per (state, licenseType)
         for the given user. This uses Postgres SELECT DISTINCT ON to return the
-        first row of each (license_type, state, -expireDate) subset.
+        first row of each (licenseType, state, -expireDate) subset.
         Reference: https://docs.djangoproject.com/en/1.11/ref/models/querysets/#django.db.models.query.QuerySet.distinct
         Ref: https://stackoverflow.com/questions/20582966/django-order-by-filter-with-distinct
         Returns: queryset
         """
-        return StateLicense.objects.filter(user=user).order_by('license_type_id', 'state_id', '-expireDate').distinct('license_type','state')
+        return StateLicense.objects.filter(user=user).order_by('licenseType_id', 'state_id', '-expireDate').distinct('licenseType','state')
 
 class StateLicense(models.Model):
     user = models.ForeignKey(User,
@@ -678,7 +678,7 @@ class StateLicense(models.Model):
         related_name='statelicenses',
         db_index=True
     )
-    license_type = models.ForeignKey(LicenseType,
+    licenseType = models.ForeignKey(LicenseType,
         on_delete=models.CASCADE,
         related_name='statelicenses',
         db_index=True
@@ -691,7 +691,7 @@ class StateLicense(models.Model):
     objects = StateLicenseManager()
 
     class Meta:
-        unique_together = ('user','state','license_type','license_no','expireDate')
+        unique_together = ('user','state','licenseType','expireDate')
 
     def __str__(self):
         return self.license_no
@@ -702,5 +702,5 @@ class StateLicense(models.Model):
     def getLabelForCertificate(self):
         """Returns str e.g. California RN License #12345
         """
-        label = "{0.state.name} {0.license_type.name} License #{0.license_no}".format(self)
+        label = u"{0.state.name} {0.licenseType.name} License #{0.license_no}".format(self)
         return label

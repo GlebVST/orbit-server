@@ -121,8 +121,10 @@ class LicenseTypeAdmin(admin.ModelAdmin):
     list_display = ('id','name','created')
 
 class StateLicenseAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'state', 'license_type', 'license_no', 'expireDate', 'created')
+    list_display = ('id', 'user', 'state', 'licenseType', 'license_no', 'expireDate', 'created')
     list_select_related = True
+    list_filter = ('licenseType', StateFilter, UserFilter)
+    ordering = ('-expireDate','user')
 
 class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')

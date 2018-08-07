@@ -59,11 +59,21 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
     goalTypeId = serializers.PrimaryKeyRelatedField(source='goal.goalType.id', read_only=True)
     goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
     documents = DocumentReadSerializer(many=True, required=False)
+    title = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     extra = serializers.SerializerMethodField()
 
     def get_progress(self, obj):
         return 80
+
+    def get_title(self, obj):
+        gtype = obj.goal.goalType.name
+        if gtype == GoalType.CME:
+            return obj.cmeTag.name
+        elif gtype == GoalType.LICENSE:
+            return obj.goal.licensegoal.title
+        else:
+            return obj.goal.wellnessgoal.title
 
     def get_extra(self, obj):
         gtype = obj.goal.goalType.name
@@ -88,6 +98,7 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
             'documents',
             'extra',
             'progress',
+            'title',
             'created',
             'modified'
         )

@@ -367,11 +367,11 @@ class ReadProfileSerializer(serializers.ModelSerializer):
 
 class StateLicenseSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-    state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all())
-    license_type = serializers.StringRelatedField(read_only=True)
+    state = serializers.PrimaryKeyRelatedField(read_only=True)
+    licenseType = serializers.StringRelatedField(read_only=True)
     class Meta:
         model = StateLicense
-        fields = ('id','user', 'state', 'license_type', 'license_no', 'expireDate')
+        fields = ('id','user', 'state', 'licenseType', 'license_no', 'expireDate')
 
 
 # Entire offer is read-only because offers are created by the plugin server.
@@ -1201,10 +1201,10 @@ class CertificateReadSerializer(serializers.ModelSerializer):
 
 class StateLicenseSubSerializer(serializers.ModelSerializer):
     state = serializers.StringRelatedField(read_only=True)
-    license_type = serializers.StringRelatedField(read_only=True)
+    licenseType = serializers.StringRelatedField(read_only=True)
     class Meta:
         model = StateLicense
-        fields = ('state','license_type', 'license_no', 'expireDate')
+        fields = ('state','licenseType', 'license_no', 'expireDate')
 
 class AuditReportReadSerializer(serializers.ModelSerializer):
     npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
@@ -1225,7 +1225,7 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
         """2017-12-20: Add isNurse if condition since we currently
         only support Nurse statelicenses in AuditReport.
         TODO: If need to support multiple licenses, then add:
-            state FK and license_type FK to AuditReport model so that
+            state FK and licenseType FK to AuditReport model so that
             serializer knows *which* statelicense to fetch.
         """
         user = obj.user
