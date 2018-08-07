@@ -18,6 +18,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from users import views, auth_views, debug_views, payment_views, admin_views, ac_views
 from users.admin import admin_site
+from goals import views as goal_views
 from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
 from rest_framework.authentication import SessionAuthentication
@@ -95,7 +96,6 @@ api_patterns = [
 
     # Feed entry types, sponsors, eligibleSites for browserCme
     url(r'^entrytypes/?$', views.EntryTypeList.as_view()),
-    #url(r'^entrytypes/(?P<pk>[0-9]+)/?$', views.EntryTypeDetail.as_view()),
     url(r'^sponsors/?$', views.SponsorList.as_view()),
     #url(r'^sponsors/(?P<pk>[0-9]+)/?$', views.SponsorDetail.as_view()),
     url(r'^eligible-sites/?$', views.EligibleSiteList.as_view()),
@@ -127,6 +127,10 @@ api_patterns = [
     url(r'^dashboard/audit-report/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', views.CreateAuditReport.as_view()),
     url(r'^dashboard/audit-report/(?P<referenceId>\w+)/?$', views.AccessAuditReport.as_view()),
     url(r'^dashboard/access-document/(?P<referenceId>\w+)/?$', views.AccessDocumentOrCert.as_view()),
+
+    # goals
+    url(r'^goaltypes/?$', goal_views.GoalTypeList.as_view()),
+    url(r'^goals/?$', goal_views.UserGoalList.as_view()),
 
     # ADMIN views to see other users data
     url(r'^admin/users/?$', admin_views.UserList.as_view()),

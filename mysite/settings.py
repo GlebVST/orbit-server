@@ -80,8 +80,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'storages',
     'users.apps.UsersConfig',
+    'goals.apps.GoalsConfig',
     'rest_framework_swagger',
-    'pagedown',
     'django_extensions',
 ]
 

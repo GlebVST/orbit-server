@@ -662,9 +662,10 @@ class StateLicenseManager(models.Manager):
         for the given user. This uses Postgres SELECT DISTINCT ON to return the
         first row of each (license_type, state, -expireDate) subset.
         Reference: https://docs.djangoproject.com/en/1.11/ref/models/querysets/#django.db.models.query.QuerySet.distinct
+        Ref: https://stackoverflow.com/questions/20582966/django-order-by-filter-with-distinct
         Returns: queryset
         """
-        return StateLicense.objects.filter(user=user).order_by('license_type', 'state', '-expireDate').distinct('license_type','state')
+        return StateLicense.objects.filter(user=user).order_by('license_type_id', 'state_id', '-expireDate').distinct('license_type','state')
 
 class StateLicense(models.Model):
     user = models.ForeignKey(User,

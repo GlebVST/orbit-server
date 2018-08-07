@@ -18,6 +18,7 @@ from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 
 from .base import Organization, Degree, PracticeSpecialty
+from .feed import BrowserCme
 from common.appconstants import (
     ALL_PERMS,
     PERM_POST_BRCME,
