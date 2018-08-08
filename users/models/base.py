@@ -683,7 +683,7 @@ class StateLicense(models.Model):
         related_name='statelicenses',
         db_index=True
     )
-    license_no = models.CharField(max_length=40, blank=True, default='',
+    licenseNumber = models.CharField(max_length=40, blank=True, default='',
             help_text='License number')
     expireDate = models.DateTimeField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
@@ -694,13 +694,13 @@ class StateLicense(models.Model):
         unique_together = ('user','state','licenseType','expireDate')
 
     def __str__(self):
-        return self.license_no
+        return self.licenseNumber
 
     def isUnInitialized(self):
-        return self.license_no == '' or not self.expireDate
+        return self.licenseNumber == '' or not self.expireDate
 
     def getLabelForCertificate(self):
         """Returns str e.g. California RN License #12345
         """
-        label = u"{0.state.name} {0.licenseType.name} License #{0.license_no}".format(self)
+        label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
         return label

@@ -81,23 +81,18 @@ api_patterns = [
     url(r'^profiles/set-accessed-tour/?$', views.SetProfileAccessedTour.as_view(), name='profile-set-accessed-tour'),
     url(r'^profiles/set-cmetags/?$', views.ManageProfileCmetags.as_view(), name='profile-set-cmetags'),
     url(r'^cmetags/?$', views.CmeTagList.as_view()),
-    #url(r'^cmetags/(?P<pk>[0-9]+)/?$', views.CmeTagDetail.as_view()),
     url(r'^degrees/?$', views.DegreeList.as_view()),
-    #url(r'^degrees/(?P<pk>[0-9]+)/?$', views.DegreeDetail.as_view()),
     url(r'^countries/?$', views.CountryList.as_view()),
-    #url(r'^countries/(?P<pk>[0-9]+)/?$', views.CountryDetail.as_view()),
     url(r'^hospitals/?$', views.HospitalList.as_view()),
     url(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view()),
     url(r'^residency-programs/?$', views.ResidencyProgramList.as_view()),
-    url(r'^user-state-licenses/?$', views.UserStateLicenseList.as_view()),
-    url(r'^user-state-licenses/(?P<pk>[0-9]+)/?$', views.UserStateLicenseDetail.as_view()),
+    url(r'^licenses/?$', views.UserStateLicenseList.as_view()),
     url(r'^invite-lookup/(?P<inviteid>[0-9A-Za-z!@]+)/?$', views.InviteIdLookup.as_view()),
     url(r'^aff-lookup/(?P<affid>[0-9A-Za-z]+)/?$', views.AffiliateIdLookup.as_view()),
 
     # Feed entry types, sponsors, eligibleSites for browserCme
     url(r'^entrytypes/?$', views.EntryTypeList.as_view()),
     url(r'^sponsors/?$', views.SponsorList.as_view()),
-    #url(r'^sponsors/(?P<pk>[0-9]+)/?$', views.SponsorDetail.as_view()),
     url(r'^eligible-sites/?$', views.EligibleSiteList.as_view()),
     url(r'^eligible-sites/(?P<pk>[0-9]+)/?$', views.EligibleSiteDetail.as_view()),
 
@@ -111,8 +106,10 @@ api_patterns = [
     url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', views.UpdateBrowserCme.as_view()),
     url(r'^feed/cme/?$', views.CreateSRCme.as_view()),
     url(r'^feed/cme/(?P<pk>[0-9]+)/?$', views.UpdateSRCme.as_view()),
-    url(r'^feed/upload-document/?$', views.CreateDocument.as_view()),
-    url(r'^feed/delete-document/?$', views.DeleteDocument.as_view()),
+
+    # Document
+    url(r'^upload-document/?$', views.CreateDocument.as_view()),
+    url(r'^delete-document/?$', views.DeleteDocument.as_view()),
 
     # story
     url(r'^story/?$', views.StoryDetail.as_view()),
@@ -131,6 +128,7 @@ api_patterns = [
     # goals
     url(r'^goaltypes/?$', goal_views.GoalTypeList.as_view()),
     url(r'^goals/?$', goal_views.UserGoalList.as_view()),
+    #url(r'^goals/license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view()),
 
     # ADMIN views to see other users data
     url(r'^admin/users/?$', admin_views.UserList.as_view()),

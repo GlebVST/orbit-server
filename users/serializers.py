@@ -371,7 +371,7 @@ class StateLicenseSerializer(serializers.ModelSerializer):
     licenseType = serializers.StringRelatedField(read_only=True)
     class Meta:
         model = StateLicense
-        fields = ('id','user', 'state', 'licenseType', 'license_no', 'expireDate')
+        fields = ('id','user', 'state', 'licenseType', 'licenseNumber', 'expireDate')
 
 
 # Entire offer is read-only because offers are created by the plugin server.
@@ -1204,7 +1204,7 @@ class StateLicenseSubSerializer(serializers.ModelSerializer):
     licenseType = serializers.StringRelatedField(read_only=True)
     class Meta:
         model = StateLicense
-        fields = ('state','licenseType', 'license_no', 'expireDate')
+        fields = ('state','licenseType', 'licenseNumber', 'expireDate')
 
 class AuditReportReadSerializer(serializers.ModelSerializer):
     npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
