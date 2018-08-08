@@ -17,7 +17,6 @@ from django.utils.encoding import python_2_unicode_compatible
 from .base import (
     CMETAG_SACME,
     SACME_SPECIALTIES,
-    LOCAL_TZ,
     CmeTag,
     Document,
     StateLicense,
@@ -259,9 +258,6 @@ class Entry(models.Model):
 
     def __str__(self):
         return '{0.pk}|{0.entryType}|{0.user}|{0.activityDate}'.format(self)
-
-    def asLocalTz(self):
-        return self.created.astimezone(LOCAL_TZ)
 
     def formatTags(self):
         """Returns a comma-separated string of self.tags ordered by tag name"""
@@ -581,9 +577,6 @@ class UserFeedback(models.Model):
             return self.message[0:UserFeedback.SNIPPET_MAX_CHARS] + '...'
         return self.message
     message_snippet.short_description = "Message Snippet"
-
-    def asLocalTz(self):
-        return self.created.astimezone(LOCAL_TZ)
 
     class Meta:
         verbose_name_plural = 'User Feedback'

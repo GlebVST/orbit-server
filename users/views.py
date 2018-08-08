@@ -32,7 +32,7 @@ from .serializers import *
 from .permissions import *
 from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate, MDStoryCertificate, NurseStoryCertificate
 
-logger = logging.getLogger('api.views')
+logger = logging.getLogger('api.users')
 
 class LogValidationErrorMixin(object):
     def handle_exception(self, exc):

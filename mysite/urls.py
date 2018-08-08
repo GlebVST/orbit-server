@@ -16,8 +16,8 @@ Including another URLconf
 from django.conf.urls import url, include
 from django.conf import settings
 from django.conf.urls.static import static
+from .admin import admin_site
 from users import views, auth_views, debug_views, payment_views, admin_views, ac_views
-from users.admin import admin_site
 from goals import views as goal_views
 from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes

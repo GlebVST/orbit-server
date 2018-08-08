@@ -10,7 +10,6 @@ from common.appconstants import MAX_URL_LENGTH
 from .base import (
     CMETAG_SACME,
     SACME_SPECIALTIES,
-    LOCAL_TZ,
     CmeTag,
     EligibleSite,
 )
@@ -191,9 +190,6 @@ class OrbitCmeOffer(models.Model):
 
     def __str__(self):
         return self.url.url
-
-    def activityDateLocalTz(self):
-        return self.activityDate.astimezone(LOCAL_TZ)
 
     def formatSuggestedTags(self):
         return ", ".join([t.name for t in self.tags.all()])

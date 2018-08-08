@@ -3,12 +3,12 @@ from datetime import timedelta
 import logging
 import premailer
 from io import StringIO
-import pytz
 from operator import itemgetter
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.template.loader import get_template
 from django.utils import timezone
+from common.dateutils import LOCAL_TZ, fmtLocalDatetime
 from .models import *
 from pprint import pprint
 
@@ -39,9 +39,8 @@ def sendNewUserReportEmail(profiles, email_to):
     Can raise SMTPException
     """
     from_email = settings.EMAIL_FROM
-    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
     now = timezone.now()
-    subject = makeSubject('New User Accounts Report - {0:%b %d %Y}'.format(now.astimezone(tz)))
+    subject = makeSubject('New User Accounts Report - {0:%b %d %Y}'.format(now.astimezone(LOCAL_TZ)))
     data = []
     for p in profiles:
         user = p.user
@@ -235,9 +234,8 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
     Info included: fullname, paymentEmail, num_convertees, payout, grandTotal for payout
     """
     from_email = settings.EMAIL_FROM
-    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
     now = timezone.now()
-    subject = makeSubject(u'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(tz)))
+    subject = makeSubject(u'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(LOCAL_TZ)))
     data = []
     grandTotal = 0
     totalUsers = 0

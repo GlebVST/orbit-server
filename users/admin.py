@@ -1,19 +1,14 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 from django import forms
 from django.contrib import admin
 from django.db.models import Count
 from dal import autocomplete
-from dal_admin_filters import AutocompleteFilter
+from mysite.admin import admin_site
+from common.ac_filters import UserFilter, StateFilter
+from common.dateutils import fmtLocalDatetime
 from .models import *
-
-class UserFilter(AutocompleteFilter):
-    title = 'User'
-    field_name = 'user'
-    autocomplete_url = 'useremail-autocomplete'
-
-class StateFilter(AutocompleteFilter):
-    title = 'State'
-    field_name = 'state'
-    autocomplete_url = 'statename-autocomplete'
 
 class AuthImpersonationForm(forms.ModelForm):
     class Meta:
@@ -383,8 +378,8 @@ class RequestedUrlAdmin(admin.ModelAdmin):
     num_users.admin_order_field = 'num_users'
 
 class OrbitCmeOfferAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'valid', 'modified')
-    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
+    list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'valid', 'lastModified')
+    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'lastModified')
     list_select_related = True
     ordering = ('-modified',)
     list_filter = ('redeemed','valid', UserFilter, 'eligible_site')
@@ -392,16 +387,11 @@ class OrbitCmeOfferAdmin(admin.ModelAdmin):
     class Media:
         pass
 
-# http://stackoverflow.com/questions/32612400/auto-register-django-auth-models-using-custom-admin-site
-class MyAdminSite(admin.AdminSite):
-    site_header = "Orbit Site administration"
-    site_url = None
+    def lastModified(self, obj):
+        return fmtLocalDatetime(obj.modified)
+    lastModified.short_description = 'Last Modified'
+    lastModified.admin_order_field = 'modified'
 
-    def __init__(self, *args, **kwargs):
-        super(MyAdminSite, self).__init__(*args, **kwargs)
-        self._registry.update(admin.site._registry)
-
-admin_site = MyAdminSite()
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
 admin_site.register(AffiliateDetail, AffiliateDetailAdmin)
