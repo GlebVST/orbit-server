@@ -173,7 +173,6 @@ class LicenseGoalManager(models.Manager):
 
 @python_2_unicode_compatible
 class LicenseGoal(models.Model):
-    # fields
     title = models.CharField(max_length=100, blank=True, help_text='Title of goal')
     goal = models.OneToOneField(BaseGoal,
         on_delete=models.CASCADE,
@@ -190,9 +189,6 @@ class LicenseGoal(models.Model):
         db_index=True,
         related_name='licensegoals',
     )
-    interval = models.DecimalField(max_digits=4, decimal_places=2,
-            validators=[MinValueValidator(0.1)],
-            help_text='License interval in years')
     objects = LicenseGoalManager()
 
     class Meta:
@@ -812,7 +808,7 @@ class UserGoal(models.Model):
         if gtype == GoalType.CME:
             # TODO: monthly calculation
             return 70
-        totalDays = self.goal.interval*365
+        totalDays = float(self.goal.interval*365)
         daysLeft = self.getDaysLeft()
         progress = 100.0*(totalDays - daysLeft)/totalDays
         return int(progress)
