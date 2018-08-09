@@ -374,7 +374,7 @@ class RequestedUrlAdmin(admin.ModelAdmin):
 
     def num_users(self, obj):
         return obj.num_users
-    num_users.short_description = 'Number of users who requested it'
+    num_users.short_description = 'Num requesters'
     num_users.admin_order_field = 'num_users'
 
 class OrbitCmeOfferAdmin(admin.ModelAdmin):

@@ -5,6 +5,7 @@ from dal import autocomplete
 from django import forms
 from django.conf import settings
 from django.contrib import admin
+from django.db.models import Count
 from mysite.admin import admin_site
 from common.ac_filters import *
 from common.dateutils import fmtLocalDatetime
@@ -17,6 +18,21 @@ class GoalTypeAdmin(admin.ModelAdmin):
 class BoardAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'description', 'created')
 
+
+class GoalRecForm(forms.ModelForm):
+    class Meta:
+        model = GoalRecommendation
+        fields = ('__all__')
+        widgets = {
+            'pageTitle': forms.TextInput(attrs={'size': 80}),
+            'url': forms.URLInput(attrs={'size': 100}),
+        }
+
+class GoalRecommendationInline(admin.StackedInline):
+    model = GoalRecommendation
+    form = GoalRecForm
+    extra = 0
+
 class LicenseGoalInline(admin.StackedInline):
     model = LicenseGoal
     extra = 0
@@ -24,10 +40,13 @@ class LicenseGoalInline(admin.StackedInline):
     max_num = 1
 
 class LicenseBaseGoalAdmin(admin.ModelAdmin):
-    list_display = ('id', 'getTitle', 'interval', 'formatDegrees', 'formatSpecialties', 'getState', 'getLicenseType', 'lastModified')
+    list_display = ('id', 'getTitle', 'interval', 'formatDegrees', 'formatSpecialties', 'getState', 'getLicenseType', 'getNumRecs', 'lastModified')
     list_filter = ('licensegoal__licenseType',)
     ordering = ('-modified',)
-    inlines = (LicenseGoalInline,)
+    inlines = (
+        LicenseGoalInline,
+        GoalRecommendationInline
+    )
     filter_horizontal = (
         'degrees',
         'specialties',
@@ -39,7 +58,7 @@ class LicenseBaseGoalAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super(LicenseBaseGoalAdmin, self).get_queryset(request)
-        return qs.select_related('goalType', 'licensegoal__licenseType', 'licensegoal__state').prefetch_related('degrees', 'specialties')
+        return qs.select_related('goalType', 'licensegoal__licenseType', 'licensegoal__state').prefetch_related('degrees', 'specialties').annotate(num_recs=Count('recommendations'))
 
     def get_changeform_initial_data(self, request):
         return {
@@ -76,6 +95,10 @@ class LicenseBaseGoalAdmin(admin.ModelAdmin):
         return obj.licensegoal.licenseType
     getLicenseType.short_description = 'LicenseType'
 
+    def getNumRecs(self, obj):
+        return obj.num_recs
+    getNumRecs.short_description = 'Num Links'
+
     def lastModified(self, obj):
         return fmtLocalDatetime(obj.modified)
     lastModified.short_description = 'Last Modified'
@@ -101,6 +124,8 @@ class CmeGoalForm(forms.ModelForm):
                     'data-minimum-input-length': 1,
                 }
             ),
+            'dueMonth': forms.NumberInput,
+            'dueDay': forms.NumberInput
         }
 
 class CmeGoalInline(admin.StackedInline):
@@ -184,8 +209,27 @@ class CmeBaseGoalAdmin(admin.ModelAdmin):
     lastModified.admin_order_field = 'modified'
 
 
+class UserGoalAdmin(admin.ModelAdmin):
+    list_display = ('id','user','goal','title','status','getDueDate','license','lastModified')
+    list_selected_related = True
+    list_filter = ('status', UserFilter)
+    ordering = ('-modified',)
+
+    class Media:
+        pass
+
+    def getDueDate(self, obj):
+        return obj.dueDate.strftime('%Y-%m-%d')
+    getDueDate.short_description = 'Due Date'
+
+    def lastModified(self, obj):
+        return fmtLocalDatetime(obj.modified)
+    lastModified.short_description = 'Last Modified'
+    lastModified.admin_order_field = 'modified'
+
 # register models
 admin_site.register(Board, BoardAdmin)
 admin_site.register(GoalType, GoalTypeAdmin)
 admin_site.register(LicenseBaseGoal, LicenseBaseGoalAdmin)
 admin_site.register(CmeBaseGoal, CmeBaseGoalAdmin)
+admin_site.register(UserGoal, UserGoalAdmin)

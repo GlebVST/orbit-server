@@ -130,6 +130,7 @@ api_patterns = [
     url(r'^goaltypes/?$', goal_views.GoalTypeList.as_view()),
     url(r'^goals/?$', goal_views.UserGoalList.as_view()),
     url(r'^goals/license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view()),
+    url(r'^goals/recs/(?P<pk>[0-9]+)/?$', goal_views.GoalRecsList.as_view()),
 
     # ADMIN views to see other users data
     url(r'^admin/users/?$', admin_views.UserList.as_view()),

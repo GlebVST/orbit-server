@@ -36,26 +36,32 @@ class WellnessGoalSubSerializer(serializers.ModelSerializer):
         )
 
     def get_daysLeft(self, obj):
-        return obj.getDaysLeft()
+        return obj.daysLeft
 
 
 class LicenseGoalSubSerializer(serializers.ModelSerializer):
+    """UserLicenseGoal extra fields"""
     daysLeft = serializers.SerializerMethodField()
     license = serializers.SerializerMethodField()
+    numRecs = serializers.SerializerMethodField()
 
     class Meta:
         model = UserGoal
         fields = (
             'daysLeft',
-            'license'
+            'license',
+            'numRecs'
         )
 
     def get_daysLeft(self, obj):
-        return obj.getDaysLeft()
+        return obj.daysLeft
 
     def get_license(self, obj):
         s = StateLicenseSubSerializer(obj.license)
         return s.data
+
+    def get_numRecs(self, obj):
+        return obj.goal.recommendations.all().count()
 
 
 class UserGoalReadSerializer(serializers.ModelSerializer):
@@ -68,16 +74,10 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
     extra = serializers.SerializerMethodField()
 
     def get_progress(self, obj):
-        return obj.computeProgress()
+        return obj.progress
 
     def get_title(self, obj):
-        gtype = obj.goal.goalType.name
-        if gtype == GoalType.CME:
-            return obj.cmeTag.name
-        elif gtype == GoalType.LICENSE:
-            return obj.goal.licensegoal.title
-        else:
-            return obj.goal.wellnessgoal.title
+        return obj.title
 
     def get_extra(self, obj):
         gtype = obj.goal.goalType.name
@@ -187,3 +187,19 @@ class UpdateUserWellnessGoalSerializer(serializers.Serializer):
                     )
                 logger.info('Created UserGoal: {0}'.format(usergoal))
         return instance
+
+
+class GoalRecReadSerializer(serializers.ModelSerializer):
+    goal = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = GoalRecommendation
+        fields = (
+            'id',
+            'goal',
+            'domainTitle',
+            'pageTitle',
+            'url',
+            'pubDate'
+        )
+        read_only_fields = fields

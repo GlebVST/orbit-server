@@ -5,7 +5,7 @@ import pytz
 from django.conf import settings
 
 LOCAL_TZ = pytz.timezone(settings.LOCAL_TIME_ZONE)
-TIMESTAMP_FMT = "%Y-%m-%d %H:%M:S %Z"
+TIMESTAMP_FMT = "%Y-%m-%d %H:%M:%S %Z"
 
 UNKNOWN_DATE = datetime(3000,1,1,tzinfo=pytz.utc)
 

@@ -188,6 +188,9 @@ class LicenseBaseGoal(BaseGoal):
         proxy = True
         verbose_name_plural = 'License-Goals'
 
+    def __str__(self):
+        return self.licensegoal.title
+
     def clean(self):
         """Validation checks"""
         if not self.interval:
@@ -402,15 +405,17 @@ class CmeGoal(models.Model):
         blank=True,
         db_index=True,
         related_name='cmegoals',
-        help_text="Must be set if dueDate uses license expiration date. Null otherwise."
+        help_text="Must be selected if dueDate uses license expiration date. Null otherwise."
     )
     credits = models.DecimalField(max_digits=6, decimal_places=2,
             validators=[MinValueValidator(0.1)])
     dueMonth = models.SmallIntegerField(blank=True, null=True,
+            help_text='Must be specified if dueDateType is Fixed MMDD',
             validators=[
                 MinValueValidator(1),
                 MaxValueValidator(12)])
     dueDay = models.SmallIntegerField(blank=True, null=True,
+            help_text='Must be specified if dueDateType is Fixed MMDD',
             validators=[
                 MinValueValidator(1),
                 MaxValueValidator(31)])
@@ -833,6 +838,17 @@ class UserGoal(models.Model):
         return '{0.pk}|{0.goal.goalType}|{0.user}|{0.dueDate:%Y-%m-%d}'.format(self)
 
     @cached_property
+    def title(self):
+        """display_title of the goal"""
+        gtype = self.goal.goalType.name
+        if gtype == GoalType.CME:
+            return self.cmeTag.name
+        elif gtype == GoalType.LICENSE:
+            return self.goal.licensegoal.title
+        else:
+            return self.goal.wellnessgoal.title
+
+    @cached_property
     def daysLeft(self, now=None):
         """Returns: int number of days left until dueDate
         or 0 if dueDate is already past
@@ -878,3 +894,23 @@ class UserGoal(models.Model):
             self.save()
         return saved
 
+@python_2_unicode_compatible
+class GoalRecommendation(models.Model):
+    goal = models.ForeignKey(BaseGoal,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='recommendations'
+    )
+    domainTitle = models.CharField(max_length=100,
+        help_text='Domain title e.g. Orbit Blog')
+    pageTitle = models.CharField(max_length=300, help_text='Page title')
+    url = models.URLField(max_length=1000)
+    pubDate = models.DateField(null=True, blank=True, help_text='Publish Date')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('goal','url')
+
+    def __str__(self):
+        return self.url

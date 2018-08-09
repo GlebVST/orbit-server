@@ -18,6 +18,7 @@ from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
+from users.models import CmeTag
 # app
 from .models import *
 from .serializers import *
@@ -78,3 +79,25 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         return Response(out_serializer.data)
 
 
+class GoalRecsList(APIView):
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        try:
+            usergoal = UserGoal.objects.get(pk=self.kwargs.get('pk'))
+        except UserGoal.DoesNotExist:
+            return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            if usergoal.goal.goalType == GoalType.CME:
+                #qset = CmeTag.objects.getRecAllowedUrlsForUser(usergoal.cmeTag, user)
+                context = {
+                    #'results': [RecAurlReadSerializer(m).data for m in qset]
+                    'results': []
+                }
+            else:
+                qset = usergoal.goal.recommendations.all().order_by('-created')
+                context = {
+                    'results': [GoalRecReadSerializer(m).data for m in qset]
+                }
+            return Response(context, status=status.HTTP_200_OK)

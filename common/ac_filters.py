@@ -14,12 +14,6 @@ class StateFilter(AutocompleteFilter):
     field_name = 'state'
     autocomplete_url = 'statename-autocomplete'
 
-class LicenseGoalStateFilter(AutocompleteFilter):
-    title = 'State'
-    field_name = 'licensegoal__state'
-    autocomplete_url = 'statename-autocomplete'
-
-
 class HospitalFilter(AutocompleteFilter):
     title = 'Hospital'
     field_name = 'hospital'
