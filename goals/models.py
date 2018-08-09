@@ -10,9 +10,10 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.functional import cached_property
+from common.dateutils import UNKNOWN_DATE, makeAwareDatetime
 from users.models import (
     CMETAG_SACME,
-    LOCAL_TZ,
     CmeTag,
     Degree,
     Document,
@@ -30,13 +31,17 @@ INTERVAL_ERROR = u'Interval in years must be specified for recurring dueDateType
 DUE_MONTH_ERROR = u'dueMonth must be a valid month in range 1-12'
 DUE_DAY_ERROR = u'dueDay must be a valid day for the selected month in range 1-31'
 
-UNKNOWN_DATE = datetime(3000,1,1,tzinfo=pytz.utc)
 
-def makeAwareDatetime(year, month, day, tz=pytz.utc):
-    """Returns datetime object with tzinfo set.
-    Raise ValueError if invalid date
+def makeDueDate(month, day, now):
+    """Create dueDate as (now.year,month,day) and advance to next year if dueDate is < now
+    Returns: datetime
     """
-    return datetime(year, month, day, tzinfo=tz)
+    dueDate = makeAwareDatetime(now.year, month, day)
+    if dueDate < now:
+        # advance dueDate to next year
+        dueDate = makeAwareDatetime(now.year+1, month, day)
+    return dueDate
+
 
 @python_2_unicode_compatible
 class Board(models.Model):
@@ -89,6 +94,9 @@ class BaseGoal(models.Model):
     )
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
+    dueDateType = models.IntegerField(
+        choices=DUEDATE_TYPE_CHOICES
+    )
     interval = models.DecimalField(max_digits=7, decimal_places=5, blank=True, null=True,
             validators=[MinValueValidator(0)],
             help_text='Interval in years for recurring goal')
@@ -110,12 +118,29 @@ class BaseGoal(models.Model):
     def __str__(self):
         return self.goalType.name
 
+    def isOneOff(self):
+        return self.dueDateType == BaseGoal.ONE_OFF
+
+    def isRecurMMDD(self):
+        return self.dueDateType == BaseGoal.RECUR_MMDD
+
+    def isRecurAny(self):
+        return self.dueDateType == BaseGoal.RECUR_ANY
+
+    def usesLicenseDate(self):
+        return self.dueDateType == BaseGoal.RECUR_LICENSE_DATE
+
+    def usesBirthDate(self):
+        return self.dueDateType == BaseGoal.RECUR_BIRTH_DATE
+
+    @cached_property
     def formatDegrees(self):
         if self.degrees.exists():
             return u", ".join([d.abbrev for d in self.degrees.all()])
         return u'Any'
     formatDegrees.short_description = "Primary Roles"
 
+    @cached_property
     def formatSpecialties(self):
         if self.specialties.exists():
             return ", ".join([d.name for d in self.specialties.all()])
@@ -147,6 +172,46 @@ class BaseGoal(models.Model):
             return False
         return True
 
+#
+# Proxy models to BaseGoal used by Admin interface
+#
+class LicenseBaseGoalManager(models.Manager):
+    def get_queryset(self):
+        qs = super(LicenseBaseGoalManager, self).get_queryset()
+        return qs.filter(goalType__name=GoalType.LICENSE)
+
+class LicenseBaseGoal(BaseGoal):
+    """Proxy model to BaseGoal for License goalType"""
+    objects = LicenseBaseGoalManager()
+
+    class Meta:
+        proxy = True
+        verbose_name_plural = 'License-Goals'
+
+    def clean(self):
+        """Validation checks"""
+        if not self.interval:
+            raise ValidationError({'interval': 'Duration of license in years is required'})
+        if self.dueDateType != BaseGoal.RECUR_LICENSE_DATE:
+            raise ValidationError({'dueDateType': 'dueDateType must be {0}'.format(BaseGoal.RECUR_LICENSE_DATE_LABEL)})
+
+
+class CmeBaseGoalManager(models.Manager):
+    def get_queryset(self):
+        qs = super(CmeBaseGoalManager, self).get_queryset()
+        return qs.filter(goalType__name=GoalType.CME)
+
+class CmeBaseGoal(BaseGoal):
+    """Proxy model to BaseGoal for CME goalType"""
+    objects = CmeBaseGoalManager()
+    class Meta:
+        proxy = True
+        verbose_name_plural = 'CME-Goals'
+
+    def clean(self):
+        """Validation checks"""
+        if self.dueDateType > BaseGoal.ONE_OFF and not self.interval:
+            raise ValidationError({'interval': INTERVAL_ERROR})
 
 class LicenseGoalManager(models.Manager):
 
@@ -173,6 +238,10 @@ class LicenseGoalManager(models.Manager):
 
 @python_2_unicode_compatible
 class LicenseGoal(models.Model):
+    DUEDATE_TYPE_CHOICES = (
+        (BaseGoal.RECUR_LICENSE_DATE, BaseGoal.RECUR_LICENSE_DATE_LABEL),
+    )
+    # fields
     title = models.CharField(max_length=100, blank=True, help_text='Title of goal')
     goal = models.OneToOneField(BaseGoal,
         on_delete=models.CASCADE,
@@ -195,8 +264,12 @@ class LicenseGoal(models.Model):
         unique_together = ('state','licenseType','title')
 
     def __str__(self):
-        return u"{0.state}: {0.licenseType}".format(self)
+        return self.title
 
+    def clean(self):
+        """Validation checks"""
+        if not self.title:
+            self.title = "{0.licenseType.name} License ({0.state.abbrev})".format(self)
 
 class CmeGoalManager(models.Manager):
 
@@ -333,9 +406,6 @@ class CmeGoal(models.Model):
     )
     credits = models.DecimalField(max_digits=6, decimal_places=2,
             validators=[MinValueValidator(0.1)])
-    dueDateType = models.IntegerField(
-        choices=BaseGoal.DUEDATE_TYPE_CHOICES,
-    )
     dueMonth = models.SmallIntegerField(blank=True, null=True,
             validators=[
                 MinValueValidator(1),
@@ -352,22 +422,29 @@ class CmeGoal(models.Model):
             raise ValidationError({'board': 'Board must be selected'})
         if self.entityType == CmeGoal.STATE and not self.state:
             raise ValidationError({'state': 'State must be selected'})
-        if self.entityType == CmeGoal.HOSPITAL and not self.hopsital:
+        if self.entityType == CmeGoal.HOSPITAL and not self.hospital:
             raise ValidationError({'board': 'Hospital must be selected'})
-        if self.dueDateType > BaseGoal.ONE_OFF and not self.goal.interval:
-            raise ValidationError({'interval': INTERVAL_ERROR})
-        if self.dueDateType == BaseGoal.RECUR_MMDD:
-            if not self.dueMonth:
+        if self.dueMonth and not self.dueDay:
+            raise ValidationError({'dueDay': DUE_DAY_ERROR})
+        if self.dueDay and not self.dueMonth:
                 raise ValidationError({'dueMonth': DUE_MONTH_ERROR})
-            if not self.dueDay:
-                raise ValidationError({'dueDay': DUE_DAY_ERROR})
+        if self.dueMonth and self.dueDay:
             try:
                 d = makeAwareDatetime(2020, self.dueMonth, self.dueDay)
             except ValueError:
                 raise ValidationError({'dueDay': DUE_DAY_ERROR})
 
+    @cached_property
+    def valid(self):
+        if self.goal.dueDateType == BaseGoal.RECUR_LICENSE_DATE and not self.licenseGoal:
+            return False
+        if self.goal.dueDateType == BaseGoal.RECUR_MMDD:
+            if not self.dueMonth or not self.dueDay:
+                return False
+        return True
 
-    def getEntityName(self):
+    @cached_property
+    def entityName(self):
         if self.entityType == CmeGoal.BOARD:
             return self.board.name
         if self.entityType == CmeGoal.STATE:
@@ -378,6 +455,12 @@ class CmeGoal(models.Model):
         tagName = self.cmeTag.name if self.cmeTag else 'Any CmeTag'
         return u"{0.credits} credits in {1}".format(self, tagName)
 
+    @cached_property
+    def dueMMDD(self):
+        if self.dueMonth:
+            return "{0.dueMonth}/{0.dueDay}".format(self)
+        return ''
+
     def isTagMatchProfile(self, profileTags):
         """Args:
             profileTags: set of CmeTag pkeyids
@@ -387,30 +470,9 @@ class CmeGoal(models.Model):
             return True # null tag matches any
         return self.cmeTag.pk in profileTags
 
-    def isOneOff(self):
-        return self.dueDateType == BaseGoal.ONE_OFF
-
-    def isRecurMMDD(self):
-        return self.dueDateType == BaseGoal.RECUR_MMDD
-
-    def isRecurAny(self):
-        return self.dueDateType == BaseGoal.RECUR_ANY
-
-    def usesLicenseDate(self):
-        return self.dueDateType == BaseGoal.RECUR_LICENSE_DATE
-
-    def usesBirthDate(self):
-        return self.dueDateType == BaseGoal.RECUR_BIRTH_DATE
-
-    def makeDueDate(self, month, day, now):
-        dueDate = makeAwareDatetime(now.year, month, day)
-        if dueDate < now:
-            # advance dueDate to next year
-            dueDate = makeAwareDatetime(now.year+1, month, day)
-        return dueDate
 
     def computeDueDateForProfile(self, profile, userLicense, now):
-        """Attempt to find a dueDate based on self.dueDateType, profile, and userLicense
+        """Attempt to find a dueDate based on dueDateType, profile, and userLicense
         Args:
             profile: Profile instance
             userLicense: StateLicense/None
@@ -418,29 +480,30 @@ class CmeGoal(models.Model):
         Returns: datetime
         Note: UNKNOWN_DATE is reserved for internal errors (such as invalid RECUR_MMDD date or unknown dueDateType
         """
-        if self.isOneOff() or self.isRecurAny():
+        basegoal = self.goal
+        if basegoal.isOneOff() or basegoal.isRecurAny():
             return now
-        if self.isRecurMMDD():
+        if basegoal.isRecurMMDD():
             try:
-                dueDate = self.makeDueDate(self.dueMonth, self.dueDay, now)
+                dueDate = makeDueDate(self.dueMonth, self.dueDay, now)
             except ValueError, e:
                 logger.error("computeDueDateForProfile: dueDate error from fixed MMDDD goal {0.pk} for user {1}".format(profile, user))
                 return UNKNOWN_DATE
             else:
                 return dueDate
-        if self.usesLicenseDate():
+        if basegoal.usesLicenseDate():
             if not userLicense or userLicense.isUninitialized() or userLicense.expireDate < now:
                 # allow time to update license
                 logger.warning('computeDueDateForProfile: dueDate requires licenseDate for goal {0.pk} and user {1.user}'.format(self, profile))
                 return now + timedelta(days=30)
             else:
                 return userLicense.expireDate
-        if self.usesBirthDate():
+        if basegoal.usesBirthDate():
             if not profile.birthDate:
                 logger.warning('computeDueDateForProfile: dueDate requires birthDate for goal {0.pk} and user {1.user}'.format(self, profile))
                 return now
             try:
-                dueDate = self.makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
+                dueDate = makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
             except ValueError, e:
                 logger.error("computeDueDateForProfile: dueDate error from birthDate: {0.birthDate} for user {0.user}".format(profile))
                 return now
@@ -503,9 +566,6 @@ class WellnessGoal(models.Model):
         related_name='wellnessgoals',
     )
     title = models.CharField(max_length=100, help_text='Title of goal e.g. Annual Flu Shot')
-    dueDateType = models.IntegerField(
-        choices=DUEDATE_TYPE_CHOICES,
-    )
     dueMonth = models.SmallIntegerField(blank=True, null=True,
             validators=[
                 MinValueValidator(1),
@@ -518,9 +578,7 @@ class WellnessGoal(models.Model):
 
     def clean(self):
         """Validation checks"""
-        if self.dueDateType > BaseGoal.ONE_OFF and not self.goal.interval:
-            raise ValidationError({'interval': INTERVAL_ERROR})
-        if self.dueDateType == BaseGoal.RECUR_MMDD:
+        if self.goal.dueDateType == BaseGoal.RECUR_MMDD:
             if not self.dueMonth:
                 raise ValidationError({'dueMonth': DUE_MONTH_ERROR})
             if not self.dueDay:
@@ -532,21 +590,6 @@ class WellnessGoal(models.Model):
 
     def __str__(self):
         return self.title
-
-    def isOneOff(self):
-        return self.dueDateType == BaseGoal.ONE_OFF
-
-    def usesBirthDate(self):
-        return self.dueDateType == BaseGoal.RECUR_BIRTH_DATE
-
-    def makeDueDate(self, month, day, now=None):
-        if not now:
-            now = timezone.now()
-        dueDate = makeAwareDatetime(now.year, month, day)
-        if dueDate < now:
-            # advance dueDate to next year
-            dueDate = makeAwareDatetime(now.year+1, month, day)
-        return dueDate
 
 
 class UserGoalManager(models.Manager):
@@ -672,20 +715,20 @@ class UserGoalManager(models.Manager):
             print(u'createWellnessGoals process: {0}'.format(goal))
             basegoal = goal.goal
             dueDate = None
-            if goal.isOneOff():
+            if basegoal.isOneOff():
                 # Exactly one instance should exist
                 if self.model.objects.filter(user=user, goal=goal).exists():
                     logger.debug('OneOff WellnessGoal {0.pk}/{0.title} already exists for user {1}'.format(goal, user))
                     continue
                 status = self.model.PASTDUE
                 dueDate = now
-            elif goal.usesBirthDate():
+            elif basegoal.usesBirthDate():
                 status = self.model.IN_PROGRESS
                 if not profile.birthDate:
                     logger.warning('WellnessGoal {0.pk} needs birthDate from user {1}'.format(goal, user))
                     continue
                 try:
-                    dueDate = goal.makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
+                    dueDate = makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
                 except ValueError, e:
                     logger.error("createWellnessGoals: dueDate error from birthDate: for user {0}".format(user))
                     continue
@@ -697,7 +740,7 @@ class UserGoalManager(models.Manager):
                 # fixed MM/DD
                 status = self.model.IN_PROGRESS
                 try:
-                    dueDate = goal.makeDueDate(goal.dueMonth, goal.dueDay, now)
+                    dueDate = makeDueDate(goal.dueMonth, goal.dueDay, now)
                 except ValueError, e:
                     logger.error("createWellnessGoals: dueDate error from fixed MMDDD goal {0.pk} for user {1}".format(profile, user))
                     continue
@@ -789,7 +832,8 @@ class UserGoal(models.Model):
     def __str__(self):
         return '{0.pk}|{0.goal.goalType}|{0.user}|{0.dueDate:%Y-%m-%d}'.format(self)
 
-    def getDaysLeft(self, now=None):
+    @cached_property
+    def daysLeft(self, now=None):
         """Returns: int number of days left until dueDate
         or 0 if dueDate is already past
         Args:
@@ -802,15 +846,15 @@ class UserGoal(models.Model):
             return td.days
         return 0
 
-    def computeProgress(self):
+    @cached_property
+    def progress(self):
         """Returns: int between 0 and 100"""
         gtype = self.goal.goalType.name
         if gtype == GoalType.CME:
             # TODO: monthly calculation
             return 70
         totalDays = float(self.goal.interval*365)
-        daysLeft = self.getDaysLeft()
-        progress = 100.0*(totalDays - daysLeft)/totalDays
+        progress = 100.0*(totalDays - self.daysLeft)/totalDays
         return int(progress)
 
     def checkUpdate(self, basegoal, dueDate, status, creditsDue):

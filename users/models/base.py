@@ -23,7 +23,6 @@ SACME_SPECIALTIES = (
     'Radiation Oncology',
     'Pathology',
 )
-LOCAL_TZ = pytz.timezone(settings.LOCAL_TIME_ZONE)
 TEST_CARD_EMAIL_PATTERN = re.compile(r'testcode-(?P<code>\d+)')
 
 # Q objects
