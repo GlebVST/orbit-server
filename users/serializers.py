@@ -657,6 +657,10 @@ class BRCmeCreateSerializer(serializers.Serializer):
         # set redeemed flag on offer
         offer.redeemed = True
         offer.save()
+        # remove url from recommended aurls for user if exist
+        qset = user.recaurls.filter(url=aurl)
+        if qset.exists():
+            qset.delete()
         return instance
 
 # Serializer for Update BrowserCme entry

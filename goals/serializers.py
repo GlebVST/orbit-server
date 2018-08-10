@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 from .models import *
+from users.models import RecAllowedUrl
 from users.serializers import DocumentReadSerializer, StateLicenseSubSerializer
 
 logger = logging.getLogger('gen.gsrl')
@@ -11,6 +12,67 @@ class GoalTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = GoalType
         fields = ('id', 'name','description')
+
+class RecAllowedUrlReadSerializer(serializers.ModelSerializer):
+    domainTitle = serializers.ReadOnlyField(source='url.eligible_site.domain_title')
+    pageTitle = serializers.SerializerMethodField()
+    url = serializers.ReadOnlyField(source='url.url')
+    pubDate = serializers.ReadOnlyField(source='url.pubDate')
+    numUsers = serializers.ReadOnlyField(source='url.numOffers')
+
+    class Meta:
+        model = RecAllowedUrl
+        fields = (
+            'id',
+            'domainTitle',
+            'pageTitle',
+            'url',
+            'pubDate',
+            'numUsers'
+        )
+        read_only_fields = fields
+
+    def get_pageTitle(self, obj):
+        return obj.url.cleanPageTitle()
+
+class GoalRecReadSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = GoalRecommendation
+        fields = (
+            'id',
+            'domainTitle',
+            'pageTitle',
+            'url',
+            'pubDate'
+        )
+        read_only_fields = fields
+
+class LicenseGoalSubSerializer(serializers.ModelSerializer):
+    """UserLicenseGoal extra fields"""
+    daysLeft = serializers.SerializerMethodField()
+    license = serializers.SerializerMethodField()
+    recommendations = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserGoal
+        fields = (
+            'daysLeft',
+            'license',
+            'recommendations'
+        )
+
+    def get_daysLeft(self, obj):
+        return obj.daysLeft
+
+    def get_license(self, obj):
+        s = StateLicenseSubSerializer(obj.license)
+        return s.data
+
+    def get_recommendations(self, obj):
+        qset = obj.goal.recommendations.all().order_by('-created')[:3]
+        s = GoalRecReadSerializer(qset, many=True)
+        return s.data
 
 
 class CmeGoalSubSerializer(serializers.ModelSerializer):
@@ -38,30 +100,6 @@ class WellnessGoalSubSerializer(serializers.ModelSerializer):
     def get_daysLeft(self, obj):
         return obj.daysLeft
 
-
-class LicenseGoalSubSerializer(serializers.ModelSerializer):
-    """UserLicenseGoal extra fields"""
-    daysLeft = serializers.SerializerMethodField()
-    license = serializers.SerializerMethodField()
-    numRecs = serializers.SerializerMethodField()
-
-    class Meta:
-        model = UserGoal
-        fields = (
-            'daysLeft',
-            'license',
-            'numRecs'
-        )
-
-    def get_daysLeft(self, obj):
-        return obj.daysLeft
-
-    def get_license(self, obj):
-        s = StateLicenseSubSerializer(obj.license)
-        return s.data
-
-    def get_numRecs(self, obj):
-        return obj.goal.recommendations.all().count()
 
 
 class UserGoalReadSerializer(serializers.ModelSerializer):
@@ -189,17 +227,3 @@ class UpdateUserWellnessGoalSerializer(serializers.Serializer):
         return instance
 
 
-class GoalRecReadSerializer(serializers.ModelSerializer):
-    goal = serializers.PrimaryKeyRelatedField(read_only=True)
-
-    class Meta:
-        model = GoalRecommendation
-        fields = (
-            'id',
-            'goal',
-            'domainTitle',
-            'pageTitle',
-            'url',
-            'pubDate'
-        )
-        read_only_fields = fields

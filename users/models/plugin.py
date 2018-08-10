@@ -21,6 +21,7 @@ logger = logging.getLogger('gen.models')
 class AllowedHost(models.Model):
     id = models.AutoField(primary_key=True)
     hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
+    main_host = models.ForeignKey('self', null=True, blank=True, help_text='Main host for which this host is a proxy')
     description = models.CharField(max_length=500, blank=True, default='')
     accept_query_keys = models.TextField(blank=True, default='', help_text='accepted keys in url query')
     has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
@@ -47,6 +48,7 @@ class HostPattern(models.Model):
     )
     eligible_site = models.ForeignKey(EligibleSite,
         on_delete=models.CASCADE,
+        related_name='hostpatterns',
         db_index=True)
     path_contains = models.CharField(max_length=200, blank=True, default='',
         help_text='If given, url path part must contain this term. No trailing slash.')
@@ -69,10 +71,12 @@ class AllowedUrl(models.Model):
     id = models.AutoField(primary_key=True)
     host = models.ForeignKey(AllowedHost,
         on_delete=models.CASCADE,
+        related_name='aurls',
         db_index=True
     )
     eligible_site = models.ForeignKey(EligibleSite,
         on_delete=models.CASCADE,
+        related_name='aurls',
         db_index=True)
     url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
     valid = models.BooleanField(default=True)
@@ -86,6 +90,8 @@ class AllowedUrl(models.Model):
         help_text='Used to group a set of URLs that point to the same resource')
     content_type = models.CharField(max_length=100, blank=True, help_text='page content_type')
     cmeTags = models.ManyToManyField(CmeTag, blank=True, related_name='aurls')
+    pubDate = models.DateField(null=True, blank=True, help_text='article publication date')
+    numOffers = models.IntegerField(default=1, help_text='cached number of redeemed offers')
     created = models.DateTimeField(auto_now_add=True, blank=True)
     modified = models.DateTimeField(auto_now=True, blank=True)
 
@@ -95,6 +101,13 @@ class AllowedUrl(models.Model):
 
     def __str__(self):
         return self.url
+
+    def cleanPageTitle(self):
+        esite = self.eligible_site
+        title_suffix = esite.page_title_suffix
+        if title_suffix:
+            return self.page_title.replace(title_suffix, '')
+        return self.page_title
 
 class RejectedUrl(models.Model):
     id = models.AutoField(primary_key=True)
@@ -143,6 +156,24 @@ class WhitelistRequest(models.Model):
 
     def __str__(self):
         return '{0}-{1}'.format(self.user, self.req_url.url)
+
+
+# User recommendations for AllowedUrls by tag
+@python_2_unicode_compatible
+class RecAllowedUrl(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recaurls')
+    url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='recaurls')
+    cmeTag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='recaurls')
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_recallowedurl'
+        unique_together = ('user','url','cmeTag')
+
+    def __str__(self):
+        return '{0}|{0.cmeTag}|{0.url}'.format(self)
+
 
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.

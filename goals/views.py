@@ -18,7 +18,6 @@ from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
-from users.models import CmeTag
 # app
 from .models import *
 from .serializers import *
@@ -90,14 +89,13 @@ class GoalRecsList(APIView):
             return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
         else:
             if usergoal.goal.goalType == GoalType.CME:
-                #qset = CmeTag.objects.getRecAllowedUrlsForUser(usergoal.cmeTag, user)
+                qset = user.recaurls.select_related('url__eligible_site').filter(cmeTag=usergoal.cmeTag)[:3]
                 context = {
-                    #'results': [RecAurlReadSerializer(m).data for m in qset]
-                    'results': []
+                    'results': RecAllowedUrlReadSerializer(qset, many=True)
                 }
             else:
-                qset = usergoal.goal.recommendations.all().order_by('-created')
+                qset = usergoal.goal.recommendations.all().order_by('-created')[:3]
                 context = {
-                    'results': [GoalRecReadSerializer(m).data for m in qset]
+                    'results': GoalRecReadSerializer(qset, many=True)
                 }
             return Response(context, status=status.HTTP_200_OK)
