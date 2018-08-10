@@ -85,17 +85,20 @@ class GoalRecsList(APIView):
         user = request.user
         try:
             usergoal = UserGoal.objects.get(pk=self.kwargs.get('pk'))
+            goalType = usergoal.goal.goalType
         except UserGoal.DoesNotExist:
             return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
         else:
-            if usergoal.goal.goalType == GoalType.CME:
+            if goalType.name == GoalType.CME:
                 qset = user.recaurls.select_related('url__eligible_site').filter(cmeTag=usergoal.cmeTag)[:3]
+                s = RecAllowedUrlReadSerializer(qset, many=True)
                 context = {
-                    'results': RecAllowedUrlReadSerializer(qset, many=True)
+                    'results': s.data
                 }
             else:
                 qset = usergoal.goal.recommendations.all().order_by('-created')[:3]
+                s = GoalRecReadSerializer(qset, many=True)
                 context = {
-                    'results': GoalRecReadSerializer(qset, many=True)
+                    'results': s.data
                 }
             return Response(context, status=status.HTTP_200_OK)

@@ -7,6 +7,7 @@ from users.models import RecAllowedUrl
 from users.serializers import DocumentReadSerializer, StateLicenseSubSerializer
 
 logger = logging.getLogger('gen.gsrl')
+PUB_DATE_FORMAT = '%b %Y'
 
 class GoalTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -17,7 +18,7 @@ class RecAllowedUrlReadSerializer(serializers.ModelSerializer):
     domainTitle = serializers.ReadOnlyField(source='url.eligible_site.domain_title')
     pageTitle = serializers.SerializerMethodField()
     url = serializers.ReadOnlyField(source='url.url')
-    pubDate = serializers.ReadOnlyField(source='url.pubDate')
+    pubDate = serializers.SerializerMethodField()
     numUsers = serializers.ReadOnlyField(source='url.numOffers')
 
     class Meta:
@@ -35,7 +36,13 @@ class RecAllowedUrlReadSerializer(serializers.ModelSerializer):
     def get_pageTitle(self, obj):
         return obj.url.cleanPageTitle()
 
+    def get_pubDate(self, obj):
+        if obj.url.pubDate:
+            return obj.url.pubDate.strftime(PUB_DATE_FORMAT)
+        return None
+
 class GoalRecReadSerializer(serializers.ModelSerializer):
+    pubDate = serializers.SerializerMethodField()
 
     class Meta:
         model = GoalRecommendation
@@ -47,6 +54,11 @@ class GoalRecReadSerializer(serializers.ModelSerializer):
             'pubDate'
         )
         read_only_fields = fields
+
+    def get_pubDate(self, obj):
+        if obj.pubDate:
+            return obj.pubDate.strftime(PUB_DATE_FORMAT)
+        return None
 
 class LicenseGoalSubSerializer(serializers.ModelSerializer):
     """UserLicenseGoal extra fields"""
