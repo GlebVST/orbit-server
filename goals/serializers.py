@@ -97,7 +97,7 @@ class CmeGoalSubSerializer(serializers.ModelSerializer):
         )
 
     def get_articlesLeft(self, obj):
-        return obj.creditsDue/ARTICLE_CREDIT
+        return int(float(obj.creditsDue)/ARTICLE_CREDIT)
 
 
 class WellnessGoalSubSerializer(serializers.ModelSerializer):
