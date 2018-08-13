@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 from .models import *
-from users.models import RecAllowedUrl
+from users.models import RecAllowedUrl, ARTICLE_CREDIT
 from users.serializers import DocumentReadSerializer, StateLicenseSubSerializer
 
 logger = logging.getLogger('gen.gsrl')
@@ -97,7 +97,7 @@ class CmeGoalSubSerializer(serializers.ModelSerializer):
         )
 
     def get_articlesLeft(self, obj):
-        return 2
+        return obj.creditsDue/ARTICLE_CREDIT
 
 
 class WellnessGoalSubSerializer(serializers.ModelSerializer):
@@ -176,16 +176,17 @@ class UpdateUserLicenseGoalSerializer(serializers.Serializer):
         )
 
     def update(self, instance, validated_data):
-        """Update usergoal.license and usergoal"""
+        """Update usergoal, and statelicense for this goal,
+        and any user cmegoals that make use of the license expireDate
+        """
         license = instance.license
         licenseNumber = validated_data.get('licenseNumber')
         expireDate = validated_data.get('expireDate')
         docs = validated_data.get('documents', [])
-        updateGoals = False
+        updateUserCmeGoals = False
         now = timezone.now()
         if expireDate != license.expireDate:
-            logger.info('Update dueDate using this license.')
-            updateGoals = True
+            updateUserCmeGoals = True
         # update license and usergoal
         license.licenseNumber = licenseNumber
         license.expireDate = expireDate
@@ -197,6 +198,19 @@ class UpdateUserLicenseGoalSerializer(serializers.Serializer):
         if docs:
             for d in docs:
                 instance.documents.add(d)
+        if updateUserCmeGoals:
+            to_update = set([])
+            licenseGoal = instance.goal.licensegoal # LicenseGoal instance
+            logger.debug('Finding usercmegoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
+            for cmeGoal in licenseGoal.cmegoals.all():
+                # Use related_name on UserGoal.cmeGoals M2Mfield
+                logger.debug('Partner cmeGoal: {0.pk}/{0}'.format(cmeGoal))
+                qset = cmeGoal.usercmegoals.filter(user=instance.user)
+                for ug in qset: # UserGoal qset for this user
+                    to_update.add(ug)
+            for ug in to_update:
+                logger.debug('update UserGoal {0} for Tag {0.cmeTag}'.format(ug))
+                ug.recompute()
         return instance
 
 class UpdateUserWellnessGoalSerializer(serializers.Serializer):

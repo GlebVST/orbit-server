@@ -97,7 +97,7 @@ class LicenseBaseGoalAdmin(admin.ModelAdmin):
 
     def getNumRecs(self, obj):
         return obj.num_recs
-    getNumRecs.short_description = 'Num Links'
+    getNumRecs.short_description = 'Num Recs'
 
     def lastModified(self, obj):
         return fmtLocalDatetime(obj.modified)
@@ -165,7 +165,7 @@ class CmeBaseGoalAdmin(admin.ModelAdmin):
         return super(CmeBaseGoalAdmin, self).formfield_for_foreignkey(db_field, request, **kwargs)
 
     def save_model(self, request, obj, form, change):
-        """Set modifiedBy to request.user"""
+        """Set modifiedBy to request.user, save object"""
         obj.modifiedBy = request.user
         super(CmeBaseGoalAdmin, self).save_model(request, obj, form, change)
 
@@ -210,9 +210,9 @@ class CmeBaseGoalAdmin(admin.ModelAdmin):
 
 
 class UserGoalAdmin(admin.ModelAdmin):
-    list_display = ('id','user','goal','title','status','getDueDate','license','lastModified')
+    list_display = ('id','user','goal','title','status','getDueDate','progress', 'license','creditsDue', 'lastModified')
     list_selected_related = True
-    list_filter = ('status', UserFilter)
+    list_filter = ('status', 'goal__goalType', UserFilter)
     ordering = ('-modified',)
 
     class Media:

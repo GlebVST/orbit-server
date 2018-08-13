@@ -46,8 +46,8 @@ ENTRYTYPE_STORY_CME = 'story-cme'
 ENTRYTYPE_NOTIFICATION = 'notification'
 SPONSOR_BRCME = 'TUSM'
 ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
+ARTICLE_CREDIT = 0.5 # must be in sync with plugin_server
 
-# Extensible list of entry types that can appear in a user's feed
 @python_2_unicode_compatible
 class EntryType(models.Model):
     name = models.CharField(max_length=30, unique=True)

@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
+from goals.models import UserGoal
 from .models import (
         SACME_SPECIALTIES,
         CMETAG_SACME,
@@ -104,6 +105,13 @@ class Auth0Backend(object):
             if plan.isFree():
                 us = UserSubscription.objects.createFreeSubscription(user, plan)
                 logger.info('Create free UserSubs {0.subscriptionId}'.format(us))
+            try:
+                # create usergoals based on profile known at this time
+                usergoals = UserGoal.objects.createGoals(user)
+            except Exception, e:
+                # catch all and continue after logging any error
+                logger.error("auth_backends: create usergoals Exception: {0}".format(e))
+
         else:
             profile = user.profile
             # profile.socialId must match user_id

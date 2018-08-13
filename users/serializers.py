@@ -248,8 +248,6 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         user = instance.user
         upd_cmetags = False
         tag_ids = None
-        del_tagids = set() # tagids to delete
-        new_tagids = set() # tagids to add
         # get current specialties before updating the instance
         curSpecs = set([ps for ps in instance.specialties.all()])
         # update the instance
@@ -661,6 +659,12 @@ class BRCmeCreateSerializer(serializers.Serializer):
         qset = user.recaurls.filter(url=aurl)
         if qset.exists():
             qset.delete()
+        # update usergoals
+        for tag in entry.tags.all():
+            qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
+            if qs.exists():
+                ug = qs[0]
+                ug.handleRedeemOffer()
         return instance
 
 # Serializer for Update BrowserCme entry
@@ -695,15 +699,30 @@ class BRCmeUpdateSerializer(serializers.Serializer):
 
     def update(self, instance, validated_data):
         entry = instance.entry
+        user = entry.user
         entry.description = validated_data.get('description', entry.description)
         entry.save() # updates modified timestamp
         # if tags key is present: replace old with new (wholesale)
         if 'tags' in validated_data:
-            tag_ids = validated_data['tags']
-            if tag_ids:
-                entry.tags.set(tag_ids)
+            vtags = validated_data['tags']
+            newTags = set(vtags)
+            curTags = set(entry.tags.all())
+            newlyAdded = newTags.difference(curTags)
+            delTags = curTags.difference(newTags)
+            if vtags:
+                entry.tags.set(vtags)
             else:
                 entry.tags.set([])
+            for tag in newlyAdded:
+                qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
+                if qs.exists():
+                    ug = qs[0]
+                    ug.handleRedeemOffer()
+            for tag in delTags:
+                qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
+                if qs.exists():
+                    ug = qs[0]
+                    ug.recompute() # just recompute
         instance.competence = validated_data.get('competence', instance.competence)
         instance.performance = validated_data.get('performance', instance.performance)
         instance.commercialBias = validated_data.get('commercialBias', instance.commercialBias)
@@ -883,22 +902,40 @@ class SRCmeFormSerializer(serializers.Serializer):
             entry=entry,
             credits=validated_data.get('credits')
         )
+        # recompute usergoals
+        for tag in entry.tags.all():
+            qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
+            if qs.exists():
+                ug = qs[0]
+                logger.info('srcme: recompute UserGoal {0} for tag: {0.cmeTag}'.format(ug))
+                ug.recompute()
         return instance
 
     def update(self, instance, validated_data):
         #entry = Entry.objects.get(pk=instance.pk)
         entry = instance.entry
+        user = entry.user
         entry.activityDate = validated_data.get('activityDate', entry.activityDate)
         entry.description = validated_data.get('description', entry.description)
         entry.ama_pra_catg = validated_data.get('creditType', entry.ama_pra_catg)
         entry.save()  # updates modified timestamp
         # if tags key is present: replace old with new (wholesale)
         if 'tags' in validated_data:
-            tag_ids = validated_data['tags']
-            if tag_ids:
-                entry.tags.set(tag_ids)
+            vtags = validated_data['tags']
+            newTags = set(vtags)
+            curTags = set(entry.tags.all())
+            newlyAdded = newTags.difference(curTags)
+            delTags = curTags.difference(newTags)
+            updTags = newlyAdded.union(delTags)
+            if vtags:
+                entry.tags.set(vtags)
             else:
                 entry.tags.set([])
+            for tag in updTags:
+                qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
+                if qs.exists():
+                    ug = qs[0]
+                    ug.recompute()
         if 'documents' in validated_data:
             currentDocs = entry.documents.all()
             current_doc_ids = set([m.pk for m in currentDocs])

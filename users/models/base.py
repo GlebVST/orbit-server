@@ -531,7 +531,7 @@ class Profile(models.Model):
 
     def getActiveCmetags(self):
         """Need to query the through relation to filter by is_active=True"""
-        return ProfileCmetag.filter(profile=self, is_active=True)
+        return ProfileCmetag.objects.filter(profile=self, is_active=True)
 
     def getAuth0Id(self):
         delim = '|'

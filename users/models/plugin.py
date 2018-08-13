@@ -172,7 +172,7 @@ class RecAllowedUrl(models.Model):
         unique_together = ('user','url','cmeTag')
 
     def __str__(self):
-        return '{0}|{0.cmeTag}|{0.url}'.format(self)
+        return '{0.user}|{0.cmeTag}|{0.url}'.format(self)
 
 
 # OrbitCmeOffer
