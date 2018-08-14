@@ -13,7 +13,7 @@ from .models import *
 
 
 class GoalTypeAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'description', 'created')
+    list_display = ('id', 'name', 'sort_order', 'description', 'created')
 
 class BoardAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'description', 'created')

@@ -46,8 +46,8 @@ class UserGoalList(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        qs = UserGoal.objects.filter(user=user).select_related('goal','license')
-        qs1 = qs.filter(status__in=[UserGoal.PASTDUE, UserGoal.IN_PROGRESS]).order_by('status', 'dueDate', '-modified')
+        qs = UserGoal.objects.filter(user=user).select_related('goal__goalType','license')
+        qs1 = qs.filter(status__in=[UserGoal.PASTDUE, UserGoal.IN_PROGRESS]).order_by('status', 'goal__goalType__sort_order', 'dueDate', '-modified')
         qs2 = qs.filter(status=UserGoal.COMPLETED).order_by('-modified')
         return list(qs1) + list(qs2)
 

@@ -193,14 +193,14 @@ class UpdateUserLicenseGoalSerializer(serializers.Serializer):
         license.save()
         # Update usergoal instance
         instance.dueDate = expireDate
-        instance.status = UserGoal.PASTDUE if expireDate < now else UserGoal.IN_PROGRESS
+        instance.status = instance.calcLicenseStatus(now)
         instance.save()
         if docs:
             for d in docs:
                 instance.documents.add(d)
         if updateUserCmeGoals:
-            to_update = set([])
             licenseGoal = instance.goal.licensegoal # LicenseGoal instance
+            to_update = set([])
             logger.debug('Finding usercmegoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
             for cmeGoal in licenseGoal.cmegoals.all():
                 # Use related_name on UserGoal.cmeGoals M2Mfield

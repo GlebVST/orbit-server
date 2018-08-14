@@ -82,6 +82,8 @@ class GoalType(models.Model):
     WELLNESS = 'Wellness'
     # fields
     name = models.CharField(max_length=100, unique=True)
+    sort_order = models.PositiveIntegerField(default=0,
+            help_text='sort order for goals list')
     description = models.CharField(max_length=100, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -283,6 +285,16 @@ class LicenseGoal(models.Model):
         db_index=True,
         related_name='licensegoals',
     )
+    cmeTag = models.ForeignKey(CmeTag,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name='licensegoals',
+        help_text="If specified, goal applies only to profile whose active tags contain this tag"
+    )
+    daysBeforeDue = models.PositiveIntegerField(default=90,
+            help_text='Days before license dueDate at which status switches from Complete to In-Progress')
     objects = LicenseGoalManager()
 
     class Meta:
@@ -911,6 +923,18 @@ class UserGoal(models.Model):
         #print('- creditsEarned {0} over interval: {1} years'.format(total, yrs))
         return total
 
+    def calcLicenseStatus(self, now):
+        """Returns status based on now, expireDate, and daysBeforeDue"""
+        expireDate = self.license.expireDate
+        if not expireDate or expireDate < now:
+            return UserGoal.PASTDUE
+        licenseGoal = self.goal.licensegoal # LicenseGoal instance
+        cutoff = expireDate - timedelta(days=licenseGoal.daysBeforeDue)
+        if now < cutoff:
+            return UserGoal.COMPLETED
+        else:
+            return UserGoal.IN_PROGRESS
+
     def recompute(self):
         """Recompute dueDate, status, creditsDue, creditsEarned for the month and update self.
         """
@@ -923,7 +947,7 @@ class UserGoal(models.Model):
                 dueDate = now
             else:
                 dueDate = self.license.expireDate
-                status = UserGoal.PASTDUE if dueDate < now else UserGoal.IN_PROGRESS
+                status = self.calcLicenseStatus(now)
             if status != self.status:
                 self.status = status
                 self.dueDate = dueDate
