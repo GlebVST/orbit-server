@@ -817,10 +817,10 @@ class UserGoal(models.Model):
         db_index=True,
         help_text='Used for license goals'
     )
-    status = models.SmallIntegerField(choices=STATUS_CHOICES)
+    status = models.SmallIntegerField(choices=STATUS_CHOICES, db_index=True)
     dueDate = models.DateTimeField()
     completeDate= models.DateTimeField(blank=True, null=True,
-            help_text='Date the goal was completed')
+            help_text='Used for Wellness goal completion date.')
     creditsDue = models.DecimalField(max_digits=6, decimal_places=2,
             null=True, blank=True,
             validators=[MinValueValidator(0)],

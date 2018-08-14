@@ -46,8 +46,10 @@ class UserGoalList(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return UserGoal.objects.filter(user=user).select_related('goal','license').order_by('status', 'dueDate')
-
+        qs = UserGoal.objects.filter(user=user).select_related('goal','license')
+        qs1 = qs.filter(status__in=[UserGoal.PASTDUE, UserGoal.IN_PROGRESS]).order_by('status', 'dueDate', '-modified')
+        qs2 = qs.filter(status=UserGoal.COMPLETED).order_by('-modified')
+        return list(qs1) + list(qs2)
 
 class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
     """

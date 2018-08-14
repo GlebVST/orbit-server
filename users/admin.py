@@ -121,6 +121,9 @@ class StateLicenseAdmin(admin.ModelAdmin):
     list_filter = ('licenseType', StateFilter, UserFilter)
     ordering = ('-expireDate','user')
 
+    class Media:
+        pass
+
 class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
 

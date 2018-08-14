@@ -84,6 +84,7 @@ class HospitalFilterBackend(BaseFilterBackend):
         """This requires the model Manager to have a search_filter manager method"""
         search_term = request.query_params.get('q', '').strip()
         if search_term:
+            logInfo(logger, request, search_term)
             return Hospital.objects.search_filter(search_term)
         return queryset.order_by('name','city')
 
