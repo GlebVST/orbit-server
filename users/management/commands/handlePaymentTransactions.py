@@ -18,7 +18,7 @@ class Command(BaseCommand):
             user_subs = UserSubscription.objects.getLatestSubscription(user)
             if not user_subs:
                 continue
-            if user_subs.plan.isFree():
+            if not user_subs.plan.isPaid():
                 continue
             # terminal states that don't need to check for updates
             if (user_subs.status == UserSubscription.CANCELED) or (user_subs.status == UserSubscription.EXPIRED):

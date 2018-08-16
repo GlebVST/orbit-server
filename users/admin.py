@@ -47,6 +47,15 @@ class PracticeSpecialtyAdmin(admin.ModelAdmin):
 class OrgAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
+class OrgMemberAdmin(admin.ModelAdmin):
+    list_display = ('id', 'organization', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'removeDate')
+    list_select_related = True
+    list_filter = ('is_admin', 'organization', UserFilter)
+    ordering = ('-created','fullname')
+
+    class Media:
+        pass
+
 class CmeTagAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'priority', 'description', 'created')
 
@@ -418,6 +427,7 @@ admin_site.register(Hospital, HospitalAdmin)
 admin_site.register(InvitationDiscount, InvitationDiscountAdmin)
 admin_site.register(LicenseType, LicenseTypeAdmin)
 admin_site.register(Organization, OrgAdmin)
+admin_site.register(OrgMember, OrgMemberAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin_site.register(Sponsor, SponsorAdmin)

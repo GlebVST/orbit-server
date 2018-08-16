@@ -3,6 +3,8 @@ from django.contrib.auth.models import Group, Permission
 from common.appconstants import (
     GROUP_CONTENTADMIN,
     GROUP_CMEREQADMIN,
+    GROUP_ENTERPRISE_ADMIN,
+    GROUP_ENTERPRISE_MEMBER,
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
     PERM_VIEW_DASH,
@@ -44,6 +46,16 @@ class IsContentAdminOrAny(permissions.BasePermission):
         elif not (request.user and request.user.is_active and request.user.is_authenticated()):
             return False
         return request.user.groups.filter(name=GROUP_CONTENTADMIN).exists()
+
+
+class IsEnterpriseAdmin(permissions.BasePermission):
+    """Global permission to check that User belongs to EnterpriseAdmin group (for all methods, safe or otherwise).
+    """
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        return request.user.groups.filter(name=GROUP_ENTERPRISE_ADMIN).exists()
+
 
 class IsOwnerOrAuthenticated(permissions.BasePermission):
     """

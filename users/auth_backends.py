@@ -1,27 +1,20 @@
 from __future__ import unicode_literals
 import logging
 import braintree
-from hashids import Hashids
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
-from goals.models import UserGoal
 from .models import (
-        SACME_SPECIALTIES,
-        CMETAG_SACME,
         AuthImpersonation,
         Profile,
         Customer,
         CmeTag,
-        ProfileCmetag,
-        Affiliate,
         AffiliateDetail,
         SubscriptionPlan,
         UserSubscription
     )
 logger = logging.getLogger('gen.auth')
-HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
 # https://auth0.com/docs/user-profile/normalized
 # format of user_id: {identity provider id}|{unique id in the provider}
 
@@ -45,50 +38,36 @@ class Auth0Backend(object):
                 logger.error('New user signup error for {0}: planId was not provided.'.format(email))
                 return None
             plan = SubscriptionPlan.objects.get(planId=planId)
-            hashgen = Hashids(salt=settings.HASHIDS_SALT, alphabet=HASHIDS_ALPHABET, min_length=5)
+            inviter = None
             with transaction.atomic():
-                user = User.objects.create(
-                    username=email,
-                    email=email
-                )
-                profile = Profile(user=user)
-                profile.socialId = user_id
-                profile.inviteId = hashgen.encode(user.pk)
-                profile.planId = planId
-                if picture:
-                    profile.pictureUrl = picture
-                profile.verified = bool(email_verified)
                 if affiliateId:
                     qset = AffiliateDetail.objects.filter(affiliateId=affiliateId)
                     if qset.exists():
-                        affl = qset[0].affiliate # Affiliate instance
-                        profile.inviter = affl.user # User instance
-                        profile.affiliateId = affiliateId
+                        inviter = qset[0].affiliate # Affiliate instance
                         logger.info('User {0.email} was converted by {1}'.format(user, affiliateId))
                     else:
                         logger.warning('Invalid affiliateId: {0}'.format(affiliateId))
                 elif inviterId:
-                    qset = Profile.objects.filter(inviteId=inviterId)
+                    qset = self.model.objects.filter(inviteId=inviterId)
                     if qset.exists():
-                        profile.inviter = qset[0].user # inviter User
-                        logger.info('User {0.email} was invited by {1.email}'.format(user, profile.inviter))
+                        inviter = qset[0].user # inviter User
+                        logger.info('User {0.email} was invited by {1.email}'.format(user, inviter))
                     else:
                         logger.warning('Invalid inviterId: {0}'.format(inviterId))
-                profile.save()
+                # Create User and Profile instance
+                profile = Profile.objects.createUserAndProfile(
+                    email,
+                    planId=planId,
+                    inviter=inviter,
+                    affiliateId=affiliateId,
+                    socialId=user_id,
+                    pictureUrl=picture,
+                    verified=bool(email_verified)
+                    )
                 # after saving profile instance, can add m2m rows
-                profile.degrees.add(plan.plan_key.degree)
-                if plan.plan_key.specialty:
-                    ps = plan.plan_key.specialty
-                    profile.specialties.add(ps)
-                    specTags = ps.cmeTags.all()
-                    for t in specTags:
-                        pct = ProfileCmetag.objects.create(tag=t, profile=profile, is_active=True)
-                    # check if can add SA-CME tag
-                    if profile.isPhysician() and ps.name in SACME_SPECIALTIES:
-                        satag = CmeTag.objects.get(name=CMETAG_SACME)
-                        pct = ProfileCmetag.objects.create(tag=satag, profile=profile, is_active=True)
-                        logger.debug('Add SA-CME tag to profile: {0.user}'.format(profile))
+                profile.initializeFromPlanKey(plan.plan_key)
                 # create local customer object
+                user = profile.user
                 customer = Customer(user=user)
                 customer.save()
                 try:
@@ -101,17 +80,9 @@ class Auth0Backend(object):
                         logger.error('braintree.Customer.create failed. Result message: {0.message}'.format(result))
                 except:
                     logger.exception('braintree.Customer.create exception')
-            # 2018-06-19: if free plan, create UserSubscription
-            if plan.isFree():
+            if plan.isFreeIndividual():
                 us = UserSubscription.objects.createFreeSubscription(user, plan)
                 logger.info('Create free UserSubs {0.subscriptionId}'.format(us))
-            try:
-                # create usergoals based on profile known at this time
-                usergoals = UserGoal.objects.createGoals(user)
-            except Exception, e:
-                # catch all and continue after logging any error
-                logger.error("auth_backends: create usergoals Exception: {0}".format(e))
-
         else:
             profile = user.profile
             # profile.socialId must match user_id
@@ -120,19 +91,17 @@ class Auth0Backend(object):
                 # If this changes in the future, we need multiple socialIds per user.
                 logger.warning('user_id {0} does not match profile.socialId: {1} for user email: {2}'.format(user_id, profile.socialId, user.email))
             saveProfile = False
-            # Check update verified
+            # Check verified
             if email_verified is not None:
                 ev = bool(email_verified)
                 if ev != profile.verified:
                     profile.verified = ev
-                    logger.info('Update email_verified for {0}'.format(user_id))
+                    profile.save(update_fields=('verified',))
                     saveProfile = True
-            # Check update picture
+            # Check picture
             if picture and profile.pictureUrl != picture:
                 profile.pictureUrl = picture
-                saveProfile = True
-            if saveProfile:
-                profile.save()
+                profile.save(update_fields=('pictureUrl',))
         return user
 
     def get_user(self, user_id):

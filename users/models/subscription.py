@@ -16,8 +16,12 @@ from django.db import models, connection
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
-
-from .base import Organization, Degree, PracticeSpecialty
+from .base import (
+    ACTIVE_OFFDATE,
+    Organization,
+    Degree,
+    PracticeSpecialty
+)
 from .feed import BrowserCme
 from common.appconstants import (
     ALL_PERMS,
@@ -36,9 +40,6 @@ INVITEE_DISCOUNT_TYPE = 'invitee'
 CONVERTEE_DISCOUNT_TYPE = 'convertee'
 ORG_DISCOUNT_TYPE = 'org'
 BASE_DISCOUNT_TYPE = 'base'
-
-PLAN_TYPE_BRAINTREE = 'Braintree'
-PLAN_TYPE_FREE = 'Free'
 
 # maximum number of invites for which a discount is applied to the inviter's subscription.
 INVITER_MAX_NUM_DISCOUNT = 10
@@ -262,6 +263,7 @@ class Discount(models.Model):
 
     class Meta:
         ordering = ['discountType', '-created']
+
 
 class SignupDiscountManager(models.Manager):
 
@@ -553,10 +555,14 @@ class SubscriptionPlanKey(models.Model):
         return self.name
 
 class SubscriptionPlanType(models.Model):
+    BRAINTREE = 'Braintree'
+    FREE_INDIVIDUAL = 'Free'
+    ENTERPRISE = 'Enterprise'
+    # fields
     name = models.CharField(max_length=64, unique=True,
             help_text='Name of plan type. Must be unique.')
     needs_payment_method = models.BooleanField(default=False,
-            help_text='If true: requires payment method on signup to create a subscription.')
+            help_text='If true: requires payment method on signup to create a UserSubscription.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -606,8 +612,8 @@ class SubscriptionPlanManager(models.Manager):
         Note: Plus plan is unaffected by plan_key and is always the Braintree plan.
         Returns: SubscriptionPlan queryset order by price
         """
-        pt_bt = SubscriptionPlanType.objects.get(name=PLAN_TYPE_BRAINTREE)
-        pt_free = SubscriptionPlanType.objects.get(name=PLAN_TYPE_FREE)
+        pt_bt = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.BRAINTREE)
+        pt_free = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.FREE_INDIVIDUAL)
         filter_kwargs = dict(active=True, plan_key=plan_key)
         if plan_key.use_free_plan:
             qset = self.model.objects.filter(
@@ -620,13 +626,13 @@ class SubscriptionPlanManager(models.Manager):
         return qset.order_by('price')
 
     def getPaidPlanForFreePlan(self, free_plan):
-        """Finds the partner BT Standard Plan for the given free plan
+        """Finds the partner BT Standard Plan for the given free-individual plan
         Args:
-            free_plan: SubscriptionPlan that is free
+            free_plan: SubscriptionPlan whose plan_type is free-individual
         Returns: SubscriptionPlan
         Raises SubscriptionPlan.DoesNotExist exception if none found.
         """
-        pt_bt = SubscriptionPlanType.objects.get(name=PLAN_TYPE_BRAINTREE)
+        pt_bt = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.BRAINTREE)
         filter_kwargs = dict(
                 plan_key=free_plan.plan_key,
                 active=True,
@@ -634,16 +640,19 @@ class SubscriptionPlanManager(models.Manager):
                 plan_type=pt_bt)
         return self.model.objects.get(**filter_kwargs)
 
-# Recurring Billing Plans
-# https://developers.braintreepayments.com/guides/recurring-billing/plans
+    def getEnterprisePlan(self):
+        qset = self.model.objects.select_related('plan_type').filter(plan_type__name=SubscriptionPlanType.ENTERPRISE, active=True)
+        return qset[0]
+
 # All plans with plan_type=Braintree must be created in the Braintree Control Panel, and synced with the db.
+# https://developers.braintreepayments.com/guides/recurring-billing/plans
 @python_2_unicode_compatible
 class SubscriptionPlan(models.Model):
     planId = models.CharField(max_length=36,
             unique=True,
             help_text='Unique. No whitespace. If plan_type is Braintree, the planId must be in sync with the actual plan in Braintree')
     name = models.CharField(max_length=80,
-            help_text='Internal Plan name (alphanumeric only). Must match value in Braintree. Will be used to set planId.')
+            help_text='Internal Plan name (alphanumeric only). If plan_type is Braintree, it must match value in Braintree. Will be used to set planId.')
     display_name = models.CharField(max_length=40,
             help_text='Display name - what the user sees (e.g. Standard).')
     price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
@@ -711,8 +720,8 @@ class SubscriptionPlan(models.Model):
         """True if this is an limited CME rate plan, else False"""
         return self.maxCmeMonth > 0
 
-    def isFree(self):
-        return not self.plan_type.needs_payment_method
+    def isFreeIndividual(self):
+        return not self.plan_type == SubscriptionPlanType.FREE_INDIVIDUAL
 
     def isPaid(self):
         return self.plan_type.needs_payment_method
@@ -806,8 +815,33 @@ class UserSubscriptionManager(models.Manager):
         else:
             return bt_subs
 
+
+    def createEnterpriseMemberSubscription(self, user, plan):
+        """Create enterprise UserSubscription instance for the given user.
+        The display_status of the new subs is UI_ACTIVE.
+        The subscriptionId is constructed from the profile.inviteId so it is guaranteed to be unique.
+        Note: The billing dates are not used for actual billing
+        Args:
+            user: User instance
+            plan: SubscriptionPlan instance whose plan_type is ENTERPRISE
+        Returns UserSubscription instance
+        """
+        startDate = user.date_joined
+        subsId = "ent.{0}".format(user.profile.inviteId) # a unique id
+        user_subs = UserSubscription.objects.create(
+            user=user,
+            plan=plan,
+            subscriptionId=subsId,
+            display_status=UserSubscription.UI_ACTIVE,
+            status=UserSubscription.ACTIVE,
+            billingFirstDate=startDate,
+            billingStartDate=startDate,
+            billingEndDate=ACTIVE_OFFDATE
+        )
+        return user_subs
+
     def createFreeSubscription(self, user, plan):
-        """Create free UserSubscription instance for the given plan.
+        """Create free-individual UserSubscription instance for the given plan.
         The display_status of the new subs is UI_TRIAL.
         The subscriptionId is constructed from the profile.inviteId so it is guaranteed to be unique.
         The date fields are not billing dates, they only represent the duration of the free trial period.
@@ -1342,24 +1376,26 @@ class UserSubscriptionManager(models.Manager):
             Call startActivePaidPlan. Arg new_plan must be a paid SubscriptionPlan
         """
         cur_plan = user_subs.plan
-        if cur_plan.isFree():
+        if cur_plan.isFreeIndividual():
             return self.startActivePaidPlan(user_subs, payment_token, new_plan)
 
         # If not given: new_plan is cur_plan
         # If given (e.g. by UpgradePlan): switch to new_plan
         plan = new_plan if new_plan else cur_plan
         user = user_subs.user
+        profile = user.profile
         subs_params = {
             'plan_id': plan.planId,
             'trial_duration': 0,
             'payment_method_token': payment_token
         }
-        if user.profile.inviter:
+        if profile.inviter:
             qset = UserSubscription.objects.filter(user=user).exclude(pk=user_subs.pk)
             if not qset.exists():
                 # User has no other subscription except this Trial which is to be canceled.
                 # Can apply invitee discount to the new Active subscription
-                if Affiliate.objects.filter(user=user.profile.inviter).exists():
+                if profile.affiliateId and Affiliate.objects.filter(user=user.profile.inviter).exists():
+                    # inviter is Affiliate *and* profile.affiliateId is set which means user was converted
                     subs_params['convertee_discount'] = True
                     logger.info('SwitchTrialToActive: apply convertee discount to new subscription for {0}'.format(user))
                 else:
@@ -1386,13 +1422,14 @@ class UserSubscriptionManager(models.Manager):
         Returns: (Braintree result object, UserSubscription)
         """
         user = user_subs.user
+        profile = user.profile
         subs_params = {
             'plan_id': new_plan.planId,
             'trial_duration': 0,
             'payment_method_token': payment_token
         }
-        if user.profile.inviter:
-            if Affiliate.objects.filter(user=user.profile.inviter).exists():
+        if profile.inviter:
+            if profile.affiliateId and Affiliate.objects.filter(user=user.profile.inviter).exists():
                 subs_params['convertee_discount'] = True
                 logger.info('startActivePaidPlan: apply convertee discount to new subscription for {0}'.format(user))
             else:
@@ -1515,7 +1552,7 @@ class UserSubscriptionManager(models.Manager):
         """
         today = timezone.now()
         saved = False
-        if user_subs.plan.isFree():
+        if user_subs.plan.isFreeIndividual():
             if user_subs.display_status == self.model.UI_TRIAL and (today > user_subs.billingEndDate):
                 # free subscription period is over. Switch to UI_TRIAL_CANCELED.
                 user_subs.status = self.model.CANCELED

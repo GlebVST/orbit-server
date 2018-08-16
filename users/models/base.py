@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 import logging
 from datetime import datetime, timedelta
+from hashids import Hashids
 import pytz
 import re
 from django.conf import settings
@@ -24,6 +25,9 @@ SACME_SPECIALTIES = (
     'Pathology',
 )
 TEST_CARD_EMAIL_PATTERN = re.compile(r'testcode-(?P<code>\d+)')
+HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
+
+ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
 
 # Q objects
 Q_ADMIN = Q(username__in=('admin','radmin')) # django admin users not in auth0
@@ -113,6 +117,19 @@ class HospitalManager(models.Manager):
 
     def search_filter(self, search_term, base_qs=None):
         """Returns a queryset that filters for the given search_term
+        """
+        if not base_qs:
+            base_qs = self.model.objects.all()
+        s = search_term.upper()
+        qs1 = base_qs.filter(display_name__startswith=s)
+        qs2 = base_qs.filter(display_name__contains=s)
+        qs = qs1
+        if not qs.exists():
+            qs = qs2
+        return qs.order_by('display_name')
+
+    def alt_search_filter(self, search_term, base_qs=None):
+        """Returns a queryset that filters for the given search_term
         Uses: django.contrib.postgres SearchVector
         """
         if not base_qs:
@@ -141,7 +158,7 @@ class ResidencyProgramManager(models.Manager):
         return super(ResidencyProgramManager, self).get_queryset().filter(hasResidencyProgram=True)
 
     def search_filter(self, search_term):
-        base_qs = self.model.residency_objects.select_related('state')
+        base_qs = self.model.residency_objects.all()
         return self.model.objects.search_filter(search_term, base_qs)
 
 @python_2_unicode_compatible
@@ -341,6 +358,102 @@ class Organization(models.Model):
     def __str__(self):
         return self.code
 
+class OrgMemberManager(models.Manager):
+
+    def makeFullName(self, firstName, lastName):
+        return u"{0} {1}".format(firstName.upper(), lastName.upper())
+
+    def createMember(self, org, profile, is_admin=False):
+        """
+        Check if user instance aleady exists for the given email
+            - raise ValueError (to respect existing user account)
+        Args:
+            org: Organization instance
+            profile: Profile instance
+            is_admin: bool default is False
+        Returns: OrgAdmin model instance
+        """
+        user = profile.user
+        fullName = self.makeFullName(profile.firstName, profile.lastName)
+        m = self.model.objects.create(
+                organization=org,
+                user=user,
+                fullname=fullName,
+                is_admin=is_admin)
+        return m
+
+    def search_filter(self, org, search_term, orderByFields):
+        """Returns a queryset that filters active OrgMembers by the given org and search_term
+        Args:
+            org: Organization - must be provided to prevent results containing members of other orgs
+            search_term: str : to query fullname and username
+            orderByFields: tuple of fields to order by
+        Returns: queryset of active OrgMembers
+        """
+        base_qs = self.model.objects.select_related('user', 'user__profile').filter(organization=org, removeDate__isnull=True)
+        qs1 = base_qs.filter(fullname__contains=search_term.upper())
+        qs2 = base_qs.filter(user__username__istartswith=search_term)
+        qs = qs1
+        if not qs.exists():
+            qs = qs2
+        return qs.order_by(*orderByFields)
+
+@python_2_unicode_compatible
+class OrgMember(models.Model):
+    organization = models.ForeignKey(Organization,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='orgmembers'
+    )
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='orgmembers',
+    )
+    fullname = models.CharField(max_length=100, db_index=True,
+            help_text='Uppercase first and last name for search')
+    is_admin = models.BooleanField(default=False, db_index=True,
+            help_text='True if user is an admin for this organization')
+    removeDate = models.DateTimeField(null=True, blank=True,
+            help_text='date the member was removed')
+    compliance = models.PositiveSmallIntegerField(default=1,
+            help_text='Cached value of compliance status for sorting')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = OrgMemberManager()
+
+    class Meta:
+        unique_together = ('organization', 'user')
+        verbose_name_plural = 'Enterprise Members'
+
+    def __str__(self):
+        return '{0.user}/{0.organization}'.format(self)
+
+
+class ProfileManager(models.Manager):
+
+    def createUserAndProfile(self, email, planId, inviter=None, affiliateId='', socialId='', pictureUrl='', verified=False, organization=None, firstName='', lastName=''):
+        """Create new User instance and new Profile instance"""
+        hashgen = Hashids(salt=settings.HASHIDS_SALT, alphabet=HASHIDS_ALPHABET, min_length=5)
+        user = User.objects.create(
+            username=email,
+            email=email
+        )
+        profile = Profile.objects.create(
+            user=user,
+            inviteId=hashgen.encode(user.pk),
+            planId=planId,
+            inviter=inviter,
+            affiliateId=affiliateId,
+            socialId=socialId,
+            pictureUrl=pictureUrl,
+            verified=verified,
+            organization=organization,
+            firstName=firstName,
+            lastName=lastName
+            )
+        return profile
+
 
 @python_2_unicode_compatible
 class Profile(models.Model):
@@ -402,7 +515,7 @@ class Profile(models.Model):
     )
     nbcrnaId = models.CharField(max_length=20, blank=True, default='', help_text='NBCRNA ID for Nurse Anesthetists')
     inviteId = models.CharField(max_length=36, unique=True)
-    socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
+    socialId = models.CharField(max_length=64, blank=True, db_index=True, help_text='Auth0 ID')
     pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
     cmeTags = models.ManyToManyField(CmeTag,
             through='ProfileCmetag',
@@ -422,6 +535,7 @@ class Profile(models.Model):
     affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = ProfileManager()
 
     def __str__(self):
         return '{0.firstName} {0.lastName}'.format(self)
@@ -548,6 +662,24 @@ class Profile(models.Model):
         if m:
             return int(m.groups()[0])
         return None
+
+    def initializeFromPlanKey(self, plan_key):
+        """Used by auth_backends to assign self.degrees, specialties, tags based on plan
+        Args:
+            plan_key: SubscriptionPlanKey instance
+        """
+        self.degrees.add(plan_key.degree)
+        if plan_key.specialty:
+            ps = plan_key.specialty
+            self.specialties.add(ps)
+            specTags = ps.cmeTags.all()
+            for t in specTags:
+                pct = ProfileCmetag.objects.create(tag=t, profile=self, is_active=True)
+            # check if can add SA-CME tag
+            if self.isPhysician() and ps.name in SACME_SPECIALTIES:
+                satag = CmeTag.objects.get(name=CMETAG_SACME)
+                pct = ProfileCmetag.objects.create(tag=satag, profile=self, is_active=True)
+                logger.debug('Add SA-CME tag to: {0.user}'.format(self))
 
 
 # Many-to-many through relation between Profile and CmeTag

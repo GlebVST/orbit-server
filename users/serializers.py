@@ -1327,7 +1327,7 @@ class ReadInvitationDiscountSerializer(serializers.ModelSerializer):
         return 0
 
     class Meta:
-        model = UserFeedback
+        model = InvitationDiscount
         fields = (
             'id',
             'inviter',

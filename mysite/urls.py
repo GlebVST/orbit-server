@@ -17,7 +17,7 @@ from django.conf.urls import url, include
 from django.conf import settings
 from django.conf.urls.static import static
 from .admin import admin_site
-from users import views, auth_views, debug_views, payment_views, admin_views, ac_views
+from users import views, auth_views, debug_views, payment_views, admin_views, ac_views, enterprise_views
 from goals import views as goal_views
 from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
@@ -132,6 +132,10 @@ api_patterns = [
     url(r'^goals/license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view()),
     url(r'^goals/recs/(?P<pk>[0-9]+)/?$', goal_views.GoalRecsList.as_view()),
 
+    # enterprise admin
+    url(r'^enterprise/orgmembers/?$', enterprise_views.OrgMemberList.as_view()),
+    url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberDetail.as_view()),
+
     # ADMIN views to see other users data
     url(r'^admin/users/?$', admin_views.UserList.as_view()),
     url(r'^admin/users/(?P<pk>[0-9]+)/?$', admin_views.UserDetail.as_view()),
@@ -150,6 +154,10 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/email-card-expired/?$', debug_views.EmailCardExpired.as_view()),
         url(r'^debug/email-subs-renewal-reminder/?$', debug_views.EmailSubscriptionRenewalReminder.as_view()),
         url(r'^debug/email-subs-cancel-reminder/?$', debug_views.EmailSubscriptionCancelReminder.as_view()),
+        url(r'^debug/orgmembers/?$', debug_views.OrgMemberList.as_view()),
+        url(r'^debug/orgmembers/add/?$', debug_views.CreateOrgMember.as_view()),
+        url(r'^debug/orgmembers/(?P<pk>[0-9]+)/?$', debug_views.OrgMemberDetail.as_view()),
+        url(r'^debug/orgmembers/(?P<pk>[0-9]+)/update/?$', debug_views.UpdateOrgMember.as_view()),
     ])
 
 

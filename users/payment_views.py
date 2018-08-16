@@ -317,10 +317,10 @@ class ActivatePaidSubscription(generics.CreateAPIView):
         profile = user.profile
         last_subscription = UserSubscription.objects.getLatestSubscription(user)
         old_plan = last_subscription.plan
-        if not old_plan.isFree():
+        if old_plan.isPaid():
             context = {
                 'success': False,
-                'message': 'Current subscription must be free.'
+                'message': 'Current subscription does not require payment method.'
             }
             message = context['message'] + ' last_subscription id: {0}'.format(last_subscription.pk)
             logError(logger, request, message)

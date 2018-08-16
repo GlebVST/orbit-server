@@ -15,6 +15,7 @@ from django.db.models import Q, Prefetch, Count, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from .base import (
+    ACTIVE_OFFDATE,
     CMETAG_SACME,
     SACME_SPECIALTIES,
     CmeTag,
@@ -45,7 +46,6 @@ ENTRYTYPE_SRCME = 'sr-cme'
 ENTRYTYPE_STORY_CME = 'story-cme'
 ENTRYTYPE_NOTIFICATION = 'notification'
 SPONSOR_BRCME = 'TUSM'
-ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
 ARTICLE_CREDIT = 0.5 # must be in sync with plugin_server
 
 @python_2_unicode_compatible

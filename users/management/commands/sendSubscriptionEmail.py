@@ -4,7 +4,7 @@ from smtplib import SMTPException
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.utils import timezone
-from users.models import BrowserCme, Customer, UserSubscription, SubscriptionEmail
+from users.models import BrowserCme, Customer, UserSubscription, SubscriptionEmail, SubscriptionPlanType
 from users.emailutils import sendRenewalReminderEmail, sendCancelReminderEmail
 
 logger = logging.getLogger('mgmt.remail')
@@ -25,13 +25,12 @@ class Command(BaseCommand):
                 UserSubscription.UI_ACTIVE_CANCELED,
                 #UserSubscription.UI_ACTIVE_DOWNGRADE, # TODO: once we have appropriate email message for this case
             )
-        qset = UserSubscription.objects.select_related('plan').filter(
+        qset = UserSubscription.objects.select_related('plan', 'plan__plan_type').filter(
+            plan__plan_type=SubscriptionPlanType.BRAINTREE,
             display_status__in=f_status,
             billingEndDate__lte=cutoffDate
             ).order_by('billingEndDate')
         for m in qset:
-            if m.plan.isFree():
-                continue
             user = m.user
             subs_email, created = SubscriptionEmail.objects.getOrCreate(m)
             if not subs_email.remind_renew_sent:

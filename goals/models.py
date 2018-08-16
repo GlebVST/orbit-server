@@ -14,6 +14,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
+from common.appconstants import PERM_VIEW_GOAL
 from common.dateutils import UNKNOWN_DATE, makeAwareDatetime
 from users.models import (
     ARTICLE_CREDIT,
@@ -792,6 +793,22 @@ class UserGoalManager(models.Manager):
         usergoals.extend(self.createCmeGoals(profile))
         return usergoals
 
+    def rematchGoalsForProfile(self, user):
+        """This should be called when user's profile changes.
+        Remove stale/non-applicable goals, and create any new ones
+        Returns: list of new UserGoal instances created
+        """
+        qset = Profile.objects.filter(user=user).prefetch_related('degrees','specialties','states','hospitals')
+        if not qset.exists():
+            return []
+        profile = qset[0]
+        # first remove stale goals
+        # add any new goals
+        usergoals = []
+        usergoals.extend(self.createLicenseGoals(profile))
+        usergoals.extend(self.createCmeGoals(profile))
+        return usergoals
+
 @python_2_unicode_compatible
 class UserGoal(models.Model):
     MAX_DUEDATE_DIFF_DAYS = 30 # used in recompute calculation
@@ -851,6 +868,10 @@ class UserGoal(models.Model):
 
     class Meta:
         unique_together = ('user','goal','dueDate')
+        # custom permissions
+        permissions = (
+            (PERM_VIEW_GOAL, 'Can view Goal'),
+        )
 
     @cached_property
     def title(self):
