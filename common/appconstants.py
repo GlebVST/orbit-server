@@ -24,6 +24,8 @@ PERM_POST_WHITELIST = u'add_eligiblesite'
 PERM_POST_REQUESTED_URL = u'add_requestedurl'
 # default add permission on OrgMember model
 PERM_MANAGE_ORGMEMBER = u'add_orgmember'
+# default add permission on InvitationDiscount model
+PERM_ALLOW_INVITE = u'add_invitationdiscount'
 ALL_PERMS = (
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
@@ -38,6 +40,7 @@ ALL_PERMS = (
     PERM_POST_REQUESTED_URL,
     PERM_VIEW_GOAL,
     PERM_MANAGE_ORGMEMBER,
+    PERM_ALLOW_INVITE,
 )
 
 SELF_REPORTED_AUTHORITY = u'Self Reported'

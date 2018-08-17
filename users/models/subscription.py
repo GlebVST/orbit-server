@@ -28,6 +28,7 @@ from common.appconstants import (
     PERM_POST_BRCME,
     PERM_DELETE_BRCME,
     PERM_EDIT_BRCME,
+    PERM_ALLOW_INVITE,
 )
 
 logger = logging.getLogger('gen.models')
@@ -40,9 +41,6 @@ INVITEE_DISCOUNT_TYPE = 'invitee'
 CONVERTEE_DISCOUNT_TYPE = 'convertee'
 ORG_DISCOUNT_TYPE = 'org'
 BASE_DISCOUNT_TYPE = 'base'
-
-# maximum number of invites for which a discount is applied to the inviter's subscription.
-INVITER_MAX_NUM_DISCOUNT = 10
 
 TWO_PLACES = Decimal('.01')
 
@@ -359,6 +357,9 @@ class InvitationDiscountManager(models.Manager):
 
 @python_2_unicode_compatible
 class InvitationDiscount(models.Model):
+    # maximum number of invites for which a discount is applied to the inviter's subscription.
+    INVITER_MAX_NUM_DISCOUNT = 10
+    # fields
     invitee = models.OneToOneField(User,
         on_delete=models.CASCADE,
         primary_key=True
@@ -736,27 +737,35 @@ class UserSubscriptionManager(models.Manager):
             return qset[0]
 
     def getPermissions(self, user_subs):
-        """Return the permissions for the group given by user_subs.display_status
+        """Return the permissions for the group that matches user_subs.display_status
+        This does not handle extra permissions based on the user's assigned groups,
+        (that is done by serialize_permissions).
+        Based on user_subs.plan:
+            It excludes PERM_POST_BRCME if user has reached monthly/yearly cme limit.
+            It includes PERM_ALLOW_INVITE for paid plans with active status.
         Returns: tuple (Permission queryset, is_brcme_month_limit, is_brcme_year_limit)
         """
         is_brcme_month_limit = False
         is_brcme_year_limit = False
         g = Group.objects.get(name=user_subs.display_status)
-        if user_subs.plan.isUnlimitedCme():
-            qs1 = g.permissions.all()
-            qs2 = Permission.objects.filter(codename=PERM_DELETE_BRCME)
-            qset = qs1.union(qs2).order_by('codename')
+        plan = user_subs.plan
+        qset = g.permissions.all()
+        if plan.isUnlimitedCme():
+            qset = qset.union(Permission.objects.filter(codename=PERM_DELETE_BRCME))
         else:
             filter_kwargs = {}
             user = user_subs.user
             now = timezone.now()
-            if user_subs.plan.isLimitedCmeRate():
+            if plan.isLimitedCmeRate():
                 is_brcme_month_limit = BrowserCme.objects.hasEarnedMonthLimit(user_subs, now.year, now.month)
             is_brcme_year_limit = BrowserCme.objects.hasEarnedYearLimit(user_subs, now.year)
             if is_brcme_month_limit or is_brcme_year_limit:
-                qset = g.permissions.exclude(codename=PERM_POST_BRCME).order_by('codename')
-            else:
-                qset = g.permissions.all().order_by('codename')
+                # if either limit is reached, disallow post of brcme (e.g. disallow redeem offer)
+                qset = qset.exclude(codename=PERM_POST_BRCME)
+        if plan.isPaid() and user_subs.display_status == self.model.UI_ACTIVE:
+            # UI will display unique invite url for this user to invite others
+            qset = qset.union(Permission.objects.filter(codename=PERM_ALLOW_INVITE))
+        qset = qset.order_by('codename')
         return (qset, is_brcme_month_limit, is_brcme_year_limit)
 
 
@@ -1498,11 +1507,11 @@ class UserSubscriptionManager(models.Manager):
         for d in bt_subs.discounts:
             if d.id == discount.discountId:
                 add_new_discount = False
-                if d.quantity < INVITER_MAX_NUM_DISCOUNT:
+                if d.quantity < InvitationDiscount.INVITER_MAX_NUM_DISCOUNT:
                     # Update existing row: increment quantity
                     new_quantity = d.quantity + 1
                 else:
-                    logger.info('Inviter {0.user} has already earned  max discount quantity: {1}'.format(user_subs, INVITER_MAX_NUM_DISCOUNT))
+                    logger.info('Inviter {0.user} has already earned  max discount quantity.'.format(user_subs))
                 break
         subs_params = None
         if add_new_discount:
