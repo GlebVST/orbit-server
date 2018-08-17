@@ -1,6 +1,10 @@
 import logging
 from rest_framework import serializers
 from .models import (
+    ENTRYTYPE_BRCME,
+    ENTRYTYPE_SRCME,
+    ENTRYTYPE_STORY_CME,
+    ENTRYTYPE_NOTIFICATION,
     CmeTag,
     Document,
     EntryType,
