@@ -79,7 +79,7 @@ class HospitalFilterBackend(BaseFilterBackend):
         if search_term:
             logInfo(logger, request, search_term)
             return Hospital.objects.search_filter(search_term)
-        return queryset.order_by('name','city')
+        return queryset.order_by('display_name')
 
 # Hospital - list only
 class HospitalList(generics.ListAPIView):
@@ -99,7 +99,7 @@ class ResidencyProgramList(generics.ListAPIView):
         search_term = self.request.query_params.get('q', '').strip()
         if search_term:
             return Hospital.residency_objects.search_filter(search_term)
-        return Hospital.residency_objects.all().order_by('name','city')
+        return Hospital.residency_objects.all().order_by('display_name')
 
 
 # PracticeSpecialty - list only

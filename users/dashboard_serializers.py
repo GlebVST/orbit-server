@@ -53,7 +53,7 @@ class AuditReportReadSerializer(serializers.ModelSerializer):
             m = StateLicense.objects.getLatestLicenseForUser(user, LicenseType.TYPE_RN)
             if m:
                 s =  NestedStateLicenseSerializer(m)
-            return s.data
+                return s.data
         return None
 
     def get_country(self, obj):

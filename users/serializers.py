@@ -12,10 +12,15 @@ class DegreeSerializer(serializers.ModelSerializer):
 
 
 class HospitalSerializer(serializers.ModelSerializer):
-    state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all())
+    state = serializers.PrimaryKeyRelatedField(read_only=True)
     class Meta:
         model = Hospital
-        fields = ('id', 'state', 'city', 'name', 'display_name')
+        fields = ('id', 'state', 'city', 'display_name')
+
+class NestedHospitalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hospital
+        fields = ('id', 'display_name')
 
 class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(
@@ -284,17 +289,17 @@ class ReadProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
     country = serializers.PrimaryKeyRelatedField(read_only=True)
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
-    residency = serializers.PrimaryKeyRelatedField(read_only=True)
     # list of pkeyids
     degrees = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     specialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     subspecialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-    hospitals = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    hospitals = NestedHospitalSerializer(many=True, read_only=True)
     states = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
     profileComplete = serializers.SerializerMethodField()
     cmeTags = serializers.SerializerMethodField()
+    residency = serializers.SerializerMethodField()
 
     def get_isSignupComplete(self, obj):
         return obj.isSignupComplete()
@@ -308,6 +313,12 @@ class ReadProfileSerializer(serializers.ModelSerializer):
     def get_cmeTags(self, obj):
         qset = ProfileCmetag.objects.filter(profile=obj)
         return [ProfileCmetagSerializer(m).data for m in qset]
+
+    def get_residency(self, obj):
+        if obj.residency:
+            s = NestedHospitalSerializer(obj.residency)
+            return s.data
+        return None
 
     class Meta:
         model = Profile
