@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from .models import *
 from users.models import RecAllowedUrl, ARTICLE_CREDIT
-from users.serializers import DocumentReadSerializer, StateLicenseSubSerializer
+from users.serializers import DocumentReadSerializer, NestedStateLicenseSerializer
 
 logger = logging.getLogger('gen.gsrl')
 PUB_DATE_FORMAT = '%b %Y'
@@ -78,7 +78,7 @@ class LicenseGoalSubSerializer(serializers.ModelSerializer):
         return obj.daysLeft
 
     def get_license(self, obj):
-        s = StateLicenseSubSerializer(obj.license)
+        s = NestedStateLicenseSerializer(obj.license)
         return s.data
 
     def get_recommendations(self, obj):

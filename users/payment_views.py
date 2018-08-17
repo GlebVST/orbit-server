@@ -1,8 +1,7 @@
 import os
 import braintree
-import datetime
-from datetime import timedelta
 import logging
+from operator import itemgetter
 from pprint import pprint
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -19,7 +18,8 @@ from rest_framework.response import Response
 from common.logutils import *
 # app
 from .models import *
-from .serializers import ReadUserSubsSerializer, CreateUserSubsSerializer, UpgradePlanSerializer, ActivatePaidUserSubsSerializer
+from .serializers import ReadUserSubsSerializer
+from .payment_serializers import *
 
 TPL_DIR = 'users'
 
@@ -35,6 +35,86 @@ class GetToken(APIView):
             'token': braintree.ClientToken.generate()
         }
         return Response(context, status=status.HTTP_200_OK)
+
+class SubscriptionPlanList(generics.ListAPIView):
+    serializer_class = SubscriptionPlanSerializer
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        """Filter plans by plan_key sourced from the planId in request.user.profile"""
+        profile = self.request.user.profile
+        try:
+            plan = SubscriptionPlan.objects.get(planId=profile.planId)
+            plan_key = plan.plan_key
+        except SubscriptionPlan.DoesNotExist:
+            logError(logger, self.request, "Invalid profile.planId: {0.planId}".format(profile))
+            return SubscriptionPlan.objects.none().order_by('id')
+        else:
+            if not plan_key:
+                logError(logger, self.request, "No plan_key for profile {0}".format(profile))
+                return SubscriptionPlan.objects.none().order_by('id')
+            # else
+            filter_kwargs = dict(active=True, plan_key=plan_key)
+            return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
+
+
+# SubscriptionPlanPublic : for AllowAny
+class SubscriptionPlanPublic(generics.ListAPIView):
+    """Returns a list of eligible plans for a given landing page key using the SubscriptionPlanPublicSerializer
+    """
+    serializer_class = SubscriptionPlanPublicSerializer
+    permission_classes = (permissions.AllowAny,)
+
+    def get_queryset(self):
+        """Filter plans by plan_key in url using iexact search"""
+        lkey = self.kwargs['landing_key']
+        if lkey.endswith('/'):
+            lkey = lkey[0:-1]
+        try:
+            plan_key = SubscriptionPlanKey.objects.get(name__iexact=lkey)
+        except SubscriptionPlanKey.DoesNotExist:
+            logWarning(logger, self.request, "Invalid key: {0}".format(lkey))
+            return SubscriptionPlan.objects.none().order_by('id')
+        else:
+            return SubscriptionPlan.objects.getPlansForKey(plan_key)
+
+
+class SignupDiscountList(APIView):
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        profile = user.profile
+        data = []
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        # TODO: make this a manager method and allow former Enterprise-plan user
+        if user_subs is None or (user_subs.display_status == UserSubscription.UI_TRIAL) or (user_subs.display_status == UserSubscription.UI_TRIAL_CANCELED):
+            # User has never had an active subscription.
+            promo = SignupEmailPromo.objects.get_casei(user.email)
+            if promo:
+                # this overrides any other discount
+                plan = SubscriptionPlan.objects.get(planId=profile.planId)
+                d = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
+                discount_amount = plan.discountPrice - promo.first_year_price
+                data = [{
+                    'discountId': d.discountId,
+                    'amount': discount_amount,
+                    'displayLabel': promo.display_label,
+                    'discountType': 'signup-email'
+                }]
+            else:
+                discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+                data = [{
+                    'discountId': d['discount'].discountId,
+                    'amount': d['discount'].amount,
+                    'discountType': d['discountType'],
+                    'displayLabel': d['displayLabel']
+                    } for d in discounts]
+        # sort by amount desc
+        display_data = sorted(data, key=itemgetter('amount'), reverse=True)
+        context = {'discounts': display_data}
+        return Response(context, status=status.HTTP_200_OK)
+
 
 class GetPaymentMethods(APIView):
     """
