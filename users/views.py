@@ -120,10 +120,7 @@ class CmeTagList(generics.ListAPIView):
     def get_queryset(self):
         return CmeTag.objects.all().prefetch_related('specialties').order_by('-priority','name')
 
-#
-# Update profile - can be done by profile.user or by an Enterprise admin
-# user who belongs to the same org as the profile
-#
+# Update profile
 class ProfileUpdate(generics.UpdateAPIView):
     """Note: This used to be a RetrieveUpdateAPIView but we need to use
     different serializers for Retrieve vs. Update. Normally, this can be
@@ -135,6 +132,17 @@ class ProfileUpdate(generics.UpdateAPIView):
     queryset = Profile.objects.all().select_related('country')
     serializer_class = UpdateProfileSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        form_data = request.data.copy()
+        serializer = self.get_serializer(instance, data=form_data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        profile = self.get_object()
+        out_serializer = ReadProfileSerializer(profile)
+        return Response(out_serializer.data)
 
 
 
@@ -234,8 +242,9 @@ class ManageProfileCmetags(APIView):
         in_serializer.is_valid(raise_exception=True)
         profile = in_serializer.save()
         qset = ProfileCmetag.objects.filter(profile=profile)
+        s = ProfileCmetagSerializer(qset, many=True)
         context = {
-            'cmeTags': [ProfileCmetagSerializer(m).data for m in qset]
+            'cmeTags': s.data
         }
         return Response(context, status=status.HTTP_200_OK)
 
