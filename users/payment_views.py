@@ -18,7 +18,7 @@ from rest_framework.response import Response
 from common.logutils import *
 # app
 from .models import *
-from .serializers import ReadUserSubsSerializer
+from .serializers import UserSubsReadSerializer
 from .payment_serializers import *
 
 TPL_DIR = 'users'
@@ -370,7 +370,7 @@ class NewSubscription(generics.CreateAPIView):
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         logInfo(logger, request, 'NewSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
-        out_serializer = ReadUserSubsSerializer(user_subs)
+        out_serializer = UserSubsReadSerializer(user_subs)
         context['subscription'] = out_serializer.data
         return Response(context, status=status.HTTP_201_CREATED)
 
@@ -470,7 +470,7 @@ class ActivatePaidSubscription(generics.CreateAPIView):
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         logInfo(logger, request, 'ActivatePaidSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
-        out_serializer = ReadUserSubsSerializer(user_subs)
+        out_serializer = UserSubsReadSerializer(user_subs)
         context['subscription'] = out_serializer.data
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context['permissions'] = pdata['permissions']
@@ -673,7 +673,7 @@ class UpgradePlan(generics.CreateAPIView):
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         logInfo(logger, request, 'UpgradePlan: complete for subscriptionId={0.subscriptionId}'.format(new_user_subs))
-        out_serializer = ReadUserSubsSerializer(new_user_subs)
+        out_serializer = UserSubsReadSerializer(new_user_subs)
         context['subscription'] = out_serializer.data
         # Return permissions b/c new_user_subs may allow different perms than prior subscription.
         pdata = UserSubscription.objects.serialize_permissions(user, new_user_subs)

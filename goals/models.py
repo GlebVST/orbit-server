@@ -253,14 +253,8 @@ class LicenseGoalManager(models.Manager):
         profileStates = set([m.pk for m in profile.states.all()])
         qset = self.model.objects.filter(goal__is_active=True)
         for licensegoal in qset:
-            basegoal = licensegoal.goal
-            # check state match
-            if not licensegoal.state.pk in profileStates:
-                continue
-            # check specialties/degrees intersection
-            if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
-                continue
-            matchedGoals.append(licensegoal)
+            if licensegoal.isMatchProfile(profileDegrees, profileSpecs, profileStates):
+                matchedGoals.append(licensegoal)
         return matchedGoals
 
 
@@ -309,6 +303,20 @@ class LicenseGoal(models.Model):
         if not self.title:
             self.title = "{0.licenseType.name} License ({0.state.abbrev})".format(self)
 
+    def isMatchProfile(self, profileDegrees, profileSpecs, profileStates):
+        """Checks if self matches profile attributes
+        Returns: bool
+        """
+        basegoal = self.goal
+        # check state match
+        if not self.state.pk in profileStates:
+            return False
+        # check specialties/degrees intersection
+        if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
+            return False
+        return True
+
+
 class CmeGoalManager(models.Manager):
 
     def getMatchingGoalsForProfile(self, profile):
@@ -326,20 +334,12 @@ class CmeGoalManager(models.Manager):
             if not goal.valid:
                 logger.error('Invalid CmeGoal {0.pk}|{0}.'.format(goal))
                 continue
-            basegoal = goal.goal
-            if goal.entityType == self.model.STATE:
-                # check state match
-                if not goal.state.pk in profileStates:
-                    continue
-            elif goal.entityType == self.model.HOSPITAL:
-                # check hospital match
-                if not goal.hospital.pk in profileHospitals:
-                    continue
-            # check specialties/degrees intersection
-            if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
-                continue
-            # check tag match
-            if goal.isTagMatchProfile(profileTags):
+            if goal.isMatchProfile(
+                    profileDegrees,
+                    profileSpecs,
+                    profileStates,
+                    profileTags,
+                    profileHospitals):
                 matchedGoals.append(goal)
         return matchedGoals
 
@@ -491,6 +491,29 @@ class CmeGoal(models.Model):
             return True # null tag matches any
         return self.cmeTag.pk in profileTags
 
+
+    def isMatchProfile(self, profileDegrees, profileSpecs, profileStates, profileTags, profileHospitals):
+        """Checks if self matches profile attributes
+        Returns: bool
+        """
+        basegoal = self.goal
+        if self.entityType == CmeGoal.STATE:
+            # check state match
+            if not self.state.pk in profileStates:
+                return False
+        elif self.entityType == CmeGoal.HOSPITAL:
+            # check hospital match
+            if not self.hospital.pk in profileHospitals:
+                return False
+        # check specialties/degrees intersection
+        if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
+            return False
+        # check tag match
+        if not self.isTagMatchProfile(profileTags):
+            return False
+        return True
+
+
     def computeCredits(self, numProfileSpecs):
         """If self.cmeTag: return self.credits
         else: goal is untagged. Split credits by numProfileSpecs
@@ -630,9 +653,14 @@ class WellnessGoal(models.Model):
 
 
 class UserGoalManager(models.Manager):
-    def createCmeGoals(self, profile):
-        """Create CME UserGoals for the given profile
-        Returns: list of new usergoals created
+    def assignCmeGoals(self, profile):
+        """Assign CME UserGoals by matching existing goals to the given profile.
+        Steps:
+            1. Find matching CmeGoals based on profile
+            2. Group matched goals by tag (multiple CmeGoals consolidated by tag)
+            3. If UserGoal for this tag already exists: update/recompute it
+                Else create new UserGoal.
+        Returns: list of newly created usergoals
         """
         user = profile.user
         usergoals = []
@@ -649,9 +677,9 @@ class UserGoalManager(models.Manager):
                 usergoal = qset[0]
                 saved = usergoal.checkUpdate(goal, goals)
                 if saved:
-                    logger.info("createCmeGoals: update existing UserGoal {0.pk} for user {0.user}, tag {0.cmeTag}.".format(usergoal))
+                    logger.info("assignCmeGoals: update existing UserGoal {0.pk} for user {0.user}, tag {0.cmeTag}.".format(usergoal))
                 else:
-                    logger.debug("createCmeGoals: no-change for UserGoal {0.pk} for user {0.user}, tag {0.cmeTag}.".format(usergoal))
+                    logger.debug("assignCmeGoals: no-change for UserGoal {0.pk} for user {0.user}, tag {0.cmeTag}.".format(usergoal))
                 continue
             usergoal = self.model.objects.create(
                     user=user,
@@ -669,8 +697,17 @@ class UserGoalManager(models.Manager):
             usergoals.append(usergoal)
         return usergoals
 
-    def createLicenseGoals(self, profile):
-        """Create statelicenses for user and license goals
+    def assignLicenseGoals(self, profile):
+        """Assign License UserGoals and create any uninitialized statelicenses for user as needed
+        Steps:
+            1. Find matching LicenseGoals based on profile
+            2. If user StateLicense instance already exists for (state, licenseType): get it
+                Else: create uninitialized StateLicense for user
+            3. If UserGoal does not exist for this userLicense: create it
+            4. Update status of usergoal
+        Note: UserGoals can be removed by rematchGoals method, but userLicenses are preserved.
+        Therefore a userLicense can be attached to different UserGoal instances over time.
+        Returns: list of newly created usergoals
         """
         user = profile.user
         goals = LicenseGoal.objects.getMatchingGoalsForProfile(profile)
@@ -680,31 +717,18 @@ class UserGoalManager(models.Manager):
             # goal is a LicenseGoal
             basegoal = goal.goal
             licenseType = goal.licenseType
-            dueDate = None
             userLicense = None
             # does user license exist with a non-null expireDate
             qset = user.statelicenses.filter(state=goal.state, licenseType=licenseType, expireDate__isnull=False).order_by('-expireDate')
             if qset.exists():
                 userLicense = qset[0]
-                # does UserGoal for this license already exist
-                if self.model.objects.filter(user=user, goal=basegoal, license=userLicense).exists():
-                    logger.debug("UserGoal for User {0}|Goal {1}|License {2} already exists.".format(user, goal, userLicense))
-                    continue
-                # else
-                dueDate = userLicense.expireDate
-                if dueDate < now:
-                    status = self.model.PASTDUE
-                else:
-                    status = self.model.IN_PROGRESS
             else:
+                dueDate = now
+                status = self.model.PASTDUE
                 # does uninitialized license already exist
                 qset = user.statelicenses.filter(state=goal.state, licenseType=licenseType, expireDate__isnull=True)
                 if qset.exists():
                     userLicense = qset[0]
-                    # does UserGoal for this license already exist
-                    if self.model.objects.filter(user=user, goal=basegoal, license=userLicense).exists():
-                        logger.debug("UserGoal for User {0}|Goal {1}|uninitialized License {2.pk} already exists.".format(user, goal, userLicense))
-                        continue
                 else:
                     # create unintialized license
                     userLicense = StateLicense.objects.create(
@@ -713,100 +737,97 @@ class UserGoalManager(models.Manager):
                             licenseType=licenseType
                         )
                     logger.info('Create uninitialized {0.licenseType} License for user {0.user}'.format(userLicense))
-                # status is PASTDUE until user initializes their license
-                dueDate = now
-                status = self.model.PASTDUE
-            # create UserGoal with associated license
-            usergoal = self.model.objects.create(
-                    user=user,
-                    goal=basegoal,
-                    dueDate=dueDate,
-                    status=status,
-                    license=userLicense
-                )
-            logger.info('Created UserGoal: {0}'.format(usergoal))
-            usergoals.append(usergoal)
-        return usergoals
-
-    def createWellnessGoals(self, profile):
-        user = profile.user
-        goals = WellnessGoal.objects.getMatchingGoalsForProfile(profile)
-        usergoals = []
-        now = timezone.now()
-        for goal in goals:
-            basegoal = goal.goal
-            dueDate = None
-            if basegoal.isOneOff():
-                # Exactly one instance should exist
-                if self.model.objects.filter(user=user, goal=goal).exists():
-                    logger.debug('OneOff WellnessGoal {0.pk}/{0.title} already exists for user {1}'.format(goal, user))
-                    continue
-                status = self.model.PASTDUE
-                dueDate = now
-            elif basegoal.usesBirthDate():
-                status = self.model.IN_PROGRESS
-                if not profile.birthDate:
-                    logger.warning('WellnessGoal {0.pk} needs birthDate from user {1}'.format(goal, user))
-                    continue
-                try:
-                    dueDate = makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
-                except ValueError, e:
-                    logger.error("createWellnessGoals: dueDate error from birthDate: for user {0}".format(user))
-                    continue
-                # check unique constraint
-                if self.model.objects.filter(user=user, goal=basegoal, dueDate=dueDate).exists():
-                    logger.debug('Birthdate WellnessGoal {0.pk}/{0.title} already exists for user {1}'.format(goal, user))
-                    continue
+            # does UserGoal for this license already exist
+            qs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense)
+            if qs.exists():
+                usergoal = qs[0]
             else:
-                # fixed MM/DD
-                status = self.model.IN_PROGRESS
-                try:
-                    dueDate = makeDueDate(goal.dueMonth, goal.dueDay, now)
-                except ValueError, e:
-                    logger.error("createWellnessGoals: dueDate error from fixed MMDDD goal {0.pk} for user {1}".format(profile, user))
-                    continue
-                # check unique constraint
-                if self.model.objects.filter(user=user, goal=basegoal, dueDate=dueDate).exists():
-                    logger.debug('RecurMMDD WellnessGoal {0.pk}/{0.title} already exists for user {1}'.format(goal, user))
-                    continue
-            usergoal = self.model.objects.create(
-                    user=user,
-                    goal=basegoal,
-                    dueDate=dueDate,
-                    status=status,
-                )
-            logger.info('Created UserGoal: {0}'.format(usergoal))
-            usergoals.append(usergoal)
+                # create UserGoal with associated license
+                usergoal = self.model.objects.create(
+                        user=user,
+                        goal=basegoal,
+                        dueDate=dueDate,
+                        status=status,
+                        license=userLicense
+                    )
+                logger.info('Created UserGoal: {0}'.format(usergoal))
+                usergoals.append(usergoal)
+            # check status
+            status = usergoal.calcLicenseStatus(now)
+            if usergoal.status != status:
+                usergoal.status = status
+                usergoal.save(update_fields=('status',))
         return usergoals
 
-    def createGoals(self, user):
-        """Create UserGoals for the given user
-        Create User licensegoals before cmegoals so that all userLicenses are created.
-        Returns: list of new UserGoal instances created
+
+    def assignGoals(self, user):
+        """Assign UserGoals for the given user
+        Steps:
+            1. Get user profile with prefetched m2m attributes
+            2. Assign License UserGoals first so that all userLicense are created
+            3. Assign CME UserGoals
+        Returns: list of newly created UserGoals
         """
         qset = Profile.objects.filter(user=user).prefetch_related('degrees','specialties','states','hospitals')
         if not qset.exists():
             return []
         profile = qset[0]
         usergoals = []
-        usergoals.extend(self.createLicenseGoals(profile))
-        usergoals.extend(self.createCmeGoals(profile))
+        usergoals.extend(self.assignLicenseGoals(profile))
+        usergoals.extend(self.assignCmeGoals(profile))
         return usergoals
 
-    def rematchGoalsForProfile(self, user):
+    def rematchGoals(self, user):
         """This should be called when user's profile changes.
-        Remove stale/non-applicable goals, and create any new ones
-        Returns: list of new UserGoal instances created
+        Steps:
+            1. Remove stale UserGoals that no longer match the profile
+            2. Call assignGoals to create new UserGoals/update existing ones.
+        Returns: list of newly created UserGoals
         """
         qset = Profile.objects.filter(user=user).prefetch_related('degrees','specialties','states','hospitals')
         if not qset.exists():
             return []
         profile = qset[0]
-        # first remove stale goals
-        # add any new goals
+        profileDegrees = set([m.pk for m in profile.degrees.all()])
+        profileSpecs = set([m.pk for m in profile.specialties.all()])
+        profileStates = set([m.pk for m in profile.states.all()])
+        profileHospitals = set([m.pk for m in profile.hospitals.all()])
+        profileTags = set([m.tag.pk for m in profile.getActiveCmetags()])
+        # remove stale license goals
+        stale = []
+        existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.LICENSE)
+        for ug in existing:
+            licensegoal = ug.goal.licensegoal
+            if not licensegoal.isMatchProfile(profileDegrees, profileSpecs, profileStates):
+                stale.append(ug)
+        for ug in stale:
+            # Note: this only removes the UserGoal (any associated StateLicense is retained)
+            logger.info('Removing {0}'.format(ug))
+            ug.delete()
+        # for cme goals, only delete if all cmeGoals no longer apply
+        stale = []
+        existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.CME)
+        for ug in existing:
+            matchCount = 0
+            for cmegoal in ug.cmeGoals.all():
+                if cmegoal.isMatchProfile(
+                        profileDegrees,
+                        profileSpecs,
+                        profileStates,
+                        profileTags,
+                        profileHospitals):
+                    matchCount += 1
+            if not matchCount:
+                # none of the cmegoals match this profile anymore
+                # if only some no longer match, the usergoal will be updated and recomputed below
+                stale.append(ug)
+        for ug in stale:
+            logger.info('Removing {0}'.format(ug))
+            ug.delete()
+        # Assign goals (create/update)
         usergoals = []
-        usergoals.extend(self.createLicenseGoals(profile))
-        usergoals.extend(self.createCmeGoals(profile))
+        usergoals.extend(self.assignLicenseGoals(profile))
+        usergoals.extend(self.assignCmeGoals(profile))
         return usergoals
 
 @python_2_unicode_compatible
@@ -1059,7 +1080,7 @@ class UserGoal(models.Model):
             logger.debug('handleRedeemOffer: User {0.user} creditsDue: {0.creditsDue} for Tag {0.cmeTag}.'.format(self))
 
     def checkUpdate(self, goal, cmegoals):
-        """Used by createCmeGoals manager method to check and update fields if needed
+        """Used by assignCmeGoals manager method to check and update fields if needed
         Returns: bool True if model instance was updated
         """
         saved = False

@@ -177,7 +177,7 @@ class EmailSubscriptionPaymentFailure(APIView):
 
 class InvitationDiscountList(generics.ListAPIView):
     """List of InvitationDiscounts for the current authenticated user as inviter"""
-    serializer_class = ReadInvitationDiscountSerializer
+    serializer_class = InvitationDiscountReadSerializer
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):

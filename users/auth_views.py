@@ -18,7 +18,7 @@ from common.logutils import *
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
-from .serializers import ReadProfileSerializer, CmeTagSerializer, ActiveCmeTagSerializer, ReadUserSubsSerializer, ReadInvitationDiscountSerializer
+from .serializers import ProfileReadSerializer, CmeTagSerializer, ActiveCmeTagSerializer, UserSubsReadSerializer, InvitationDiscountReadSerializer
 
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
@@ -97,11 +97,11 @@ def serialize_user(user):
 
 
 def serialize_subscription(user_subs):
-    s = ReadUserSubsSerializer(user_subs)
+    s = UserSubsReadSerializer(user_subs)
     return s.data
 
 def serialize_profile(profile):
-    s = ReadProfileSerializer(profile)
+    s = ProfileReadSerializer(profile)
     return s.data
 
 def serialize_active_cmetag(tag):
@@ -112,7 +112,7 @@ def serialize_statelicense(obj):
     return StateLicenseSerializer(obj).data
 
 def serialize_invitationDiscount(obj):
-    return ReadInvitationDiscountSerializer(obj).data
+    return InvitationDiscountReadSerializer(obj).data
 
 def make_login_context(token, user):
     """Create context dict for response.

@@ -1,6 +1,7 @@
 import logging
 from urlparse import urlparse, urldefrag
 from rest_framework import serializers
+from common.signals import profile_saved
 from .models import *
 
 logger = logging.getLogger('gen.srl')
@@ -93,7 +94,7 @@ class PracticeSpecialtySerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'cmeTags', 'planText')
 
 class ProfileCmetagSerializer(serializers.ModelSerializer):
-    """Used by ReadProfileSerializer and UpdateProfileSerializer"""
+    """Used by ProfileReadSerializer and ProfileUpdateSerializer"""
     id = serializers.ReadOnlyField(source='tag.id')
     name = serializers.ReadOnlyField(source='tag.name')
     priority = serializers.ReadOnlyField(source='tag.priority')
@@ -103,7 +104,7 @@ class ProfileCmetagSerializer(serializers.ModelSerializer):
         model = ProfileCmetag
         fields = ('id', 'name', 'priority', 'description', 'is_active')
 
-class UpdateProfileCmetagSerializer(serializers.ModelSerializer):
+class ProfileCmetagUpdateSerializer(serializers.ModelSerializer):
     tag = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
     )
@@ -115,9 +116,11 @@ class UpdateProfileCmetagSerializer(serializers.ModelSerializer):
 
 class ManageProfileCmetagSerializer(serializers.Serializer):
     """Updates the is_active flag of a list of existing ProfileCmetags for a given user"""
-    tags = UpdateProfileCmetagSerializer(many=True)
+    tags = ProfileCmetagUpdateSerializer(many=True)
 
     def update(self, instance, validated_data):
+        """Update ProfileCmetag for user and emit profile_saved signal"""
+        user = instance.user
         data = validated_data['tags']
         for d in data:
             t = d['tag']
@@ -125,15 +128,17 @@ class ManageProfileCmetagSerializer(serializers.Serializer):
             try:
                 pct = ProfileCmetag.objects.get(profile=instance, tag=t)
             except ProfileCmetag.DoesNotExist:
-                logger.warning('ManageProfileCmeTags: Invalid tag for user {0}: {1}'.format(instance.user, t))
+                logger.warning('ManageProfileCmeTags: Invalid tag for user {0}: {1}'.format(user, t))
             else:
                 if pct.is_active != is_active:
                     pct.is_active = is_active
                     pct.save()
                     logger.info('Updated ProfileCmetag {0}'.format(pct))
+        # emit profile_saved signal
+        ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
-class UpdateProfileSerializer(serializers.ModelSerializer):
+class ProfileUpdateSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
     country = serializers.PrimaryKeyRelatedField(
         queryset=Country.objects.all(),
@@ -236,7 +241,8 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         """
         If any new specialties added, then check for new cmeTags.
         If a specialty is removed, then remove its cmeTags if not assigned to
-        any entry made by the user.
+            any entry made by the user.
+        Emit profile_saved signal at the end.
         """
         user = instance.user
         upd_cmetags = False
@@ -244,7 +250,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         # get current specialties before updating the instance
         curSpecs = set([ps for ps in instance.specialties.all()])
         # update the instance
-        instance = super(UpdateProfileSerializer, self).update(instance, validated_data)
+        instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
         # now handle cmeTags
         spec_key = 'specialties'
         if spec_key in validated_data:
@@ -282,10 +288,12 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
                         pct.is_active = True
                         pct.save()
                         logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
+        # emit profile_saved signal
+        ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
 
-class ReadProfileSerializer(serializers.ModelSerializer):
+class ProfileReadSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
     country = serializers.PrimaryKeyRelatedField(read_only=True)
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -456,7 +464,7 @@ class DocumentReadSerializer(serializers.ModelSerializer):
         read_only_fields = ('name','md5sum','content_type','image_h','image_w', 'is_thumb','is_certificate')
 
 # Used by payment_views and auth_views
-class ReadUserSubsSerializer(serializers.ModelSerializer):
+class UserSubsReadSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     plan_type = serializers.StringRelatedField(source='plan.plan_type', read_only=True)
     plan = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -488,7 +496,7 @@ class ReadUserSubsSerializer(serializers.ModelSerializer):
 
 
 
-class ReadInvitationDiscountSerializer(serializers.ModelSerializer):
+class InvitationDiscountReadSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='invitee.id', read_only=True)
     inviter = serializers.PrimaryKeyRelatedField(read_only=True)
     inviteeEmail = serializers.ReadOnlyField(source='invitee.email')

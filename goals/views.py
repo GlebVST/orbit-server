@@ -55,7 +55,7 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
     """
     Update User License goal
     """
-    serializer_class = UpdateUserLicenseGoalSerializer
+    serializer_class = UserLicenseGoalUpdateSerializer
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):

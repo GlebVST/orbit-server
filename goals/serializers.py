@@ -158,7 +158,7 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class UpdateUserLicenseGoalSerializer(serializers.Serializer):
+class UserLicenseGoalUpdateSerializer(serializers.Serializer):
     licenseNumber = serializers.CharField(max_length=40)
     expireDate = serializers.DateTimeField()
     documents = serializers.PrimaryKeyRelatedField(
@@ -204,16 +204,16 @@ class UpdateUserLicenseGoalSerializer(serializers.Serializer):
             logger.debug('Finding usercmegoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
             for cmeGoal in licenseGoal.cmegoals.all():
                 # Use related_name on UserGoal.cmeGoals M2Mfield
-                logger.debug('Partner cmeGoal: {0.pk}/{0}'.format(cmeGoal))
+                logger.info('Partner cmeGoal: {0.pk}/{0}'.format(cmeGoal))
                 qset = cmeGoal.usercmegoals.filter(user=instance.user)
                 for ug in qset: # UserGoal qset for this user
                     to_update.add(ug)
             for ug in to_update:
-                logger.debug('update UserGoal {0} for Tag {0.cmeTag}'.format(ug))
+                logger.info('Update UserGoal {0} for Tag {0.cmeTag}'.format(ug))
                 ug.recompute()
         return instance
 
-class UpdateUserWellnessGoalSerializer(serializers.Serializer):
+class UserWellnessGoalUpdateSerializer(serializers.Serializer):
     completeDate = serializers.DateTimeField()
     documents = serializers.PrimaryKeyRelatedField(
         queryset=Document.objects.all(),

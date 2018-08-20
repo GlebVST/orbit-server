@@ -12,18 +12,14 @@ from django.utils import timezone
 from rest_framework import serializers
 from common.viewutils import newUuid, md5_uploaded_file
 from common.appconstants import GROUP_ENTERPRISE_ADMIN, GROUP_ENTERPRISE_MEMBER
+from common.signals import profile_saved
 from .models import *
-from goals.models import UserGoal
-from pprint import pprint
 
 logger = logging.getLogger('gen.esrl')
 
 class OrgMemberReadSerializer(serializers.ModelSerializer):
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-    is_admin = serializers.ReadOnlyField()
-    compliance = serializers.ReadOnlyField()
-    removeDate = serializers.ReadOnlyField()
     email = serializers.ReadOnlyField(source='user.email')
     firstName = serializers.ReadOnlyField(source='user.profile.firstName')
     lastName = serializers.ReadOnlyField(source='user.profile.lastName')
@@ -50,6 +46,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'created',
             'modified'
         )
+        read_only_fields = fields
 
 class OrgMemberFormSerializer(serializers.Serializer):
     firstName = serializers.CharField(max_length=30)
@@ -89,7 +86,6 @@ class OrgMemberFormSerializer(serializers.Serializer):
             now = timezone.now()
             passw = apiConn.make_initial_pass(email, now.year)
             socialId = apiConn.createUser(email, passw, verify_email)
-        logger.debug('socialId: {0}'.format(socialId))
         # 2. create user and profile instances
         profile = Profile.objects.createUserAndProfile(
             email,
@@ -150,9 +146,9 @@ class OrgMemberFormSerializer(serializers.Serializer):
             if vdegs:
                 profile.degrees.set(vdegs)
             if newDeg != curDeg:
-                logger.info('UpdateOrgMember: change degree from {0} to {1} for user {2}'.format(curDeg, newDeg, user))
-                # find and remove no-longer applicable goals
-                ##UserGoal.rematchGoalsForProfile(user)
+                logger.info('UpdateOrgMember: User {0} change degree from {1} to {2}.'.format(user, curDeg, newDeg))
+                # emit profile_saved signal
+                ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         # update OrgMember and user groups
         if removeDate != instance.removeDate:
             instance.removeDate = removeDate

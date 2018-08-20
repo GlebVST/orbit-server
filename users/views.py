@@ -130,7 +130,7 @@ class ProfileUpdate(generics.UpdateAPIView):
     Current fix is to just make this an Update-only view.
     """
     queryset = Profile.objects.all().select_related('country')
-    serializer_class = UpdateProfileSerializer
+    serializer_class = ProfileUpdateSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
 
     def update(self, request, *args, **kwargs):
@@ -141,7 +141,7 @@ class ProfileUpdate(generics.UpdateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         profile = self.get_object()
-        out_serializer = ReadProfileSerializer(profile)
+        out_serializer = ProfileReadSerializer(profile)
         return Response(out_serializer.data)
 
 
