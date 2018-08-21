@@ -8,6 +8,7 @@ from PIL import Image
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
+from django.utils import timezone
 from rest_framework import serializers
 from common.viewutils import newUuid, md5_uploaded_file
 from .models import *
@@ -113,4 +114,41 @@ class UploadDocumentSerializer(serializers.Serializer):
             thumb_instance.document.save(thumbName.lower(), cf, save=True)
             thumb_instance.referenceId = 'document' + hashgen.encode(thumb_instance.pk)
             thumb_instance.save(update_fields=('referenceId',))
+        return instance
+
+class UploadOrgFileSerializer(serializers.Serializer):
+    document = serializers.FileField(max_length=None, allow_empty_file=False)
+    name = serializers.CharField(max_length=255, required=False)
+
+    class Meta:
+        fields = (
+            'document',
+            'name',
+        )
+
+    def create(self, validated_data):
+        """Create OrgFile instance.
+        Extra keys expected in validated_data:
+            user: User instance
+            organization: Organization instance
+        """
+        user = validated_data['user']
+        org = validated_data['organization']
+        newDoc = validated_data['document'] # UploadedFile (or subclass)
+        fileName = validated_data.get('name', '')
+        defaultFileName = 'upload_roster_{0:%Y%m%d%H%M%S}.csv'.format(now)
+        now = timezone.now()
+        if not fileName:
+            fileName = defaultFileName
+        try:
+            logger.debug(u'UploadOrgFile filename: {0}'.format(fileName))
+        except UnicodeDecodeError:
+            fileName = defaultFileName
+        instance = OrgFile.objects.create(
+                user=user,
+                organization=org,
+                document=newDoc,
+                name=fileName,
+                content_type=newDoc.content_type
+            )
         return instance

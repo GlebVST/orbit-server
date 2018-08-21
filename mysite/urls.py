@@ -136,6 +136,7 @@ api_patterns = [
     # enterprise admin
     url(r'^enterprise/orgmembers/?$', enterprise_views.OrgMemberList.as_view()),
     url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberDetail.as_view()),
+    url(r'^enterprise/upload-roster/?$', enterprise_views.UploadRoster.as_view()),
 ]
 if settings.ENV_TYPE != settings.ENV_PROD:
     # debug

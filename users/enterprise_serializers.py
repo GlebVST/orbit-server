@@ -7,7 +7,6 @@ import hashlib
 import logging
 import mimetypes
 from django.contrib.auth.models import User, Group
-from django.core.files.base import ContentFile
 from django.utils import timezone
 from rest_framework import serializers
 from common.viewutils import newUuid, md5_uploaded_file
@@ -62,7 +61,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         """This expects extra keys in the validated_data:
-            authApi: Auth0Api instance
+            apiConn: Auth0Api instance
             organization: Organization instance
         1. Create Auth0 user account
         2. Create User & Profile instance (and assign org)
@@ -162,3 +161,24 @@ class OrgMemberFormSerializer(serializers.Serializer):
                 user.groups.remove(ga)
         instance.save()
         return instance
+
+
+class OrgFileReadSerializer(serializers.ModelSerializer):
+    organization = serializers.PrimaryKeyRelatedField(read_only=True)
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
+
+    class Meta:
+        model = OrgFile
+        fields = (
+            'id',
+            'organization',
+            'user',
+            'name',
+            'url',
+            'dialect',
+            'content_type',
+            'created',
+            'modified'
+        )
+        read_only_fields = fields

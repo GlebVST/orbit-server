@@ -52,6 +52,12 @@ ADMINS = [
     ('Gleb Starodubstev',   'gleb@codeabovelab.com')
 ]
 
+MANAGERS = [
+#    ('Ram Srinivasan',     'ram@orbitcme.com'),
+    ('Faria Chowdhury',     'faria.chowdhury@gmail.com'),
+    ('Gleb Starodubstev',   'gleb@codeabovelab.com')
+]
+
 # Note: This value should match the X_FORWARDED_HOST in the nginx conf file.
 SERVER_HOSTNAME = get_environment_variable('ORBIT_SERVER_HOSTNAME')  # e.g. test1.orbitcme.com
 SERVER_IP = os.environ.get('ORBIT_SERVER_IP_ADDR', '')
@@ -100,6 +106,7 @@ AWS_S3_ENCRYPTION = True
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 FEED_MEDIA_BASEDIR = 'entries'
 CERTIFICATE_MEDIA_BASEDIR = 'certificates'
+ORG_MEDIA_BASEDIR = 'org'
 MEDIA_URL = "http://%s.s3.amazonaws.com/" % AWS_STORAGE_BUCKET_NAME
 
 # File Upload settings
@@ -387,6 +394,8 @@ EMAIL_FROM = 'mission-control@orbitcme.com'
 EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
 # used for error reporting
 SERVER_EMAIL = EMAIL_FROM
+EMAIL_SUBJECT_PREFIX = '[Orbit] ' if ENV_TYPE == ENV_PROD else '[Orbit Test] '
+
 # recipient for user feedback
 FEEDBACK_RECIPIENT_EMAIL = 'feedback@orbitcme.com'
 SUPPORT_EMAIL = 'support@orbitcme.com'

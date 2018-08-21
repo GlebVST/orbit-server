@@ -358,6 +358,59 @@ class Organization(models.Model):
     def __str__(self):
         return self.code
 
+
+class OrgFileManager(models.Manager):
+
+    def getCsvFileDialect(self, orgfile):
+        """This is called the OrgFileUpload hander to check the file dialect
+        Args:
+            orgfile: OrgFile instance
+        Expected file format: lastName, firstName, email, role
+        Returns: str - dialect found. None if none found
+        """
+        import csv
+        with open(orgfile.document, 'rb') as f:
+            try:
+                dialect = csv.Sniffer().sniff(f.read(1024))
+            except csv.Error:
+                logger.error('getCsvFileDialect csv.Error for file_id {0.pk}'.format(orgfile))
+                return None
+            else:
+                if dialect:
+                    orgfile.dialect = dialect
+                    orgfile.save(update_fields=('dialect',))
+        return dialect
+
+def orgfile_document_path(instance, filename):
+    return '{0}/org_{1}/{2}'.format(settings.ORG_MEDIA_BASEDIR, instance.organization.id, filename)
+
+@python_2_unicode_compatible
+class OrgFile(models.Model):
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        related_name='orgfiles',
+        db_index=True
+    )
+    organization = models.ForeignKey(Organization,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='orgfiles'
+    )
+    document = models.FileField(upload_to=orgfile_document_path)
+    name = models.CharField(max_length=255, blank=True, help_text='Original file name')
+    content_type = models.CharField(max_length=100, blank=True, help_text='file content_type')
+    dialect = models.CharField(max_length=40, blank=True, help_text='dialect of file for csv processing')
+    processed = models.BooleanField(default=False)
+    created = models.DateTimeField(auto_now_add=True)
+    objects = OrgFileManager()
+
+    class Meta:
+        verbose_name_plural = 'Enterprise File Uploads'
+
+    def __str__(self):
+        return self.name
+
+
 class OrgMemberManager(models.Manager):
 
     def makeFullName(self, firstName, lastName):
@@ -418,6 +471,7 @@ class OrgMember(models.Model):
             help_text='date the member was removed')
     compliance = models.PositiveSmallIntegerField(default=1,
             help_text='Cached value of compliance status for sorting')
+    orgfiles = models.ManyToManyField(OrgFile, related_name='orgmembers')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = OrgMemberManager()

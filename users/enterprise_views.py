@@ -8,7 +8,6 @@ from smtplib import SMTPException
 import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.core.files.base import ContentFile
 from django.core.mail import EmailMessage
 from django.db import transaction
 from django.forms.models import model_to_dict
@@ -28,6 +27,7 @@ from common.logutils import *
 from .auth0_tools import Auth0Api
 from .models import *
 from .enterprise_serializers import *
+from .upload_serializers import UploadOrgFileSerializer
 from .permissions import *
 
 logger = logging.getLogger('api.entpv')
@@ -175,3 +175,52 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         m = OrgMember.objects.get(pk=instance.pk)
         out_serializer = OrgMemberReadSerializer(m)
         return Response(out_serializer.data)
+
+class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
+    serializer_class = UploadOrgFileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    parser_classes = (FormParser, MultiPartParser)
+
+    def perform_create(self, serializer, format=None):
+        """Create OrgFile instance and send EmailMessage to MANAGERS"""
+        user = self.request.user
+        org = user.profile.organization
+        instance = serializer.save(user=user, organization=org)
+        try:
+            checked = OrgFile.objects.getCsvFileDialect(instance)
+            uploadedFile = self.request.data['document']
+            fileData = uploadedFile.read()
+        except Exception, e:
+            logger.error('UploadRoster getCsvFileDialect Exception: {0}'.format(e))
+            error_msg = 'Invalid file format'
+            raise serializers.ValidationEror(error_msg)
+        else:
+            # create EmailMessage
+            from_email = settings.EMAIL_FROM
+            to_email = settings.MANAGERS # list
+            subject = 'New Roster File Upload for {0.code}'.format(org)
+            ctx = {
+                'user': user,
+                'orgfile': instance
+            }
+            message = get_template('email/upload_roster_notification.html').render(ctx)
+            msg = EmailMessage(
+                    subject,
+                    message,
+                    to=to_email,
+                    from_email=from_email)
+            msg.content_subtype = 'html'
+            msg.attach(instance.name, fileData, instance.content_type)
+            try:
+                msg.send()
+            except SMTPException as e:
+                logException(logger, self.request, 'UploadRoster send email failed.')
+        return instance
+
+    def create(self, request, *args, **kwargs):
+        """Override method to handle custom input/output data structures"""
+        in_serializer = self.get_serializer(data=request.data)
+        in_serializer.is_valid(raise_exception=True)
+        instance = self.perform_create(in_serializer)
+        out_serializer = OrgFileReadSerializer(instance)
+        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
