@@ -116,9 +116,14 @@ class Auth0Api(object):
                     num_upd += 1
         return num_upd
 
-    def make_initial_pass(self, email, year_joined):
-        prefx = email.split('@')[0]
-        p = "{0}.{1}!".format(prefx, year_joined)
+    def make_initial_pass(self, email, date_joined):
+        """Args:
+            email: str
+            date_joined: datetime
+        Returns: str
+        """
+        sufx = email.split('@')[0][::-1]
+        p = "Z.{0:%Y%m%d%H%M}.{1}!".format(date_joined, sufx)
         logger.debug('{0}={1}'.format(email, p))
         return p
 
@@ -131,16 +136,15 @@ class Auth0Api(object):
             return result['user_id']
         return None
 
-    def createUser(self, email, password, verify_email=True):
+    def createUser(self, email, password, verify_email=False):
         """Create new user account
         Returns: str auth0 userid
         """
-        ev = not verify_email
         body = {
             'connection': DEFAULT_CONN_NAME,
             'email': email,
             'password': password,
-            'email_verified': ev,
+            'email_verified': False,
             'verify_email': verify_email,
         }
         response = self.conn.users.create(body)
@@ -165,3 +169,23 @@ class Auth0Api(object):
         }
         response = self.conn.users.update(user_id, body)
         return response
+
+
+    def change_password_ticket(self, user_id, redirect_url, ttl_days=7):
+        """Create change_password_ticket
+        Args:
+            user_id: str auth0 userid
+            redirect_url: URL - to redirect user to after ticket is used
+            ttl_days: int number of days for which ticket url is valid
+        Returns: URL of ticket
+        """
+        if ttl_days <= 0:
+            raise ValueError('change_password_ticket: ttl_days must be a positive integer')
+        body = {
+            'user_id': user_id,
+            'result_url': redirect_url,
+            'ttl_sec': 86400*ttl_days
+        }
+        response = self.conn.tickets.create_pswd_change(body)
+        return response['ticket']
+

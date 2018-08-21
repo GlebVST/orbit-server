@@ -6,6 +6,8 @@ import os
 import hashlib
 import logging
 import mimetypes
+from smtplib import SMTPException
+from django.conf import settings
 from django.contrib.auth.models import User, Group
 from django.utils import timezone
 from rest_framework import serializers
@@ -13,6 +15,7 @@ from common.viewutils import newUuid, md5_uploaded_file
 from common.appconstants import GROUP_ENTERPRISE_ADMIN, GROUP_ENTERPRISE_MEMBER
 from common.signals import profile_saved
 from .models import *
+from .emailutils import sendChangePasswordTicketEmail
 
 logger = logging.getLogger('gen.esrl')
 
@@ -57,7 +60,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
     )
     removeDate = serializers.DateTimeField(required=False, allow_null=True)
     is_admin = serializers.BooleanField(required=False, default=False)
-    verify_email = serializers.BooleanField(required=False, default=True)
+    password_ticket = serializers.BooleanField(required=False, default=True)
 
     def create(self, validated_data):
         """This expects extra keys in the validated_data:
@@ -67,6 +70,8 @@ class OrgMemberFormSerializer(serializers.Serializer):
         2. Create User & Profile instance (and assign org)
         3. Create UserSubscription using plan_type=ENTERPRISE
         4. Create OrgAdmin model instance
+        5. Assign groups to the new user
+        6. Generate change-password-ticket if given
         Returns: OrgAdmin model instance
         """
         apiConn = validated_data['apiConn']
@@ -76,15 +81,15 @@ class OrgMemberFormSerializer(serializers.Serializer):
         email = validated_data['email']
         degrees = validated_data['degrees']
         is_admin = validated_data.get('is_admin', False)
-        verify_email = validated_data.get('verify_email', True)
+        password_ticket = validated_data.get('password_ticket', True)
         # 0. get Enterprise Plan
         plan = SubscriptionPlan.objects.getEnterprisePlan()
         # 1. get or create auth0 user
         socialId = apiConn.findUserByEmail(email)
         if not socialId:
             now = timezone.now()
-            passw = apiConn.make_initial_pass(email, now.year)
-            socialId = apiConn.createUser(email, passw, verify_email)
+            passw = apiConn.make_initial_pass(email, now)
+            socialId = apiConn.createUser(email, passw)
         # 2. create user and profile instances
         profile = Profile.objects.createUserAndProfile(
             email,
@@ -105,6 +110,15 @@ class OrgMemberFormSerializer(serializers.Serializer):
         user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
         if is_admin:
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
+        # 6. Create change-password ticket
+        if password_ticket:
+            redirect_url = 'https://{0}{1}'.format(settings.SERVER_HOSTNAME, settings.UI_LINK_LOGIN)
+            ticket_url = apiConn.change_password_ticket(socialId, redirect_url)
+            logger.debug(ticket_url)
+            try:
+                sendChangePasswordTicketEmail(instance, ticket_url)
+            except SMTPException as e:
+                logger.error('sendChangePasswordTicketEmail failed for user {0}. ticket_url={1}'.format(user, ticket_url))
         return m
 
 

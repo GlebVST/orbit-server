@@ -13,7 +13,7 @@ from .models import *
 from pprint import pprint
 
 ROCKET_ICON = u'\U0001F680'
-REPLY_TO = settings.SUPPORT_EMAIL if settings.ENV_TYPE == settings.ENV_PROD else 'faria@orbitcme.com'
+REPLY_TO = settings.SUPPORT_EMAIL
 
 TEST_ONLY_PREFIX = u'[test-only] '
 
@@ -28,6 +28,7 @@ def setCommonContext(ctx):
         hostname = hostname.replace('admin.', '')
     ctx.update({
         'server_hostname': hostname,
+        'login_link': settings.UI_LINK_LOGIN,
         'feedback_link': settings.UI_LINK_FEEDBACK,
         'subscription_link': settings.UI_LINK_SUBSCRIPTION,
         'support_email': settings.SUPPORT_EMAIL,
@@ -384,5 +385,23 @@ def sendCancelReminderEmail(user_subs, payment_method, extra_data):
             to=[user.email],
             reply_to=[REPLY_TO,]
         )
+    msg.content_subtype = 'html'
+    msg.send()
+
+
+def sendChangePasswordTicketEmail(orgmember, ticket_url):
+    """Send EmailMessage receipt to user using set_password_enterprise template
+    Can raise SMTPException
+    """
+    from_email = settings.SUPPORT_EMAIL
+    subject = makeSubject(u'Welcome to Orbit! Please set your password')
+    user = orgmember.user
+    ctx = {
+        'org': orgmember.organization,
+        'ticket_url': ticket_url,
+    }
+    setCommonContext(ctx)
+    message = get_template('email/set_password_enterprise.html').render(ctx)
+    msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
     msg.content_subtype = 'html'
     msg.send()

@@ -721,6 +721,9 @@ class SubscriptionPlan(models.Model):
         """True if this is an limited CME rate plan, else False"""
         return self.maxCmeMonth > 0
 
+    def isEnterprise(self):
+        return self.plan_type == SubscriptionPlanType.ENTERPRISE
+
     def isFreeIndividual(self):
         return not self.plan_type == SubscriptionPlanType.FREE_INDIVIDUAL
 

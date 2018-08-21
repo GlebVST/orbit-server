@@ -421,3 +421,4 @@ COMPANY_ADDRESS = '265 Cambridge Ave, #61224, Palo Alto CA 94306'
 # UI links (relative to SERVER_HOSTNAME)
 UI_LINK_SUBSCRIPTION = '/subscription'
 UI_LINK_FEEDBACK = '/feedback'
+UI_LINK_LOGIN = '/login'
