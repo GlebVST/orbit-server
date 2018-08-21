@@ -58,7 +58,14 @@ class OrgMemberFilterBackend(BaseFilterBackend):
                 location='query',
                 required=False,
                 type='string',
-                description='order_by'
+                description='Order By one of: lastname/created/compliance/verified'
+                ),
+            coreapi.Field(
+                name='otype',
+                location='query',
+                required=False,
+                type='string',
+                description='a for ASC. d for DESC'
                 ),
             ]
 
@@ -66,16 +73,19 @@ class OrgMemberFilterBackend(BaseFilterBackend):
         """This requires the model Manager to have a search_filter manager method"""
         org = request.user.profile.organization
         search_term = request.query_params.get('q', '').strip()
-        o = request.query_params.get('o', '').strip()
-        # default order by
-        orderByFields = ('user__profile__lastName', 'user__profile__firstName', 'created')
-        if o == 'created':
-            orderByFields = ('created', 'fullname')
+        o = request.query_params.get('o', 'lastname').strip()
+        otype = request.query_params.get('otype', 'a').strip() # sort primary field by ASC/DESC
+        # set orderByFields from o
+        if o == 'lastname':
+            orderByFields = ['user__profile__lastName', 'user__profile__firstName', 'created']
+        elif o == 'created':
+            orderByFields = ['created', 'fullname']
         elif o == 'compliance':
-            orderByFields = ('compliance', 'fullname')
+            orderByFields = ['compliance', 'fullname']
         elif o == 'verified':
-            orderByFields = ('user__profile__verified', 'fullname')
-
+            orderByFields = ['user__profile__verified', 'fullname']
+        if otype == 'd':
+            orderByFields[0] = '-' + orderByFields[0]
         if search_term:
             logInfo(logger, request, search_term)
             return OrgMember.objects.search_filter(org, search_term, orderByFields)
