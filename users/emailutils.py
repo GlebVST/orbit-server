@@ -5,6 +5,7 @@ import premailer
 from io import StringIO
 from operator import itemgetter
 from django.conf import settings
+from django.core import mail
 from django.core.mail import EmailMessage
 from django.template.loader import get_template
 from django.utils import timezone
@@ -389,9 +390,14 @@ def sendCancelReminderEmail(user_subs, payment_method, extra_data):
     msg.send()
 
 
-def sendChangePasswordTicketEmail(orgmember, ticket_url):
+def sendChangePasswordTicketEmail(orgmember, ticket_url, send_message=True):
     """Send EmailMessage receipt to user using set_password_enterprise template
+    Args:
+        orgmember: OrgMembr instance
+        ticket_url: URL for change-password-ticket
+        send_message: bool defaults to True. If False, msg will be returned instead
     Can raise SMTPException
+
     """
     from_email = settings.SUPPORT_EMAIL
     subject = makeSubject(u'Welcome to Orbit! Please set your password')
@@ -404,4 +410,22 @@ def sendChangePasswordTicketEmail(orgmember, ticket_url):
     message = get_template('email/set_password_enterprise.html').render(ctx)
     msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
     msg.content_subtype = 'html'
-    msg.send()
+    if send_message:
+        msg.send()
+    else:
+        return msg
+
+def massSendChangePasswordTicketEmail(data):
+    """Send EmailMessage receipt to user using set_password_enterprise template
+    Args:
+        data: list of tuples (orgmember, ticket_url)
+    Can raise SMTPException
+    """
+    connection = mail.get_connection()
+    messages = []
+    connection.open()
+    for (orgmember, ticket_url) in data:
+        msg = sendChangePasswordTicketEmail(orgmember, ticket_url, send_message=False)
+        messages.append(msg)
+    connection.send(messages)
+    connection.close()

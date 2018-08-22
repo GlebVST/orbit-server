@@ -116,9 +116,9 @@ class OrgMemberFormSerializer(serializers.Serializer):
             ticket_url = apiConn.change_password_ticket(socialId, redirect_url)
             logger.debug(ticket_url)
             try:
-                sendChangePasswordTicketEmail(instance, ticket_url)
+                sendChangePasswordTicketEmail(m, ticket_url)
             except SMTPException as e:
-                logger.error('sendChangePasswordTicketEmail failed for user {0}. ticket_url={1}'.format(user, ticket_url))
+                logger.warning('sendChangePasswordTicketEmail failed for user {0}. ticket_url={1}'.format(user, ticket_url))
         return m
 
 

@@ -48,8 +48,8 @@ class OrgAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class OrgFileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'user', 'name', 'processed','created')
-    list_select_related = ('user','organization')
+    list_display = ('id', 'organization', 'user', 'name', 'processed','document', 'created')
+    list_select_related = ('user','organization',)
     ordering = ('-created',)
 
 class OrgMemberAdmin(admin.ModelAdmin):
