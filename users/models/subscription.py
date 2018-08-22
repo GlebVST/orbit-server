@@ -665,8 +665,6 @@ class SubscriptionPlan(models.Model):
             help_text='discounted price in USD')
     active = models.BooleanField(default=True)
     plan_type = models.ForeignKey(SubscriptionPlanType,
-        null=True,
-        blank=True,
         on_delete=models.PROTECT,
         db_index=True,
         related_name='plans',
@@ -722,7 +720,7 @@ class SubscriptionPlan(models.Model):
         return self.maxCmeMonth > 0
 
     def isEnterprise(self):
-        return self.plan_type == SubscriptionPlanType.ENTERPRISE
+        return self.plan_type.name == SubscriptionPlanType.ENTERPRISE
 
     def isFreeIndividual(self):
         return not self.plan_type == SubscriptionPlanType.FREE_INDIVIDUAL
@@ -735,9 +733,26 @@ class SubscriptionPlan(models.Model):
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
 class UserSubscriptionManager(models.Manager):
     def getLatestSubscription(self, user):
-        qset = UserSubscription.objects.filter(user=user).order_by('-created')
+        qset = UserSubscription.objects.select_related('plan').filter(user=user).order_by('-created')
         if qset.exists():
             return qset[0]
+
+    def allowSignupDiscount(self, user_subs):
+        """Check if user is allowed signup discounts
+        Args:
+            user_subs: latest UserSubscription instance for user/None
+        Returns: bool
+        """
+        if user_subs is None:
+            # user has never had a UserSubscription
+            return True
+        if user_subs.display_status == self.model.UI_TRIAL:
+            return True
+        if user_subs.display_status == self.model.UI_TRIAL_CANCELED:
+            return True
+        if user_subs.plan.isEnterprise():
+            return True
+        return False
 
     def getPermissions(self, user_subs):
         """Return the permissions for the group that matches user_subs.display_status

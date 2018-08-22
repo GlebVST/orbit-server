@@ -42,18 +42,25 @@ class SubscriptionPlanList(generics.ListAPIView):
 
     def get_queryset(self):
         """Filter plans by plan_key sourced from the planId in request.user.profile"""
-        profile = self.request.user.profile
+        user = self.request.user
+        profile = user.profile
         try:
             plan = SubscriptionPlan.objects.get(planId=profile.planId)
+            if plan.isEnterprise():
+                filter_kwargs = dict(active=True, plan_type=plan.plan_type)
+                return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('id')
             plan_key = plan.plan_key
         except SubscriptionPlan.DoesNotExist:
             logError(logger, self.request, "Invalid profile.planId: {0.planId}".format(profile))
             return SubscriptionPlan.objects.none().order_by('id')
         else:
             if not plan_key:
-                logError(logger, self.request, "No plan_key for profile {0}".format(profile))
-                return SubscriptionPlan.objects.none().order_by('id')
-            # else
+                # else pick first plan_key that matches user degree and specialty
+                degree = profile.degrees.all()[0] if profile.degrees.exists() else None
+                specs = [ps.pk for ps in profile.specialties.all()]
+                if degree and specs:
+                    plan_key = SubscriptionPlanKey.objects.filter(degree=degree, specialty__in=specs).order_by('id')[0]
+            # return plans for the plan_key
             filter_kwargs = dict(active=True, plan_key=plan_key)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
 
@@ -87,9 +94,7 @@ class SignupDiscountList(APIView):
         profile = user.profile
         data = []
         user_subs = UserSubscription.objects.getLatestSubscription(user)
-        # TODO: make this a manager method and allow former Enterprise-plan user
-        if user_subs is None or (user_subs.display_status == UserSubscription.UI_TRIAL) or (user_subs.display_status == UserSubscription.UI_TRIAL_CANCELED):
-            # User has never had an active subscription.
+        if UserSubscription.objects.allowSignupDiscount(user_subs):
             promo = SignupEmailPromo.objects.get_casei(user.email)
             if promo:
                 # this overrides any other discount
