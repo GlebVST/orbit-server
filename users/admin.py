@@ -30,32 +30,37 @@ class AuthImpersonationAdmin(admin.ModelAdmin):
 class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'sort_order', 'created')
 
-class SubSpecialtyInline(admin.TabularInline):
-    model = SubSpecialty
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'formatTags', 'formatSubSpecialties')
     filter_horizontal = ('cmeTags',)
-    inlines = [
-        SubSpecialtyInline,
-    ]
 
     def get_queryset(self, request):
         qs = super(PracticeSpecialtyAdmin, self).get_queryset(request)
         return qs.prefetch_related('cmeTags', 'subspecialties')
 
+class SubSpecialtyAdmin(admin.ModelAdmin):
+    list_display = ('id', 'specialty', 'name', 'formatTags')
+    filter_horizontal = ('cmeTags',)
+    list_select_related = True
+    list_filter = ('specialty',)
+
+    def get_queryset(self, request):
+        qs = super(SubSpecialtyAdmin, self).get_queryset(request)
+        return qs.prefetch_related('cmeTags')
+
 class OrgAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class OrgFileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'user', 'name', 'processed','document', 'created')
-    list_select_related = ('user','organization',)
+    list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created')
+    list_select_related = True
     ordering = ('-created',)
 
 class OrgMemberAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'removeDate')
     list_select_related = True
-    list_filter = ('is_admin', 'organization', UserFilter)
+    list_filter = ('is_admin', 'setPasswordEmailSent', 'organization', UserFilter)
     ordering = ('-created','fullname')
 
     class Media:
@@ -440,12 +445,13 @@ admin_site.register(Sponsor, SponsorAdmin)
 admin_site.register(State, StateAdmin)
 admin_site.register(StateLicense, StateLicenseAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
+admin_site.register(SubscriptionEmail, SubscriptionEmailAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin_site.register(SubscriptionPlanKey, SubscriptionPlanKeyAdmin)
 admin_site.register(SubscriptionPlanType, SubscriptionPlanTypeAdmin)
-admin_site.register(UserSubscription, UserSubscriptionAdmin)
-admin_site.register(SubscriptionEmail, SubscriptionEmailAdmin)
 admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
+admin_site.register(SubSpecialty, SubSpecialtyAdmin)
+admin_site.register(UserSubscription, UserSubscriptionAdmin)
 #
 # plugin models
 #

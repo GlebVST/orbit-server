@@ -1,11 +1,14 @@
 {% load tz %}
 <div>
-    <p>User: {{ user.profile.firstName }} {{ user.profile.lastName }} [{{ user.email }}]</p>
-    <p>File: {{ orgfile.name }}</p>
+    <p>User: {{ user.profile.firstName }} {{ user.profile.lastName }} {{ user.email }}</p>
     <p>File ID: {{ orgfile.pk }}</p>
+    <p>Name: {{ orgfile.name }}</p>
+    <p>Content Type: {{ orgfile.content_type }}</p>
 
-    <p>Review the attached file. Log into the server and execute the management cmd: handleUploadRoster with the above File ID.</p>
-    <p>The command will process the file and print the results to the console. Log out when you are done.</p>
+    <p>Review the attached file. Convert the file to plaintext CSV format if needed.</p>
+    <p>If you converted the file, then go to the Admin Interface and replace the original file with the converted file.</p>
+    <p>Log into the admin server and execute the handleUploadRoster management command with the above File ID.</p>
+    <p>The command will process the CSV file and print the results to the console.</p>
 
     {% timezone "America/Los_Angeles" %}
     <p>File upload time: {% now "D, d N Y H:i e" %}</p>

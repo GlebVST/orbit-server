@@ -334,11 +334,20 @@ class SubSpecialty(models.Model):
         related_name='subspecialties',
     )
     name = models.CharField(max_length=60)
+    cmeTags = models.ManyToManyField(CmeTag,
+        blank=True,
+        related_name='subspecialties',
+        help_text='Applicable cmeTags'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
+
+    def formatTags(self):
+        return ", ".join([t.name for t in self.cmeTags.all()])
+    formatTags.short_description = "cmeTags"
 
     class Meta:
         verbose_name_plural = 'Practice Sub Specialties'
@@ -376,10 +385,7 @@ class OrgFileManager(models.Manager):
                 logger.error('getCsvFileDialect csv.Error for file_id {0.pk}'.format(orgfile))
                 return None
             else:
-                if dialect:
-                    orgfile.dialect = dialect
-                    orgfile.save(update_fields=('dialect',))
-        return dialect
+                return dialect
 
 def orgfile_document_path(instance, filename):
     return '{0}/org_{1}/{2}'.format(settings.ORG_MEDIA_BASEDIR, instance.organization.id, filename)
@@ -396,10 +402,12 @@ class OrgFile(models.Model):
         db_index=True,
         related_name='orgfiles'
     )
-    document = models.FileField(upload_to=orgfile_document_path)
-    name = models.CharField(max_length=255, blank=True, help_text='Original file name')
-    content_type = models.CharField(max_length=100, blank=True, help_text='file content_type')
-    dialect = models.CharField(max_length=40, blank=True, help_text='dialect of file for csv processing')
+    document = models.FileField(upload_to=orgfile_document_path,
+        help_text='Original document uploaded by user')
+    csvfile = models.FileField(null=True, blank=True, upload_to=orgfile_document_path,
+            help_text='If original document is not in plain-text CSV, then upload converted file here')
+    name = models.CharField(max_length=255, blank=True, help_text='document file name')
+    content_type = models.CharField(max_length=100, blank=True, help_text='document content_type')
     processed = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
     objects = OrgFileManager()
@@ -471,6 +479,8 @@ class OrgMember(models.Model):
             help_text='date the member was removed')
     compliance = models.PositiveSmallIntegerField(default=1,
             help_text='Cached value of compliance status for sorting')
+    setPasswordEmailSent = models.BooleanField(default=False,
+            help_text='Set to True when password-ticket email is sent')
     orgfiles = models.ManyToManyField(OrgFile, related_name='orgmembers')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)

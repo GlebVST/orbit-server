@@ -5,7 +5,6 @@ import premailer
 from io import StringIO
 from operator import itemgetter
 from django.conf import settings
-from django.core import mail
 from django.core.mail import EmailMessage
 from django.template.loader import get_template
 from django.utils import timezone
@@ -390,12 +389,15 @@ def sendCancelReminderEmail(user_subs, payment_method, extra_data):
     msg.send()
 
 
-def sendChangePasswordTicketEmail(orgmember, ticket_url, send_message=True):
+def sendPasswordTicketEmail(orgmember, ticket_url, send_message=True):
     """Send EmailMessage receipt to user using set_password_enterprise template
     Args:
-        orgmember: OrgMembr instance
+        orgmember: OrgMember instance
         ticket_url: URL for change-password-ticket
         send_message: bool defaults to True. If False, msg will be returned instead
+    Returns:
+        If send_message is True: int (0 = failed. 1 = delivered)
+        If send_message is False: EmailMessage object
     Can raise SMTPException
 
     """
@@ -411,21 +413,7 @@ def sendChangePasswordTicketEmail(orgmember, ticket_url, send_message=True):
     msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
     msg.content_subtype = 'html'
     if send_message:
-        msg.send()
+        return msg.send() # 0 or 1
     else:
         return msg
 
-def massSendChangePasswordTicketEmail(data):
-    """Send EmailMessage receipt to user using set_password_enterprise template
-    Args:
-        data: list of tuples (orgmember, ticket_url)
-    Can raise SMTPException
-    """
-    connection = mail.get_connection()
-    messages = []
-    connection.open()
-    for (orgmember, ticket_url) in data:
-        msg = sendChangePasswordTicketEmail(orgmember, ticket_url, send_message=False)
-        messages.append(msg)
-    connection.send(messages)
-    connection.close()

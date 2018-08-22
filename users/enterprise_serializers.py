@@ -15,7 +15,7 @@ from common.viewutils import newUuid, md5_uploaded_file
 from common.appconstants import GROUP_ENTERPRISE_ADMIN, GROUP_ENTERPRISE_MEMBER
 from common.signals import profile_saved
 from .models import *
-from .emailutils import sendChangePasswordTicketEmail
+from .emailutils import sendPasswordTicketEmail
 
 logger = logging.getLogger('gen.esrl')
 
@@ -116,7 +116,10 @@ class OrgMemberFormSerializer(serializers.Serializer):
             ticket_url = apiConn.change_password_ticket(socialId, redirect_url)
             logger.debug(ticket_url)
             try:
-                sendChangePasswordTicketEmail(m, ticket_url)
+                delivered = sendPasswordTicketEmail(m, ticket_url)
+                if delivered:
+                    m.setPasswordEmailSent = True
+                    m.save(update_fields=('setPasswordEmailSent',))
             except SMTPException as e:
                 logger.warning('sendChangePasswordTicketEmail failed for user {0}. ticket_url={1}'.format(user, ticket_url))
         return m
@@ -136,7 +139,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         email = validated_data.get('email', user.email)
         is_admin = validated_data.get('is_admin', instance.is_admin)
         removeDate = validated_data.get('removeDate', instance.removeDate)
-        verify_email = validated_data.get('verify_email', True)
+        password_ticket = validated_data.get('password_ticket', True)
         # check email
         if email != user.email:
             logger.info('UpdateOrgMember: change email from {0.email} to {1}'.format(user, email))
@@ -144,7 +147,8 @@ class OrgMemberFormSerializer(serializers.Serializer):
             user.username = email; user.email = email
             user.save()
             # update auth0
-            response = apiConn.updateUser(user.profile.socialId, email, verify_email)
+            verify_email = password_ticket # if True, auth0 will send verification email
+            response = apiConn.updateUser(profile.socialId, email, verify_email)
         # update profile
         if firstName != profile.firstName or lastName != profile.lastName:
             profile.firstName = firstName
@@ -190,7 +194,6 @@ class OrgFileReadSerializer(serializers.ModelSerializer):
             'user',
             'name',
             'url',
-            'dialect',
             'content_type',
             'created',
             'modified'

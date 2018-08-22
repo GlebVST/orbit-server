@@ -160,10 +160,10 @@ class Auth0Api(object):
             email: str - used as both username and email
         Returns: dict response object
         """
-        ev = not verify_email
         body = {
             'connection': DEFAULT_CONN_NAME,
             'email': email,
+            'email_verified': False,
             'verify_email': verify_email,
             'client_id': settings.AUTH0_MGMT_CLIENTID,
         }

@@ -197,18 +197,16 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         org = user.profile.organization
         instance = serializer.save(user=user, organization=org)
         try:
-            checked = OrgFile.objects.getCsvFileDialect(instance)
             uploadedFile = self.request.data['document']
             fileData = uploadedFile.read()
         except Exception, e:
-            logger.error('UploadRoster getCsvFileDialect Exception: {0}'.format(e))
-            error_msg = 'Invalid file format'
-            raise serializers.ValidationEror(error_msg)
+            logger.error('UploadRoster readFile Exception: {0}'.format(e))
+            raise serializers.ValidationEror('readFile Exception')
         else:
             # create EmailMessage
             from_email = settings.EMAIL_FROM
             to_email = settings.MANAGERS # list
-            subject = 'New Roster File Upload for {0.code}'.format(org)
+            subject = 'New Roster File Upload from {0.code}'.format(org)
             ctx = {
                 'user': user,
                 'orgfile': instance
