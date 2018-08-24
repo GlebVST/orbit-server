@@ -204,7 +204,7 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         else:
             # create EmailMessage
             from_email = settings.EMAIL_FROM
-            to_email = settings.MANAGERS # list
+            to_email = [t[1] for t in settings.MANAGERS] # list of emails
             subject = 'New Roster File Upload from {0.code}'.format(org)
             ctx = {
                 'user': user,
