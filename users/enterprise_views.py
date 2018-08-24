@@ -167,7 +167,7 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         if email and m.user.email != email:
             qset = User.objects.filter(email=email).exclude(pk=m.pk)
             if qset.exists():
-                error_msg = 'The email {0} already belongs to another user account.'.format(email)
+                error_msg = u'The email {0} already belongs to another user account.'.format(email)
                 logWarning(logger, self.request, error_msg)
                 raise serializers.ValidationError(error_msg)
         apiConn = Auth0Api.getConnection(self.request)
