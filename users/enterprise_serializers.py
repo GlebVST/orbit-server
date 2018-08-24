@@ -196,6 +196,5 @@ class OrgFileReadSerializer(serializers.ModelSerializer):
             'url',
             'content_type',
             'created',
-            'modified'
         )
         read_only_fields = fields
