@@ -135,9 +135,9 @@ class UploadOrgFileSerializer(serializers.Serializer):
         user = validated_data['user']
         org = validated_data['organization']
         newDoc = validated_data['document'] # UploadedFile (or subclass)
+        now = timezone.now()
         fileName = validated_data.get('name', '')
         defaultFileName = 'upload_roster_{0:%Y%m%d%H%M%S}.csv'.format(now)
-        now = timezone.now()
         if not fileName:
             fileName = defaultFileName
         try:
