@@ -197,11 +197,10 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         org = user.profile.organization
         instance = serializer.save(user=user, organization=org)
         try:
-            uploadedFile = self.request.data['document']
-            fileData = uploadedFile.read()
+            fileData = instance.document.read()
         except Exception, e:
             logger.error('UploadRoster readFile Exception: {0}'.format(e))
-            raise serializers.ValidationEror('readFile Exception')
+            raise serializers.ValidationError('readFile Exception')
         else:
             # create EmailMessage
             from_email = settings.EMAIL_FROM
