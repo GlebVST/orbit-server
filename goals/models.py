@@ -722,6 +722,8 @@ class UserGoalManager(models.Manager):
             qset = user.statelicenses.filter(state=goal.state, licenseType=licenseType, expireDate__isnull=False).order_by('-expireDate')
             if qset.exists():
                 userLicense = qset[0]
+                dueDate = userLicense.expireDate
+                status = self.model.IN_PROGRESS
             else:
                 dueDate = now
                 status = self.model.PASTDUE
