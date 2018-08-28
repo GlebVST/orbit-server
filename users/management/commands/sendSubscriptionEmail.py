@@ -11,7 +11,7 @@ logger = logging.getLogger('mgmt.remail')
 CUTOFF = 30
 
 class Command(BaseCommand):
-    help = "Find all active susbcriptions within CUTOFF days of billingEndDate and send out reminder email."""
+    help = "Find all active susbcriptions within CUTOFF days of billingEndDate and send out reminder email."
 
     def handle(self, *args, **options):
         # calculate once (used for all emails in this executation) the total BrowserCme credits earned

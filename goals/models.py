@@ -979,8 +979,12 @@ class UserGoal(models.Model):
         else:
             return UserGoal.IN_PROGRESS
 
-    def recompute(self):
+    def recompute(self, userLicenseDict=None, numProfileSpecs=None):
         """Recompute dueDate, status, creditsDue, creditsEarned for the month and update self.
+        Args:
+            userLicenseDict: dict/None. If None, makeUserLicenseDict will be called.
+            numProfileSpecs: int/None. If None, profile.specialties.count() will be called
+        Precomputed args passed in by mgmt cmd that batch recomputes al usergoals.
         """
         now = timezone.now()
         gtype = self.goal.goalType.name
@@ -998,8 +1002,10 @@ class UserGoal(models.Model):
                 self.save()
             return
         profile = self.user.profile
-        numProfileSpecs = profile.specialties.count()
-        userLicenseDict = self.makeUserLicenseDict()
+        if not numProfileSpecs:
+            numProfileSpecs = profile.specialties.count()
+        if not userLicenseDict:
+            userLicenseDict = self.makeUserLicenseDict()
         userLicense = None
         cmegoals = self.cmeGoals.all()
         data = []
@@ -1009,7 +1015,8 @@ class UserGoal(models.Model):
                 try:
                     userLicense = userLicenseDict[goal.licenseGoal.pk]
                 except KeyError:
-                    logger.warning("No userLicense found for user {0.user} and LicenseGoal {1.pk}".format(self, goal.licenseGoal))
+                    logger.exception("No userLicense found for user {0.user} and CmeGoal {1.pk} that uses LicenseGoal {2.pk}".format(self, goal, goal.licenseGoal))
+                    return
             dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
             credits = goal.computeCredits(numProfileSpecs)
             #print("{0} credits for Goal {1.entityName} whose tag is {1.cmeTag}".format(credits, goal))
