@@ -136,6 +136,7 @@ api_patterns = [
     # enterprise admin
     url(r'^enterprise/orgmembers/?$', enterprise_views.OrgMemberList.as_view()),
     url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberDetail.as_view()),
+    url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/email-set-password/?$', enterprise_views.EmailSetPassword.as_view()),
     url(r'^enterprise/upload-roster/?$', enterprise_views.UploadRoster.as_view()),
 ]
 if settings.ENV_TYPE != settings.ENV_PROD:
@@ -153,6 +154,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/orgmembers/add/?$', debug_views.CreateOrgMember.as_view()),
         url(r'^debug/orgmembers/(?P<pk>[0-9]+)/?$', debug_views.OrgMemberDetail.as_view()),
         url(r'^debug/orgmembers/(?P<pk>[0-9]+)/update/?$', debug_views.UpdateOrgMember.as_view()),
+        url(r'^debug/orgmembers/(?P<pk>[0-9]+)/email-set-password/?$', debug_views.EmailSetPassword.as_view()),
     ])
 
 

@@ -231,3 +231,31 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         instance = self.perform_create(in_serializer)
         out_serializer = OrgFileReadSerializer(instance)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class EmailSetPassword(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def post(self, request, *args, **kwargs):
+        memberid = self.kwargs.get('pk')
+        if memberid:
+            qset = OrgMember.objects.filter(pk=memberid)
+            if not qset.exists():
+                return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+            orgmember = qset[0]
+            user = orgmember.user
+            profile = user.profile
+            apiConn = Auth0Api.getConnection(self.request)
+            ticket_url = apiConn.change_password_ticket(profile.socialId, UI_LOGIN_URL)
+            try:
+                delivered = sendPasswordTicketEmail(orgmember, ticket_url)
+                if delivered:
+                    orgmember.setPasswordEmailSent = True
+                    orgmember.save(update_fields=('setPasswordEmailSent',))
+            except SMTPException as e:
+                logError('EmailSetPassword failed for user {0}. ticket_url={1}'.format(user, ticket_url))
+                return Response({'success': False}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                context = {'success': True}
+                return Response(context, status=status.HTTP_200_OK)
+        return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)

@@ -19,6 +19,8 @@ from .emailutils import sendPasswordTicketEmail
 
 logger = logging.getLogger('gen.esrl')
 
+UI_LOGIN_URL = 'https://{0}{1}'.format(settings.SERVER_HOSTNAME, settings.UI_LINK_LOGIN)
+
 class OrgMemberReadSerializer(serializers.ModelSerializer):
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -112,8 +114,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
         # 6. Create change-password ticket
         if password_ticket:
-            redirect_url = 'https://{0}{1}'.format(settings.SERVER_HOSTNAME, settings.UI_LINK_LOGIN)
-            ticket_url = apiConn.change_password_ticket(socialId, redirect_url)
+            ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
             logger.debug(ticket_url)
             try:
                 delivered = sendPasswordTicketEmail(m, ticket_url)
