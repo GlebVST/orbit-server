@@ -2,6 +2,7 @@ import logging
 import csv
 from time import sleep
 from cStringIO import StringIO
+from dateutil.parser import parse as dparse
 from smtplib import SMTPException
 from django.core import mail
 from django.core.management.base import BaseCommand, CommandError
@@ -70,7 +71,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         file_id = options['file_id']
-        fieldnames = ('LastName', 'FirstName', 'Email', 'Role', 'Specialty', 'SubSpecialty', 'State')
+        fieldnames = ('LastName', 'FirstName', 'Email', 'Role', 'Birthdate', 'Specialty', 'SubSpecialty', 'State')
         num_existing = 0
         created = [] # list of OrgMembers
         country_usa = Country.objects.get(name=Country.USA)
@@ -101,6 +102,9 @@ class Command(BaseCommand):
                     self.stdout.write(error_msg)
                     return
                 d['degree'] = degreeDict[role]
+                # birthdate (optional)
+                if d['Birthdate']:
+                    d['Birthdate'] = dparse(d['Birthdate'])
                 # Multi-value fields
                 d['specialties'] = self.parseMultiValueField(d, 'Specialty', psDict) # 0+ PracticeSpecialty instances
                 d['subspecialties'] = self.parseMultiValueField(d, 'SubSpecialty', subSpecDict) # 0+ SubSpecialty instances
@@ -111,7 +115,7 @@ class Command(BaseCommand):
             for d in data:
                 email = d['Email']
                 # check if email already exists
-                qset = User.objects.filter(email=email)
+                qset = User.objects.filter(email__iexact=email)
                 if qset.exists():
                     self.stdout.write('User account already exists for email {0}'.format(email))
                     num_existing += 1
@@ -149,6 +153,8 @@ class Command(BaseCommand):
                     user = orgmember.user
                     profile = user.profile
                     profile.country = country_usa
+                    if d['Birthdate']:
+                        profile.birthDate = d['Birthdate']
                     for state in d['states']:
                         profile.states.add(state)
                     for ps in d['specialties']:
