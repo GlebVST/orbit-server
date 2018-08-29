@@ -13,9 +13,9 @@ from users.enterprise_serializers import OrgMemberFormSerializer
 from users.emailutils import sendPasswordTicketEmail
 from users.models import (
         User,
+        Country,
         Degree,
         PracticeSpecialty,
-        ProfileCmetag,
         State,
         OrgFile,
         OrgMember
@@ -73,6 +73,7 @@ class Command(BaseCommand):
         fieldnames = ('LastName', 'FirstName', 'Email', 'Role', 'Specialty', 'SubSpecialty', 'State')
         num_existing = 0
         created = [] # list of OrgMembers
+        country_usa = Country.objects.get(name=Country.USA)
         # build lookup dicts
         qset = Degree.objects.all()
         degreeDict = {m.abbrev:m for m in qset}
@@ -147,14 +148,15 @@ class Command(BaseCommand):
                     # Update profile
                     user = orgmember.user
                     profile = user.profile
+                    profile.country = country_usa
                     for state in d['states']:
                         profile.states.add(state)
                     for ps in d['specialties']:
                         profile.specialties.add(ps)
-                        for t in ps.cmeTags.all():
-                            pct, created = ProfileCmetag.objects.get_or_create(profile=profile, tag=t)
                     for ps in d['subspecialties']:
                         profile.subspecialties.add(ps)
+                    # ProfileCmetags
+                    add_tags = profile.addOrActivateCmeTags()
                     # emit profile_saved signal
                     ret = profile_saved.send(
                             sender=profile.__class__, user_id=user.pk)

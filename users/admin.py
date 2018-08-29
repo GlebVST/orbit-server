@@ -73,8 +73,13 @@ class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class StateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'country', 'name', 'abbrev', 'rnCertValid', 'created')
+    list_display = ('id', 'country', 'name', 'abbrev', 'rnCertValid', 'formatTags')
     list_filter = ('rnCertValid',)
+    filter_horizontal = ('cmeTags',)
+
+    def get_queryset(self, request):
+        qs = super(StateAdmin, self).get_queryset(request)
+        return qs.prefetch_related('cmeTags')
 
 
 class HospitalAdmin(admin.ModelAdmin):

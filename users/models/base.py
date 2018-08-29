@@ -62,6 +62,35 @@ class AuthImpersonation(models.Model):
         return '{0.email}/{1.email}'.format(
                 self.impersonator, self.impersonatee)
 
+
+# CME tag types (SA-CME tag has priority=1)
+class CmeTagManager(models.Manager):
+    def getSpecTags(self):
+        pspecs = PracticeSpecialty.objects.all()
+        pnames = [p.name for p in pspecs]
+        tags = self.model.objects.filter(name__in=pnames)
+        return tags
+
+@python_2_unicode_compatible
+class CmeTag(models.Model):
+    name= models.CharField(max_length=40, unique=True)
+    priority = models.IntegerField(
+        default=0,
+        help_text='Used for non-alphabetical sort.'
+    )
+    description = models.CharField(max_length=200, unique=True, help_text='Long-form name')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = CmeTagManager()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name_plural = 'CME Tags'
+        ordering = ['-priority', 'name']
+
+
 @python_2_unicode_compatible
 class Country(models.Model):
     """Names of countries for country of practice."""
@@ -90,15 +119,25 @@ class State(models.Model):
     name = models.CharField(max_length=100)
     abbrev = models.CharField(max_length=15, blank=True)
     rnCertValid = models.BooleanField(default=False, help_text='True if RN/NP certificate is valid in this state')
+    cmeTags = models.ManyToManyField(CmeTag,
+        blank=True,
+        related_name='states',
+        help_text='cmeTags to be added to profile for users who select this state'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
 
     class Meta:
         ordering = ['country','name']
         unique_together = (('country', 'name'), ('country', 'abbrev'))
+
+    def __str__(self):
+        return self.name
+
+    def formatTags(self):
+        return ", ".join([t.name for t in self.cmeTags.all()])
+    formatTags.short_description = "cmeTags"
+
 
 
 class HospitalManager(models.Manager):
@@ -267,33 +306,6 @@ class Degree(models.Model):
     class Meta:
         ordering = ['sort_order',]
 
-# CME tag types (SA-CME tag has priority=1)
-class CmeTagManager(models.Manager):
-    def getSpecTags(self):
-        pspecs = PracticeSpecialty.objects.all()
-        pnames = [p.name for p in pspecs]
-        tags = self.model.objects.filter(name__in=pnames)
-        return tags
-
-@python_2_unicode_compatible
-class CmeTag(models.Model):
-    name= models.CharField(max_length=40, unique=True)
-    priority = models.IntegerField(
-        default=0,
-        help_text='Used for non-alphabetical sort.'
-    )
-    description = models.CharField(max_length=200, unique=True, help_text='Long-form name')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-    objects = CmeTagManager()
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name_plural = 'CME Tags'
-        ordering = ['-priority', 'name']
-
 
 @python_2_unicode_compatible
 class PracticeSpecialty(models.Model):
@@ -459,8 +471,21 @@ class OrgMemberManager(models.Manager):
             qs = qs2
         return qs.order_by(*orderByFields)
 
+
 @python_2_unicode_compatible
 class OrgMember(models.Model):
+    NON_COMPLIANT = 0
+    INCOMPLETE_PROFILE = 1
+    INCOMPLETE_LICENSE = 2
+    MARGINAL_COMPLIANT = 3
+    COMPLIANT = 4
+    COMPLIANCE_CHOICES = (
+        (NON_COMPLIANT, 'Non-compliant'),
+        (INCOMPLETE_PROFILE, 'Incomplete essential Profile'),
+        (INCOMPLETE_LICENSE, 'Incomplete License'),
+        (MARGINAL_COMPLIANT, 'Marginally compliant'),
+        (COMPLIANT, 'Compliant')
+    )
     organization = models.ForeignKey(Organization,
         on_delete=models.CASCADE,
         db_index=True,
@@ -604,6 +629,14 @@ class Profile(models.Model):
     def __str__(self):
         return '{0.firstName} {0.lastName}'.format(self)
 
+    def getFullName(self):
+        return u"{0} {1}".format(self.firstName, self.lastName)
+
+    def getFullNameAndDegree(self):
+        degrees = self.degrees.all()
+        degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
+        return u"{0} {1}, {2}".format(self.firstName, self.lastName, degree_str)
+
     def shouldReqNPINumber(self):
         """
         If (country=USA) and (MD or DO in self.degrees),
@@ -671,26 +704,6 @@ class Profile(models.Model):
                 filled += 1
         return int(round(100.0*filled/total))
 
-    def getFullName(self):
-        return u"{0} {1}".format(self.firstName, self.lastName)
-
-    def getInitials(self):
-        """Returns initials from firstName, lastName"""
-        firstInitial = ''
-        lastInitial = ''
-        if self.firstName:
-            firstInitial = self.firstName[0].upper()
-        if self.lastName:
-            lastInitial = self.lastName[0].upper()
-        if firstInitial and lastInitial:
-            return u"{0}.{1}.".format(firstInitial, lastInitial)
-        return ''
-
-    def getFullNameAndDegree(self):
-        degrees = self.degrees.all()
-        degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
-        return u"{0} {1}, {2}".format(self.firstName, self.lastName, degree_str)
-
     def formatDegrees(self):
         return ", ".join([d.abbrev for d in self.degrees.all()])
     formatDegrees.short_description = "Primary Role"
@@ -729,6 +742,7 @@ class Profile(models.Model):
 
     def initializeFromPlanKey(self, plan_key):
         """Used by auth_backends to assign self.degrees, specialties, tags based on plan
+        Note: this is used for non-Enterprise customers
         Args:
             plan_key: SubscriptionPlanKey instance
         """
@@ -743,8 +757,41 @@ class Profile(models.Model):
             if self.isPhysician() and ps.name in SACME_SPECIALTIES:
                 satag = CmeTag.objects.get(name=CMETAG_SACME)
                 pct = ProfileCmetag.objects.create(tag=satag, profile=self, is_active=True)
-                logger.debug('Add SA-CME tag to: {0.user}'.format(self))
 
+    def addOrActivateCmeTags(self):
+        """Used to add/activate relevant cmeTags based on:
+            specialties: tags whose name matches the specialty name
+            subspecialties: subspec.cmeTags
+            states: state.cmeTags
+        Returns: set of CmeTag instances
+        """
+        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        isPhysician = self.isPhysician()
+        add_tags = set([]) # tags to be added (or re-activated if already exist)
+        specnames = [ps.name for ps in self.specialties.all()]
+        spectags = CmeTag.objects.filter(name__in=specnames)
+        for specname in specnames:
+            if isPhysician and specname in SACME_SPECIALTIES:
+                add_tags.add(satag)
+        for t in spectags:
+            add_tags.add(t)
+        for m in self.subspecialties.all():
+            for t in m.cmeTags.all():
+                add_tags.add(t)
+        for m in self.states.all():
+            for t in m.cmeTags.all():
+                add_tags.add(t)
+        # Process add_tags
+        for t in add_tags:
+            # tag may exist from a previous assignment
+            pct, created = ProfileCmetag.objects.get_or_create(profile=self, tag=t)
+            if created:
+                logger.info('New ProfileCmetag: {0}'.format(pct))
+            elif not pct.is_active:
+                pct.is_active = True
+                pct.save(update_fields=('is_active',))
+                logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
+        return add_tags
 
 # Many-to-many through relation between Profile and CmeTag
 class ProfileCmetag(models.Model):

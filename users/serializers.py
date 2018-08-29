@@ -239,55 +239,69 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         """
-        If any new specialties added, then check for new cmeTags.
-        If a specialty is removed, then remove its cmeTags if not assigned to
-            any entry made by the user.
+        If specialties/subspecialties/states are updated: handle cmeTags assignment
         Emit profile_saved signal at the end.
         """
         user = instance.user
         upd_cmetags = False
-        tag_ids = None
         # get current specialties before updating the instance
-        curSpecs = set([ps for ps in instance.specialties.all()])
+        curSpecs = set([m for m in instance.specialties.all()])
+        # get current subspecialties before updating the instance
+        curSubSpecs = set([m for m in instance.subspecialties.all()])
+        # get current states before updating the instance
+        curStates = set([m for m in instance.states.all()])
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
         # now handle cmeTags
-        spec_key = 'specialties'
-        if spec_key in validated_data:
-            # need to check if key exists, because a PATCH request may not contain the spec_key
-            pracSpecs = validated_data[spec_key]
-            newSpecs = set([ps for ps in pracSpecs])
-            newly_added_specs = newSpecs.difference(curSpecs)
-            del_specs = curSpecs.difference(newSpecs)
-            for ps in del_specs:
-                logger.info('User {0.email} : remove ps: {1.name}'.format(user, ps))
+        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
+        del_tags = set([]) # tags to be removed or deactivated
+        fieldName = 'specialties'
+        if fieldName in validated_data:
+            # need to check if key exists, because a PATCH request may not contain the fieldName
+            newSpecs = set([ps for ps in validated_data[fieldName]])
+            delSpecs = curSpecs.difference(newSpecs) # difference between old and new are the ones removed
+            for ps in delSpecs:
+                logger.info('User {0} : remove PracticeSpecialty: {1}'.format(user, ps))
+            delspectags = CmeTag.objects.filter(name__in=[ps.name for ps in delSpecs])
+            for t in delspectags:
+                del_tags.add(t)
+        fieldName = 'subspecialties'
+        if fieldName in validated_data:
+            # need to check if key exists, because a PATCH request may not contain the fieldName
+            newSubSpecs = set([ps for ps in validated_data[fieldName]])
+            delSubSpecs = curSubSpecs.difference(newSubSpecs)
+            for ps in delSubSpecs:
+                logger.info('User {0} : remove SubSpecialty: {1}'.format(user, ps))
                 for t in ps.cmeTags.all():
-                    pct_qset = ProfileCmetag.objects.filter(profile=instance, tag=t)
-                    if pct_qset.exists():
-                        pct = pct_qset[0]
-                        num_entries = t.entries.filter(user=user).count()
-                        #logger.debug('Num entries for tag {0} = {1}'.format(t, num_entries))
-                        if num_entries == 0:
-                            pct.delete()
-                            logger.info('Delete unused ProfileCmetag: {0}'.format(pct))
-                        elif pct.is_active:
-                            # Set is_active to false
-                            pct.is_active = False
-                            pct.save()
-                            logger.info('Inactivate ProfileCmetag: {0}'.format(pct))
-            # get refreshed set
-            tag_ids = set([t.pk for t in instance.cmeTags.all()])
-            for ps in newly_added_specs:
-                logger.info('User {0.email} : Add ps: {1.name}'.format(user, ps))
+                    del_tags.add(t)
+        fieldName = 'states'
+        if fieldName in validated_data:
+            # need to check if key exists, because a PATCH request may not contain the fieldName
+            newStates = set([ps for ps in validated_data[fieldName]])
+            delStates = curStates.difference(newStates)
+            for ps in delStates:
+                logger.info('User {0} : remove State: {1}'.format(user, ps))
                 for t in ps.cmeTags.all():
-                    # tag may already exist from a previous occasion in which ps was assigned to user
-                    pct, created = ProfileCmetag.objects.get_or_create(profile=instance, tag=t)
-                    if created:
-                        logger.info('New ProfileCmetag: {0}'.format(pct))
-                    elif not pct.is_active:
-                        pct.is_active = True
-                        pct.save()
-                        logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
+                    del_tags.add(t)
+        # Filter del_tags so it does not contain anything in add_tags
+        rtags = add_tags.intersection(del_tags)
+        for t in rtags:
+            del_tags.remove(t)
+
+        # Process del_tags: delete if unused, else inactivate
+        for t in del_tags:
+            qset = ProfileCmetag.objects.filter(profile=instance, tag=t)
+            if not qset.exists():
+                continue
+            pct = qset[0]
+            num_entries = t.entries.filter(user=user).count()
+            if num_entries == 0:
+                pct.delete()
+                logger.info('Delete unused ProfileCmetag: {0}'.format(pct))
+            elif pct.is_active:
+                pct.is_active = False
+                pct.save(update_fields=('is_active',))
+                logger.info('Inactivate ProfileCmetag: {0}'.format(pct))
         # emit profile_saved signal
         ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
