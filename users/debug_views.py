@@ -382,7 +382,7 @@ class CreateOrgMember(generics.CreateAPIView):
         # check email
         email = self.request.data.get('email', '')
         if email:
-            qset = User.objects.filter(email=email)
+            qset = User.objects.filter(email__iexact=email)
             if qset.exists():
                 u = qset[0]
                 org_qset = OrgMember.objects.filter(organization=org, user=u, removeDate__isnull=False)
@@ -392,8 +392,8 @@ class CreateOrgMember(generics.CreateAPIView):
                     instance.removeDate = None
                     instance.save()
                     return instance
-                error_msg = 'The email {0} already belongs to another user account.'.format(email)
-                raise serializers.ValidationError(error_msg)
+                error_msg = 'This email already belongs to another user account.'
+                raise serializers.ValidationError({'email': error_msg}, code='invalid')
         apiConn = Auth0Api.getConnection(self.request)
         with transaction.atomic():
             instance = serializer.save(apiConn=apiConn, organization=org)
@@ -437,11 +437,11 @@ class UpdateOrgMember(generics.UpdateAPIView):
         # check email
         m = self.get_object()
         email = self.request.data.get('email', '')
-        if email:
-            qset = User.objects.filter(email=email).exclude(pk=m.pk)
+        if email and m.user.email != email:
+            qset = User.objects.filter(email__iexact=email).exclude(pk=m.user.pk)
             if qset.exists():
-                error_msg = 'The email {0} already belongs to another user account.'.format(email)
-                raise serializers.ValidationError(error_msg)
+                error_msg = 'The email {0} belongs to another user account.'.format(email)
+                raise serializers.ValidationError({'email': error_msg}, code='invalid')
         apiConn = Auth0Api.getConnection(self.request)
         with transaction.atomic():
             instance = serializer.save(apiConn=apiConn)

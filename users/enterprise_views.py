@@ -29,6 +29,7 @@ from .models import *
 from .enterprise_serializers import *
 from .upload_serializers import UploadOrgFileSerializer
 from .permissions import *
+from .emailutils import makeSubject
 
 logger = logging.getLogger('api.entpv')
 
@@ -114,7 +115,7 @@ class OrgMemberList(generics.ListCreateAPIView):
         # check email
         email = self.request.data.get('email', '')
         if email:
-            qset = User.objects.filter(email=email)
+            qset = User.objects.filter(email__iexact=email)
             if qset.exists():
                 u = qset[0]
                 org_qset = OrgMember.objects.filter(organization=org, user=u, removeDate__isnull=False)
@@ -124,9 +125,9 @@ class OrgMemberList(generics.ListCreateAPIView):
                     instance.removeDate = None
                     instance.save()
                     return instance
-                error_msg = 'The email {0} already belongs to another user account.'.format(email)
+                error_msg = 'The email {0} belongs to another user account.'.format(email)
                 logWarning(logger, self.request, error_msg)
-                raise serializers.ValidationError(error_msg)
+                raise serializers.ValidationError({'email': error_msg}, code='invalid')
         apiConn = Auth0Api.getConnection(self.request)
         with transaction.atomic():
             instance = serializer.save(apiConn=apiConn, organization=org)
@@ -165,11 +166,11 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         m = self.get_object()
         email = self.request.data.get('email', '')
         if email and m.user.email != email:
-            qset = User.objects.filter(email=email).exclude(pk=m.pk)
+            qset = User.objects.filter(email__iexact=email).exclude(pk=m.user.pk)
             if qset.exists():
-                error_msg = u'The email {0} already belongs to another user account.'.format(email)
+                error_msg = u'The email {0} belongs to another user account.'.format(email)
                 logWarning(logger, self.request, error_msg)
-                raise serializers.ValidationError(error_msg)
+                raise serializers.ValidationError({'email': error_msg}, code='invalid')
         apiConn = Auth0Api.getConnection(self.request)
         with transaction.atomic():
             instance = serializer.save(apiConn=apiConn)
@@ -205,7 +206,7 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
             # create EmailMessage
             from_email = settings.EMAIL_FROM
             to_email = [t[1] for t in settings.MANAGERS] # list of emails
-            subject = 'New Roster File Upload from {0.code}'.format(org)
+            subject = makeSubject('New Roster File Upload from {0.code}'.format(org))
             ctx = {
                 'user': user,
                 'orgfile': instance

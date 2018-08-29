@@ -254,17 +254,17 @@ class CreateSRCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
             if qset.exists():
                 doc = qset[0]
                 if doc.user != user:
-                    error_msg = 'CreateSRCme: The documentId {0} is not owned by user: {1}.'.format(doc_id, user)
+                    error_msg = 'Invalid documentId {0}: not owned by user: {1}.'.format(doc_id, user)
                     logWarning(logger, self.request, error_msg)
-                    raise serializers.ValidationError(error_msg)
+                    raise serializers.ValidationError({'documents': error_msg}, code='invalid')
             else:
-                error_msg = 'CreateSRCme: Invalid documentId {0} - does not exist.'.format(doc_id)
+                error_msg = 'Invalid documentId {0}: does not exist.'.format(doc_id)
                 logWarning(logger, self.request, error_msg)
-                raise serializers.ValidationError(error_msg)
+                raise serializers.ValidationError({'documents': error_msg}, code='invalid')
         # validate creditType (enable code after ui changes)
         #creditType = self.request.data.get('creditType', '')
         #if creditType != Entry.CREDIT_CATEGORY_1 or creditType != Entry.CREDIT_OTHER:
-        #    raise serializers.ValidationError('Invalid creditType.')
+        #    raise serializers.ValidationError({'creditType': 'Invalid creditType.'}, code='invalid')
         with transaction.atomic():
             srcme = serializer.save(user=user)
         return srcme
@@ -303,13 +303,13 @@ class UpdateSRCme(LogValidationErrorMixin, TagsMixin, generics.UpdateAPIView):
             if qset.exists():
                 doc = qset[0]
                 if doc.user != user:
-                    error_msg = 'UpdateSRCme: The documentId {0} is not owned by user: {1}.'.format(doc_id, user)
+                    error_msg = 'Invalid documentId {0}: not owned by user: {1}.'.format(doc_id, user)
                     logWarning(logger, self.request, error_msg)
-                    raise serializers.ValidationError(error_msg)
+                    raise serializers.ValidationError({'documents': error_msg}, code='invalid')
             else:
-                error_msg = 'UpdateSRCme: Invalid documentId {0} - does not exist.'.format(doc_id)
+                error_msg = 'Invalid documentId {0}: does not exist.'.format(doc_id)
                 logWarning(logger, self.request, error_msg)
-                raise serializers.ValidationError(error_msg)
+                raise serializers.ValidationError({'documents': error_msg}, code='invalid')
         with transaction.atomic():
             srcme = serializer.save(user=user)
         return srcme

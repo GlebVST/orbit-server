@@ -443,11 +443,15 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
         instance = super(EligibleSiteSerializer, self).create(validated_data)
         example_url = urldefrag(validated_data['example_url'])[0]
         res = urlparse(example_url)
+        is_secure = res.scheme == 'https'
         netloc = res.netloc
         # create AllowedHost
         host, created = AllowedHost.objects.get_or_create(hostname=netloc)
         if created:
             logger.info('EligibleSite: new AllowedHost: {0}'.format(netloc))
+            if is_secure:
+                host.is_secure = True
+                host.save(update_fields=('is_secure',))
         # create AllowedUrl
         allowed_url, created = AllowedUrl.objects.get_or_create(
             host=host,

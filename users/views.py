@@ -407,7 +407,7 @@ class EligibleSiteList(LogValidationErrorMixin, generics.ListCreateAPIView):
                 netloc = netloc[4:]
             if not domain_name.startswith(netloc):
                 error_msg = "The domain of the example_url must be contained in the user-specified domain_name"
-                raise serializers.ValidationError(error_msg, code='domain_name')
+                raise serializers.ValidationError({'domain_name': error_msg}, code='invalid')
         with transaction.atomic():
             # create EligibleSite, AllowedHost, AllowedUrl
             instance = serializer.save(domain_name=domain_name)
