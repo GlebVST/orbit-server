@@ -193,8 +193,8 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
         license.save()
         # Update usergoal instance
         instance.dueDate = expireDate
-        instance.status = instance.calcLicenseStatus(now)
-        instance.save()
+        instance.save(update_fields=('dueDate',))
+        instance.recompute() # update status/compliance
         if docs:
             for d in docs:
                 instance.documents.add(d)

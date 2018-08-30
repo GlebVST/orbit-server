@@ -26,6 +26,8 @@ PERM_POST_REQUESTED_URL = u'add_requestedurl'
 PERM_MANAGE_ORGMEMBER = u'add_orgmember'
 # default add permission on InvitationDiscount model
 PERM_ALLOW_INVITE = u'add_invitationdiscount'
+# default change permission on ProfileCmetga model
+PERM_EDIT_PROFILECMETAG = u'change_profilecmetag'
 ALL_PERMS = (
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
@@ -41,6 +43,7 @@ ALL_PERMS = (
     PERM_VIEW_GOAL,
     PERM_MANAGE_ORGMEMBER,
     PERM_ALLOW_INVITE,
+    PERM_EDIT_PROFILECMETAG,
 )
 
 SELF_REPORTED_AUTHORITY = u'Self Reported'

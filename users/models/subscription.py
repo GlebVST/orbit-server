@@ -24,11 +24,13 @@ from .base import (
 )
 from .feed import BrowserCme
 from common.appconstants import (
+    GROUP_ENTERPRISE_MEMBER,
     ALL_PERMS,
     PERM_POST_BRCME,
     PERM_DELETE_BRCME,
     PERM_EDIT_BRCME,
     PERM_ALLOW_INVITE,
+    PERM_EDIT_PROFILECMETAG
 )
 
 logger = logging.getLogger('gen.models')
@@ -755,12 +757,12 @@ class UserSubscriptionManager(models.Manager):
         return False
 
     def getPermissions(self, user_subs):
-        """Return the permissions for the group that matches user_subs.display_status
-        This does not handle extra permissions based on the user's assigned groups,
-        (that is done by serialize_permissions).
+        """Helper method used by serializer_permissions.
+        Get the permissions for the group that matches user_subs.display_status
+        This does not handle extra permissions based on the user's assigned groups.
         Based on user_subs.plan:
-            It excludes PERM_POST_BRCME if user has reached monthly/yearly cme limit.
-            It includes PERM_ALLOW_INVITE for paid plans with active status.
+            Include PERM_DELETE_BRCME for paid plans with isUnlimitedCme
+            Include PERM_ALLOW_INVITE for paid plans with active status.
         Returns: tuple (Permission queryset, is_brcme_month_limit, is_brcme_year_limit)
         """
         is_brcme_month_limit = False
@@ -777,9 +779,6 @@ class UserSubscriptionManager(models.Manager):
             if plan.isLimitedCmeRate():
                 is_brcme_month_limit = BrowserCme.objects.hasEarnedMonthLimit(user_subs, now.year, now.month)
             is_brcme_year_limit = BrowserCme.objects.hasEarnedYearLimit(user_subs, now.year)
-            if is_brcme_month_limit or is_brcme_year_limit:
-                # if either limit is reached, disallow post of brcme (e.g. disallow redeem offer)
-                qset = qset.exclude(codename=PERM_POST_BRCME)
         if plan.isPaid() and user_subs.display_status == self.model.UI_ACTIVE:
             # UI will display unique invite url for this user to invite others
             qset = qset.union(Permission.objects.filter(codename=PERM_ALLOW_INVITE))
@@ -792,6 +791,7 @@ class UserSubscriptionManager(models.Manager):
         the allowed permissions for the user in the response.
         Returns list of dicts: [{codename:str, allowed:bool}]
         for the permissions in appconstants.ALL_PERMS.
+        Exclude PERM_POST_BRCME for paid plans if user has reached monthly/yearly cme limit.
         Returns:dict {
             permissions:list of dicts {codename, allow:bool},
             brcme_limit:dict {
@@ -803,13 +803,21 @@ class UserSubscriptionManager(models.Manager):
         allowed_codes = []
         is_brcme_month_limit = False
         is_brcme_year_limit = False
-        # get any special admin groups that user is a member of
+        # get any special groups to which the user belongs
+        discard_codes = set([])
         for g in user.groups.all():
             allowed_codes.extend([p.codename for p in g.permissions.all()])
+            if g.name == GROUP_ENTERPRISE_MEMBER:
+                discard_codes.add(PERM_EDIT_PROFILECMETAG)
         if user_subs:
             qset, is_brcme_month_limit, is_brcme_year_limit = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
+            if is_brcme_month_limit or is_brcme_year_limit:
+                # if either limit is reached, disallow post of brcme (e.g. disallow redeem offer)
+                discard_codes.add(PERM_POST_BRCME)
         allowed_codes = set(allowed_codes)
+        for codename in discard_codes:
+            allowed_codes.discard(codename) # remove from set if exist
         perms = [{
                 'codename': codename,
                 'allow': codename in allowed_codes
