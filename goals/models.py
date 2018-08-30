@@ -544,31 +544,19 @@ class CmeGoal(models.Model):
                 return now + timedelta(days=NEW_PROFILE_GRACE_PERIOD_DAYS)
             return now
         if basegoal.isRecurMMDD():
-            try:
-                dueDate = makeDueDate(self.dueMonth, self.dueDay, now)
-            except ValueError, e:
-                logger.error("computeDueDateForProfile: dueDate error from fixed MMDDD goal {0.pk} for user {1}".format(profile, user))
-                return UNKNOWN_DATE
-            else:
-                return dueDate
+            dueDate = makeDueDate(self.dueMonth, self.dueDay, now)
+            return dueDate
         if basegoal.usesLicenseDate():
             if not userLicense or userLicense.isUnInitialized():
                 # allow grace period to update license
-                logger.warning('computeDueDateForProfile: dueDate requires licenseDate for goal {0.pk} and user {1.user}'.format(self, profile))
                 return now + timedelta(days=LICENSE_GRACE_PERIOD_DAYS)
             else:
                 return userLicense.expireDate
         if basegoal.usesBirthDate():
             if not profile.birthDate:
-                logger.warning('computeDueDateForProfile: dueDate requires birthDate for goal {0.pk} and user {1.user}'.format(self, profile))
                 return now
-            try:
-                dueDate = makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
-            except ValueError, e:
-                logger.error("computeDueDateForProfile: dueDate error from birthDate: {0.birthDate} for user {0.user}".format(profile))
-                return now
-            else:
-                return dueDate
+            dueDate = makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
+            return dueDate
         return UNKNOWN_DATE
 
     def getTagDataForProfile(self, profile):
@@ -843,6 +831,19 @@ class UserGoal(models.Model):
         (IN_PROGRESS, 'In Progress'),
         (COMPLETED, 'Completed')
     )
+    NON_COMPLIANT = 0
+    MARGINAL_COMPLIANT = 1
+    INCOMPLETE_PROFILE = 2
+    INCOMPLETE_LICENSE = 3
+    COMPLIANT = 4
+    COMPLIANCE_LEVELS = (
+        NON_COMPLIANT,
+        MARGINAL_COMPLIANT,
+        INCOMPLETE_PROFILE,
+        INCOMPLETE_LICENSE,
+        COMPLIANT
+    )
+    # fields
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         related_name='usergoals',
@@ -869,7 +870,8 @@ class UserGoal(models.Model):
         db_index=True,
         help_text='Used for license goals'
     )
-    status = models.SmallIntegerField(choices=STATUS_CHOICES, db_index=True)
+    status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, db_index=True)
+    compliance = models.PositiveSmallIntegerField(default=1, db_index=True)
     dueDate = models.DateTimeField()
     completeDate= models.DateTimeField(blank=True, null=True,
             help_text='Used for Wellness goal completion date.')
@@ -984,22 +986,31 @@ class UserGoal(models.Model):
         Args:
             userLicenseDict: dict/None. If None, makeUserLicenseDict will be called.
             numProfileSpecs: int/None. If None, profile.specialties.count() will be called
-        Precomputed args passed in by mgmt cmd that batch recomputes al usergoals.
+        Precomputed args passed in by batch recomputation of usergoals.
         """
         now = timezone.now()
         gtype = self.goal.goalType.name
+        status = self.status
+        compliance = self.compliance
         if gtype == GoalType.LICENSE:
-            status = self.status
             if self.license.isUnInitialized():
-                status = UserGoal.PASTDUE
                 dueDate = now
+                status = UserGoal.PASTDUE
+                compliance = UserGoal.INCOMPLETE_LICENSE
             else:
                 dueDate = self.license.expireDate
                 status = self.calcLicenseStatus(now)
-            if status != self.status:
+                if status == UserGoal.PASTDUE:
+                    compliance = UserGoal.NON_COMPLIANT
+                elif status == UserGoal.IN_PROGRESS:
+                    compliance = UserGoal.MARGINAL_COMPLIANT
+                else: # completed
+                    compliance = UserGoal.COMPLIANT
+            if status != self.status or compliance != self.compliance:
                 self.status = status
                 self.dueDate = dueDate
-                self.save()
+                self.compliance = compliance
+                self.save(update_fields=('status', 'dueDate', 'compliance'))
             return
         profile = self.user.profile
         if not numProfileSpecs:
@@ -1019,33 +1030,44 @@ class UserGoal(models.Model):
                     return
             dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
             credits = goal.computeCredits(numProfileSpecs)
-            #print("{0} credits for Goal {1.entityName} whose tag is {1.cmeTag}".format(credits, goal))
             # compute creditsEarned for self.tag over goal interval
             creditsEarned = self.getCreditSumOverInterval(basegoal, now)
             creditsLeft = float(credits) - float(creditsEarned)
             daysLeft = 0
             if creditsLeft <= 0:
                 creditsDue = 0
+                subCompliance = UserGoal.COMPLIANT
             else:
-                if dueDate > now:
+                if dueDate >= now:
                     td = dueDate - now
                     daysLeft = td.days
-                #print(' - daysLeft {0} from now until dueDate: {1:%Y-%m-%d}'.format(daysLeft, dueDate))
                 if daysLeft <= 30:
                     creditsDue = nround(creditsLeft) # all creditsLeft due at this time
+                    if daysLeft <= 0:
+                        subCompliance = UserGoal.NON_COMPLIANT
+                    else:
+                        subCompliance = UserGoal.MARGINAL_COMPLIANT
+
                 else:
                     # articles per month needed to earn creditsLeft by daysLeft
                     monthsLeft = math.floor(daysLeft/30) # take floor to ensure we don't underestimate apm
                     articlesLeft = creditsLeft/ARTICLE_CREDIT
                     apm = round(articlesLeft/monthsLeft) # round to nearest int
                     creditsDue = apm*ARTICLE_CREDIT # creditsDue can be converted to an integer number of articles due
+                    subCompliance = UserGoal.COMPLIANT
             #print(' - Tag {0.cmeTag}|creditsLeft: {1} | creditsDue: {2} for goal {3}'.format(self, creditsLeft, creditsDue, goal))
+            # update subCompliance if incomplete info
+            if basegoal.usesLicenseDate() and userLicense.isUnInitialized():
+                subCompliance = UserGoal.INCOMPLETE_LICENSE
+            elif basegoal.usesBirthDate() and not profile.birthDate:
+                subCompliance = UserGoal.INCOMPLETE_PROFILE
             data.append({
                 'goal': goal,
                 'dueDate': dueDate,
                 'daysLeft': daysLeft,
                 'creditsDue': creditsDue,
-                'creditsEarned': creditsEarned
+                'creditsEarned': creditsEarned,
+                'subCompliance': subCompliance
             })
         if len(data) > 1:
             data.sort(key=itemgetter('dueDate'))
@@ -1074,6 +1096,7 @@ class UserGoal(models.Model):
         self.creditsDue = creditsDue
         self.creditsEarned = creditsEarned
         self.status = status
+        self.compliance = min([d['subCompliance'] for d in data])
         self.save()
         logger.debug('recompute User {0.user} creditsDue: {0.creditsDue} for Tag {0.cmeTag}.'.format(self))
         return data

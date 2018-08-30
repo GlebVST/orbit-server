@@ -448,10 +448,12 @@ class OrgMemberManager(models.Manager):
         """
         user = profile.user
         fullName = self.makeFullName(profile.firstName, profile.lastName)
+        compliance = 4 if is_admin else 2
         m = self.model.objects.create(
                 organization=org,
                 user=user,
                 fullname=fullName,
+                compliance=compliance,
                 is_admin=is_admin)
         return m
 
@@ -474,18 +476,6 @@ class OrgMemberManager(models.Manager):
 
 @python_2_unicode_compatible
 class OrgMember(models.Model):
-    NON_COMPLIANT = 0
-    INCOMPLETE_PROFILE = 1
-    INCOMPLETE_LICENSE = 2
-    MARGINAL_COMPLIANT = 3
-    COMPLIANT = 4
-    COMPLIANCE_CHOICES = (
-        (NON_COMPLIANT, 'Non-compliant'),
-        (INCOMPLETE_PROFILE, 'Incomplete essential Profile'),
-        (INCOMPLETE_LICENSE, 'Incomplete License'),
-        (MARGINAL_COMPLIANT, 'Marginally compliant'),
-        (COMPLIANT, 'Compliant')
-    )
     organization = models.ForeignKey(Organization,
         on_delete=models.CASCADE,
         db_index=True,
@@ -502,8 +492,8 @@ class OrgMember(models.Model):
             help_text='True if user is an admin for this organization')
     removeDate = models.DateTimeField(null=True, blank=True,
             help_text='date the member was removed')
-    compliance = models.PositiveSmallIntegerField(default=1,
-            help_text='Cached value of compliance status for sorting')
+    compliance = models.PositiveSmallIntegerField(default=1, db_index=True,
+            help_text='Cached compliance level aggregated over user goals')
     setPasswordEmailSent = models.BooleanField(default=False,
             help_text='Set to True when password-ticket email is sent')
     orgfiles = models.ManyToManyField(OrgFile, related_name='orgmembers')
@@ -674,8 +664,27 @@ class Profile(models.Model):
             return False
         return True
 
+    def isCompleteForGoals(self):
+        """Returns True if fields used for goal matching/dueDate computation are populated, else False"""
+        if not self.birthDate or not self.country:
+            return False
+        if not self.degrees.exists():
+            return False
+        if not self.states.exists():
+            return False
+        if not self.hospitals.exists():
+            return False
+        if not self.specialties.exists():
+            return False
+        if not self.subspecialties.exists():
+            for ps in self.specialties.all():
+                if ps.subspecialties.exists():
+                    # subspecs for specialty exist but user has not selected any
+                    return False
+        return True
+
     def measureComplete(self):
-        """Returns a integer in range (1,100) for a measure of profile completeness"""
+        """Returns a integer in range 0-100 for a measure of profile completeness"""
         total = 4
         filled = 0
         include_subspec = False

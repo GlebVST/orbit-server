@@ -17,47 +17,51 @@ class Command(BaseCommand):
         cmeGoalType = GoalType.objects.get(name=GoalType.CME)
         # get distinct users
         users = UserGoal.objects.all().values_list('user', flat=True).distinct().order_by('user')
+        profiles = Profile.objects.filter(user_id__in=users).prefetch_related(
+                'degrees',
+                'specialties',
+                'states',
+                'subspecialties').order_by('user_id')
         now = timezone.now()
-        for userid in users:
-            user = User.objects.get(pk=userid)
+        for profile in profiles:
+            user = profile.user
             self.stdout.write('Process user {0}'.format(user))
-            profile = Profile.objects.filter(user=userid).prefetch_related('specialties')[0]
             numProfileSpecs = profile.specialties.count()
             userLicenseDict = dict()
             total_goals = 0
-            statusDict = {
-                    UserGoal.PASTDUE: 0,
-                    UserGoal.IN_PROGRESS: 0,
-                    UserGoal.COMPLETED: 0
+            complianceDict = {
+                    UserGoal.NON_COMPLIANT: 0,
+                    UserGoal.INCOMPLETE_PROFILE: 0,
+                    UserGoal.INCOMPLETE_LICENSE: 0,
+                    UserGoal.MARGINAL_COMPLIANT: 0,
+                    UserGoal.COMPLIANT: 0
             }
             # recompute user license goals.
             qset = user.usergoals.select_related('goal','license').filter(goal__goalType=licenseGoalType)
             for m in qset:
                 userLicenseDict[m.goal.pk] = m.license
-                old_status = m.status
                 m.recompute()
-                statusDict[m.status] += 1
+                complianceDict[m.compliance] += 1
                 total_goals += 1
-                if m.status != old_status:
-                    self.stdout.write('Updated status of {0} to {0.status}'.format(m))
             # recompute user cmegoals
             qset = user.usergoals.select_related('goal').filter(goal__goalType=cmeGoalType).prefetch_related('cmeGoals').order_by('pk')
             for m in qset:
-                old_status = m.status
                 m.recompute(userLicenseDict, numProfileSpecs)
-                statusDict[m.status] += 1
+                complianceDict[m.compliance] += 1
                 total_goals += 1
-                if m.status != old_status:
-                    self.stdout.write('Updated status of {0} to {0.status}'.format(m))
-            # compute compliance
-            # if any are pastdue, compliance = PASTDUE
-            if statusDict[UserGoal.PASTDUE]:
-                compliance = UserGoal.PASTDUE
-            # if all are completed, compliance = COMPLETED
-            elif statusDict[UserGoal.COMPLETED] == total_goals:
-                compliance = UserGoal.COMPLETED
+            # compute aggregate compliance for this user
+            for level in UserGoal.COMPLIANCE_LEVELS:
+                if complianceDict[level]:
+                    compliance = level
+                    break # agg. compliance set to highest-priority level
             else:
-                compliance = UserGoal.IN_PROGRESS
+                # no breaks encountered
+                logger.warning('Invalid complianceDict for user {0}. Could not find level.'.format(user))
+                compliance = UserGoal.INCOMPLETE_PROFILE
+            if compliance == UserGoal.COMPLIANT:
+                # check for incomplete profile (since user may be missing some goals)
+                if not profile.isCompleteForGoals():
+                    compliance = UserGoal.INCOMPLETE_PROFILE
             # update orgmember.compliance cached value
             qset = user.orgmembers.all()
             for orgmember in qset:

@@ -80,11 +80,11 @@ class OrgMemberFilterBackend(BaseFilterBackend):
         if o == 'lastname':
             orderByFields = ['user__profile__lastName', 'user__profile__firstName', 'created']
         elif o == 'created':
-            orderByFields = ['created', 'fullname']
+            orderByFields = ['created', 'user__profile__lastName', 'user__profile__firstName']
         elif o == 'compliance':
-            orderByFields = ['compliance', 'fullname']
+            orderByFields = ['compliance', 'user__profile__lastName', 'user__profile__firstName']
         elif o == 'verified':
-            orderByFields = ['user__profile__verified', 'fullname']
+            orderByFields = ['user__profile__verified', 'user__profile__lastName', 'user__profile__firstName']
         if otype == 'd':
             orderByFields[0] = '-' + orderByFields[0]
         if search_term:
