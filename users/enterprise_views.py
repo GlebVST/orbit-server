@@ -55,6 +55,20 @@ class OrgMemberFilterBackend(BaseFilterBackend):
                 description='Search by firstName, lastName or email'
                 ),
             coreapi.Field(
+                name='compliance',
+                location='query',
+                required=False,
+                type='string',
+                description='Filter by compliance: [0-4]'
+                ),
+            coreapi.Field(
+                name='verified',
+                location='query',
+                required=False,
+                type='string',
+                description='Filter by verified: 0 or 1'
+                ),
+            coreapi.Field(
                 name='o',
                 location='query',
                 required=False,
@@ -74,6 +88,24 @@ class OrgMemberFilterBackend(BaseFilterBackend):
         """This requires the model Manager to have a search_filter manager method"""
         org = request.user.profile.organization
         search_term = request.query_params.get('q', '').strip()
+        compliance = None
+        verified = None
+        q_compliance = request.query_params.get('compliance', '').strip()
+        try:
+            compliance = int(q_compliance)
+        except ValueError:
+            compliance = None
+        q_verified = request.query_params.get('verified', '').strip()
+        try:
+            verified = bool(int(q_verified))
+        except ValueError:
+            verified = None
+        # basic filter kwargs
+        filter_kwargs = {'organization': org, 'removeDate__isnull': True}
+        if compliance is not None:
+            filter_kwargs['compliance'] = compliance
+        if verified is not None:
+            filter_kwargs['user__profile__verified'] = verified
         o = request.query_params.get('o', 'lastname').strip()
         otype = request.query_params.get('otype', 'a').strip() # sort primary field by ASC/DESC
         # set orderByFields from o
@@ -88,10 +120,9 @@ class OrgMemberFilterBackend(BaseFilterBackend):
         if otype == 'd':
             orderByFields[0] = '-' + orderByFields[0]
         if search_term:
-            logInfo(logger, request, search_term)
-            return OrgMember.objects.search_filter(org, search_term, orderByFields)
-        # no search_term: filter by org
-        return queryset.filter(organization=org).order_by(*orderByFields)
+            return OrgMember.objects.search_filter(search_term, filter_kwargs, orderByFields)
+        # no search_term:
+        return queryset.filter(**filter_kwargs).order_by(*orderByFields)
 
 class OrgMemberList(generics.ListCreateAPIView):
     queryset = OrgMember.objects.filter(removeDate__isnull=True) # active only

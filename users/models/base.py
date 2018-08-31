@@ -457,15 +457,16 @@ class OrgMemberManager(models.Manager):
                 is_admin=is_admin)
         return m
 
-    def search_filter(self, org, search_term, orderByFields):
+    def search_filter(self, search_term, filter_kwargs, orderByFields):
         """Returns a queryset that filters active OrgMembers by the given org and search_term
         Args:
-            org: Organization - must be provided to prevent results containing members of other orgs
             search_term: str : to query fullname and username
+            filter_kwargs: dict must contain key: organization, else raise KeyError
             orderByFields: tuple of fields to order by
         Returns: queryset of active OrgMembers
         """
-        base_qs = self.model.objects.select_related('user', 'user__profile').filter(organization=org, removeDate__isnull=True)
+        org =  filter_kwargs['organization'] # ensure org is contained to filter by a given organization
+        base_qs = self.model.objects.select_related('user', 'user__profile').filter(**filter_kwargs)
         qs1 = base_qs.filter(fullname__contains=search_term.upper())
         qs2 = base_qs.filter(user__username__istartswith=search_term)
         qs = qs1

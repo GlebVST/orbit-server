@@ -74,7 +74,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         4. Create OrgAdmin model instance
         5. Assign groups to the new user
         6. Generate change-password-ticket if given
-        Returns: OrgAdmin model instance
+        Returns: OrgMember model instance
         """
         apiConn = validated_data['apiConn']
         org = validated_data['organization']
@@ -122,15 +122,19 @@ class OrgMemberFormSerializer(serializers.Serializer):
                     m.setPasswordEmailSent = True
                     m.save(update_fields=('setPasswordEmailSent',))
             except SMTPException as e:
-                logger.warning('sendChangePasswordTicketEmail failed for user {0}. ticket_url={1}'.format(user, ticket_url))
+                error_msg = u'sendPasswordTicketEmail failed for user {0}. ticket_url={1}'.format(user, ticket_url)
+                if settings.ENV_TYPE == settings.ENV_PROD:
+                    logger.exception(error_msg)
+                else:
+                    logger.warning(error_msg)
         return m
 
 
     def update(self, instance, validated_data):
         """This expects extra keys in the validated_data:
             apiConn: Auth0Api instance
-        Update OrgAdmin model instance
-        Returns: OrgAdmin model instance
+        Update OrgMember model instance
+        Returns: OrgMember model instance
         """
         user = instance.user
         profile = user.profile
