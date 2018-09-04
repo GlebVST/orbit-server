@@ -308,7 +308,7 @@ class TeamStats(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         user = request.user
         org = user.profile.organization
-        totalCreditsStartDate = org.creditsStartDate.date().isoformat()
+        totalCreditsStartDate = org.creditStartDate.date().isoformat()
         filter_kwargs = {
                 'organization': org,
                 'day__gte': startdt.date(),
