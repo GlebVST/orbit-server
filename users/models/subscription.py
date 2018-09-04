@@ -458,7 +458,7 @@ class AffiliatePayoutManager(models.Manager):
             for m in qset:
                 user_subs = UserSubscription.objects.getLatestSubscription(m.convertee)
                 #if user_subs:
-                if user_subs and user_subs.status == UserSubscription.ACTIVE and SubscriptionTransaction.objects.filter(subscription=user_subs).exists():
+                if user_subs and user_subs.status == UserSubscription.ACTIVE and user_subs.transactions.exists():
                     #print(m)
                     filtered.append(m)
             if filtered:
@@ -1091,7 +1091,7 @@ class UserSubscriptionManager(models.Manager):
                         invitee=user,
                         inviteeDiscount=inv_discount
                     )
-                elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
+                elif is_convertee and affl.bonus > 0 and not AffiliatePayout.objects.filter(convertee=user).exists():
                     afp_amount = affl.bonus*subs_price
                     AffiliatePayout.objects.create(
                         convertee=user,

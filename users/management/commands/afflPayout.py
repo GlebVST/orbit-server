@@ -48,7 +48,7 @@ class Command(BaseCommand):
             grandTotal += total
             num_convertees = len(total_by_affl[aff_pk]['pks'])
             note = "Earnings for {0} total referral(s) that converted to Active users through the {1} for {2}.".format(num_convertees, PROGRAM_NAME, monyr)
-            if not options['report_only']:
+            if total and not options['report_only']:
                 # one payout-item per affiliate with amount=total
                 items.append({
                     'sender_item_id':sender_batch_id+':{0}'.format(aff_pk),

@@ -29,7 +29,7 @@ class Auth0Backend(object):
         picture = user_info.get('picture', '')
         # optional keys passed by login_via_token
         inviterId = user_info.get('inviterId', None)
-        affiliateId = user_info.get('affiliateId', None)
+        affiliateId = user_info.get('affiliateId', '')
         planId = user_info.get('planId', None) # required for new user creation (signup)
         try:
             user = User.objects.get(username=email) # the unique constraint is on the username field in the users table
