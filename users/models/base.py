@@ -6,6 +6,7 @@ import pytz
 import re
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.contrib.postgres.fields import JSONField
 from django.contrib.postgres.search import SearchVector
 from django.db import models
 from django.db.models import Q
@@ -271,11 +272,13 @@ class DegreeManager(models.Manager):
 
 @python_2_unicode_compatible
 class Degree(models.Model):
+    """Names and abbreviations of professional roles"""
     MD = 'MD'
     DO = 'DO'
     NP = 'NP'
     RN = 'RN'
-    """Names and abbreviations of professional degrees"""
+    PA = 'PA'
+    OTHER = 'Other'
     abbrev = models.CharField(max_length=7, unique=True)
     name = models.CharField(max_length=40)
     sort_order = models.PositiveIntegerField(default=0)
@@ -287,19 +290,17 @@ class Degree(models.Model):
         return self.abbrev
 
     def isVerifiedForCme(self):
-        """Is degree verified for CME
-        Returns True if degree is MD/DO
-        """
+        """Returns True if verified for CME"""
         abbrev = self.abbrev
         return abbrev == Degree.MD or abbrev == Degree.DO
 
     def isNurse(self):
-        """Returns True if degree is RN/NP"""
+        """Returns True if RN/NP"""
         abbrev = self.abbrev
         return abbrev == Degree.RN or abbrev == Degree.NP
 
     def isPhysician(self):
-        """Returns True if degree is MD/DO"""
+        """Returns True if MD/DO"""
         abbrev = self.abbrev
         return abbrev == Degree.MD or abbrev == Degree.DO
 
@@ -369,12 +370,14 @@ class SubSpecialty(models.Model):
 
 @python_2_unicode_compatible
 class Organization(models.Model):
-    """Organization - groups of users
-    """
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=20, unique=True, help_text='Org code for display')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    credits = models.FloatField(default=0,
+            help_text='Computed total credits earned by this org since creditStartDate until today.')
+    creditStartDate = models.DateTimeField(null=True, blank=True,
+            help_text='Start date of total credits calculation')
 
     def __str__(self):
         return self.code

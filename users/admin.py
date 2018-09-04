@@ -50,7 +50,7 @@ class SubSpecialtyAdmin(admin.ModelAdmin):
         return qs.prefetch_related('cmeTags')
 
 class OrgAdmin(admin.ModelAdmin):
-    list_display = ('id', 'code', 'name', 'created')
+    list_display = ('id', 'code', 'name', 'credits', 'creditStartDate')
 
 class OrgFileAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created')

@@ -138,6 +138,7 @@ api_patterns = [
     url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberDetail.as_view()),
     url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/email-set-password/?$', enterprise_views.EmailSetPassword.as_view()),
     url(r'^enterprise/upload-roster/?$', enterprise_views.UploadRoster.as_view()),
+    url(r'^enterprise/team-stats/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.TeamStats.as_view()),
 ]
 if settings.ENV_TYPE != settings.ENV_PROD:
     # debug

@@ -203,3 +203,14 @@ class OrgFileReadSerializer(serializers.ModelSerializer):
             'created',
         )
         read_only_fields = fields
+
+
+class OrbitCmeOfferAggSerializer(serializers.ModelSerializer):
+    value = serializers.IntegerField(source='offers')
+    class Meta:
+        model = OrbitCmeOfferAgg
+        fields = (
+            'day',
+            'value'
+        )
+        read_only_fields = fields

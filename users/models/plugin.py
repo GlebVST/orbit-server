@@ -12,6 +12,7 @@ from .base import (
     SACME_SPECIALTIES,
     CmeTag,
     EligibleSite,
+    Organization
 )
 from .feed import Sponsor
 logger = logging.getLogger('gen.models')
@@ -25,7 +26,7 @@ class AllowedHost(models.Model):
     description = models.CharField(max_length=500, blank=True, default='')
     accept_query_keys = models.TextField(blank=True, default='', help_text='accepted keys in url query')
     has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
-    allow_page_download = models.BooleanField(blank=True, default=True,
+    allow_page_download = models.BooleanField(blank=True, default=False,
             help_text='False if pages under this host should not be downloaded')
     is_secure = models.BooleanField(blank=True, default=False, help_text='True if site uses a secure connection (https).')
     created = models.DateTimeField(auto_now_add=True, blank=True)
@@ -240,3 +241,26 @@ class OrbitCmeOffer(models.Model):
         profile = self.user.profile
         if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
             self.tags.add(CmeTag.objects.get(name=CMETAG_SACME))
+
+
+# OrbitCmeOffer stats per org
+@python_2_unicode_compatible
+class OrbitCmeOfferAgg(models.Model):
+    id = models.AutoField(primary_key=True)
+    organization = models.ForeignKey(Organization,
+        on_delete=models.CASCADE,
+        db_index=True
+    )
+    day = models.DateField()
+    offers = models.PositiveIntegerField(default=0,
+        help_text='Number of offers generated for this day (counted from 00:00:00 UTC - 23:59:59 UTC)')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_orbitcmeofferagg'
+        verbose_name_plural = 'OrbitCME Offer Stats'
+
+    def __str__(self):
+        return "{0.day}".format(self)

@@ -291,3 +291,35 @@ class EmailSetPassword(APIView):
                 context = {'success': True}
                 return Response(context, status=status.HTTP_200_OK)
         return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+
+
+class TeamStats(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    def get(self, request, start, end):
+        try:
+            startdt = datetime.utcfromtimestamp(int(start))
+            enddt = datetime.utcfromtimestamp(int(end))
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        org = user.profile.organization
+        totalCreditsStartDate = org.creditsStartDate.date().isoformat()
+        filter_kwargs = {
+                'organization': org,
+                'day__gte': startdt.date(),
+                'day__lte': enddt.date()
+            }
+        qset = OrbitCmeOfferAgg.objects.filter(**filter_kwargs).order_by('day')
+        s = OrbitCmeOfferAggSerializer(qset, many=True)
+        context = {
+            'totalCredits': float(org.credits),
+            'totalCreditsStartDate': totalCreditsStartDate,
+            'providers': [],
+            'articlesRead': s.data
+        }
+        return Response(context, status=status.HTTP_200_OK)
