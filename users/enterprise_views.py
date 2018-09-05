@@ -321,7 +321,11 @@ class TeamStats(APIView):
         providers = []
         for abbrev in providerStat:
             d = providerStat[abbrev]
-            providers.append({'count': d['count'], 'diff': d['diff']})
+            providers.append({
+                'title': abbrev,
+                'count': d['count'],
+                'diff': d['diff']
+                })
         providers.sort(key=itemgetter('count'), reverse=True)
         context = {
             'organization': org.name,
