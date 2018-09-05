@@ -9,7 +9,7 @@ logger = logging.getLogger('mgmt.rcpt')
 
 
 class Command(BaseCommand):
-    help = "Updates the latest UserSubscription and its associated transactions, and send receipt emails"""
+    help = "Updates the latest UserSubscription and its associated transactions, and send receipt emails"
 
     def handle(self, *args, **options):
         profiles = Profile.objects.all().order_by('-created')

@@ -316,10 +316,18 @@ class TeamStats(APIView):
             }
         qset = OrbitCmeOfferAgg.objects.filter(**filter_kwargs).order_by('day')
         s = OrbitCmeOfferAggSerializer(qset, many=True)
+        # convert org.providerStat to list
+        providerStat = org.providerStat # dict abbrev => {count, lastCount, diff}
+        providers = []
+        for abbrev in providerStat:
+            d = providerStat[abbrev]
+            providers.append({'count': d['count'], 'diff': d['diff']})
+        providers.sort(key=itemgetter('count'), reverse=True)
         context = {
+            'organization': org.name,
             'totalCredits': float(org.credits),
             'totalCreditsStartDate': totalCreditsStartDate,
-            'providers': [],
+            'providers': providers,
             'articlesRead': s.data
         }
         return Response(context, status=status.HTTP_200_OK)

@@ -378,6 +378,9 @@ class Organization(models.Model):
             help_text='Computed total credits earned by this org since creditStartDate until today.')
     creditStartDate = models.DateTimeField(null=True, blank=True,
             help_text='Start date of total credits calculation')
+    creditEndDate = models.DateTimeField(null=True, blank=True,
+            help_text='End date of total credits calculation')
+    providerStat = JSONField(default='', blank=True)
 
     def __str__(self):
         return self.code
