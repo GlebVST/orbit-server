@@ -26,6 +26,20 @@ from pprint import pprint
 logger = logging.getLogger('mgmt.orgfile')
 DELIMITER = ','
 
+FIELD_NAMES = (
+    ('Last Name', 'LastName'),
+    ('First Name', 'FirstName'),
+    ('Email', 'Email'),
+    ('NPI Number', 'NPINumber'),
+    ("Degree (MD, DO, PA, NP, RN, RT)", "Role"),
+    ("Specialty (Radiology, Radiation Oncology, Emergency Medicine, etc.)", 'Specialty'),
+    ("Subspecialty (separate options with commas)", 'SubSpecialty'),
+    ("State (AL, AK, AZ, etc.)", 'State'),
+    ("Birthdate (MM/DD/YY)", 'Birthdate'),
+)
+RAW_FIELD_NAMES = [t[0] for t in FIELD_NAMES]
+FIELD_NAME_MAP = {t[0]:t[1] for t in FIELD_NAMES}
+
 class Command(BaseCommand):
     help = "Process Uploaded Roster file for the given file_id. It creates new User accounts for any new emails found and skips over existing ones. If any error is encountered, it exits immediately."
 
@@ -71,7 +85,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         file_id = options['file_id']
-        fieldnames = ('LastName', 'FirstName', 'Email', 'Role', 'Birthdate', 'Specialty', 'SubSpecialty', 'State')
         num_existing = 0
         created = [] # list of OrgMembers
         country_usa = Country.objects.get(name=Country.USA)
@@ -90,10 +103,17 @@ class Command(BaseCommand):
             self.stdout.write('Pre-process roster file for {0.code}: checking validity...'.format(org))
             srcfile = orgfile.csvfile if orgfile.csvfile else orgfile.document
             f = StringIO(srcfile.read())
-            reader = csv.DictReader(f, fieldnames=fieldnames, restkey='extra')
+            reader = csv.DictReader(f, fieldnames=RAW_FIELD_NAMES, restkey='extra')
             all_data = [row for row in reader]
-            data = all_data[1:]
-            # pre-process: check valid FKs
+            raw_data = all_data[1:]
+            # pre-process 1: map to fieldnames and remove template data
+            data = []
+            for d in raw_data:
+                if d['Last Name'].strip() == '':
+                    continue
+                dd = {FIELD_NAME_MAP[key]:d[key] for key d}
+                data.append(d)
+            # pre-process 2: check valid FKs
             for d in data:
                 role = d['Role'].strip().upper()
                 if role not in degreeDict:
@@ -153,6 +173,8 @@ class Command(BaseCommand):
                     user = orgmember.user
                     profile = user.profile
                     profile.country = country_usa
+                    if d['NPINumber']:
+                        profile.npiNumber = d['NPINumber']
                     if d['Birthdate']:
                         profile.birthDate = d['Birthdate']
                     for state in d['states']:

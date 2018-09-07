@@ -654,9 +654,9 @@ class Profile(models.Model):
         return False
 
     def isNPIComplete(self):
-        """Returns: bool"""
+        """Returns True if npiNumber/LastName/FirstName are populated if required"""
         if self.shouldReqNPINumber():
-            if self.npiNumber:
+            if self.npiNumber and self.npiLastName and self.npiFirstName:
                 return True # required and filled
             return False # required and not filled
         return True # not required

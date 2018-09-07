@@ -487,9 +487,16 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
     plan_type = serializers.StringRelatedField(source='plan.plan_type', read_only=True)
     plan = serializers.PrimaryKeyRelatedField(read_only=True)
     plan_name = serializers.ReadOnlyField(source='plan.name')
-    display_name = serializers.ReadOnlyField(source='plan.display_name')
+    display_name = serializers.SerializerMethodField()
     bt_status = serializers.ReadOnlyField(source='status')
     needs_payment_method = serializers.BooleanField(source='plan.plan_type.needs_payment_method')
+
+    def get_display_name(self, obj):
+        """If enterprise plan: return org name, else return plan.display_name"""
+        profile = obj.user.profile
+        if profile.organization and obj.plan.isEnterprise():
+            return profile.organization.name
+        return obj.plan.display_name
 
     class Meta:
         model = UserSubscription
