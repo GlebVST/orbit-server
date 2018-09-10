@@ -86,6 +86,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         password_ticket = validated_data.get('password_ticket', True)
         # 0. get Enterprise Plan
         plan = SubscriptionPlan.objects.getEnterprisePlan()
+        country_usa = Country.objects.get(code=Country.USA)
         # 1. get or create auth0 user
         socialId = apiConn.findUserByEmail(email)
         if not socialId:
@@ -101,6 +102,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
             firstName=firstName,
             lastName=lastName
             )
+        profile.country = country_usa
         if degrees:
             profile.degrees.set(degrees)
         user = profile.user
