@@ -124,9 +124,16 @@ class OrgMemberFilterBackend(BaseFilterBackend):
         # no search_term:
         return queryset.filter(**filter_kwargs).order_by(*orderByFields)
 
+
+class OrgMemberListPagination(PageNumberPagination):
+    page_size = 500
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
+
 class OrgMemberList(generics.ListCreateAPIView):
     queryset = OrgMember.objects.filter(removeDate__isnull=True) # active only
     serializer_class = OrgMemberReadSerializer
+    pagination_class = OrgMemberListPagination
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
     filter_backends = (OrgMemberFilterBackend,)
 
