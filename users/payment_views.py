@@ -132,18 +132,11 @@ class GetPaymentMethods(APIView):
             customer = Customer.objects.get(user=request.user)
             results = Customer.objects.getPaymentMethods(customer)
         except Customer.DoesNotExist:
-            context = {
-                'success': False,
-                'message': 'Local Customer object not found for user.'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            results = []
         except braintree.exceptions.not_found_error.NotFoundError:
-            context = {
-                'success': False,
-                'message': 'BT Customer object not found.'
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        else:
+            logWarning(logger, request, "BT Customer not found: {0.user}".format(request))
+            results = []
+        finally:
             return Response(results, status=status.HTTP_200_OK)
 
 

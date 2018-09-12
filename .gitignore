@@ -4,6 +4,7 @@ db.sqlite3
 .env-*
 req.txt
 logs/*.log
+admin_scripts/*.log
 admin_scripts/backup_ec2.py
 admin_scripts/new_backup_ec2.py
 admin_scripts/old_backup_ec2.py

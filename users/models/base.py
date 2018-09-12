@@ -503,7 +503,7 @@ class OrgMember(models.Model):
             help_text='Cached compliance level aggregated over user goals')
     setPasswordEmailSent = models.BooleanField(default=False,
             help_text='Set to True when password-ticket email is sent')
-    orgfiles = models.ManyToManyField(OrgFile, related_name='orgmembers')
+    orgfiles = models.ManyToManyField(OrgFile, blank=True, related_name='orgmembers')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = OrgMemberManager()
