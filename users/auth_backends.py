@@ -30,6 +30,8 @@ class Auth0Backend(object):
         # optional keys passed by login_via_token
         inviterId = user_info.get('inviterId', None)
         affiliateId = user_info.get('affiliateId', '')
+        if affiliateId is None: # cast None to '' to prevent not-null error when saving profile
+            affiliateId = ''
         planId = user_info.get('planId', None) # required for new user creation (signup)
         try:
             user = User.objects.get(username=email) # the unique constraint is on the username field in the users table
