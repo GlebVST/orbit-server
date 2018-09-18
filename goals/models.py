@@ -768,7 +768,7 @@ class UserGoalManager(models.Manager):
         return usergoals
 
     def rematchGoals(self, user):
-        """This should be called when user's profile changes.
+        """This should be called when user's profile changes, or when new goals are created (or existing goals inactivated).
         Steps:
             1. Remove stale UserGoals that no longer match the profile
             2. Call assignGoals to create new UserGoals/update existing ones.

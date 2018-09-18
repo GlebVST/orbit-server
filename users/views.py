@@ -144,6 +144,34 @@ class ProfileUpdate(generics.UpdateAPIView):
         out_serializer = ProfileReadSerializer(profile)
         return Response(out_serializer.data)
 
+class UpdateProfilePlanid(APIView):
+    """Update profile.planId for request.user
+    Expected POST data
+    {
+        "planId": abcd
+    }
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+    def post(self, request, *args, **kwargs):
+        profile = request.user.profile
+        planId = request.data.get('planId', None)
+        errorContext = {
+            'success': False,
+            'error': 'Invalid planId'
+        }
+        if not planId:
+            return Response(errorContext, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            plan = SubscriptionPlan.objects.get(planId=planId)
+        except SubscriptionPlan.DoesNotExist:
+            return Response(errorContext, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            msg = "Update planId for {0.user}/{0.planId} to {1}".format(profile, planId)
+            profile.planId = planId
+            profile.save(update_fields=('planId',))
+            logInfo(logger, request, msg)
+            out_serializer = ProfileReadSerializer(profile)
+            return Response(out_serializer.data)
 
 
 class AffiliateIdLookup(APIView):

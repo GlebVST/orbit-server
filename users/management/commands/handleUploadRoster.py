@@ -111,7 +111,7 @@ class Command(BaseCommand):
             for d in raw_data:
                 if d['Last Name'].strip() == '':
                     continue
-                dd = {FIELD_NAME_MAP[key]:d[key] for key d}
+                dd = {FIELD_NAME_MAP[key]:d[key] for key in d}
                 data.append(d)
             # pre-process 2: check valid FKs
             for d in data:
@@ -216,7 +216,7 @@ class Command(BaseCommand):
                         orgmember.setPasswordEmailSent = True
                         orgmember.save(update_fields=('setPasswordEmailSent',))
                     else:
-                        error_msg = ' - send password-ticket email failed'.format(orgmember))
+                        error_msg = 'Send password-ticket email failed for {0.user}'.format(orgmember)
                         logger.warning(error_msg)
                         self.stdout.write(error_msg)
                     sleep(0.3)

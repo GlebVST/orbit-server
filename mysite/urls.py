@@ -88,6 +88,7 @@ api_patterns = [
     url(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileUpdate.as_view()),
     url(r'^profiles/set-accessed-tour/?$', views.SetProfileAccessedTour.as_view(), name='profile-set-accessed-tour'),
     url(r'^profiles/set-cmetags/?$', views.ManageProfileCmetags.as_view(), name='profile-set-cmetags'),
+    url(r'^profiles/set-planid/?$', views.UpdateProfilePlanid.as_view(), name='profile-set-planid'),
     url(r'^cmetags/?$', views.CmeTagList.as_view()),
     url(r'^degrees/?$', views.DegreeList.as_view()),
     url(r'^countries/?$', views.CountryList.as_view()),

@@ -51,7 +51,7 @@ class LicenseBaseGoalAdmin(admin.ModelAdmin):
         'degrees',
         'specialties',
     )
-    exclude = ('modifiedBy',)
+    exclude = ('modifiedBy', 'cmeTag')
 
     class Media:
         pass
