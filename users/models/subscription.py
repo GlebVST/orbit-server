@@ -725,7 +725,7 @@ class SubscriptionPlan(models.Model):
         return self.plan_type.name == SubscriptionPlanType.ENTERPRISE
 
     def isFreeIndividual(self):
-        return not self.plan_type == SubscriptionPlanType.FREE_INDIVIDUAL
+        return self.plan_type.name == SubscriptionPlanType.FREE_INDIVIDUAL
 
     def isPaid(self):
         return self.plan_type.needs_payment_method
