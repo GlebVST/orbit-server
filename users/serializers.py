@@ -203,6 +203,10 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         queryset=State.objects.all(),
         many=True
     )
+    deaStates = serializers.PrimaryKeyRelatedField(
+        queryset=State.objects.all(),
+        many=True
+    )
     hospitals = serializers.PrimaryKeyRelatedField(
         queryset=Hospital.objects.all(),
         many=True
@@ -240,6 +244,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'specialties',
             'subspecialties',
             'states',
+            'deaStates',
             'hospitals',
             'verified',
             'accessedTour',
@@ -337,6 +342,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
     subspecialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     hospitals = NestedHospitalSerializer(many=True, read_only=True)
     states = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    deaStates = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
     profileComplete = serializers.SerializerMethodField()
@@ -389,6 +395,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
             'specialties',
             'subspecialties',
             'states',
+            'deaStates',
             'hospitals',
             'verified',
             'accessedTour',

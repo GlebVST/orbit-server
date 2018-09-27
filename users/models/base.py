@@ -610,8 +610,9 @@ class Profile(models.Model):
     degrees = models.ManyToManyField(Degree, blank=True) # called primaryrole in UI
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     subspecialties = models.ManyToManyField(SubSpecialty, blank=True)
-    states = models.ManyToManyField(State, blank=True)
-    hospitals = models.ManyToManyField(Hospital, blank=True)
+    states = models.ManyToManyField(State, blank=True, related_name='profiles')
+    deaStates = models.ManyToManyField(State, blank=True, related_name='dea_profiles')
+    hospitals = models.ManyToManyField(Hospital, blank=True, related_name='profiles')
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
@@ -900,6 +901,7 @@ class Document(models.Model):
 
 class LicenseType(models.Model):
     TYPE_RN = 'RN'
+    TYPE_DEA = 'DEA'
     # fields
     name = models.CharField(max_length=30, unique=True)
     created = models.DateTimeField(auto_now_add=True)
