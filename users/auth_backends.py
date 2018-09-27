@@ -82,9 +82,6 @@ class Auth0Backend(object):
                         logger.error('braintree.Customer.create failed. Result message: {0.message}'.format(result))
                 except:
                     logger.exception('braintree.Customer.create exception')
-            if plan.isFreeIndividual():
-                us = UserSubscription.objects.createFreeSubscription(user, plan)
-                logger.info('Create free UserSubs {0.subscriptionId}'.format(us))
         else:
             profile = user.profile
             # profile.socialId must match user_id

@@ -144,34 +144,38 @@ class ProfileUpdate(generics.UpdateAPIView):
         out_serializer = ProfileReadSerializer(profile)
         return Response(out_serializer.data)
 
-class UpdateProfilePlanid(APIView):
-    """Update profile.planId for request.user
-    Expected POST data
-    {
-        "planId": abcd
-    }
+class ProfileInitialUpdate(generics.UpdateAPIView):
+    """This is used to for the initial update of profile after user signup
+    with the name, country and possibly a changed planId from the one selected
+    on signup.
+    If new planId is FreeIndividual (and user has no subscription yet), then
+    create UserSubs.
     """
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
-    def post(self, request, *args, **kwargs):
-        profile = request.user.profile
-        planId = request.data.get('planId', None)
-        errorContext = {
-            'success': False,
-            'error': 'Invalid planId'
-        }
-        if not planId:
-            return Response(errorContext, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            plan = SubscriptionPlan.objects.get(planId=planId)
-        except SubscriptionPlan.DoesNotExist:
-            return Response(errorContext, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            msg = "Update planId for {0.user}/{0.planId} to {1}".format(profile, planId)
-            profile.planId = planId
-            profile.save(update_fields=('planId',))
-            logInfo(logger, request, msg)
-            out_serializer = ProfileReadSerializer(profile)
-            return Response(out_serializer.data)
+    queryset = Profile.objects.all().select_related('country')
+    serializer_class = ProfileInitialUpdateSerializer
+    permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
+
+    def perform_update(self, serializer, format=None):
+        planId = self.request.data.get('planId', '')
+        if planId:
+            try:
+                plan = SubscriptionPlan.objects.get(planId=planId)
+            except SubscriptionPlan.DoesNotExist:
+                error_msg = 'Invalid planId'
+                raise serializers.ValidationError({'planId': error_msg}, code='invalid')
+        instance = serializer.save()
+        return instance
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        form_data = request.data.copy()
+        serializer = self.get_serializer(instance, data=form_data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        profile = self.get_object()
+        out_serializer = ProfileReadSerializer(profile)
+        return Response(out_serializer.data)
 
 
 class AffiliateIdLookup(APIView):

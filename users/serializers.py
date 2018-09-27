@@ -138,6 +138,45 @@ class ManageProfileCmetagSerializer(serializers.Serializer):
         ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
+class ProfileInitialUpdateSerializer(serializers.ModelSerializer):
+    """Used for initial user intake screen : name and country
+    and for the case of changing initial planId. If new planId
+    is isFreeIndividual, a new UserSubscription is created.
+    """
+    id = serializers.IntegerField(source='user.id', read_only=True)
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        allow_null=True
+    )
+
+    class Meta:
+        model = Profile
+        fields = (
+            'id',
+            'firstName',
+            'lastName',
+            'country',
+            'planId',
+        )
+
+    def update(self, instance, validated_data):
+        key = 'planId'
+        if key in validated_data:
+            if not validated_data[key]:
+                validated_data[key] = instance.planId
+        user = instance.user
+        oldPlanId = instance.planId
+        # update the instance
+        instance = super(ProfileInitialUpdateSerializer, self).update(instance, validated_data)
+        if oldPlanId != instance.planId and instance.planId:
+            # check if need to create Free UserSubs
+            plan = SubscriptionPlan.objects.get(planId=instance.planId)
+            if plan.isFreeIndividual() and not user.subscriptions.exists():
+                us = UserSubscription.objects.createFreeSubscription(user, plan)
+                logger.info('Create free UserSubs {0.user}/{0.subscriptionId}'.format(us))
+        return instance
+
+
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
     country = serializers.PrimaryKeyRelatedField(
@@ -169,18 +208,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         many=True
     )
     cmeTags = serializers.SerializerMethodField()
-    isSignupComplete = serializers.SerializerMethodField()
-    isNPIComplete = serializers.SerializerMethodField()
-    profileComplete = serializers.SerializerMethodField()
-
-    def get_isSignupComplete(self, obj):
-        return obj.isSignupComplete()
-
-    def get_isNPIComplete(self, obj):
-        return obj.isNPIComplete()
-
-    def get_profileComplete(self, obj):
-        return obj.measureComplete()
 
     def get_cmeTags(self, obj):
         qset = ProfileCmetag.objects.filter(profile=obj)
@@ -218,11 +245,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'accessedTour',
             'cmeStartDate',
             'cmeEndDate',
-            'isNPIComplete',
-            'isSignupComplete',
-            'profileComplete',
-            'created',
-            'modified'
         )
         read_only_fields = (
             'organization',
@@ -233,8 +255,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'pictureUrl',
             'verified',
             'accessedTour',
-            'created',
-            'modified'
         )
 
     def update(self, instance, validated_data):
