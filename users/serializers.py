@@ -168,10 +168,10 @@ class ProfileInitialUpdateSerializer(serializers.ModelSerializer):
         oldPlanId = instance.planId
         # update the instance
         instance = super(ProfileInitialUpdateSerializer, self).update(instance, validated_data)
-        if oldPlanId != instance.planId and instance.planId:
+        if instance.planId and not user.subscriptions.exists():
             # check if need to create Free UserSubs
             plan = SubscriptionPlan.objects.get(planId=instance.planId)
-            if plan.isFreeIndividual() and not user.subscriptions.exists():
+            if plan.isFreeIndividual():
                 us = UserSubscription.objects.createFreeSubscription(user, plan)
                 logger.info('Create free UserSubs {0.user}/{0.subscriptionId}'.format(us))
         return instance
