@@ -807,12 +807,13 @@ class UserGoalManager(models.Manager):
         profileStates = set([m.pk for m in profile.states.all()])
         profileHospitals = set([m.pk for m in profile.hospitals.all()])
         profileTags = set([m.tag.pk for m in profile.getActiveCmetags()])
+        profileDEAStates = set([m.pk for m in profile.deaStates.all()])
         # remove stale license goals
         stale = []
         existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.LICENSE)
         for ug in existing:
             licensegoal = ug.goal.licensegoal
-            if not licensegoal.isMatchProfile(profileDegrees, profileSpecs, profileStates):
+            if not licensegoal.isMatchProfile(profileDegrees, profileSpecs, profileStates, profileDEAStates):
                 stale.append(ug)
         for ug in stale:
             # Note: this only removes the UserGoal (any associated StateLicense is retained)

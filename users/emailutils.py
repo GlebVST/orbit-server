@@ -179,7 +179,7 @@ def sendAfflEarningsStatementEmail(batchPayout, affl, afp_data):
     subject = makeSubject(u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear))
     subject_with_icon = u"{0} {1}".format(ROCKET_ICON, subject)
     encoded_subject = subject_with_icon.encode('utf-8')
-    print(encoded_subject)
+    #print(encoded_subject)
     # get affiliateId(s) for this Affiliate
     affIds = AffiliateDetail.objects.filter(affiliate=affl).values_list('affiliateId', flat=True).order_by('affiliateId')
     data_by_affid = {'Other': dict(num_convertees=0, total=0)} # affiliateId => {num_convertees:int, total:Decimal}
