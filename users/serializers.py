@@ -244,6 +244,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'specialties',
             'subspecialties',
             'states',
+            'hasDEA',
             'deaStates',
             'hospitals',
             'verified',
@@ -269,17 +270,22 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         """
         user = instance.user
         upd_cmetags = False
+        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
+        del_tags = set([]) # tags to be removed or deactivated
         # get current specialties before updating the instance
         curSpecs = set([m for m in instance.specialties.all()])
         # get current subspecialties before updating the instance
         curSubSpecs = set([m for m in instance.subspecialties.all()])
         # get current states before updating the instance
         curStates = set([m for m in instance.states.all()])
+        # get current deaStates before updating the instance
+        curDeaStates = set([m for m in instance.deaStates.all()])
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
+        if instance.deaStates.exists() and not instance.hasDEA:
+            logger.info('User {0} : clear deaStates'.format(user))
+            instance.deaStates.clear()
         # now handle cmeTags
-        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
-        del_tags = set([]) # tags to be removed or deactivated
         fieldName = 'specialties'
         if fieldName in validated_data:
             # need to check if key exists, because a PATCH request may not contain the fieldName
@@ -395,6 +401,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
             'specialties',
             'subspecialties',
             'states',
+            'hasDEA',
             'deaStates',
             'hospitals',
             'verified',

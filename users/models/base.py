@@ -611,6 +611,12 @@ class Profile(models.Model):
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
     subspecialties = models.ManyToManyField(SubSpecialty, blank=True)
     states = models.ManyToManyField(State, blank=True, related_name='profiles')
+    hasDEA = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        default=None,
+        choices=((0, 'No'), (1, 'Yes')),
+        help_text='Does user have DEA registration. Value is 0, 1 or null for unset')
     deaStates = models.ManyToManyField(State, blank=True, related_name='dea_profiles')
     hospitals = models.ManyToManyField(Hospital, blank=True, related_name='profiles')
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
@@ -713,6 +719,11 @@ class Profile(models.Model):
                 total += 1
                 if self.subspecialties.exists():
                     filled += 1
+        # DEA
+        if self.hasDEA == 1:
+            total += 1
+            if self.deaStates.exists():
+                filled += 1
         # single-value fields
         keys = ('country','birthDate','affiliationText','interestText','npiNumber','residency', 'residencyEndDate')
         total += len(keys)
