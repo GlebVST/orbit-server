@@ -49,11 +49,36 @@ DATE_RANGE_MAP = {
 }
 
 OTHER = 'Other (combined)'
+RESPONSE_MAP = {
+        BrowserCme.RESPONSE_YES: 'Yes',
+        BrowserCme.RESPONSE_NO: 'No',
+        BrowserCme.RESPONSE_UNSURE: 'Unsure'
+}
+
 RESPONSE_CHOICES = (
-        BrowserCme.RESPONSE_YES,
-        BrowserCme.RESPONSE_NO,
-        BrowserCme.RESPONSE_UNSURE
+    BrowserCme.RESPONSE_YES,
+    BrowserCme.RESPONSE_NO,
+    BrowserCme.RESPONSE_UNSURE
 )
+
+PLAN_EFFECT_CHOICES = (
+    BrowserCme.RESPONSE_YES,
+    BrowserCme.RESPONSE_NO,
+)
+PLAN_TEXT_CHOICES = (
+    BrowserCme.DIFFERENTIAL_DIAGNOSIS,
+    BrowserCme.TREATMENT_PLAN,
+    BrowserCme.DIAGNOSTIC_TEST
+)
+J = u': American Journal of Roentgenology'
+
+def cleanDescription(d):
+    d2 = d
+    if J in d:
+        idx = d.index(J)
+        d2 = d[0:idx]
+    return d2
+
 
 class Command(BaseCommand):
     help = "Generate quarterly Tufts Report for the current quarter. This should be run on 1/1, 4/1, 7/1 and 10/1."
@@ -116,8 +141,47 @@ class Command(BaseCommand):
             filter_kwargs = {clause: v}
             cnt = qset.filter(**filter_kwargs).count()
             pct = 100.0*cnt/num_entries
-            stats.append(dict(value=v, count=cnt, pct=pct))
+            nv = RESPONSE_MAP[v]
+            stats.append(dict(value=nv, count=cnt, pct=pct))
         return stats
+
+    def calcPlanStats(self, qset):
+        """Calculate stats on planEffect and planText
+        Returns: tuple (
+            planEffectStats: list of dicts w. keys value, cnt, pct
+            planTextStats: list of dicts w. keys value, cnt, pct
+            planTextOther: list of strs
+        """
+        num_entries = qset.count()
+        planEffectStats = []
+        for v in PLAN_EFFECT_CHOICES:
+            filter_kwargs = {'planEffect': v}
+            cnt = qset.filter(**filter_kwargs).count()
+            pct = 100.0*cnt/num_entries
+            nv = RESPONSE_MAP[v]
+            planEffectStats.append(dict(value=nv, count=cnt, pct=pct))
+        # planText: partition into keyed responses vs Other
+        planTextDict = {
+            BrowserCme.DIFFERENTIAL_DIAGNOSIS: 0,
+            BrowserCme.TREATMENT_PLAN: 0,
+            BrowserCme.DIAGNOSTIC_TEST: 0
+        }
+        planTextOther = []
+        for m in qset:
+            pt = m.planText
+            if pt in planTextDict:
+                # keyed response
+                planTextDict[pt] += 1
+            else:
+                planTextOther.append(pt)
+        # calculate pct
+        planTextStats = []
+        for v in PLAN_TEXT_CHOICES:
+            cnt = planTextDict[v]
+            pct = 100.0*cnt/num_entries
+            planTextStats.append(dict(value=v, count=cnt, pct=pct))
+        #pprint(planTextStats)
+        return (planEffectStats, planTextStats, planTextOther)
 
     def calcTagStats(self, qset):
         """
@@ -146,7 +210,7 @@ class Command(BaseCommand):
             tagcount = counts[tagname]['count']
             tagpct = 100.0*tagcount/total
             counts[tagname]['pct'] = tagpct
-            print("{0} {1} {2}".format(tagname, tagcount, tagpct))
+            #print("{0} {1} {2}".format(tagname, tagcount, tagpct))
             if tagpct < 1:
                 counts[OTHER]['count'] += tagcount
                 counts[OTHER]['pct'] += tagpct
@@ -162,8 +226,25 @@ class Command(BaseCommand):
             ))
         return tag_stats
 
-    def calcPlanStats(self, qset):
-        return (planTextStats, planTextOther)
+    def getEntryDescriptions(self, qset):
+        """Get and clean entry__description from the given queryset
+        Args:
+            qset: BrowserCme queryset
+        Returns: list of strs
+        """
+        descriptions = []
+        vqset = qset.values_list('entry__description', flat=True).distinct().order_by('entry__description')
+        for v in vqset:
+            descr = v.strip()
+            if descr.startswith('www.') and (descr.endswith('.org') or descr.endswith('.gov') or descr.endswith('.com')):
+                continue
+            descr = cleanDescription(descr)
+            if not descr:
+                continue
+            descriptions.append(descr)
+        #print(descriptions)
+        return descriptions
+
 
     def handle(self, *args, **options):
         # get brcme entries
@@ -210,14 +291,18 @@ class Command(BaseCommand):
         writer.writeheader()
         for row in results:
             writer.writerow(row)
-        cf = output.getvalue()
+        cf = output.getvalue() # to be used as attachment for EmailMessage
         reportDate = endDate + timedelta(days=1) # use reportDate instead of now since cmd can be run at any time
         rds = reportDate.strftime('%d%b%Y')
         # create EmailMessage
         from_email = settings.EMAIL_FROM
         to_email = [t[1] for t in settings.MANAGERS] # list of emails
-        subject = "Orbit Quarterly Report {0}".format(eds)
-        fileName = 'OrbitQuarterlyReport_{0}.csv'.format(eds)
+        subject = "Orbit Quarterly Report {0}".format(rds)
+        fileName = 'OrbitQuarterlyReport_{0}.csv'.format(rds)
+        #
+        # data for context
+        #
+        planEffectStats, planTextStats, planTextOther = self.calcPlanStats(qset)
         ctx = {
             'startDate': startDate,
             'endDate': endDate,
@@ -226,11 +311,10 @@ class Command(BaseCommand):
             'competence': self.calcResponseStats(qset, 'competence'),
             'performance': self.calcResponseStats(qset, 'performance'),
             'commBias': self.calcResponseStats(qset, 'commercialBias'),
-            'planEffectYes': planEffectStats[BrowserCme.RESPONSE_YES],
-            'planEffectNo': planEffectStats[BrowserCme.RESPONSE_NO],
+            'descriptions': self.getEntryDescriptions(qset),
+            'planEffect': planEffectStats,
             'planText': planTextStats,
             'planTextOther': planTextOther,
-            'descriptions': descriptions
         }
         message = get_template('email/tufts_quarterly_report.html').render(ctx)
         msg = EmailMessage(

@@ -2,7 +2,7 @@
     <h4>Orbit Quarterly Report for {{ startDate|date:"d M Y" }} to {{ endDate|date:"d M Y" }} UTC</h4>
     <p>Please review the attached file for the Orbit Participant Report.</p>
     <p>Total number of respondents in this period: {{ numUsers }}</p>
-    <h4>Competence</h4>
+    <h4>Change In Competence</h4>
     <table>
         {% for d in competence %}
         <tr>
@@ -12,7 +12,7 @@
         {% endfor %}
     </table>
     
-    <h4>Performance</h4>
+    <h4>Change In Performance</h4>
     <table>
         {% for d in performance %}
         <tr>
@@ -23,8 +23,14 @@
     </table>
     
     <h4>Change in Clinical Plan?</h4>
-    <p>YES: {{ planEffectYes }}%</p>
-    <p>NO: {{ planEffectNo }}%</p>
+    <table>
+        {% for d in planEffect %}
+        <tr>
+            <td>{{ d.value }}</td>
+            <td>{{ d.pct|floatformat:2 }}%</td>
+        </tr>
+        {% endfor %}
+    </table>
     
     <h4>If Yes, How?</h4>
     <table>
@@ -35,14 +41,16 @@
         </tr>
         {% endfor %}
     </table>
+    <h4>Other changes to Clinical Plan:</h4>
     {% if planTextOther %}
-        <p>Other changes to Clinical Plan:</p>
         {% for d in planTextOther %}
             <p>{{ d }}</p>
         {% endfor %}
+    {% else %}
+        <p>None</p>
     {% endif %}
 
-    <h4>Commercial Bias</h4>
+    <h4>Commercial Bias In Content</h4>
     <table>
         {% for d in commBias %}
         <tr>
