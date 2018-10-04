@@ -1189,7 +1189,7 @@ class UserGoal(models.Model):
             return UserGoal.NON_COMPLIANT
         elif status == UserGoal.IN_PROGRESS:
             return UserGoal.MARGINAL_COMPLIANT
-        compliance = UserGoal.COMPLIANT
+        return UserGoal.COMPLIANT
 
     def recompute(self, userLicenseDict=None, numProfileSpecs=None):
         """Recompute dueDate, status, creditsDue, creditsEarned for the month and update self.
