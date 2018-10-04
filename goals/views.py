@@ -59,7 +59,7 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
-        return UserGoal.objects.select_related('license')
+        return UserGoal.objects.select_related('goal', 'license')
 
     def perform_update(self, serializer, format=None):
         user = self.request.user
@@ -71,6 +71,34 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         """Override method to handle custom input/output data structures"""
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+        form_data = request.data.copy()
+        in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
+        in_serializer.is_valid(raise_exception=True)
+        self.perform_update(in_serializer)
+        instance = UserGoal.objects.get(pk=instance.pk)
+        out_serializer = UserGoalReadSerializer(instance)
+        return Response(out_serializer.data)
+
+class UpdateUserTrainingGoal(LogValidationErrorMixin, generics.UpdateAPIView):
+    """
+    Update User Training goal
+    """
+    serializer_class = UserTrainingGoalUpdateSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def get_queryset(self):
+        return UserGoal.objects.select_related('goal', 'license')
+
+    def perform_update(self, serializer, format=None):
+        user = self.request.user
+        with transaction.atomic():
+            instance = serializer.save(user=user)
+        return instance
+
+    def update(self, request, *args, **kwargs):
+        """Override method to handle custom input/output data structures"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object() # uses get_queryset to retrieve the instance
         form_data = request.data.copy()
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
         in_serializer.is_valid(raise_exception=True)
