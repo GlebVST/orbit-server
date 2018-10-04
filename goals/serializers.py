@@ -96,6 +96,7 @@ class TrainingGoalSubSerializer(serializers.ModelSerializer):
         model = UserGoal
         fields = (
             'daysLeft',
+            'recommendations'
         )
 
     def get_daysLeft(self, obj):
