@@ -243,8 +243,9 @@ class UserTrainingGoalUpdateSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         """Update usergoal and create new usergoal if needed"""
         completeDate = validated_data['completeDate']
+        docs = validated_data.get('documents', [])
         instance.completeDate = completeDate
-        instance.save()
+        instance.save(update_fields=('completeDate',))
         if docs:
             for d in docs:
                 instance.documents.add(d)
