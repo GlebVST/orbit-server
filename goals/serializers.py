@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 from .models import *
+from common.dateutils import makeAwareDatetime
 from users.models import RecAllowedUrl, ARTICLE_CREDIT
 from users.serializers import DocumentReadSerializer, NestedStateLicenseSerializer
 
@@ -254,7 +255,7 @@ class UserTrainingGoalUpdateSerializer(serializers.Serializer):
         tgoal = basegoal.traingoal
         if basegoal.interval:
             year = instance.dueDate.year + basegoal.interval
-            nextDueDate = makeDueDate(year, instance.dueDate.month, instance.dueDate.day)
+            nextDueDate = makeAwareDatetime(year, instance.dueDate.month, instance.dueDate.day)
             if not UserGoal.objects.filter(user=user, goal=basegoal, dueDate=nextDueDate).exists():
                 usergoal = UserGoal.objects.create(
                         user=user,
