@@ -96,6 +96,7 @@ class TrainingGoalSubSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserGoal
         fields = (
+            'completeDate',
             'daysLeft',
             'recommendations'
         )
