@@ -19,3 +19,8 @@ class HospitalFilter(AutocompleteFilter):
     field_name = 'hospital'
     autocomplete_url = 'hospital-autocomplete'
 
+class LicenseGoalFilter(AutocompleteFilter):
+    title = 'LicenseGoal'
+    field_name = 'licenseGoal'
+    autocomplete_url = 'licensegoal-autocomplete'
+

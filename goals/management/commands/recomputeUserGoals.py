@@ -14,6 +14,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         licenseGoalType = GoalType.objects.get(name=GoalType.LICENSE)
+        trainingGoalType = GoalType.objects.get(name=GoalType.TRAINING)
         cmeGoalType = GoalType.objects.get(name=GoalType.CME)
         # get distinct users
         users = UserGoal.objects.all().values_list('user', flat=True).distinct().order_by('user')
@@ -41,6 +42,12 @@ class Command(BaseCommand):
             for m in qset:
                 userLicenseDict[m.goal.pk] = m.license
                 m.recompute()
+                complianceDict[m.compliance] += 1
+                total_goals += 1
+            # recompute user training goals.
+            qset = user.usergoals.select_related('goal').filter(goal__goalType=trainingGoalType)
+            for m in qset:
+                m.recompute(userLicenseDict, numProfileSpecs)
                 complianceDict[m.compliance] += 1
                 total_goals += 1
             # recompute user cmegoals

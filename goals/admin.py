@@ -105,6 +105,107 @@ class LicenseBaseGoalAdmin(admin.ModelAdmin):
     lastModified.admin_order_field = 'modified'
 
 
+class TrainingGoalForm(forms.ModelForm):
+    class Meta:
+        model = TrainingGoal
+        fields = ('__all__')
+        widgets = {
+            'licenseGoal': autocomplete.ModelSelect2(
+                url='licensegoal-autocomplete',
+                attrs={
+                    'data-placeholder': 'Select if dueDateType requires license expiration date',
+                    'data-minimum-input-length': 2,
+                }
+            ),
+            'state': autocomplete.ModelSelect2(
+                url='statename-autocomplete',
+                attrs={
+                    'data-placeholder': 'State',
+                    'data-minimum-input-length': 1,
+                }
+            ),
+            'dueMonth': forms.NumberInput,
+            'dueDay': forms.NumberInput
+        }
+
+class TrainingGoalInline(admin.StackedInline):
+    model = TrainingGoal
+    extra = 0
+    min_num = 1
+    max_num = 1
+    form = TrainingGoalForm
+
+class TrainingBaseGoalAdmin(admin.ModelAdmin):
+    list_display = ('id', 'getTitle', 'interval', 'formatDegrees', 'formatSpecialties', 'getState', 'fmtDueDateType', 'getDueMMDD', 'getNumRecs', 'lastModified')
+    list_filter = ('dueDateType',)
+    ordering = ('-modified',)
+    inlines = (
+        TrainingGoalInline,
+        GoalRecommendationInline
+    )
+    filter_horizontal = (
+        'degrees',
+        'specialties',
+    )
+    exclude = ('modifiedBy',)
+
+    class Media:
+        pass
+
+    def get_queryset(self, request):
+        qs = super(TrainingBaseGoalAdmin, self).get_queryset(request)
+        return qs.select_related(
+                'goalType', 'traingoal__state').prefetch_related('degrees', 'specialties').annotate(num_recs=Count('recommendations'))
+
+    def get_changeform_initial_data(self, request):
+        return {
+                'goalType': GoalType.objects.get(name=GoalType.TRAINING),
+                'dueDateType': BaseGoal.RECUR_LICENSE_DATE
+            }
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Limit choice of goalType"""
+        if db_field.name == 'goalType':
+            kwargs['queryset'] = GoalType.objects.filter(name=GoalType.TRAINING)
+        return super(TrainingBaseGoalAdmin, self).formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        """Limit choice of dueDateType"""
+        if db_field.name == 'dueDateType':
+            kwargs['choices'] = TrainingGoal.DUEDATE_TYPE_CHOICES
+        return super(TrainingBaseGoalAdmin, self).formfield_for_choice_field(db_field, request, **kwargs)
+
+    def save_model(self, request, obj, form, change):
+        """Set modifiedBy to request.user"""
+        obj.modifiedBy = request.user
+        super(TrainingBaseGoalAdmin, self).save_model(request, obj, form, change)
+
+    def getTitle(self, obj):
+        return obj.traingoal.title
+    getTitle.short_description = 'Title'
+
+    def getState(self, obj):
+        return obj.traingoal.state
+    getState.short_description = 'State'
+
+    def getDueMMDD(self, obj):
+        return obj.traingoal.dueMMDD
+    getDueMMDD.short_description = 'Due MMDD'
+
+    def fmtDueDateType(self, obj):
+        return obj.formatDueDateType()
+    fmtDueDateType.short_description = 'DueDateType'
+
+    def getNumRecs(self, obj):
+        return obj.num_recs
+    getNumRecs.short_description = 'Num Recs'
+
+    def lastModified(self, obj):
+        return fmtLocalDatetime(obj.modified)
+    lastModified.short_description = 'Last Modified'
+    lastModified.admin_order_field = 'modified'
+
+
 class CmeGoalForm(forms.ModelForm):
     class Meta:
         model = CmeGoal
@@ -122,6 +223,13 @@ class CmeGoalForm(forms.ModelForm):
                 attrs={
                     'data-placeholder': 'Select if entityType is State',
                     'data-minimum-input-length': 1,
+                }
+            ),
+            'licenseGoal': autocomplete.ModelSelect2(
+                url='licensegoal-autocomplete',
+                attrs={
+                    'data-placeholder': 'Select if dueDateType requires license expiration date',
+                    'data-minimum-input-length': 2,
                 }
             ),
             'dueMonth': forms.NumberInput,
@@ -190,18 +298,9 @@ class CmeBaseGoalAdmin(admin.ModelAdmin):
         return obj.cmegoal.dueMMDD
     getDueMMDD.short_description = 'Due MMDD'
 
-
     def fmtDueDateType(self, obj):
-        if obj.dueDateType == BaseGoal.ONE_OFF:
-            return u'One-off'
-        if obj.dueDateType == BaseGoal.RECUR_MMDD:
-            return u'Fixed MM/DD'
-        if obj.dueDateType == BaseGoal.RECUR_ANY:
-            return u'Any time'
-        if obj.dueDateType == BaseGoal.RECUR_BIRTH_DATE:
-            return u'Birthdate'
-        return u'License expireDate'
-    fmtDueDateType.short_description = 'DueDate Type'
+        return obj.formatDueDateType()
+    fmtDueDateType.short_description = 'DueDateType'
 
     def lastModified(self, obj):
         return fmtLocalDatetime(obj.modified)
@@ -231,5 +330,6 @@ class UserGoalAdmin(admin.ModelAdmin):
 admin_site.register(Board, BoardAdmin)
 admin_site.register(GoalType, GoalTypeAdmin)
 admin_site.register(LicenseBaseGoal, LicenseBaseGoalAdmin)
+admin_site.register(TrainingBaseGoal, TrainingBaseGoalAdmin)
 admin_site.register(CmeBaseGoal, CmeBaseGoalAdmin)
 admin_site.register(UserGoal, UserGoalAdmin)

@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
@@ -158,6 +159,17 @@ class BaseGoal(models.Model):
     def usesBirthDate(self):
         return self.dueDateType == BaseGoal.RECUR_BIRTH_DATE
 
+    def formatDueDateType(self):
+        if self.dueDateType == BaseGoal.ONE_OFF:
+            return u'One-off'
+        if self.dueDateType == BaseGoal.RECUR_MMDD:
+            return u'Fixed MM/DD'
+        if self.dueDateType == BaseGoal.RECUR_ANY:
+            return u'Any time'
+        if self.dueDateType == BaseGoal.RECUR_LICENSE_DATE:
+            return u'License expireDate'
+        return u'Birthdate'
+
     @cached_property
     def formatDegrees(self):
         if self.degrees.exists():
@@ -199,6 +211,7 @@ class BaseGoal(models.Model):
 
 #
 # Proxy models to BaseGoal used by Admin interface
+# Each proxy model is assigned its own admin form customized for its goalType.
 #
 class LicenseBaseGoalManager(models.Manager):
     def get_queryset(self):
@@ -217,11 +230,46 @@ class LicenseBaseGoal(BaseGoal):
         return self.licensegoal.title
 
     def clean(self):
-        """Validation checks"""
+        """Validation checks. Invoked by admin form
+        Note: self is an instance of BaseGoal with goalType=LICENSE
+        """
         if not self.interval:
             raise ValidationError({'interval': 'Duration of license in years is required'})
         if self.dueDateType != BaseGoal.RECUR_LICENSE_DATE:
             raise ValidationError({'dueDateType': 'dueDateType must be {0}'.format(BaseGoal.RECUR_LICENSE_DATE_LABEL)})
+
+
+class TrainingBaseGoalManager(models.Manager):
+    def get_queryset(self):
+        qs = super(TrainingBaseGoalManager, self).get_queryset()
+        return qs.filter(goalType__name=GoalType.TRAINING)
+
+class TrainingBaseGoal(BaseGoal):
+    """Proxy model to BaseGoal for Training goalType"""
+    objects = TrainingBaseGoalManager()
+
+    class Meta:
+        proxy = True
+        verbose_name_plural = 'Training-Goals'
+
+    def __str__(self):
+        return self.traingoal.title
+
+    def clean(self):
+        """Validation checks. Invoked by admin form
+        Note: self is an instance of BaseGoal with goalType=TRAINING
+        """
+        if self.dueDateType > BaseGoal.ONE_OFF and not self.interval:
+            raise ValidationError({'interval': INTERVAL_ERROR})
+        if self.dueDateType == BaseGoal.RECUR_MMDD:
+            if not self.dueMonth:
+                raise ValidationError({'dueMonth': DUE_MONTH_ERROR})
+            if not self.dueDay:
+                raise ValidationError({'dueDay': DUE_DAY_ERROR})
+            try:
+                d = makeAwareDatetime(2020, self.dueMonth, self.dueDay)
+            except ValueError:
+                raise ValidationError({'dueDay': DUE_DAY_ERROR})
 
 
 class CmeBaseGoalManager(models.Manager):
@@ -237,22 +285,38 @@ class CmeBaseGoal(BaseGoal):
         verbose_name_plural = 'CME-Goals'
 
     def clean(self):
-        """Validation checks"""
+        """Validation checks. Invoked by admin form
+        Note: self is an instance of BaseGoal with goalType=CME
+        """
         if self.dueDateType > BaseGoal.ONE_OFF and not self.interval:
             raise ValidationError({'interval': INTERVAL_ERROR})
+        if self.dueDateType == BaseGoal.RECUR_MMDD:
+            if not self.dueMonth:
+                raise ValidationError({'dueMonth': DUE_MONTH_ERROR})
+            if not self.dueDay:
+                raise ValidationError({'dueDay': DUE_DAY_ERROR})
+            try:
+                d = makeAwareDatetime(2020, self.dueMonth, self.dueDay)
+            except ValueError:
+                raise ValidationError({'dueDay': DUE_DAY_ERROR})
 
 class LicenseGoalManager(models.Manager):
 
-    def getMatchingGoalsForProfile(self, profile):
+    def getMatchingGoalsForProfile(self, profile, profileDegrees, profileSpecs, profileStates, profileDEAStates):
         """Find the goals that match the given profile:
         Returns: list of LicenseGoals.
         """
         matchedGoals = []
-        profileDegrees = set([m.pk for m in profile.degrees.all()])
-        profileSpecs = set([m.pk for m in profile.specialties.all()])
-        profileStates = set([m.pk for m in profile.states.all()])
-        profileDEAStates = set([m.pk for m in profile.deaStates.all()])
-        qset = self.model.objects.filter(goal__is_active=True)
+        stateids = list(profileStates.union(profileDEAStates))
+        if not stateids or not profileDegrees:
+            return []
+        base_qs = self.model.objects.select_related('goal','licenseType').prefetch_related('goal__degrees', 'goal__specialties')
+        Q_degree = Q(goal__degrees__in=list(profileDegrees)) | Q(goal__degrees=None)
+        filter_kwargs = {
+                'goal__is_active': True,
+                'state__in': stateids
+            }
+        qset = base_qs.filter(Q_degree, **filter_kwargs)
         for licensegoal in qset:
             if licensegoal.isMatchProfile(profileDegrees, profileSpecs, profileStates, profileDEAStates):
                 matchedGoals.append(licensegoal)
@@ -301,12 +365,12 @@ class LicenseGoal(models.Model):
         Returns: bool
         """
         basegoal = self.goal
-        # check state match
-        if not self.state.pk in profileStates:
+        # check state match (use state_id instead of state.pk b/c it is direct attr on self)
+        if not self.state_id in profileStates:
             return False
         if self.licenseType.name == LicenseType.TYPE_DEA:
             # check DEA state match
-            if not self.state.pk in profileDEAStates:
+            if not self.state_id in profileDEAStates:
                 return False
         # check specialties/degrees intersection
         if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
@@ -316,17 +380,30 @@ class LicenseGoal(models.Model):
 
 class CmeGoalManager(models.Manager):
 
-    def getMatchingGoalsForProfile(self, profile):
-        """Find the goals that match the given profile:
+    def getMatchingGoalsForProfile(self, profile, profileDegrees, profileSpecs, profileStates):
+        """Find the goals that match the given profile which must have non-empty profileDegrees
+        Args:
+            profile: Profile instance
+            profileDegrees: set of degree pks
+            profileSpecs: set of PracticeSpecialty pks
+            profileStates: set of State pks
         Returns: list of CmeGoals.
         """
         matchedGoals = []
-        profileDegrees = set([m.pk for m in profile.degrees.all()])
-        profileSpecs = set([m.pk for m in profile.specialties.all()])
-        profileStates = set([m.pk for m in profile.states.all()])
+        if not profileDegrees:
+            return []
         profileHospitals = set([m.pk for m in profile.hospitals.all()])
         profileTags = set([m.tag.pk for m in profile.getActiveCmetags()])
-        qset = self.model.objects.filter(goal__is_active=True)
+        base_qs = self.model.objects.select_related('goal', 'cmeTag').prefetch_related('goal__degrees', 'goal__specialties')
+        Q_degree = Q(goal__degrees__in=list(profileDegrees)) | Q(goal__degrees=None)
+        if profileSpecs:
+            Q_spec = Q(goal__specialties__in=list(profileSpecs)) | Q(goal__specialties=None)
+            Q_goal = Q_degree & Q_spec
+        else:
+            Q_goal = Q_degree
+        # Note if filter by state, then have to break up qset by entityType (and compare state only for entityType=STATE)
+        filter_kwargs = {'goal__is_active': True}
+        qset = base_qs.filter(Q_goal, **filter_kwargs)
         for goal in qset:
             if not goal.valid:
                 logger.error('Invalid CmeGoal {0.pk}|{0}.'.format(goal))
@@ -443,15 +520,6 @@ class CmeGoal(models.Model):
             raise ValidationError({'state': 'State must be selected'})
         if self.entityType == CmeGoal.HOSPITAL and not self.hospital:
             raise ValidationError({'board': 'Hospital must be selected'})
-        if self.dueMonth and not self.dueDay:
-            raise ValidationError({'dueDay': DUE_DAY_ERROR})
-        if self.dueDay and not self.dueMonth:
-                raise ValidationError({'dueMonth': DUE_MONTH_ERROR})
-        if self.dueMonth and self.dueDay:
-            try:
-                d = makeAwareDatetime(2020, self.dueMonth, self.dueDay)
-            except ValueError:
-                raise ValidationError({'dueDay': DUE_DAY_ERROR})
 
     @cached_property
     def valid(self):
@@ -496,11 +564,11 @@ class CmeGoal(models.Model):
         basegoal = self.goal
         if self.entityType == CmeGoal.STATE:
             # check state match
-            if not self.state.pk in profileStates:
+            if not self.state_id in profileStates:
                 return False
         elif self.entityType == CmeGoal.HOSPITAL:
             # check hospital match
-            if not self.hospital.pk in profileHospitals:
+            if not self.hospital_id in profileHospitals:
                 return False
         # check specialties/degrees intersection
         if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
@@ -532,7 +600,7 @@ class CmeGoal(models.Model):
             userLicense: StateLicense/None
             now: datetime
         Returns: datetime
-        Note: UNKNOWN_DATE is reserved for internal errors (such as invalid RECUR_MMDD date or unknown dueDateType
+        Note: UNKNOWN_DATE is reserved for internal errors (e.g. unknown dueDateType)
         """
         basegoal = self.goal
         if basegoal.isOneOff() or basegoal.isRecurAny():
@@ -573,15 +641,20 @@ class CmeGoal(models.Model):
 
 class TrainingGoalManager(models.Manager):
 
-    def getMatchingGoalsForProfile(self, profile):
+    def getMatchingGoalsForProfile(self, profile, profileDegrees, profileSpecs, profileStates):
         """Find the goals that match the given profile:
         Returns: list of TrainingGoals.
         """
         matchedGoals = []
-        profileDegrees = set([m.pk for m in profile.degrees.all()])
-        profileSpecs = set([m.pk for m in profile.specialties.all()])
-        profileStates = set([m.pk for m in profile.states.all()])
-        qset = self.model.objects.filter(goal__is_active=True)
+        if not profileDegrees or not profileStates:
+            return []
+        base_qs = self.model.objects.select_related('goal')
+        Q_degree = Q(goal__degrees__in=list(profileDegrees)) | Q(goal__degrees=None)
+        filter_kwargs = {
+                'goal__is_active': True,
+                'state__in': list(profileStates),
+            }
+        qset = base_qs.filter(Q_degree, **filter_kwargs).prefetch_related('goal__degrees', 'goal__specialties')
         for tgoal in qset:
             if tgoal.isMatchProfile(profileDegrees, profileSpecs, profileStates):
                 matchedGoals.append(tgoal)
@@ -589,6 +662,12 @@ class TrainingGoalManager(models.Manager):
 
 @python_2_unicode_compatible
 class TrainingGoal(models.Model):
+    DUEDATE_TYPE_CHOICES = (
+        (BaseGoal.ONE_OFF, BaseGoal.ONE_OFF_LABEL),
+        (BaseGoal.RECUR_MMDD, BaseGoal.RECUR_MMDD_LABEL),
+        (BaseGoal.RECUR_BIRTH_DATE, BaseGoal.RECUR_BIRTH_DATE_LABEL),
+        (BaseGoal.RECUR_LICENSE_DATE, BaseGoal.RECUR_LICENSE_DATE_LABEL),
+    )
     goal = models.OneToOneField(BaseGoal,
         on_delete=models.CASCADE,
         related_name='traingoal',
@@ -623,18 +702,6 @@ class TrainingGoal(models.Model):
     def __str__(self):
         return self.title
 
-    def clean(self):
-        """Validation checks"""
-        if self.goal.dueDateType == BaseGoal.RECUR_MMDD:
-            if not self.dueMonth:
-                raise ValidationError({'dueMonth': DUE_MONTH_ERROR})
-            if not self.dueDay:
-                raise ValidationError({'dueDay': DUE_DAY_ERROR})
-            try:
-                d = makeAwareDatetime(2020, self.dueMonth, self.dueDay)
-            except ValueError:
-                raise ValidationError({'dueDay': DUE_DAY_ERROR})
-
     @cached_property
     def valid(self):
         if self.goal.dueDateType == BaseGoal.RECUR_LICENSE_DATE and not self.licenseGoal:
@@ -656,16 +723,43 @@ class TrainingGoal(models.Model):
         """
         basegoal = self.goal
         # check state match
-        if not self.state.pk in profileStates:
+        if not self.state_id in profileStates:
             return False
         # check specialties/degrees intersection
         if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
             return False
         return True
 
+    def computeDueDateForProfile(self, profile, userLicense, now):
+        """Attempt to find a dueDate based on dueDateType, profile, and userLicense
+        Args:
+            profile: Profile instance
+            userLicense: StateLicense/None
+            now: datetime
+        Returns: datetime
+        Note: UNKNOWN_DATE is reserved for internal errors (e.g. unknown dueDateType)
+        """
+        basegoal = self.goal
+        if basegoal.isOneOff():
+            return now
+        if basegoal.isRecurMMDD():
+            dueDate = makeDueDate(self.dueMonth, self.dueDay, now)
+            return dueDate
+        if basegoal.usesLicenseDate():
+            if not userLicense or userLicense.isUnInitialized():
+                # allow grace period to update license
+                return now + timedelta(days=LICENSE_GRACE_PERIOD_DAYS)
+            else:
+                return userLicense.expireDate
+        if basegoal.usesBirthDate():
+            if not profile.birthDate:
+                return now
+            dueDate = makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
+            return dueDate
+        return UNKNOWN_DATE
 
 class UserGoalManager(models.Manager):
-    def assignCmeGoals(self, profile):
+    def assignCmeGoals(self, profile, profileDegrees, profileSpecs, profileStates):
         """Assign CME UserGoals by matching existing goals to the given profile.
         Steps:
             1. Find matching CmeGoals based on profile
@@ -676,7 +770,7 @@ class UserGoalManager(models.Manager):
         """
         user = profile.user
         usergoals = []
-        goals = CmeGoal.objects.getMatchingGoalsForProfile(profile)
+        goals = CmeGoal.objects.getMatchingGoalsForProfile(profile, profileDegrees, profileSpecs, profileStates)
         now = timezone.now()
         grouped = CmeGoal.objects.groupGoalsByTag(profile, goals)
         for tag in grouped:
@@ -709,7 +803,7 @@ class UserGoalManager(models.Manager):
             usergoals.append(usergoal)
         return usergoals
 
-    def assignLicenseGoals(self, profile):
+    def assignLicenseGoals(self, profile, profileDegrees, profileSpecs, profileStates, profileDEAStates):
         """Assign License UserGoals and create any uninitialized statelicenses for user as needed
         Steps:
             1. Find matching LicenseGoals based on profile
@@ -722,7 +816,12 @@ class UserGoalManager(models.Manager):
         Returns: list of newly created usergoals
         """
         user = profile.user
-        goals = LicenseGoal.objects.getMatchingGoalsForProfile(profile)
+        goals = LicenseGoal.objects.getMatchingGoalsForProfile(profile,
+                profileDegrees,
+                profileSpecs,
+                profileStates,
+                profileDEAStates
+            )
         usergoals = []
         now = timezone.now()
         for goal in goals:
@@ -773,6 +872,44 @@ class UserGoalManager(models.Manager):
                 usergoal.save(update_fields=('status',))
         return usergoals
 
+    def assignTrainingGoals(self, profile, profileDegrees, profileSpecs, profileStates):
+        """Assign Training UserGoals
+        Steps:
+            1. Find matching LicenseGoals based on profile
+        Returns: list of newly created usergoals
+        """
+        user = profile.user
+        goals = TrainingGoal.objects.getMatchingGoalsForProfile(profile,
+                profileDegrees,
+                profileSpecs,
+                profileStates
+                )
+        usergoals = []
+        now = timezone.now()
+        for goal in goals:
+            # goal is a TrainingGoal
+            basegoal = goal.goal
+            # does UserGoal already exist - order by dueDate DESC to select the latest entry if exist
+            qs = self.model.objects.filter(user=user, goal=basegoal).order_by('-dueDate')
+            if qs.exists():
+                usergoal = qs[0]
+                if not usergoal.valid:
+                    usergoal.valid = True
+                    usergoal.save(update_fields=('valid',))
+                if usergoal.dueDate < now:
+                    usergoal.recompute()
+            else:
+                # create UserGoal
+                usergoal = self.model.objects.create(
+                        user=user,
+                        goal=basegoal,
+                        dueDate=now,
+                        status=self.model.PASTDUE
+                    )
+                logger.info('Created UserGoal: {0}'.format(usergoal))
+                usergoal.recompute()
+                usergoals.append(usergoal)
+        return usergoals
 
     def assignGoals(self, user):
         """Assign UserGoals for the given user
@@ -786,9 +923,14 @@ class UserGoalManager(models.Manager):
         if not qset.exists():
             return []
         profile = qset[0]
+        profileDegrees = set([m.pk for m in profile.degrees.all()])
+        profileSpecs = set([m.pk for m in profile.specialties.all()])
+        profileStates = set([m.pk for m in profile.states.all()])
+        profileDEAStates = set([m.pk for m in profile.deaStates.all()])
         usergoals = []
-        usergoals.extend(self.assignLicenseGoals(profile))
-        usergoals.extend(self.assignCmeGoals(profile))
+        usergoals.extend(self.assignLicenseGoals(profile, profileDegrees, profileSpecs, profileStates, profileDEAStates))
+        usergoals.extend(self.assignTrainingGoals(profile, profileDegrees, profileSpecs, profileStates))
+        usergoals.extend(self.assignCmeGoals(profile, profileDegrees, profileSpecs, profileStates))
         return usergoals
 
     def rematchGoals(self, user):
@@ -798,6 +940,7 @@ class UserGoalManager(models.Manager):
             2. Call assignGoals to create new UserGoals/update existing ones.
         Returns: list of newly created UserGoals
         """
+        #print('rematchGoals for {0}'.format(user))
         qset = Profile.objects.filter(user=user).prefetch_related('degrees','specialties','states','hospitals')
         if not qset.exists():
             return []
@@ -810,16 +953,37 @@ class UserGoalManager(models.Manager):
         profileDEAStates = set([m.pk for m in profile.deaStates.all()])
         # remove stale license goals
         stale = []
+        markInvalid = []
         existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.LICENSE)
         for ug in existing:
             licensegoal = ug.goal.licensegoal
             if not licensegoal.isMatchProfile(profileDegrees, profileSpecs, profileStates, profileDEAStates):
                 stale.append(ug)
+                # find user traingoals that depend on this licensegoal
+                for tgoal in licensegoal.traingoals.all():
+                    ug_qset = tGoal.goal.usergoals.filter(user=instance.user)
+                    for ug in ug_qset: # UserGoal qset
+                        markInvalid.append(ug)
         for ug in stale:
             # Note: this only removes the UserGoal (any associated StateLicense is retained)
             logger.info('Removing {0}'.format(ug))
             ug.delete()
+        for ug in markInvalid:
+            logger.info('Invalidating {0}'.format(ug))
+            ug.valid = False
+            ug.save(update_fields=('invalid',))
+        # check for any other stale TrainingGoals
+        #print(' - check TrainingGoals for {0}'.format(user))
+        existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.TRAINING, valid=True)
+        for ug in existing:
+            tgoal = ug.goal.traingoal
+            if not tgoal.isMatchProfile(profileDegrees, profileSpecs, profileStates):
+                logger.info('Invalidating {0}'.format(ug))
+                ug.valid = False
+                ug.save(update_fields=('invalid',))
+        #
         # for cme goals, only delete if all cmeGoals no longer apply
+        # print(' - check CmeGoals for {0}'.format(user))
         stale = []
         existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.CME)
         for ug in existing:
@@ -841,8 +1005,12 @@ class UserGoalManager(models.Manager):
             ug.delete()
         # Assign goals (create/update)
         usergoals = []
-        usergoals.extend(self.assignLicenseGoals(profile))
-        usergoals.extend(self.assignCmeGoals(profile))
+        #print('assignLicenseGoals for {0}'.format(user))
+        usergoals.extend(self.assignLicenseGoals(profile, profileDegrees, profileSpecs, profileStates, profileDEAStates))
+        #print('assignTrainingGoals for {0}'.format(user))
+        usergoals.extend(self.assignTrainingGoals(profile, profileDegrees, profileSpecs, profileStates))
+        #print('assignCmeGoals for {0}'.format(user))
+        usergoals.extend(self.assignCmeGoals(profile, profileDegrees, profileSpecs, profileStates))
         return usergoals
 
 @python_2_unicode_compatible
@@ -898,6 +1066,7 @@ class UserGoal(models.Model):
     status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, db_index=True)
     compliance = models.PositiveSmallIntegerField(default=1, db_index=True)
     dueDate = models.DateTimeField()
+    valid = models.BooleanField(default=True, help_text='Used for TrainingGoal. Set/clear flag instead of deleting to preserve information')
     completeDate= models.DateTimeField(blank=True, null=True,
             help_text='Used for Training/Wellness goal completion date.')
     creditsDue = models.DecimalField(max_digits=6, decimal_places=2,
@@ -933,7 +1102,7 @@ class UserGoal(models.Model):
         elif gtype == GoalType.LICENSE:
             return basegoal.licensegoal.title
         else:
-            return basegoal.wellnessgoal.title
+            return basegoal.traingoal.title
 
     def __str__(self):
         return '{0.pk}|{0.user}|{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}'.format(self)
@@ -1006,6 +1175,22 @@ class UserGoal(models.Model):
         else:
             return UserGoal.IN_PROGRESS
 
+    def calcTrainGoalStatus(self, dueDate, now):
+        """Returns status for Training UserGoal"""
+        if self.completeDate is not None:
+            return UserGoal.COMPLETED
+        if dueDate < now:
+            return UserGoal.PASTDUE
+        return UserGoal.IN_PROGRESS
+
+    def calcCompliance(self, status):
+        """Used by recompute for License/Training usergoal"""
+        if status == UserGoal.PASTDUE:
+            return UserGoal.NON_COMPLIANT
+        elif status == UserGoal.IN_PROGRESS:
+            return UserGoal.MARGINAL_COMPLIANT
+        compliance = UserGoal.COMPLIANT
+
     def recompute(self, userLicenseDict=None, numProfileSpecs=None):
         """Recompute dueDate, status, creditsDue, creditsEarned for the month and update self.
         Args:
@@ -1025,12 +1210,7 @@ class UserGoal(models.Model):
             else:
                 dueDate = self.license.expireDate
                 status = self.calcLicenseStatus(now)
-                if status == UserGoal.PASTDUE:
-                    compliance = UserGoal.NON_COMPLIANT
-                elif status == UserGoal.IN_PROGRESS:
-                    compliance = UserGoal.MARGINAL_COMPLIANT
-                else: # completed
-                    compliance = UserGoal.COMPLIANT
+                compliance = self.calcCompliance(status)
             if status != self.status or compliance != self.compliance:
                 self.status = status
                 self.dueDate = dueDate
@@ -1043,8 +1223,34 @@ class UserGoal(models.Model):
         if not userLicenseDict:
             userLicenseDict = self.makeUserLicenseDict()
         userLicense = None
+        if gtype == GoalType.TRAINING:
+            if self.completeDate is not None or not self.valid:
+                # nothing to recompute
+                return
+            basegoal = self.goal
+            tgoal = basegoal.traingoal # TrainingGoal
+            if basegoal.usesLicenseDate():
+                try:
+                    userLicense = userLicenseDict[tgoal.licenseGoal.pk]
+                except KeyError:
+                    logger.exception("No userLicense found for user {0.user} and TrainingGoal {1.pk} that uses LicenseGoal {2.pk}".format(self, tgoal, tgoal.licenseGoal))
+                    return
+            dueDate = tgoal.computeDueDateForProfile(profile, userLicense, now)
+            status = self.calcTrainGoalStatus(dueDate, now)
+            compliance = self.calcCompliance(status)
+            if status != self.status or compliance != self.compliance:
+                self.status = status
+                self.dueDate = dueDate
+                self.compliance = compliance
+                self.save(update_fields=('status', 'dueDate', 'compliance'))
+            return
+        #
+        # else CME goal
+        #
+        userLicense = None
         cmegoals = self.cmeGoals.all()
         data = []
+        creditsDue = 0 # init to 0 since status expects var to be set even if no cmegoals
         for goal in cmegoals:
             basegoal = goal.goal
             if basegoal.usesLicenseDate():
@@ -1072,7 +1278,6 @@ class UserGoal(models.Model):
                         subCompliance = UserGoal.NON_COMPLIANT
                     else:
                         subCompliance = UserGoal.MARGINAL_COMPLIANT
-
                 else:
                     # articles per month needed to earn creditsLeft by daysLeft
                     monthsLeft = math.floor(daysLeft/30) # take floor to ensure we don't underestimate apm

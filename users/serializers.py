@@ -1,6 +1,7 @@
 import logging
 from urlparse import urlparse, urldefrag
 from rest_framework import serializers
+from common.appconstants import GROUP_ENTERPRISE_MEMBER
 from common.signals import profile_saved
 from .models import *
 
@@ -266,7 +267,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """
         If specialties/subspecialties/states are updated: handle cmeTags assignment
-        Emit profile_saved signal at the end.
+        Emit profile_saved signal for enterprise members at the end.
         """
         user = instance.user
         upd_cmetags = False
@@ -334,7 +335,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 pct.save(update_fields=('is_active',))
                 logger.info('Inactivate ProfileCmetag: {0}'.format(pct))
         # emit profile_saved signal
-        ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
+        if user.groups.filter(name=GROUP_ENTERPRISE_MEMBER).exists():
+            ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
 

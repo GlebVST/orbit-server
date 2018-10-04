@@ -87,6 +87,26 @@ class LicenseGoalSubSerializer(serializers.ModelSerializer):
         return s.data
 
 
+class TrainingGoalSubSerializer(serializers.ModelSerializer):
+    """UserTrainingGoal extra fields"""
+    daysLeft = serializers.SerializerMethodField()
+    recommendations = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserGoal
+        fields = (
+            'daysLeft',
+        )
+
+    def get_daysLeft(self, obj):
+        return obj.daysLeft
+
+
+    def get_recommendations(self, obj):
+        qset = obj.goal.recommendations.all().order_by('-created')[:3]
+        s = GoalRecReadSerializer(qset, many=True)
+        return s.data
+
 class CmeGoalSubSerializer(serializers.ModelSerializer):
     articlesLeft = serializers.SerializerMethodField()
 
@@ -98,20 +118,6 @@ class CmeGoalSubSerializer(serializers.ModelSerializer):
 
     def get_articlesLeft(self, obj):
         return int(float(obj.creditsDue)/ARTICLE_CREDIT)
-
-
-class WellnessGoalSubSerializer(serializers.ModelSerializer):
-    daysLeft = serializers.SerializerMethodField()
-
-    class Meta:
-        model = UserGoal
-        fields = (
-            'daysLeft',
-        )
-
-    def get_daysLeft(self, obj):
-        return obj.daysLeft
-
 
 
 class UserGoalReadSerializer(serializers.ModelSerializer):
@@ -136,7 +142,7 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
         elif gtype == GoalType.LICENSE:
             s = LicenseGoalSubSerializer(obj)
         else:
-            s = WellnessGoalSubSerializer(obj)
+            s = TrainingGoalSubSerializer(obj)
         return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>
 
     class Meta:
@@ -201,19 +207,24 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
         if updateUserCmeGoals:
             licenseGoal = instance.goal.licensegoal # LicenseGoal instance
             to_update = set([])
-            logger.debug('Finding usercmegoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
+            logger.debug('Finding usergoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
             for cmeGoal in licenseGoal.cmegoals.all():
                 # Use related_name on UserGoal.cmeGoals M2Mfield
-                logger.info('Partner cmeGoal: {0.pk}/{0}'.format(cmeGoal))
+                logger.debug('cmeGoal: {0.pk}/{0}'.format(cmeGoal))
                 qset = cmeGoal.usercmegoals.filter(user=instance.user)
-                for ug in qset: # UserGoal qset for this user
+                for ug in qset: # UserGoal qset
+                    to_update.add(ug)
+            for tGoal in licenseGoal.traingoals.all():
+                # use related name on UserGoal.goal FK field
+                logger.debug('trainGoal: {0.pk}/{0}'.format(tGoal))
+                qset = tGoal.goal.usergoals.filter(user=instance.user)
+                for ug in qset: # UserGoal qset
                     to_update.add(ug)
             for ug in to_update:
-                logger.info('Update UserGoal {0} for Tag {0.cmeTag}'.format(ug))
                 ug.recompute()
         return instance
 
-class UserWellnessGoalUpdateSerializer(serializers.Serializer):
+class UserTrainingGoalUpdateSerializer(serializers.Serializer):
     completeDate = serializers.DateTimeField()
     documents = serializers.PrimaryKeyRelatedField(
         queryset=Document.objects.all(),
@@ -238,10 +249,10 @@ class UserWellnessGoalUpdateSerializer(serializers.Serializer):
                 instance.documents.add(d)
         user = instance.user
         basegoal = instance.goal
-        wgoal = basegoal.wellnessgoal
-        if not wgoal.isOneOff():
-            year = instance.dueDate.year + 1
-            nextDueDate = wgoal.makeDueDate(year, instance.dueDate.month, instance.dueDate.day)
+        tgoal = basegoal.traingoal
+        if basegoal.interval:
+            year = instance.dueDate.year + basegoal.interval
+            nextDueDate = makeDueDate(year, instance.dueDate.month, instance.dueDate.day)
             if not UserGoal.objects.filter(user=user, goal=basegoal, dueDate=nextDueDate).exists():
                 usergoal = UserGoal.objects.create(
                         user=user,
@@ -249,7 +260,7 @@ class UserWellnessGoalUpdateSerializer(serializers.Serializer):
                         dueDate=nextDueDate,
                         status=UserGoal.IN_PROGRESS
                     )
-                logger.info('Created UserGoal: {0}'.format(usergoal))
+                logger.info('Created UserTrainingGoal: {0}'.format(usergoal))
         return instance
 
 

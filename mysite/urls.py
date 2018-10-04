@@ -28,6 +28,7 @@ from users import (
         views
 )
 from goals import views as goal_views
+from goals import ac_views as goal_ac_views
 from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
 from rest_framework.authentication import SessionAuthentication
@@ -55,6 +56,7 @@ ac_patterns = [
     url(r'^useremail-autocomplete/$', ac_views.UserEmailAutocomplete.as_view(), name='useremail-autocomplete'),
     url(r'^statename-autocomplete/$', ac_views.StateNameAutocomplete.as_view(), name='statename-autocomplete'),
     url(r'^hospital-autocomplete/$', ac_views.HospitalAutocomplete.as_view(), name='hospital-autocomplete'),
+    url(r'^licensegoal-autocomplete/$', goal_ac_views.LicenseGoalAutocomplete.as_view(), name='licensegoal-autocomplete'),
 ]
 
 api_patterns = [
