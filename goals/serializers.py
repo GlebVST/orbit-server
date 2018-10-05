@@ -247,9 +247,9 @@ class UserTrainingGoalUpdateSerializer(serializers.Serializer):
         docs = validated_data.get('documents', [])
         instance.completeDate = completeDate
         instance.save(update_fields=('completeDate',))
-        if docs:
-            for d in docs:
-                instance.documents.add(d)
+        if 'documents' in validated_data:
+            docs = validated_data['documents']
+            instance.documents.set(docs)
         user = instance.user
         basegoal = instance.goal
         tgoal = basegoal.traingoal
