@@ -426,8 +426,8 @@ class SRCmeFormSerializer(serializers.Serializer):
         if tags:
             entry.tags.set(tags)
         # associate documents with saved entry
-        docs = validated_data.get('documents', [])
-        if docs:
+        if 'documents' in validated_data:
+            docs = validated_data['documents']
             entry.documents.set(docs)
         # Using parent entry, create SRCme instance
         instance = SRCme.objects.create(

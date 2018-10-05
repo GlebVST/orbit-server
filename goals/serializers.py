@@ -191,7 +191,6 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
         license = instance.license
         licenseNumber = validated_data.get('licenseNumber')
         expireDate = validated_data.get('expireDate')
-        docs = validated_data.get('documents', [])
         updateUserCmeGoals = False
         now = timezone.now()
         if expireDate != license.expireDate:
@@ -204,9 +203,9 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
         instance.dueDate = expireDate
         instance.save(update_fields=('dueDate',))
         instance.recompute() # update status/compliance
-        if docs:
-            for d in docs:
-                instance.documents.add(d)
+        if 'documents' in validated_data:
+            docs = validated_data['documents']
+            instance.documents.set(docs)
         if updateUserCmeGoals:
             licenseGoal = instance.goal.licensegoal # LicenseGoal instance
             to_update = set([])
