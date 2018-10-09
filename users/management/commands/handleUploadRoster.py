@@ -172,11 +172,12 @@ class Command(BaseCommand):
                     # Update profile
                     user = orgmember.user
                     profile = user.profile
-                    profile.country = country_usa
                     if d['NPINumber']:
                         profile.npiNumber = d['NPINumber']
                     if d['Birthdate']:
                         profile.birthDate = d['Birthdate']
+                    profile.country = country_usa
+                    profile.save()
                     for state in d['states']:
                         profile.states.add(state)
                     for ps in d['specialties']:

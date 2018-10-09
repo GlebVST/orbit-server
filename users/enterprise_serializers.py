@@ -103,6 +103,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
             lastName=lastName
             )
         profile.country = country_usa
+        profile.save(update_fields=('country',))
         if degrees:
             profile.degrees.set(degrees)
         user = profile.user
@@ -117,7 +118,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         # 6. Create change-password ticket
         if password_ticket:
             ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
-            logger.debug(ticket_url)
+            logger.debug('ticket_url for {0}={1}'.format(socialId, ticket_url))
             try:
                 delivered = sendPasswordTicketEmail(m, ticket_url)
                 if delivered:
