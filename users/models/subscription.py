@@ -766,7 +766,7 @@ class UserSubscriptionManager(models.Manager):
         Returns: bool
         """
         # has user ever had a paid subs
-        qset = self.model.select_related('plan').filter(user=user).order_by('created')
+        qset = UserSubscription.objects.select_related('plan').filter(user=user).order_by('created')
         for m in qset:
             if m.plan.isPaid():
                 return False
