@@ -55,11 +55,9 @@ class SubscriptionPlanList(generics.ListAPIView):
             return SubscriptionPlan.objects.none().order_by('id')
         else:
             if not plan_key:
-                # else pick first plan_key that matches user degree and specialty
-                degree = profile.degrees.all()[0] if profile.degrees.exists() else None
-                specs = [ps.pk for ps in profile.specialties.all()]
-                if degree and specs:
-                    plan_key = SubscriptionPlanKey.objects.filter(degree=degree, specialty__in=specs).order_by('id')[0]
+                plan_key = SubscriptionPlan.objects.findPlanKeyForProfile(profile)
+                if not plan_key:
+                    plan_key = SubscriptionPlanKey.objects.all().order_by('id')[0]
             # return plans for the plan_key
             filter_kwargs = dict(active=True, plan_key=plan_key)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
@@ -93,8 +91,7 @@ class SignupDiscountList(APIView):
         user = request.user
         profile = user.profile
         data = []
-        user_subs = UserSubscription.objects.getLatestSubscription(user)
-        if UserSubscription.objects.allowSignupDiscount(user_subs):
+        if UserSubscription.objects.allowSignupDiscount(user):
             promo = SignupEmailPromo.objects.get_casei(user.email)
             if promo:
                 # this overrides any other discount

@@ -528,10 +528,17 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
     needs_payment_method = serializers.BooleanField(source='plan.plan_type.needs_payment_method')
 
     def get_display_name(self, obj):
-        """If enterprise plan: return org name, else return plan.display_name"""
+        """If enterprise plan or display_status is UI_ENTERPRISE_CANCELED: return org name.
+        else return plan.display_name
+        """
         profile = obj.user.profile
         if profile.organization and obj.plan.isEnterprise():
             return profile.organization.name
+        if obj.display_status == UserSubscription.UI_ENTERPRISE_CANCELED:
+            # need to get org from OrgMember
+            qset = OrgMember.objects.filter(user=obj.user, removeDate__isnull=False).order_by('-removeDate')
+            if qset.exists():
+                return qset[0].organization.name
         return obj.plan.display_name
 
     class Meta:

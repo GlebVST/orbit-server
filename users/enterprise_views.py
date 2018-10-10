@@ -158,17 +158,31 @@ class OrgMemberList(generics.ListCreateAPIView):
                 u = qset[0]
                 org_qset = OrgMember.objects.filter(organization=org, user=u, removeDate__isnull=False)
                 if org_qset.exists():
-                    logInfo('CreateOrgMember: re-activate existing membership for {0}'.format(u))
                     instance = org_qset[0]
-                    instance.removeDate = None
-                    instance.save()
-                    return instance
-                error_msg = 'The email {0} belongs to another user account.'.format(email)
-                logWarning(logger, self.request, error_msg)
-                raise serializers.ValidationError({'email': error_msg}, code='invalid')
+                    user_subs = UserSubscription.objects.getLatestSubscription(instance.user)
+                    if user_subs is None or user_subs.canRejoinEnterpise():
+                        # Latest user_subs is either already Enterprise or in terminal state (anything else requires mgmt cmd)
+                        logInfo('CreateOrgMember: re-activate existing membership for {0}'.format(u))
+                        with transaction.atomic():
+                            instance.removeDate = None
+                            instance.save()
+                            user_subs = UserSubscription.objects.activateEnterpriseSubscription(instance.user, org)
+                            return instance
+                    else:
+                        # User has an active Individual/BT subscription already
+                        error_msg = 'The user {0} cannot be automatically transferred to the team.'.format(email)
+                        logWarning(logger, self.request, error_msg)
+                        raise serializers.ValidationError({'email': error_msg}, code='invalid')
+                else:
+                    # User account already exists and user is not an existing orgmember.
+                    # Cannot use this endpoint b/c this is intended to create a new user profile
+                    error_msg = 'The email {0} belongs to another user account.'.format(email)
+                    logWarning(logger, self.request, error_msg)
+                    raise serializers.ValidationError({'email': error_msg}, code='invalid')
         apiConn = Auth0Api.getConnection(self.request)
         with transaction.atomic():
-            instance = serializer.save(apiConn=apiConn, organization=org)
+            instance = serializer.save(apiConn=apiConn, organization=org) # returns OrgMember instance
+        logInfo(logger, self.request, 'Created OrgMember {0.pk}'.format(instance))
         return instance
 
     def create(self, request, *args, **kwargs):

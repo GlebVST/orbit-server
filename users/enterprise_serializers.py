@@ -111,8 +111,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         user_subs = UserSubscription.objects.createEnterpriseMemberSubscription(user, plan)
         # 4. create OrgMember instance
         m = OrgMember.objects.createMember(org, profile, is_admin)
-        # 5. Assign groups
-        user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
+        # 5. Assign extra groups
         if is_admin:
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
         # 6. Create change-password ticket
@@ -136,7 +135,11 @@ class OrgMemberFormSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         """This expects extra keys in the validated_data:
             apiConn: Auth0Api instance
-        Update OrgMember model instance
+        Update OrgMember model instance. If user is removed, then UserSubscription
+            manager method is called to end current user_subs.
+        Note: UI only displays active users, hence from UI, update can only set
+            removeDate (but not clear it). The ent. admin must re-add the user
+            using the create form.
         Returns: OrgMember model instance
         """
         user = instance.user
@@ -177,7 +180,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         # update OrgMember and user groups
         if removeDate != instance.removeDate:
             instance.removeDate = removeDate
-            logger.info('UpdateOrgMember: set removeDate to {0} for user {1}'.format(removeDate, user))
+            logger.info('UpdateOrgMember: remove user {0} on {1}'.format(user, removeDate))
         if is_admin != instance.is_admin:
             instance.is_admin = is_admin
             ga = Group.objects.get(name=GROUP_ENTERPRISE_ADMIN)
@@ -186,6 +189,8 @@ class OrgMemberFormSerializer(serializers.Serializer):
             else:
                 user.groups.remove(ga)
         instance.save()
+        if instance.removeDate:
+            UserSubscription.objects.endEnterpriseSubscription(user)
         return instance
 
 

@@ -647,6 +647,26 @@ class SubscriptionPlanManager(models.Manager):
         qset = self.model.objects.select_related('plan_type').filter(plan_type__name=SubscriptionPlanType.ENTERPRISE, active=True)
         return qset[0]
 
+    def findPlanKeyForProfile(self, profile):
+        """Find a plan_key that matches profile.degrees and specialties
+        Args:
+            profile: Profile instance
+        Returns: SubscriptionPlanKey instance/None
+        """
+        # find pick first plan_key that matches user degree and specialty
+        degree = profile.degrees.all()[0] if profile.degrees.exists() else None
+        specs = [ps.pk for ps in profile.specialties.all()]
+        filter_kwargs = dict()
+        if degree:
+            filter_kwargs['degree'] = degree
+        if specs:
+            filter_kwargs['specialty__in'] = specs
+        if filter_kwargs:
+            qset = SubscriptionPlanKey.objects.filter(**filter_kwargs).order_by('id')
+            if qset.exists():
+                return qset[0]
+        return None
+
 # All plans with plan_type=Braintree must be created in the Braintree Control Panel, and synced with the db.
 # https://developers.braintreepayments.com/guides/recurring-billing/plans
 @python_2_unicode_compatible
@@ -739,22 +759,18 @@ class UserSubscriptionManager(models.Manager):
         if qset.exists():
             return qset[0]
 
-    def allowSignupDiscount(self, user_subs):
+    def allowSignupDiscount(self, user):
         """Check if user is allowed signup discounts
         Args:
-            user_subs: latest UserSubscription instance for user/None
+            user: User instance
         Returns: bool
         """
-        if user_subs is None:
-            # user has never had a UserSubscription
-            return True
-        if user_subs.display_status == self.model.UI_TRIAL:
-            return True
-        if user_subs.display_status == self.model.UI_TRIAL_CANCELED:
-            return True
-        if user_subs.plan.isEnterprise():
-            return True
-        return False
+        # has user ever had a paid subs
+        qset = self.model.select_related('plan').filter(user=user).order_by('created')
+        for m in qset:
+            if m.plan.isPaid():
+                return False
+        return True
 
     def getPermissions(self, user_subs):
         """Helper method used by serializer_permissions.
@@ -851,18 +867,21 @@ class UserSubscriptionManager(models.Manager):
             return bt_subs
 
 
-    def createEnterpriseMemberSubscription(self, user, plan):
+    def createEnterpriseMemberSubscription(self, user, plan, startDate=None):
         """Create enterprise UserSubscription instance for the given user.
+        Add user to GROUP_ENTERPRISE_MEMBER group.
         The display_status of the new subs is UI_ACTIVE.
-        The subscriptionId is constructed from the profile.inviteId so it is guaranteed to be unique.
         Note: The billing dates are not used for actual billing
         Args:
             user: User instance
             plan: SubscriptionPlan instance whose plan_type is ENTERPRISE
         Returns UserSubscription instance
         """
-        startDate = user.date_joined
-        subsId = "ent.{0}".format(user.profile.inviteId) # a unique id
+        if not startDate:
+            startDate = user.date_joined
+        now = timezone.now()
+        nowId = now.strftime('%Y%m%d%H%M')
+        subsId = "ent.{0}.{1}".format(user.pk, nowId) # a unique id
         user_subs = UserSubscription.objects.create(
             user=user,
             plan=plan,
@@ -873,12 +892,46 @@ class UserSubscriptionManager(models.Manager):
             billingStartDate=startDate,
             billingEndDate=ACTIVE_OFFDATE
         )
+        user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
+        return user_subs
+
+    def activateEnterpriseSubscription(self, user, org):
+        """Terminate current user_subs (if not Enterprise) and start new Enterprise member subscription.
+        Add user to GROUP_ENTERPRISE_MEMBER group.
+        Set profile.organization to the given org
+        Args:
+            user: User instance
+            org: Organization instance
+        Returns: UserSubscription instance
+        """
+        plan = SubscriptionPlan.objects.getEnterprisePlan()
+        user_subs = self.getLatestSubscription(user)
+        profile = user.profile
+        now = timezone.now()
+        if user_subs and not user_subs.plan.isEnterprise() and not user_subs.inTerminalState():
+            # terminate
+            if user_subs.plan.IsFreeIndividual():
+                user_subs.status = UserSubscription.CANCELED
+                user_subs.display_status = UserSubscription.UI_TRIAL_CANCELED
+                user_subs.billingEndDate = now
+                user_subs.save()
+            else:
+                cancel_result = self.terminalCancelBtSubscription(user_subs)
+                if cancel_result.is_success:
+                    logger.info('activateEnterpriseSubscription: terminalCancelBtSubscription completed for {0.subscriptionId}'.format(user_subs))
+                else:
+                    logger.error('activateEnterpriseSubscription: terminalCancelBtSubscription failed for {0.subscriptionId}'.format(user_subs))
+        # start new enterprise subs
+        user_subs = self.createEnterpriseMemberSubscription(user, plan, now)
+        # update profile
+        profile.organization = org
+        profile.planId = plan.planId
+        profile.save(update_fields=('organization','planId'))
         return user_subs
 
     def createFreeSubscription(self, user, plan):
         """Create free-individual UserSubscription instance for the given plan.
         The display_status of the new subs is UI_TRIAL.
-        The subscriptionId is constructed from the profile.inviteId so it is guaranteed to be unique.
         The date fields are not billing dates, they only represent the duration of the free trial period.
         Args:
             user: User instance
@@ -887,7 +940,8 @@ class UserSubscriptionManager(models.Manager):
         """
         startDate = timezone.now()
         endDate = startDate + timedelta(days=plan.trialDays)
-        subsId = "fr.{0}".format(user.profile.inviteId) # a unique id
+        nowId = startDate.strftime('%Y%m%d%H%M')
+        subsId = "fr.{0}.{1}".format(user.pk, nowId) # a unique id
         user_subs = UserSubscription.objects.create(
             user=user,
             plan=plan,
@@ -899,6 +953,64 @@ class UserSubscriptionManager(models.Manager):
             billingEndDate=endDate
         )
         return user_subs
+
+    def endEnterpriseSubscription(self, user):
+        """End the current Enterprise user_subs.
+        Args:
+            user: User instance
+        Remove user from GROUP_ENTERPRISE_MEMBER group.
+        Set profile.organization to None
+        Find the appropriate Free Standard Plan for this user based on profile
+        Create Free user_subs and set to CANCELED state. This allow user to use UI
+        to enter in their payment info and activate a paid plan within the plan_key.
+        """
+        user_subs = self.getLatestSubscription(user)
+        if not user_subs.plan.isEnterprise():
+            logger.error('endEnterpriseSubscription: invalid subscription {0.subscriptionId}'.format(user_subs))
+            return None
+        profile = user.profile
+        pt_free = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.FREE_INDIVIDUAL)
+        now = timezone.now()
+        # end current user_subs
+        user_subs.status = self.model.CANCELED
+        user_subs.display_status = self.model.UI_EXPIRED
+        user_subs.billingEndDate = now
+        user_subs.save()
+        # remove user from EnterpriseMember group
+        ge = Group.objects.get(name=GROUP_ENTERPRISE_MEMBER)
+        user.groups.remove(ge)
+        # clear profile.organization
+        profile.organization = None
+        profile.save(update_fields=('organization',))
+        # find appropriate plan_key for user
+        plan_key = SubscriptionPlan.objects.findPlanKeyForProfile(profile)
+        if not plan_key:
+            logger.warning('endEnterpriseSubscription: could not find plan_key for user {0}. Remove enterprise user_subs.'.format(user))
+            # delete enterprise user_subs so that user can join as individual user (or be re-added back to org)
+            user_subs.delete()
+            return
+        # Assign user to the FREE_INDIVIDUAL Standard plan under plan_key
+        filter_kwargs = dict(
+                active=True,
+                plan_key=plan_key,
+                plan_type=pt_free,
+                display_name='Standard'
+                )
+        qset = SubscriptionPlan.objects.filter(**filter_kwargs)
+        if not qset.exists():
+            logger.warning('endEnterpriseSubscription: no Free plan for plan_key: {0}'.format(plan_key))
+            return
+        # else
+        free_plan = qset[0]
+        f_user_subs = self.createFreeSubscription(user, free_plan)
+        f_user_subs.status = self.model.CANCELED
+        # this status directs UI to display a specific banner message to user
+        f_user_subs.display_status = self.model.UI_ENTERPRISE_CANCELED
+        f_user_subs.billingEndDate = now
+        f_user_subs.save()
+        profile.planId = free_plan.planId
+        profile.save(update_fields=('planId',))
+        logger.info('endEnterpriseSubscription: transfer user {0} to plan {1.name}'.format(user, free_plan))
 
     def createSubscriptionFromBt(self, user, plan, bt_subs):
         """Handle the result of calling braintree.Subscription.create
@@ -1041,10 +1153,9 @@ class UserSubscriptionManager(models.Manager):
                 affl = Affiliate.objects.get(user=inviter) # used below in saving AffiliatePayout instance
             # used below in saving InvitationDiscount/AffiliatePayout model instance
             inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
-        qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
-        is_signup = not qset.exists() # if True, this will be the first Active subs for the user
-        # If user's email exists in SignupEmailPromo then it overrides any other discounts
-        if is_signup:
+        allow_signup = UserSubscription.objects.allowSignupDiscount(user)
+        if allow_signup:
+            # If user's email exists in SignupEmailPromo then it overrides any other discounts
             promo = SignupEmailPromo.objects.get_casei(user.email)
             if promo:
                 subs_price = promo.first_year_price
@@ -1375,8 +1486,10 @@ class UserSubscriptionManager(models.Manager):
         """
         Cancel Braintree subscription - this is a terminal state. Once
             canceled, a subscription cannot be reactivated.
-        Update instance: set display_status to:
+        Update instance:
+         1. set display_status to:
             UI_TRIAL_CANCELED if previous display_status was UI_TRIAL, else to UI_EXPIRED.
+         2. Set billingEndDate to now. This stores when the subs was cancelled.
         Reference: https://developers.braintreepayments.com/reference/request/subscription/cancel/python
         Can raise braintree.exceptions.not_found_error.NotFoundError
         Returns Braintree result object
@@ -1384,6 +1497,7 @@ class UserSubscriptionManager(models.Manager):
         old_display_status = user_subs.display_status
         result = braintree.Subscription.cancel(user_subs.subscriptionId)
         if result.is_success:
+            now = timezone.now()
             user_subs.status = result.subscription.status
             if old_display_status == self.model.UI_TRIAL:
                 user_subs.display_status = self.model.UI_TRIAL_CANCELED
@@ -1391,6 +1505,7 @@ class UserSubscriptionManager(models.Manager):
                 user_subs.billingEndDate = user_subs.billingStartDate
             elif old_display_status != self.model.UI_SUSPENDED:  # leave UI_SUSPENDED as is to preserve this info
                 user_subs.display_status = self.model.UI_EXPIRED
+            user_subs.billingEndDate = now
             user_subs.save()
         return result
 
@@ -1716,6 +1831,7 @@ class UserSubscription(models.Model):
     UI_ACTIVE_CANCELED = 'Active-Canceled'
     UI_ACTIVE_DOWNGRADE = 'Active-Downgrade-Scheduled'
     UI_TRIAL_CANCELED = 'Trial-Canceled'
+    UI_ENTERPRISE_CANCELED = 'Enterprise-Canceled'
     UI_SUSPENDED = 'Suspended'
     UI_EXPIRED = 'Expired'
     UI_STATUS_CHOICES = (
@@ -1726,6 +1842,7 @@ class UserSubscription(models.Model):
         (UI_EXPIRED, UI_EXPIRED),
         (UI_TRIAL_CANCELED, UI_TRIAL_CANCELED),
         (UI_ACTIVE_DOWNGRADE, UI_ACTIVE_DOWNGRADE),
+        (UI_ENTERPRISE_CANCELED, UI_ENTERPRISE_CANCELED)
     )
     RESULT_ALREADY_CANCELED = 'Subscription has already been canceled.'
     # fields
@@ -1768,6 +1885,16 @@ class UserSubscription(models.Model):
 
     def __str__(self):
         return self.subscriptionId
+
+    def inTerminalState(self):
+        """Returns True if status is CANCELED or EXPIRED"""
+        return self.status == UserSubscription.CANCELED or self.status == UserSubscription.EXPIRED
+
+    def canRejoinEnterpise(self):
+        """Returns True if self is inTerminalState or is already an existing Enterprise user_subs
+        """
+        return self.plan.isEnterprise() or self.inTerminalState()
+
 
 class SubscriptionEmailManager(models.Manager):
     def getOrCreate(self, user_subs):
