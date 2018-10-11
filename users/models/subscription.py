@@ -910,7 +910,7 @@ class UserSubscriptionManager(models.Manager):
         now = timezone.now()
         if user_subs and not user_subs.plan.isEnterprise() and not user_subs.inTerminalState():
             # terminate
-            if user_subs.plan.IsFreeIndividual():
+            if user_subs.plan.isFreeIndividual():
                 user_subs.status = UserSubscription.CANCELED
                 user_subs.display_status = UserSubscription.UI_TRIAL_CANCELED
                 user_subs.billingEndDate = now

@@ -49,8 +49,31 @@ class SubSpecialtyAdmin(admin.ModelAdmin):
         qs = super(SubSpecialtyAdmin, self).get_queryset(request)
         return qs.prefetch_related('cmeTags')
 
+
+class OrgForm(forms.ModelForm):
+    class Meta:
+        model = Organization
+        exclude = (
+            'joinCode',
+            'credits',
+            'creditStartDate',
+            'creditEndDate',
+            'providerStat',
+            'created',
+            'modified'
+        )
+
+    def save(self, commit=True):
+        """Auto assign joinCode based on code"""
+        m = super(OrgForm, self).save(commit=False)
+        m.joinCode = m.code.replace(' ', '').lower()
+        m.save()
+        return m
+
 class OrgAdmin(admin.ModelAdmin):
-    list_display = ('id', 'code', 'name', 'credits', 'creditStartDate')
+    list_display = ('id', 'code', 'name', 'credits', 'creditStartDate', 'joinCode')
+    form = OrgForm
+    ordering = ('code',)
 
 class OrgFileAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created')

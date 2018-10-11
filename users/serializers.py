@@ -270,9 +270,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         Emit profile_saved signal for enterprise members at the end.
         """
         user = instance.user
-        upd_cmetags = False
-        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
-        del_tags = set([]) # tags to be removed or deactivated
         # get current specialties before updating the instance
         curSpecs = set([m for m in instance.specialties.all()])
         # get current subspecialties before updating the instance
@@ -283,6 +280,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         curDeaStates = set([m for m in instance.deaStates.all()])
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
+        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
+        del_tags = set([]) # tags to be removed or deactivated
         if instance.deaStates.exists() and not instance.hasDEA:
             logger.info('User {0} : clear deaStates'.format(user))
             instance.deaStates.clear()
@@ -293,7 +292,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             newSpecs = set([ps for ps in validated_data[fieldName]])
             delSpecs = curSpecs.difference(newSpecs) # difference between old and new are the ones removed
             for ps in delSpecs:
-                logger.info('User {0} : remove PracticeSpecialty: {1}'.format(user, ps))
+                logger.info('User {0}: remove PracticeSpecialty: {1}'.format(user, ps))
             delspectags = CmeTag.objects.filter(name__in=[ps.name for ps in delSpecs])
             for t in delspectags:
                 del_tags.add(t)
@@ -303,7 +302,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             newSubSpecs = set([ps for ps in validated_data[fieldName]])
             delSubSpecs = curSubSpecs.difference(newSubSpecs)
             for ps in delSubSpecs:
-                logger.info('User {0} : remove SubSpecialty: {1}'.format(user, ps))
+                logger.info('User {0}: remove SubSpecialty: {1}'.format(user, ps))
                 for t in ps.cmeTags.all():
                     del_tags.add(t)
         fieldName = 'states'

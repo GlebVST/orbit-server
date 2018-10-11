@@ -380,6 +380,8 @@ class Organization(models.Model):
             help_text='Start date of total credits calculation')
     creditEndDate = models.DateTimeField(null=True, blank=True,
             help_text='End date of total credits calculation')
+    joinCode = models.CharField(max_length=20, default='',
+            help_text='Join Code for invitation URL')
     providerStat = JSONField(default='', blank=True)
 
     def __str__(self):

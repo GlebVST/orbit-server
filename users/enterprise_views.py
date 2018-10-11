@@ -23,10 +23,12 @@ from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
+from common.signals import profile_saved
 # app
 from .auth0_tools import Auth0Api
 from .models import *
 from .enterprise_serializers import *
+from .serializers import ProfileReadSerializer, UserSubsReadSerializer
 from .upload_serializers import UploadOrgFileSerializer
 from .permissions import *
 from .emailutils import makeSubject
@@ -161,15 +163,14 @@ class OrgMemberList(generics.ListCreateAPIView):
                     instance = org_qset[0]
                     user_subs = UserSubscription.objects.getLatestSubscription(instance.user)
                     if user_subs is None or user_subs.canRejoinEnterpise():
-                        # Latest user_subs is either already Enterprise or in terminal state (anything else requires mgmt cmd)
-                        logInfo('CreateOrgMember: re-activate existing membership for {0}'.format(u))
+                        logInfo(logger, self.request, 'Re-activate membership for {0}'.format(u))
                         with transaction.atomic():
                             instance.removeDate = None
                             instance.save()
                             user_subs = UserSubscription.objects.activateEnterpriseSubscription(instance.user, org)
                             return instance
                     else:
-                        # User has an active Individual/BT subscription already
+                        # User has an active Individual/BT subscription already. User must opt-in via JoinTeam endpoint (via email)
                         error_msg = 'The user {0} cannot be automatically transferred to the team.'.format(email)
                         logWarning(logger, self.request, error_msg)
                         raise serializers.ValidationError({'email': error_msg}, code='invalid')
@@ -354,5 +355,61 @@ class TeamStats(APIView):
             'totalCreditsStartDate': totalCreditsStartDate,
             'providers': providers,
             'articlesRead': s.data
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
+#
+# This endpoint is to transfer an existing user to an Organization.
+# Steps:
+# 1. Create OrgMember if dne. If exist, check removeDate.
+#  If removeDate is None: do nothing (this is to handle case where endpoint is called more than once)
+#  If removeDate is not None: clear it (re-activate membership)
+# 2. Terminate current user_subs and begin new Enterprise subs
+# 3. Emit profile_saved signal (to create usergoals)
+class JoinTeam(APIView):
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def post(self, request, *args, **kwargs):
+        user = self.request.user
+        joinCode = self.kwargs.get('joincode').lower()
+        try:
+            org = Organization.objects.get(joinCode=joinCode)
+            print(org)
+        except Organization.DoesNotExist:
+            error_msg = 'Invalid organization'
+            raise serializers.ValidationError({'organization': error_msg}, code='invalid')
+        user_subs = None
+        do_update = True
+        with transaction.atomic():
+            # create or update OrgMember instance
+            qset = OrgMember.objects.filter(organization=org, user=user)
+            if qset.exists():
+                m = qset[0]
+                if m.removeDate is not None:
+                    m.removeDate = None
+                    m.save(update_fields=('removeDate',))
+                    logInfo(logger, self.request, 'JoinTeam: re-activate OrgMember {0}'.format(m))
+                else:
+                    logInfo(logger, self.request, 'JoinTeam: OrgMember already active: {0}'.format(m))
+                    do_update = False
+            else:
+                m = OrgMember.objects.createMember(org, user.profile)
+                logInfo(logger, self.request, 'JoinTeam: create OrgMember {0}'.format(m))
+            if do_update:
+                # transfer user to Enterprise subscription
+                user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, org)
+                # emit profile_saved signal
+                ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
+        # prepare context
+        profile = Profile.objects.get(pk=user.pk)
+        if not user_subs:
+            user_subs = UserSubscription.objects.getLatestSubscription(user)
+        pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
+        context = {
+            'success': True,
+            'profile': ProfileReadSerializer(profile).data,
+            'subscription': UserSubsReadSerializer(user_subs).data,
+            'permissions': pdata['permissions'],
+            'brcme_limit': pdata['brcme_limit']
         }
         return Response(context, status=status.HTTP_200_OK)
