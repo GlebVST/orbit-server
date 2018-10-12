@@ -1274,14 +1274,13 @@ class UserSubscriptionManager(models.Manager):
             # owed = total - amount_already_paid (omitting any signup discounts b/c user earned that regardless of upgrade)
             owed = total - old_plan.discountPrice
             discount_amount = new_plan.price - owed
-            logger.debug('total   : {0}'.format(total))
-            logger.debug('owed    : {0}'.format(owed))
-            logger.debug('discount: {0}'.format(discount_amount))
         else:
             # user in post-first year
-            # the nominal amount paid (omitting any inviter discounts b/c user earned that regardless of upgrade)
-            discount_amount = old_plan.price
-            owed = new_plan.price - discount_amount
+            discount_amount = 0
+            owed = new_plan.price
+        logger.debug('total   : {0}'.format(total))
+        logger.debug('owed    : {0}'.format(owed))
+        logger.debug('discount: {0}'.format(discount_amount))
         return (owed, discount_amount)
 
 

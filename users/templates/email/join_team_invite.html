@@ -1,0 +1,266 @@
+{% comment %}
+Used to send an invitation email to an existing Individual user to join Enterprise group.
+The user must click the link in the body of the email to accept the invitation.
+Context expected:
+    org: Organization instance
+    join_url: relative frontend URL for the activate link (relative to server_hostname)
+    server_hostname: Orbit website (test or prod)
+{% endcomment %}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="https://www.w3.org/1999/xhtml" lang="en">
+<head>
+    <title>Orbit: Invitation to join Enterprise Group.</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta name="viewport" content="width=device-width" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="googlebot" content="noindex, nofollow, noarchive" />
+  <style type="text/css">
+    #outlook a {
+      padding: 0;
+    }
+
+    .ReadMsgBody {
+      width: 100%;
+    }
+
+    .ExternalClass {
+      width: 100%;
+    }
+
+    .ExternalClass * {
+      line-height: 100%;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+
+    table, td {
+      border-collapse: collapse;
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+
+    img {
+      border: 0;
+      height: auto;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+      -ms-interpolation-mode: bicubic;
+    }
+
+    p {
+      display: block;
+      margin: 13px 0;
+    }
+  </style>
+  <style type="text/css">
+    @media only screen and (min-width: 480px) {
+      .mj-column-per-100, * [aria-labelledby="mj-column-per-100"] {
+        width: 100% !important;
+      }
+
+      .mj-column-per-80, * [aria-labelledby="mj-column-per-80"] {
+        width: 80% !important;
+      }
+
+      .mj-column-per-15, * [aria-labelledby="mj-column-per-15"] {
+        width: 15% !important;
+      }
+
+      .mj-column-per-85, * [aria-labelledby="mj-column-per-85"] {
+        width: 85% !important;
+      }
+    }
+  </style>
+</head>
+<body style="background:#e3e5e7">
+<div style="background-color:#e3e5e7">
+  <div style="margin:0 auto;max-width:600px;background:white">
+    <table cellpadding="0" cellspacing="0" style="font-size:0px;width:100%;background:white" align="center" border="0">
+      <tbody>
+      <tr>
+        <td style="text-align:center;vertical-align:top;font-size:0px;padding:20px 0px">
+          <div aria-labelledby="mj-column-per-100" class="m_7664531541785752122mj-column-per-100"
+               style="vertical-align:top;display:inline-block;font-size:13px;text-align:left;width:100%">
+            <table cellpadding="0" cellspacing="0" style="vertical-align:top" width="100%" border="0">
+              <tbody>
+              <tr>
+                <td style="word-break:break-word;font-size:0px;padding:10px 25px" align="center">
+                  <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-spacing:0px"
+                         align="center" border="0">
+                    <tbody>
+                    <tr>
+                      <td style="width:80px; text-align: center; padding-top: 10px;">
+                          <a href="https://{{ server_hostname }}" style="color: #ffffff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 22px; line-height: 25px; text-decoration: none;" target="_blank" rel="noreferrer"><span style="color: #1976d2; font-weight: 500; letter-spacing: 1px; font-size: 28px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 25px; text-decoration: none;">Orbit</span></a>
+                      </td>
+                    </tr>
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="margin:0 auto;max-width:600px;background-color: rgb(25, 118, 210);">
+    <table cellpadding="0" cellspacing="0" style="font-size:0px;width:100%;background-color: rgb(25, 118, 210);" align="center"
+           border="0">
+      <tbody>
+      <tr>
+        <td style="text-align:center;vertical-align:top;font-size:0px;padding:20px 0px">
+          <div aria-labelledby="mj-column-per-80" class="m_7664531541785752122mj-column-per-80"
+               style="vertical-align:top;display:inline-block;font-size:13px;text-align:left;width:100%">
+            <table cellpadding="0" cellspacing="0" style="vertical-align:top" width="100%" border="0">
+              <tbody>
+              <tr>
+                <td style="padding-top:15px" align="center">
+                </td>
+              </tr>
+              <tr>
+                <td style="word-break:break-word;font-size:0px; padding:0px 20px 20px 20px" align="center">
+                  <div style="color:white;font-family:'Avenir Next',Avenir,sans-serif;font-size:26px;line-height:60ps">
+                    This is an invitation to join the Enterprise group {{ org.name }} at Orbit.
+                  </div>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="margin:0 auto;max-width:600px;background:white">
+    <table cellpadding="0" cellspacing="0" style="font-size:0px;width:100%;background:white" align="center" border="0">
+      <tbody>
+      <tr>
+        <td style="text-align:center;vertical-align:top;font-size:0px;padding:40px 25px 5px">
+          <div aria-labelledby="mj-column-per-100" class="m_7664531541785752122mj-column-per-100"
+               style="vertical-align:top;display:inline-block;font-size:13px;text-align:left;width:100%">
+            <table cellpadding="0" cellspacing="0" style="vertical-align:top" width="100%" border="0">
+              <tbody>
+              <tr>
+                <td style="word-break:break-word;font-size:0px;padding:0" align="center">
+                  <div
+                    style="color:#7c7c7c;font-family:'Avenir Next',Avenir,sans-serif;font-size:18px;line-height:30px">
+                    <strong style="font-weight:500">Please follow the link to activate your Orbit Enterprise subscription now.</strong>
+                  </div>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="margin:0 auto;max-width:600px;background:white">
+    <table cellpadding="0" cellspacing="0" style="font-size:0px;width:100%;background:white" align="center" border="0">
+      <tbody>
+      <tr>
+        <td style="text-align:center;vertical-align:top;font-size:0px;padding:20px 0px">
+          <div aria-labelledby="mj-column-per-100" class="m_7664531541785752122mj-column-per-100"
+               style="vertical-align:top;display:inline-block;font-size:13px;text-align:left;width:100%">
+            <table cellpadding="0" cellspacing="0" width="100%" border="0">
+              <tbody>
+              <tr>
+                <td style="word-break:break-word;font-size:0px;padding:10px 25px" align="center">
+                  <table cellpadding="0" cellspacing="0" align="center" border="0">
+                    <tbody>
+                    <tr>
+                      <td style="border-radius:3px;color:white" align="center" valign="middle" bgcolor="#EB5424">
+                          <a href="https://{{ server_hostname }}{{ join_url }}"
+                           target="_blank"
+                           style="display:inline-block;text-decoration:none;background:#eb5424;border-radius:3px;color:white;font-family:'Avenir Next',Avenir,sans-serif;font-size:14px;font-weight:500;line-height:35px;padding:10px 25px;margin:0px"
+                        >
+                        Start your Enterprise subscription
+                      </a></td>
+                    </tr>
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="margin:0 auto;max-width:600px;background:white">
+    <table cellpadding="0" cellspacing="0" style="font-size:0px;width:100%;background:white" align="center" border="0">
+      <tbody>
+      <tr>
+        <td style="text-align:center;vertical-align:top;font-size:0px;padding:0px 40px"><p
+          style="font-size:1px;margin:0 auto;border-top:1px solid #e3e5e7;width:100%"></p></td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="margin:0 auto;max-width:600px;background:white">
+    <table cellpadding="0" cellspacing="0" style="font-size:0px;width:100%;background:white" align="center" border="0">
+      <tbody>
+      <tr>
+        <td style="text-align:center;vertical-align:top;font-size:0px;padding:0px 25px 45px">
+          <div aria-labelledby="mj-column-per-100" class="m_7664531541785752122mj-column-per-100"
+               style="vertical-align:top;display:inline-block;font-size:13px;text-align:left;width:100%">
+            <table cellpadding="0" cellspacing="0" style="vertical-align:top" width="100%" border="0">
+              <tbody>
+              <tr>
+                <td style="word-break:break-word;font-size:0px;padding:10px 25px" align="center">
+                  <div
+                    style="color:#222228;font-family:'Avenir Next',Avenir,sans-serif;font-size:16px;line-height:20px">
+                    Still having issues with your account? Reply to this email, and we’ll accelerate your recovery.
+                    <br><br>The Orbit Team!
+                  </div>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="margin:0 auto;max-width:600px;background:#f5f7f9">
+    <table cellpadding="0" cellspacing="0" style="font-size:0px;width:100%;background:#f5f7f9" align="center"
+           border="0">
+      <tbody>
+      <tr>
+        <td style="text-align:center;vertical-align:top;font-size:0px;padding:20px 0px">
+          <div aria-labelledby="mj-column-per-100" class="m_7664531541785752122mj-column-per-100"
+               style="vertical-align:top;display:inline-block;font-size:13px;text-align:left;width:100%">
+            <table cellpadding="0" cellspacing="0" style="vertical-align:top" width="100%" border="0">
+              <tbody>
+              <tr>
+                <td style="word-break:break-word;font-size:0px;padding:0px 20px 0px 20px" align="center">
+                  <div
+                    style="color:#222228;font-family:'Avenir Next',Avenir,sans-serif;font-size:13px;line-height:20px">
+                    You are receiving this email because you have an account at Orbit.
+                  </div>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

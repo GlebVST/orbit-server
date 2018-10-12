@@ -417,3 +417,36 @@ def sendPasswordTicketEmail(orgmember, ticket_url, send_message=True):
     else:
         return msg
 
+def sendJoinTeamEmail(user, org, send_message=True):
+    """Send JoinTeam invitation email to user using join_team_invite template
+    Args:
+        user: User instance
+        org: Organization instance
+        send_message: bool defaults to True. If False, msg will be returned instead
+    Returns:
+        If send_message is True: int (0 = failed. 1 = delivered)
+        If send_message is False: EmailMessage object
+    Can raise SMTPException
+    """
+    from_email = settings.SUPPORT_EMAIL
+    subject = makeSubject(u'Invitation to join Orbit Enterprise')
+    join_url = "{0}{1.joinCode}".format(settings.UI_LINK_JOINTEAM, org)
+    ctx = {
+        'user': user,
+        'org': org,
+        'join_url': join_url,
+    }
+    setCommonContext(ctx)
+    message = get_template('email/join_team_invite.html').render(ctx)
+    msg = EmailMessage(
+            subject,
+            message,
+            to=[user.email],
+            from_email=from_email,
+            bcc=[from_email,]
+            )
+    msg.content_subtype = 'html'
+    if send_message:
+        return msg.send() # 0 or 1
+    else:
+        return msg

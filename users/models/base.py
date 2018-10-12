@@ -482,6 +482,25 @@ class OrgMemberManager(models.Manager):
             qs = qs2
         return qs.order_by(*orderByFields)
 
+    def getInactiveRemovedUsers(self, org):
+        """Find the users removed from the given org who do not
+        currently have a paid subscription (regardless of status)
+        Returns: list of User instances
+        """
+        qset = OrgMember.objects.filter(organization=org, removeDate__isnull=False).order_by('created')
+        if not qset.exists():
+            return []
+        users = []
+        for m in qset:
+            user = m.user
+            qs = user.subscriptions.select_related('plan').order_by('-created')
+            if qs.exists():
+                user_subs = qs[0]
+                if not user_subs.plan.isPaid():
+                    users.append(user)
+            else:
+                users.append(user)
+        return users
 
 @python_2_unicode_compatible
 class OrgMember(models.Model):
