@@ -175,6 +175,17 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
 
     def perform_create(self, serializer, format=None):
         user = self.request.user
+        offerId = self.request.data.get('offerId')
+        if offerId:
+            qset = OrbitCmeOffer.objects.filter(pk=offerId)
+            if qset.exists():
+                offer = qset[0]
+                if offer.redeemed:
+                    error_msg = 'OfferId {0} already redeemed'
+                    raise serializers.ValidationError({'offerId': error_msg}, code='stale')
+            else:
+                error_msg = 'Invalid OfferId {0} : does not exist'
+                raise serializers.ValidationError({'offerId': error_msg}, code='invalid')
         with transaction.atomic():
             # Create entry, brcme instances and redeem offer
             brcme = serializer.save(user=user)
@@ -189,6 +200,8 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
         brcme = self.perform_create(serializer)
         entry = brcme.entry
         user = request.user
+        msg = "Redeemed offer {0.offerId}".format(brcme)
+        logInfo(logger, request, msg)
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context = {
@@ -222,6 +235,8 @@ class UpdateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.UpdateAPIVie
         serializer = self.get_serializer(instance, data=form_data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        msg = "Updated brcme Entry {0.pk}".format(instance)
+        logInfo(logger, request, msg)
         entry = Entry.objects.get(pk=instance.pk)
         context = {
             'success': True,
@@ -277,6 +292,8 @@ class CreateSRCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
         in_serializer = self.get_serializer(data=form_data)
         in_serializer.is_valid(raise_exception=True)
         srcme = self.perform_create(in_serializer)
+        msg = "Created srcme Entry {0.pk}".format(srcme)
+        logInfo(logger, request, msg)
         out_serializer = CreateSRCmeOutSerializer(srcme.entry)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -323,6 +340,8 @@ class UpdateSRCme(LogValidationErrorMixin, TagsMixin, generics.UpdateAPIView):
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
         in_serializer.is_valid(raise_exception=True)
         self.perform_update(in_serializer)
+        msg = "Updated srcme Entry {0.pk}".format(instance)
+        logInfo(logger, request, msg)
         entry = Entry.objects.get(pk=instance.pk)
         out_serializer = UpdateSRCmeOutSerializer(entry)
         return Response(out_serializer.data)

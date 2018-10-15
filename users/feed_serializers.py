@@ -274,7 +274,6 @@ class BRCmeCreateSerializer(serializers.Serializer):
         instance = BrowserCme.objects.create(
             entry=entry,
             offerId=offer.pk,
-            purpose=0, # deprecated field
             competence=competence,
             performance=performance,
             planEffect=planEffect,
@@ -320,7 +319,6 @@ class BRCmeUpdateSerializer(serializers.Serializer):
         fields = (
             'id',
             'description',
-            'purpose',
             'planEffect',
             'planText',
             'competence',

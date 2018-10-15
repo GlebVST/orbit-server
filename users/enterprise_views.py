@@ -236,6 +236,7 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
         in_serializer.is_valid(raise_exception=True)
         self.perform_update(in_serializer)
+        logInfo(logger, request, 'Updated OrgMember {0.pk}'.format(instance))
         m = OrgMember.objects.get(pk=instance.pk)
         out_serializer = OrgMemberReadSerializer(m)
         return Response(out_serializer.data)
@@ -307,7 +308,7 @@ class EmailSetPassword(APIView):
                     orgmember.setPasswordEmailSent = True
                     orgmember.save(update_fields=('setPasswordEmailSent',))
             except SMTPException as e:
-                logError('EmailSetPassword failed for user {0}. ticket_url={1}'.format(user, ticket_url))
+                logError(logger, request, 'EmailSetPassword failed for user {0}. ticket_url={1}'.format(user, ticket_url))
                 return Response({'success': False}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 context = {'success': True}

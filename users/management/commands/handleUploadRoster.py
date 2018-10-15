@@ -212,7 +212,7 @@ class Command(BaseCommand):
                     profile = user.profile
                     self.stdout.write(u"Processing User: {0}...".format(user))
                     msg = sendPasswordTicketEmail(orgmember, ticket_url, send_message=False)
-                    num_sent = connection.send([msg,])
+                    num_sent = connection.send_messages([msg,])
                     if num_sent == 1:
                         orgmember.setPasswordEmailSent = True
                         orgmember.save(update_fields=('setPasswordEmailSent',))

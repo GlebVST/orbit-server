@@ -50,7 +50,7 @@ class Command(BaseCommand):
             connection = mail.get_connection()
             connection.open()
             msgs = [sendJoinTeamEmail(user, org, send_message=False) for user in users]
-            num_sent = connection.send(msgs)
+            num_sent = connection.send_messages(msgs)
         except SMTPException, e:
             error_msg = "SMTPException: {0}".format(e)
             logger.warning(error_msg)

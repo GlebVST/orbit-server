@@ -77,7 +77,6 @@ class HospitalFilterBackend(BaseFilterBackend):
         """This requires the model Manager to have a search_filter manager method"""
         search_term = request.query_params.get('q', '').strip()
         if search_term:
-            logInfo(logger, request, search_term)
             return Hospital.objects.search_filter(search_term)
         return queryset.order_by('display_name')
 
@@ -326,6 +325,8 @@ class CreateDocument(LogValidationErrorMixin, generics.CreateAPIView):
             qset = Document.objects.filter(user=request.user, set_id=instance.set_id, is_thumb=True)
             if qset.exists():
                 out_data.insert(0, qset[0])
+        msg = "Uploaded Document {0.pk}".format(instance.pk)
+        logInfo(logger, request, msg)
         # serialized data contains either 1 or 2 records
         out_serializer = DocumentReadSerializer(out_data, many=True)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)

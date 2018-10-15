@@ -15,6 +15,12 @@ from pprint import pprint
 
 logger = logging.getLogger('mgmt.tuftsqr')
 
+TUFTS_RECIPIENTS = [
+    'Mirosleidy.Tejeda@tufts.edu',
+    'Karin.Pearson@tufts.edu',
+    'Jennifer.Besaw@tufts.edu'
+]
+
 outputFields = (
     'LastName',
     'FirstName',
@@ -296,7 +302,8 @@ class Command(BaseCommand):
         rds = reportDate.strftime('%d%b%Y')
         # create EmailMessage
         from_email = settings.EMAIL_FROM
-        to_email = [t[1] for t in settings.MANAGERS] # list of emails
+        to_emails = [t[1] for t in settings.MANAGERS] # list of emails
+        to_emails.extend(TUFTS_RECIPIENTS)
         subject = "Orbit Quarterly Report {0}".format(rds)
         fileName = 'OrbitQuarterlyReport_{0}.csv'.format(rds)
         #
@@ -320,7 +327,7 @@ class Command(BaseCommand):
         msg = EmailMessage(
                 subject,
                 message,
-                to=to_email,
+                to=to_emails,
                 from_email=from_email)
         msg.content_subtype = 'html'
         msg.attach(fileName, cf, 'application/vnd.ms-excel')

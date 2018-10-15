@@ -437,12 +437,6 @@ class BrowserCme(models.Model):
         (RESPONSE_NO, 'No'),
         (RESPONSE_UNSURE, 'Unsure')
     )
-    PURPOSE_DX = 0  # Diagnosis
-    PURPOSE_TX = 1 # Treatment
-    PURPOSE_CHOICES = (
-        (PURPOSE_DX, 'DX'),
-        (PURPOSE_TX, 'TX')
-    )
     PLAN_EFFECT_CHOICES = (
         (RESPONSE_NO, 'No change'),
         (RESPONSE_YES, 'Change')
@@ -455,15 +449,10 @@ class BrowserCme(models.Model):
         related_name='brcme',
         primary_key=True
     )
-    offerId = models.PositiveIntegerField(null=True, default=None)
+    offerId = models.PositiveIntegerField(db_index=True)
     credits = models.DecimalField(max_digits=5, decimal_places=2)
     url = models.URLField(max_length=500)
     pageTitle = models.TextField()
-    purpose = models.IntegerField(
-        default=0,
-        choices=PURPOSE_CHOICES,
-        help_text='DX = Diagnosis. TX = Treatment'
-    )
     competence = models.IntegerField(
         default=1,
         choices=RESPONSE_CHOICES,
