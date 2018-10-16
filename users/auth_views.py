@@ -19,6 +19,7 @@ from common.logutils import *
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
 from .serializers import ProfileReadSerializer, CmeTagSerializer, ActiveCmeTagSerializer, UserSubsReadSerializer, InvitationDiscountReadSerializer
+from .feed_serializers import CreditTypeSerializer
 
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
@@ -114,6 +115,15 @@ def serialize_statelicense(obj):
 def serialize_invitationDiscount(obj):
     return InvitationDiscountReadSerializer(obj).data
 
+def serialize_creditTypes(profile):
+    degs = profile.degrees.all()
+    if degs:
+        qset = CreditType.objects.getForDegree(degs[0])
+    else:
+        qset = CreditType.object.getUniversal()
+    s = CreditTypeSerializer(qset, many=True)
+    return s.data
+
 def make_login_context(token, user):
     """Create context dict for response.
     Args:
@@ -139,10 +149,7 @@ def make_login_context(token, user):
     pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
     context['permissions'] = pdata['permissions']
     context['brcme_limit'] = pdata['brcme_limit']
-    context['creditTypes'] = [
-        dict(value=Entry.CREDIT_CATEGORY_1, label=Entry.CREDIT_CATEGORY_1_LABEL, needs_tm=True),
-        dict(value=Entry.CREDIT_OTHER, label=Entry.CREDIT_OTHER_LABEL, needs_tm=False)
-    ]
+    context['creditTypes'] = serialize_creditTypes(profile)
     # 2017-08-29: add total number of completed InvitationDiscount for which user=inviter and total inviter-discount amount earned so far
     numCompleteInvites = InvitationDiscount.objects.getNumCompletedForInviter(user)
     if numCompleteInvites:

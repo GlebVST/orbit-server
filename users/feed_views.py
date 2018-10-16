@@ -276,10 +276,6 @@ class CreateSRCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
                 error_msg = 'Invalid documentId {0}: does not exist.'.format(doc_id)
                 logWarning(logger, self.request, error_msg)
                 raise serializers.ValidationError({'documents': error_msg}, code='invalid')
-        # validate creditType (enable code after ui changes)
-        #creditType = self.request.data.get('creditType', '')
-        #if creditType != Entry.CREDIT_CATEGORY_1 or creditType != Entry.CREDIT_OTHER:
-        #    raise serializers.ValidationError({'creditType': 'Invalid creditType.'}, code='invalid')
         with transaction.atomic():
             srcme = serializer.save(user=user)
         return srcme

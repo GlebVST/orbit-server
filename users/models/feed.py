@@ -19,6 +19,7 @@ from .base import (
     CMETAG_SACME,
     SACME_SPECIALTIES,
     CmeTag,
+    Degree,
     Document,
     StateLicense,
 )
@@ -76,6 +77,55 @@ class Sponsor(models.Model):
 AuditReportResult = namedtuple('AuditReportResult',
     'saEntries brcmeEntries otherSrCmeEntries saCmeTotal otherCmeTotal creditSumByTag'
 )
+
+class CreditTypeManager(models.Manager):
+    def getUniversal(self):
+        """Get types for degrees=None (applicable to all)
+        Returns: queryset
+        """
+        return self.model.objects.filter(degrees=None)
+
+    def getForDegree(self, degree):
+        """Get union of universal types plus types for which degrees contains
+        the given degree.
+        Args:
+            degree: Degree instance
+        Returns: queryset
+        """
+        qd = Q(degrees=None) | Q(degrees=degree)
+        return self.model.objects.filter(qd)
+
+@python_2_unicode_compatible
+class CreditType(models.Model):
+    AMA_PRA_1 = AMA_PRA_CATEGORY_LABEL + u'1 Credit'
+    # fields
+    name = models.CharField(max_length=40, unique=True,
+            help_text='Name used in UI form. Must be unique')
+    category = models.CharField(max_length=4,
+            help_text='Value only. e.g. 1-A')
+    auditname = models.CharField(max_length=60,
+            help_text='Name used in audit report')
+    needs_tm = models.BooleanField(default=False,
+            help_text='True if UI should display Trademark symbol for it')
+    degrees = models.ManyToManyField(Degree,
+            blank=True,
+            related_name='creditTypes',
+            help_text='Applicable to the specified Degrees. Blank=All'
+            )
+    sort_order = models.PositiveIntegerField(help_text='Sort order for choices in form.')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = CreditTypeManager()
+
+    class Meta:
+        ordering = ['sort_order',]
+
+    def __str__(self):
+        return self.name
+
+    def formatDegrees(self):
+        return ", ".join([d.abbrev for d in self.degrees.all()])
+    formatDegrees.short_description = "Degrees"
 
 # Base class for all feed entries (contains fields common to all entry types)
 class EntryManager(models.Manager):
@@ -226,12 +276,6 @@ class EntryManager(models.Manager):
 
 @python_2_unicode_compatible
 class Entry(models.Model):
-    CREDIT_CATEGORY_1 = u'1'
-    CREDIT_CATEGORY_1_LABEL = AMA_PRA_CATEGORY_LABEL + u'1 Credit'
-    CREDIT_OTHER = u'0'
-    CREDIT_OTHER_LABEL = u'Other' # choice label in form
-    CREDIT_OTHER_TAGNAME = u'non-Category 1 Credit' # in audit report
-    # fields
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         related_name='entries',
@@ -239,18 +283,30 @@ class Entry(models.Model):
     )
     entryType = models.ForeignKey(EntryType,
         on_delete=models.PROTECT,
+        related_name='entries',
+        db_index=True
+    )
+    creditType = models.ForeignKey(CreditType,
+        on_delete=models.PROTECT,
+        related_name='entries',
+        null=True,
         db_index=True
     )
     sponsor = models.ForeignKey(Sponsor,
         on_delete=models.PROTECT,
+        related_name='entries',
         null=True,
         db_index=True
     )
     activityDate = models.DateTimeField()
     description = models.CharField(max_length=500)
     valid = models.BooleanField(default=True)
-    tags = models.ManyToManyField(CmeTag, related_name='entries')
-    documents = models.ManyToManyField(Document, related_name='entries')
+    tags = models.ManyToManyField(CmeTag,
+            blank=True,
+            related_name='entries')
+    documents = models.ManyToManyField(Document,
+            blank=True,
+            related_name='entries')
     ama_pra_catg = models.CharField(max_length=2, blank=True, help_text='AMA PRA Category')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -271,11 +327,9 @@ class Entry(models.Model):
         return u', '.join(names)
 
     def formatCreditType(self):
-        """The CREDIT_OTHER is formatted for the audit report"""
-        if self.ama_pra_catg == Entry.CREDIT_CATEGORY_1:
-            return Entry.CREDIT_CATEGORY_1_LABEL
-        if self.ama_pra_catg == Entry.CREDIT_OTHER:
-            return Entry.CREDIT_OTHER_TAGNAME
+        """format for audit report"""
+        if self.creditType:
+            return self.creditType.auditname
         return u''
 
     def getCredits(self):

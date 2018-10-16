@@ -176,6 +176,14 @@ class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
 
 
+class CreditTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'auditname', 'sort_order', 'formatDegrees')
+    filter_horizontal = ('degrees',)
+
+    def get_queryset(self, request):
+        qs = super(CreditTypeAdmin, self).get_queryset(request)
+        return qs.prefetch_related('degrees')
+
 class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
 
@@ -453,6 +461,7 @@ admin_site.register(BatchPayout, BatchPayoutAdmin)
 admin_site.register(Certificate, CertificateAdmin)
 admin_site.register(CmeTag, CmeTagAdmin)
 admin_site.register(Country, CountryAdmin)
+admin_site.register(CreditType, CreditTypeAdmin)
 admin_site.register(Customer, CustomerAdmin)
 admin_site.register(Degree, DegreeAdmin)
 admin_site.register(Discount, DiscountAdmin)

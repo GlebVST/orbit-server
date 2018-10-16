@@ -6,6 +6,7 @@ from .models import (
     ENTRYTYPE_STORY_CME,
     ENTRYTYPE_NOTIFICATION,
     CmeTag,
+    CreditType,
     Document,
     EntryType,
     Sponsor,
@@ -28,6 +29,10 @@ class EntryTypeSerializer(serializers.ModelSerializer):
         model = EntryType
         fields = ('id', 'name','description')
 
+class CreditTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreditType
+        fields = ('id', 'name', 'needs_tm')
 
 class SponsorSerializer(serializers.ModelSerializer):
     class Meta:
@@ -162,7 +167,8 @@ class EntryReadSerializer(serializers.ModelSerializer):
     logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
     tags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     documents = DocumentReadSerializer(many=True, required=False)
-    creditType = serializers.ReadOnlyField(source='ama_pra_catg')
+    creditTypeId = serializers.IntegerField(source='creditType.id', default=None)
+    creditType = serializers.CharField(source='creditType.name', default='')
     extra = serializers.SerializerMethodField()
 
     def get_extra(self, obj):
@@ -189,6 +195,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'tags',
             'documents',
             'creditType',
+            'creditTypeId',
             'extra',
             'sponsor',
             'logo_url',
@@ -236,6 +243,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             user: User instance
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
+        creditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
         offer = validated_data['offerId']
         user=validated_data.get('user')
         planText = validated_data.get('planText')
@@ -262,7 +270,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             sponsor=offer.sponsor,
             activityDate=offer.activityDate,
             description=validated_data.get('description'),
-            ama_pra_catg=Entry.CREDIT_CATEGORY_1,
+            creditType=creditType,
             user=user
         )
         # associate tags with saved entry
@@ -378,7 +386,8 @@ class SRCmeFormSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     activityDate = serializers.DateTimeField()
     description = serializers.CharField(max_length=500)
-    creditType = serializers.CharField(max_length=2)
+    creditType = serializers.PrimaryKeyRelatedField(
+            queryset=CreditType.objects.all())
     credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
@@ -410,12 +419,12 @@ class SRCmeFormSerializer(serializers.Serializer):
         """
         etype = EntryType.objects.get(name=ENTRYTYPE_SRCME)
         user = validated_data['user']
-        creditType = validated_data.get('creditType', Entry.CREDIT_CATEGORY_1)
+        creditType = validated_data['creditType']
         entry = Entry(
             entryType=etype,
             activityDate=validated_data.get('activityDate'),
             description=validated_data.get('description'),
-            ama_pra_catg=creditType,
+            creditType=creditType,
             user=user
         )
         entry.save()
@@ -447,7 +456,7 @@ class SRCmeFormSerializer(serializers.Serializer):
         user = entry.user
         entry.activityDate = validated_data.get('activityDate', entry.activityDate)
         entry.description = validated_data.get('description', entry.description)
-        entry.ama_pra_catg = validated_data.get('creditType', entry.ama_pra_catg)
+        entry.creditType = validated_data.get('creditType', entry.creditType)
         entry.save()  # updates modified timestamp
         # if tags key is present: replace old with new (wholesale)
         if 'tags' in validated_data:
@@ -476,15 +485,15 @@ class SRCmeFormSerializer(serializers.Serializer):
             if doc_ids:
                 # are there any docs to delete
                 delete_doc_ids = current_doc_ids.difference(set(doc_ids))
-                for docid in delete_doc_ids:
-                    m = Document.objects.get(pk=docid)
-                    logger.debug('updateSRCme: delete document {0}'.format(m))
-                    m.document.delete()
-                    m.delete()
-                # associate entry with docs
-                entry.documents.set(doc_ids)
             else:
-                entry.documents.set([])
+                delete_doc_ids = current_doc_ids
+            for docid in delete_doc_ids:
+                m = Document.objects.get(pk=docid)
+                logger.debug('updateSRCme: delete document {0}'.format(m))
+                m.document.delete()
+                m.delete()
+            # update entry.documents
+            entry.documents.set(doc_ids)
         instance.credits = validated_data.get('credits', instance.credits)
         instance.save()
         return instance
