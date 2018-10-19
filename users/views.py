@@ -19,7 +19,6 @@ from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
-from common.dateutils import LOCAL_TZ
 # app
 from .models import *
 from .serializers import *
@@ -395,7 +394,7 @@ class UserFeedbackList(generics.ListCreateAPIView):
         else:
             username = user.email
             userinfo = username
-        subject = 'Feedback from {0} on {1:%m/%d %H:%M}'.format(username, instance.created.astimezone(LOCAL_TZ)))
+        subject = 'Feedback from {0} on {1:%m/%d %H:%M}'.format(username, instance.asLocalTz())
         if settings.ENV_TYPE != settings.ENV_PROD:
             envtype = '[{0}] '.format(settings.ENV_TYPE)
             subject = envtype + subject
