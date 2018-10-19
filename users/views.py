@@ -395,7 +395,7 @@ class UserFeedbackList(generics.ListCreateAPIView):
         else:
             username = user.email
             userinfo = username
-        subject = 'Feedback from {0} on {1:%m/%d %H:%M}'.format(username, instance.created.astimezone(LOCAL_TZ))
+        subject = 'Feedback from {0} on {1:%m/%d %H:%M}'.format(username, instance.created.astimezone(LOCAL_TZ)))
         if settings.ENV_TYPE != settings.ENV_PROD:
             envtype = '[{0}] '.format(settings.ENV_TYPE)
             subject = envtype + subject
