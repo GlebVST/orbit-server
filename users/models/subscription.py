@@ -777,19 +777,18 @@ class UserSubscriptionManager(models.Manager):
         Get the permissions for the group that matches user_subs.display_status
         This does not handle extra permissions based on the user's assigned groups.
         Based on user_subs.plan:
-            Include PERM_DELETE_BRCME for paid plans with isUnlimitedCme
+            Include PERM_DELETE_BRCME for plans with isUnlimitedCme (no year or month limit)
             Include PERM_ALLOW_INVITE for paid plans with active status.
         Returns: tuple (Permission queryset, is_brcme_month_limit, is_brcme_year_limit)
         """
         is_brcme_month_limit = False
         is_brcme_year_limit = False
-        g = Group.objects.get(name=user_subs.display_status)
         plan = user_subs.plan
+        g = Group.objects.get(name=user_subs.display_status)
         qset = g.permissions.all()
         if plan.isUnlimitedCme():
             qset = qset.union(Permission.objects.filter(codename=PERM_DELETE_BRCME))
         else:
-            filter_kwargs = {}
             user = user_subs.user
             now = timezone.now()
             if plan.isLimitedCmeRate():
@@ -807,7 +806,7 @@ class UserSubscriptionManager(models.Manager):
         the allowed permissions for the user in the response.
         Returns list of dicts: [{codename:str, allowed:bool}]
         for the permissions in appconstants.ALL_PERMS.
-        Exclude PERM_POST_BRCME for paid plans if user has reached monthly/yearly cme limit.
+        Exclude PERM_POST_BRCME if user has reached monthly/yearly cme limit.
         Returns:dict {
             permissions:list of dicts {codename, allow:bool},
             brcme_limit:dict {
