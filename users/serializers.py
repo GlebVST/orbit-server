@@ -440,8 +440,7 @@ class UserFeedbackSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     entry = serializers.PrimaryKeyRelatedField(
             queryset=Entry.objects.all(),
-            allow_null=True,
-            required=False
+            allow_null=True
     )
     class Meta:
         model = UserFeedback
