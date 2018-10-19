@@ -420,8 +420,8 @@ class BrowserCmeManager(models.Manager):
         plan = user_subs.plan
         qs = self.model.objects.select_related('entry').filter(
             entry__user=user,
-            entry__created__year=year,
-            entry__created__month=month,
+            entry__activityDate__year=year,
+            entry__activityDate__month=month,
             entry__valid=True
         ).aggregate(cme_total=Sum('credits'))
         return qs['cme_total'] >= plan.maxCmeMonth
@@ -437,7 +437,7 @@ class BrowserCmeManager(models.Manager):
         plan = user_subs.plan
         qs = self.model.objects.select_related('entry').filter(
             entry__user=user,
-            entry__created__year=year,
+            entry__activityDate__year=year,
             entry__valid=True
         ).aggregate(cme_total=Sum('credits'))
         return qs['cme_total'] >= plan.maxCmeYear
