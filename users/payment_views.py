@@ -337,11 +337,11 @@ class NewSubscription(generics.CreateAPIView):
                 logException(logger, request, 'NewSubscription addOrUpdatePaymentMethod ValueError')
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             if not result.is_success:
+                message = 'Customer vault update failed. Result message: {0.message}'.format(result)
                 context = {
                     'success': False,
-                    'message': 'Customer vault update failed.'
+                    'message': message
                 }
-                message = 'NewSubscription: Customer vault update failed. Result message: {0.message}'.format(result)
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             bc2 = Customer.objects.findBtCustomer(customer)
@@ -361,8 +361,8 @@ class NewSubscription(generics.CreateAPIView):
         result, user_subs = self.perform_create(in_serializer)
         context = {'success': result.is_success}
         if not result.is_success:
-            context['message'] = 'Create Subscription failed.'
             message = 'NewSubscription: Create Subscription failed. Result message: {0.message}'.format(result)
+            context['message'] = message
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         logInfo(logger, request, 'NewSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
@@ -442,11 +442,11 @@ class ActivatePaidSubscription(generics.CreateAPIView):
             logException(logger, request, 'ActivatePaidSubscription: addOrUpdatePaymentMethod ValueError')
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         if not result.is_success:
+            message = 'ActivatePaidSubscription: Customer vault update failed. Result message: {0.message}'.format(result)
             context = {
                 'success': False,
-                'message': 'Customer vault update failed.'
+                'message': message
             }
-            message = 'ActivatePaidSubscription: Customer vault update failed. Result message: {0.message}'.format(result)
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         bc2 = Customer.objects.findBtCustomer(customer)
@@ -461,8 +461,8 @@ class ActivatePaidSubscription(generics.CreateAPIView):
         result, user_subs = self.perform_create(in_serializer)
         context = {'success': result.is_success}
         if not result.is_success:
-            context['message'] = 'Create Subscription failed.'
             message = 'ActivatePaidSubscription: Create Subscription failed. Result message: {0.message}'.format(result)
+            context['message'] = message
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         logInfo(logger, request, 'ActivatePaidSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
@@ -673,11 +673,11 @@ class UpgradePlan(generics.CreateAPIView):
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             # Get converted token
             if not pm_result.is_success:
+                message = 'UpgradePlan: Customer vault update failed. Result message: {0.message}'.format(pm_result)
                 context = {
                     'success': False,
-                    'message': 'Customer vault update failed.'
+                    'message': message
                 }
-                message = 'UpgradePlan: Customer vault update failed. Result message: {0.message}'.format(pm_result)
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             bc = Customer.objects.findBtCustomer(customer)
@@ -690,8 +690,8 @@ class UpgradePlan(generics.CreateAPIView):
         result, new_user_subs = self.perform_create(in_serializer)
         context = {'success': result.is_success}
         if not result.is_success:
-            context['message'] = 'Upgrade Plan failed.'
             message = 'UpgradePlan failed. Result message: {0.message}'.format(result)
+            context['message'] = message
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         logInfo(logger, request, 'UpgradePlan: complete for subscriptionId={0.subscriptionId}'.format(new_user_subs))
