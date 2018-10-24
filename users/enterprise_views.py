@@ -389,7 +389,7 @@ class JoinTeam(APIView):
             m.save(update_fields=('pending', 'removeDate',))
             logInfo(logger, self.request, 'JoinTeam for OrgMember {0}'.format(m))
             # transfer user to Enterprise subscription
-            user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, org)
+            user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, m.organization)
             # emit profile_saved signal
             ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
         # prepare context

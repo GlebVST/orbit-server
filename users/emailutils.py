@@ -24,8 +24,10 @@ def makeSubject(subject):
 
 def setCommonContext(ctx):
     hostname = settings.SERVER_HOSTNAME
-    if hostname.startswith('admin.'): # admin.orbitcme.com becomes orbitcme.com to use for links in the emails
+    if hostname.startswith('admin.'): # admin.orbitcme.com becomes orbitcme.com for links in emails
         hostname = hostname.replace('admin.', '')
+    elif hostname.startswith('testadmin.'): # testadmin.orbitcme.com becomes test1.orbitcme.com for links in emails
+        hostname = hostname.replace('testadmin', 'test1')
     ctx.update({
         'server_hostname': hostname,
         'login_link': settings.UI_LINK_LOGIN,

@@ -41,9 +41,9 @@ class Command(BaseCommand):
             if qset.exists():
                 m = qset[0]
                 if m.pending:
-                    logger.info('User {0} is already pending OrgMember {1.pk}'.format(m))
+                    logger.info('User is already pending OrgMember {0}'.format(m))
                 elif m.removeDate is not None:
-                    logger.info('User {0} is removed OrgMember {1.pk}. Set pending to True'.format(m))
+                    logger.info('User {0} is removed OrgMember {1.pk}. Set pending to True'.format(user, m))
                     m.pending = True
                     m.save(update_field=('pending',))
                 else:
