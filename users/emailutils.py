@@ -430,11 +430,10 @@ def sendJoinTeamEmail(user, org, send_message=True):
     """
     from_email = settings.SUPPORT_EMAIL
     subject = makeSubject(u'Invitation to join Orbit Enterprise')
-    join_url = "{0}{1.joinCode}".format(settings.UI_LINK_JOINTEAM, org)
     ctx = {
         'user': user,
         'org': org,
-        'join_url': join_url,
+        'join_url': settings.UI_LINK_JOINTEAM
     }
     setCommonContext(ctx)
     message = get_template('email/join_team_invite.html').render(ctx)

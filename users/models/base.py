@@ -444,15 +444,14 @@ class OrgMemberManager(models.Manager):
     def makeFullName(self, firstName, lastName):
         return u"{0} {1}".format(firstName.upper(), lastName.upper())
 
-    def createMember(self, org, profile, is_admin=False):
-        """
-        Check if user instance aleady exists for the given email
-            - raise ValueError (to respect existing user account)
+    def createMember(self, org, profile, is_admin=False, pending=False):
+        """Create new OrgMember instance.
         Args:
             org: Organization instance
             profile: Profile instance
             is_admin: bool default is False
-        Returns: OrgAdmin model instance
+            is_pending: bool default is False
+        Returns: OrgMember instance
         """
         user = profile.user
         fullName = self.makeFullName(profile.firstName, profile.lastName)
@@ -462,7 +461,9 @@ class OrgMemberManager(models.Manager):
                 user=user,
                 fullname=fullName,
                 compliance=compliance,
-                is_admin=is_admin)
+                is_admin=is_admin,
+                pending=pending
+            )
         return m
 
     def search_filter(self, search_term, filter_kwargs, orderByFields):
@@ -525,6 +526,8 @@ class OrgMember(models.Model):
     setPasswordEmailSent = models.BooleanField(default=False,
             help_text='Set to True when password-ticket email is sent')
     orgfiles = models.ManyToManyField(OrgFile, blank=True, related_name='orgmembers')
+    pending = models.BooleanField(default=False,
+            help_text='Set to True when invitation is sent to existing user to join team.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = OrgMemberManager()

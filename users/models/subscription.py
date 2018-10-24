@@ -896,7 +896,6 @@ class UserSubscriptionManager(models.Manager):
 
     def activateEnterpriseSubscription(self, user, org):
         """Terminate current user_subs (if not Enterprise) and start new Enterprise member subscription.
-        Add user to GROUP_ENTERPRISE_MEMBER group.
         Set profile.organization to the given org
         Args:
             user: User instance

@@ -372,7 +372,7 @@ class OrgMemberFilterBackend(BaseFilterBackend):
         except ValueError:
             verified = None
         # basic filter kwargs
-        filter_kwargs = {'organization': org, 'removeDate__isnull': True}
+        filter_kwargs = {'organization': org, 'removeDate__isnull': True, 'pending': False}
         if compliance is not None:
             filter_kwargs['compliance'] = compliance
         if verified is not None:

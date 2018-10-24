@@ -103,7 +103,11 @@ class OrgMemberFilterBackend(BaseFilterBackend):
         except ValueError:
             verified = None
         # basic filter kwargs
-        filter_kwargs = {'organization': org, 'removeDate__isnull': True}
+        filter_kwargs = {
+            'organization': org,
+            'removeDate__isnull': True,
+            'pending': False
+        }
         if compliance is not None:
             filter_kwargs['compliance'] = compliance
         if verified is not None:
@@ -170,8 +174,8 @@ class OrgMemberList(generics.ListCreateAPIView):
                             user_subs = UserSubscription.objects.activateEnterpriseSubscription(instance.user, org)
                             return instance
                     else:
-                        # User has an active Individual/BT subscription already. User must opt-in via JoinTeam endpoint (via email)
-                        error_msg = 'The user {0} cannot be automatically transferred to the team.'.format(email)
+                        # User has an active Individual/BT subscription. User must opt-in via JoinTeam email
+                        error_msg = 'The user {0} must be transferred using join-team.'.format(email)
                         logWarning(logger, self.request, error_msg)
                         raise serializers.ValidationError({'email': error_msg}, code='invalid')
                 else:
@@ -360,10 +364,10 @@ class TeamStats(APIView):
         return Response(context, status=status.HTTP_200_OK)
 
 #
-# This endpoint is to transfer an existing user to an Organization.
+# This endpoint is called when an invited existing user clicks the link in their JoinTeam email.
+# The user should have been invited via the sendJoinTeamEmail managemment cmd.
 # Steps:
-# 1. Create OrgMember if dne. If exist, check removeDate.
-#  If removeDate is None: do nothing (this is to handle case where endpoint is called more than once)
+# 1. Check OrgMember instance for request.user and pending=True.
 #  If removeDate is not None: clear it (re-activate membership)
 # 2. Terminate current user_subs and begin new Enterprise subs
 # 3. Emit profile_saved signal (to create usergoals)
@@ -372,35 +376,22 @@ class JoinTeam(APIView):
 
     def post(self, request, *args, **kwargs):
         user = self.request.user
-        joinCode = self.kwargs.get('joincode').lower()
-        try:
-            org = Organization.objects.get(joinCode=joinCode)
-            print(org)
-        except Organization.DoesNotExist:
-            error_msg = 'Invalid organization'
-            raise serializers.ValidationError({'organization': error_msg}, code='invalid')
-        user_subs = None
-        do_update = True
+        qset = OrgMember.objects.filter(user=user, pending=True).order_by('-modified')
+        if not qset.exists():
+            logger.warning('No pending OrgMember instance found')
+            error_msg = 'Invalid or expired invitation'
+            raise serializers.ValidationError({'user': error_msg}, code='invalid')
+        m = qset[0] # pending OrgMember instance
         with transaction.atomic():
-            # create or update OrgMember instance
-            qset = OrgMember.objects.filter(organization=org, user=user)
-            if qset.exists():
-                m = qset[0]
-                if m.removeDate is not None:
-                    m.removeDate = None
-                    m.save(update_fields=('removeDate',))
-                    logInfo(logger, self.request, 'JoinTeam: re-activate OrgMember {0}'.format(m))
-                else:
-                    logInfo(logger, self.request, 'JoinTeam: OrgMember already active: {0}'.format(m))
-                    do_update = False
-            else:
-                m = OrgMember.objects.createMember(org, user.profile)
-                logInfo(logger, self.request, 'JoinTeam: create OrgMember {0}'.format(m))
-            if do_update:
-                # transfer user to Enterprise subscription
-                user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, org)
-                # emit profile_saved signal
-                ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
+            m.pending = False
+            if m.removeDate is not None:
+                m.removeDate = None
+            m.save(update_fields=('pending', 'removeDate',))
+            logInfo(logger, self.request, 'JoinTeam for OrgMember {0}'.format(m))
+            # transfer user to Enterprise subscription
+            user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, org)
+            # emit profile_saved signal
+            ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
         # prepare context
         profile = Profile.objects.get(pk=user.pk)
         if not user_subs:
