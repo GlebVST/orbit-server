@@ -1,0 +1,94 @@
+[
+{
+  "model": "users.credittype",
+  "pk": 1,
+  "fields": {
+    "name": "AMA PRA Category 1 Credit",
+    "category": "1",
+    "auditname": "AMA PRA Category 1 Credit",
+    "needs_tm": true,
+    "sort_order": 1,
+    "created": "2018-10-16T05:49:30.501Z",
+    "modified": "2018-10-16T05:49:30.501Z",
+    "degrees": []
+  }
+},
+{
+  "model": "users.credittype",
+  "pk": 2,
+  "fields": {
+    "name": "Other",
+    "category": "0",
+    "auditname": "non-Category 1 Credit",
+    "needs_tm": false,
+    "sort_order": 6,
+    "created": "2018-10-16T05:51:05.965Z",
+    "modified": "2018-10-16T05:51:05.965Z",
+    "degrees": []
+  }
+},
+{
+  "model": "users.credittype",
+  "pk": 3,
+  "fields": {
+    "name": "AOA Category 1-A",
+    "category": "1-A",
+    "auditname": "AOA Category 1-A",
+    "needs_tm": false,
+    "sort_order": 2,
+    "created": "2018-10-16T05:51:45.359Z",
+    "modified": "2018-10-16T05:51:45.359Z",
+    "degrees": [
+      2
+    ]
+  }
+},
+{
+  "model": "users.credittype",
+  "pk": 4,
+  "fields": {
+    "name": "AOA Category 1-B",
+    "category": "1-B",
+    "auditname": "AOA Category 1-B",
+    "needs_tm": false,
+    "sort_order": 3,
+    "created": "2018-10-16T05:52:12.028Z",
+    "modified": "2018-10-16T05:52:12.028Z",
+    "degrees": [
+      2
+    ]
+  }
+},
+{
+  "model": "users.credittype",
+  "pk": 5,
+  "fields": {
+    "name": "AOA Category 2-A",
+    "category": "2-A",
+    "auditname": "AOA Category 2-A",
+    "needs_tm": false,
+    "sort_order": 4,
+    "created": "2018-10-16T05:52:31.098Z",
+    "modified": "2018-10-16T05:52:31.098Z",
+    "degrees": [
+      2
+    ]
+  }
+},
+{
+  "model": "users.credittype",
+  "pk": 6,
+  "fields": {
+    "name": "AOA Category 2-B",
+    "category": "2-B",
+    "auditname": "AOA Category 2-B",
+    "needs_tm": false,
+    "sort_order": 5,
+    "created": "2018-10-16T05:52:48.459Z",
+    "modified": "2018-10-16T05:52:48.459Z",
+    "degrees": [
+      2
+    ]
+  }
+}
+]
