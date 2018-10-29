@@ -1,16 +1,14 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 from django import forms
 from django.contrib import admin
 from django.db.models import Count
-from pagedown.widgets import AdminPagedownWidget
 from dal import autocomplete
-from dal_admin_filters import AutocompleteFilter
+from mysite.admin import admin_site
+from common.ac_filters import UserFilter, StateFilter
+from common.dateutils import fmtLocalDatetime
 from .models import *
-
-class UserFilter(AutocompleteFilter):
-    title = 'User'
-    field_name = 'user'
-    autocomplete_url = 'useremail-autocomplete'
-
 
 class AuthImpersonationForm(forms.ModelForm):
     class Meta:
@@ -32,22 +30,65 @@ class AuthImpersonationAdmin(admin.ModelAdmin):
 class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'sort_order', 'created')
 
-class SubSpecialtyInline(admin.TabularInline):
-    model = SubSpecialty
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'formatTags', 'formatSubSpecialties')
     filter_horizontal = ('cmeTags',)
-    inlines = [
-        SubSpecialtyInline,
-    ]
 
     def get_queryset(self, request):
         qs = super(PracticeSpecialtyAdmin, self).get_queryset(request)
         return qs.prefetch_related('cmeTags', 'subspecialties')
 
+class SubSpecialtyAdmin(admin.ModelAdmin):
+    list_display = ('id', 'specialty', 'name', 'formatTags')
+    filter_horizontal = ('cmeTags',)
+    list_select_related = True
+    list_filter = ('specialty',)
+
+    def get_queryset(self, request):
+        qs = super(SubSpecialtyAdmin, self).get_queryset(request)
+        return qs.prefetch_related('cmeTags')
+
+
+class OrgForm(forms.ModelForm):
+    class Meta:
+        model = Organization
+        exclude = (
+            'joinCode',
+            'credits',
+            'creditStartDate',
+            'creditEndDate',
+            'providerStat',
+            'created',
+            'modified'
+        )
+
+    def save(self, commit=True):
+        """Auto assign joinCode based on code"""
+        m = super(OrgForm, self).save(commit=False)
+        m.joinCode = m.code.replace(' ', '').lower()
+        m.save()
+        return m
+
 class OrgAdmin(admin.ModelAdmin):
-    list_display = ('id', 'code', 'name', 'created')
+    list_display = ('id', 'code', 'name', 'credits', 'creditStartDate', 'joinCode')
+    form = OrgForm
+    ordering = ('code',)
+
+class OrgFileAdmin(admin.ModelAdmin):
+    list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created')
+    list_select_related = True
+    ordering = ('-created',)
+
+class OrgMemberAdmin(admin.ModelAdmin):
+    list_display = ('id', 'organization', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'pending', 'removeDate')
+    list_select_related = True
+    list_filter = ('is_admin', 'pending', 'setPasswordEmailSent', 'organization', UserFilter)
+    raw_id_fields = ('orgfiles',)
+    ordering = ('-created','fullname')
+
+    class Media:
+        pass
 
 class CmeTagAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'priority', 'description', 'created')
@@ -56,17 +97,48 @@ class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class StateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'country', 'name', 'abbrev', 'rnCertValid', 'created')
+    list_display = ('id', 'country', 'name', 'abbrev', 'rnCertValid', 'formatTags')
     list_filter = ('rnCertValid',)
+    filter_horizontal = ('cmeTags',)
+
+    def get_queryset(self, request):
+        qs = super(StateAdmin, self).get_queryset(request)
+        return qs.prefetch_related('cmeTags')
+
+
+class HospitalAdmin(admin.ModelAdmin):
+    list_display = ('id','state','display_name','city','hasResidencyProgram')
+    list_filter = ('hasResidencyProgram', StateFilter)
+    list_select_related = ('state',)
+
+    class Media:
+        pass
+
 
 class ProfileCmetagInline(admin.TabularInline):
     model = ProfileCmetag
 
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'firstName', 'lastName', 'formatDegrees', 'verified', 'npiNumber', 'planId', 'formatSpecialties', 'modified')
-    list_filter = ('verified','npiType')
+    list_display = (
+        'user',
+        'firstName',
+        'lastName',
+        'formatDegrees',
+        'organization',
+        'verified',
+        'npiNumber',
+        'planId',
+        'formatSpecialties',
+    )
+    list_select_related = ('organization',)
+    list_filter = ('verified','npiType', 'organization')
     search_fields = ['npiNumber', 'lastName']
-    filter_horizontal = ('specialties',)
+    filter_horizontal = (
+        'specialties',
+        'subspecialties',
+        'hospitals',
+        'states'
+    )
     inlines = [
         ProfileCmetagInline,
     ]
@@ -92,12 +164,25 @@ class LicenseTypeAdmin(admin.ModelAdmin):
     list_display = ('id','name','created')
 
 class StateLicenseAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'state', 'license_type', 'license_no', 'expiryDate', 'created')
+    list_display = ('id', 'user', 'state', 'licenseType', 'licenseNumber', 'expireDate', 'created')
     list_select_related = True
+    list_filter = ('licenseType', StateFilter, UserFilter)
+    ordering = ('-expireDate','user')
+
+    class Media:
+        pass
 
 class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
 
+
+class CreditTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'auditname', 'sort_order', 'formatDegrees')
+    filter_horizontal = ('degrees',)
+
+    def get_queryset(self, request):
+        qs = super(CreditTypeAdmin, self).get_queryset(request)
+        return qs.prefetch_related('degrees')
 
 class EntryTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'created')
@@ -124,38 +209,6 @@ class EligibleSiteAdmin(admin.ModelAdmin):
     ordering = ('domain_name',)
     filter_horizontal = ('specialties',)
 
-class PinnedMessageForm(forms.ModelForm):
-    title = forms.CharField(widget=forms.TextInput(attrs={'size': 80}))
-    #description = forms.CharField(widget=forms.Textarea(attrs={'cols': 80, 'rows': 5}))
-    description = forms.CharField(widget=AdminPagedownWidget())
-
-class PinnedMessageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'title', 'startDate', 'expireDate', 'sponsor')
-    list_select_related = ('user',)
-    date_hierarchy = 'startDate'
-    ordering = ('-created',)
-    form = PinnedMessageForm
-
-class StoryForm(forms.ModelForm):
-    description = forms.CharField(widget=AdminPagedownWidget())
-
-    class Meta:
-        model = Story
-        fields = ('__all__')
-
-    def clean(self):
-        """Check that startDate is earlier than endDate"""
-        cleaned_data = super(StoryForm, self).clean()
-        startdate = cleaned_data.get('startDate')
-        enddate = cleaned_data.get('endDate')
-        if startdate and enddate and (startdate >= enddate):
-            self.add_error('startDate', 'StartDate must be prior to EndDate')
-
-class StoryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'startDate', 'expireDate', 'title', 'launch_url')
-    date_hierarchy = 'startDate'
-    ordering = ('-startDate',)
-    form = StoryForm
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')
@@ -380,12 +433,12 @@ class RequestedUrlAdmin(admin.ModelAdmin):
 
     def num_users(self, obj):
         return obj.num_users
-    num_users.short_description = 'Number of users who requested it'
+    num_users.short_description = 'Num requesters'
     num_users.admin_order_field = 'num_users'
 
 class OrbitCmeOfferAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'valid', 'modified')
-    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'modified')
+    list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'valid', 'lastModified')
+    #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'lastModified')
     list_select_related = True
     ordering = ('-modified',)
     list_filter = ('redeemed','valid', UserFilter, 'eligible_site')
@@ -393,16 +446,11 @@ class OrbitCmeOfferAdmin(admin.ModelAdmin):
     class Media:
         pass
 
-# http://stackoverflow.com/questions/32612400/auto-register-django-auth-models-using-custom-admin-site
-class MyAdminSite(admin.AdminSite):
-    site_header = "Orbit Site administration"
-    site_url = None
+    def lastModified(self, obj):
+        return fmtLocalDatetime(obj.modified)
+    lastModified.short_description = 'Last Modified'
+    lastModified.admin_order_field = 'modified'
 
-    def __init__(self, *args, **kwargs):
-        super(MyAdminSite, self).__init__(*args, **kwargs)
-        self._registry.update(admin.site._registry)
-
-admin_site = MyAdminSite()
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
 admin_site.register(AffiliateDetail, AffiliateDetailAdmin)
@@ -413,6 +461,7 @@ admin_site.register(BatchPayout, BatchPayoutAdmin)
 admin_site.register(Certificate, CertificateAdmin)
 admin_site.register(CmeTag, CmeTagAdmin)
 admin_site.register(Country, CountryAdmin)
+admin_site.register(CreditType, CreditTypeAdmin)
 admin_site.register(Customer, CustomerAdmin)
 admin_site.register(Degree, DegreeAdmin)
 admin_site.register(Discount, DiscountAdmin)
@@ -422,23 +471,25 @@ admin_site.register(Document, DocumentAdmin)
 admin_site.register(EligibleSite, EligibleSiteAdmin)
 admin_site.register(Entry, EntryAdmin)
 admin_site.register(EntryType, EntryTypeAdmin)
+admin_site.register(Hospital, HospitalAdmin)
 admin_site.register(InvitationDiscount, InvitationDiscountAdmin)
 admin_site.register(LicenseType, LicenseTypeAdmin)
 admin_site.register(Organization, OrgAdmin)
-admin_site.register(PinnedMessage, PinnedMessageAdmin)
+admin_site.register(OrgFile, OrgFileAdmin)
+admin_site.register(OrgMember, OrgMemberAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin_site.register(Sponsor, SponsorAdmin)
 admin_site.register(State, StateAdmin)
 admin_site.register(StateLicense, StateLicenseAdmin)
-admin_site.register(Story, StoryAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
+admin_site.register(SubscriptionEmail, SubscriptionEmailAdmin)
 admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
 admin_site.register(SubscriptionPlanKey, SubscriptionPlanKeyAdmin)
 admin_site.register(SubscriptionPlanType, SubscriptionPlanTypeAdmin)
-admin_site.register(UserSubscription, UserSubscriptionAdmin)
-admin_site.register(SubscriptionEmail, SubscriptionEmailAdmin)
 admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
+admin_site.register(SubSpecialty, SubSpecialtyAdmin)
+admin_site.register(UserSubscription, UserSubscriptionAdmin)
 #
 # plugin models
 #

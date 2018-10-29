@@ -1,0 +1,24 @@
+{% load tz %}
+<div>
+    <p>User: {{ user.profile.firstName }} {{ user.profile.lastName }} {{ user.email }}</p>
+    <p>File ID: {{ orgfile.pk }}</p>
+    <p>Name: {{ orgfile.name }}</p>
+    <p>Content Type: {{ orgfile.content_type }}</p>
+
+    <ul>
+        <li>Review the attached file. Convert the file to plaintext CSV format, and make corrections if needed.</li>
+        <li>If you converted the file:
+            <ul>
+                <li>Log into the Admin Interface and click on Enterprise File Uploads.</li>
+                <li>Click on the row with the File ID: {{ orgfile.pk }}</li>
+                <li>Upload your converted CSV file to the field named: <em>csvfile</em> and submit the form.</li>
+            </ul>
+        </li>
+        <li>Log into the admin server and execute the handleUploadRoster management command with the above File ID.</li>
+        <li>The command will process the CSV file and print the results to the console.</li>
+    </ul>
+
+    {% timezone "America/Los_Angeles" %}
+    <p>File upload time: {% now "D, d N Y H:i e" %}</p>
+    {% endtimezone %}
+</div>

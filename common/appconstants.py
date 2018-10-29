@@ -4,6 +4,8 @@ MAX_URL_LENGTH = 500
 # Note: all groups must be created in the database using the Django Group model.
 GROUP_CONTENTADMIN = 'ContentAdmin' # Whitelist Admin (and other admin-level site content)
 GROUP_CMEREQADMIN = 'CmeReqAdmin'   # to edit Cme Requirements per Specialty (no model yet)
+GROUP_ENTERPRISE_ADMIN = 'EnterpriseAdmin'
+GROUP_ENTERPRISE_MEMBER = 'EnterpriseMember'
 
 # codenames for permissions
 PERM_VIEW_OFFER = u'view_offer'
@@ -15,10 +17,17 @@ PERM_EDIT_BRCME = u'edit_brcme'
 PERM_VIEW_DASH = u'view_dashboard'
 PERM_PRINT_BRCME_CERT = u'print_brcme_cert'
 PERM_PRINT_AUDIT_REPORT = u'print_audit_report'
+PERM_VIEW_GOAL = u'view_goal'
 # default add permission on EligibleSite model
 PERM_POST_WHITELIST = u'add_eligiblesite'
 # default add permission on RequestedUrl model
 PERM_POST_REQUESTED_URL = u'add_requestedurl'
+# default add permission on OrgMember model
+PERM_MANAGE_ORGMEMBER = u'add_orgmember'
+# default add permission on InvitationDiscount model
+PERM_ALLOW_INVITE = u'add_invitationdiscount'
+# default change permission on ProfileCmetga model
+PERM_EDIT_PROFILECMETAG = u'change_profilecmetag'
 ALL_PERMS = (
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
@@ -30,7 +39,11 @@ ALL_PERMS = (
     PERM_PRINT_AUDIT_REPORT,
     PERM_PRINT_BRCME_CERT,
     PERM_POST_WHITELIST,
-    PERM_POST_REQUESTED_URL
+    PERM_POST_REQUESTED_URL,
+    PERM_VIEW_GOAL,
+    PERM_MANAGE_ORGMEMBER,
+    PERM_ALLOW_INVITE,
+    PERM_EDIT_PROFILECMETAG,
 )
 
 SELF_REPORTED_AUTHORITY = u'Self Reported'

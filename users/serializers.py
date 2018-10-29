@@ -1,18 +1,8 @@
-from datetime import timedelta
-from decimal import Decimal
-from cStringIO import StringIO
-from hashids import Hashids
-import os
-import hashlib
 import logging
-import mimetypes
-from PIL import Image
 from urlparse import urlparse, urldefrag
-from django.contrib.auth.models import User
-from django.core.files.base import ContentFile
-from django.utils import timezone
 from rest_framework import serializers
-from common.viewutils import newUuid, md5_uploaded_file
+from common.appconstants import GROUP_ENTERPRISE_MEMBER
+from common.signals import profile_saved
 from .models import *
 
 logger = logging.getLogger('gen.srl')
@@ -21,6 +11,18 @@ class DegreeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Degree
         fields = ('id', 'abbrev', 'name', 'sort_order')
+
+
+class HospitalSerializer(serializers.ModelSerializer):
+    state = serializers.PrimaryKeyRelatedField(read_only=True)
+    class Meta:
+        model = Hospital
+        fields = ('id', 'state', 'city', 'display_name')
+
+class NestedHospitalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hospital
+        fields = ('id', 'display_name')
 
 class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(
@@ -93,7 +95,7 @@ class PracticeSpecialtySerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'cmeTags', 'planText')
 
 class ProfileCmetagSerializer(serializers.ModelSerializer):
-    """Used by ReadProfileSerializer and UpdateProfileSerializer"""
+    """Used by ProfileReadSerializer and ProfileUpdateSerializer"""
     id = serializers.ReadOnlyField(source='tag.id')
     name = serializers.ReadOnlyField(source='tag.name')
     priority = serializers.ReadOnlyField(source='tag.priority')
@@ -103,7 +105,7 @@ class ProfileCmetagSerializer(serializers.ModelSerializer):
         model = ProfileCmetag
         fields = ('id', 'name', 'priority', 'description', 'is_active')
 
-class UpdateProfileCmetagSerializer(serializers.ModelSerializer):
+class ProfileCmetagUpdateSerializer(serializers.ModelSerializer):
     tag = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
     )
@@ -115,9 +117,11 @@ class UpdateProfileCmetagSerializer(serializers.ModelSerializer):
 
 class ManageProfileCmetagSerializer(serializers.Serializer):
     """Updates the is_active flag of a list of existing ProfileCmetags for a given user"""
-    tags = UpdateProfileCmetagSerializer(many=True)
+    tags = ProfileCmetagUpdateSerializer(many=True)
 
     def update(self, instance, validated_data):
+        """Update ProfileCmetag for user and emit profile_saved signal"""
+        user = instance.user
         data = validated_data['tags']
         for d in data:
             t = d['tag']
@@ -125,16 +129,65 @@ class ManageProfileCmetagSerializer(serializers.Serializer):
             try:
                 pct = ProfileCmetag.objects.get(profile=instance, tag=t)
             except ProfileCmetag.DoesNotExist:
-                logger.warning('ManageProfileCmeTags: Invalid tag for user {0}: {1}'.format(instance.user, t))
+                logger.warning('ManageProfileCmeTags: Invalid tag for user {0}: {1}'.format(user, t))
             else:
                 if pct.is_active != is_active:
                     pct.is_active = is_active
                     pct.save()
                     logger.info('Updated ProfileCmetag {0}'.format(pct))
+        # emit profile_saved signal
+        ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
-class UpdateProfileSerializer(serializers.ModelSerializer):
+class ProfileInitialUpdateSerializer(serializers.ModelSerializer):
+    """Used for initial user intake screen : name and country
+    and for the case of changing initial planId. If new planId
+    is isFreeIndividual, a new UserSubscription is created.
+    """
     id = serializers.IntegerField(source='user.id', read_only=True)
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        allow_null=True
+    )
+
+    class Meta:
+        model = Profile
+        fields = (
+            'id',
+            'firstName',
+            'lastName',
+            'country',
+            'planId',
+        )
+
+    def update(self, instance, validated_data):
+        key = 'planId'
+        if key in validated_data:
+            if not validated_data[key]:
+                validated_data[key] = instance.planId
+        user = instance.user
+        oldPlanId = instance.planId
+        # update the instance
+        instance = super(ProfileInitialUpdateSerializer, self).update(instance, validated_data)
+        if instance.planId and not user.subscriptions.exists():
+            # check if need to create Free UserSubs
+            plan = SubscriptionPlan.objects.get(planId=instance.planId)
+            if plan.isFreeIndividual():
+                us = UserSubscription.objects.createFreeSubscription(user, plan)
+                logger.info('Create free UserSubs {0.user}/{0.subscriptionId}'.format(us))
+        return instance
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source='user.id', read_only=True)
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        allow_null=True
+    )
+    residency = serializers.PrimaryKeyRelatedField(
+        queryset=Hospital.objects.all(),
+        allow_null=True
+    )
     degrees = serializers.PrimaryKeyRelatedField(
         queryset=Degree.objects.all(),
         many=True
@@ -143,19 +196,23 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         queryset=PracticeSpecialty.objects.all(),
         many=True
     )
-    country = serializers.PrimaryKeyRelatedField(
-        queryset=Country.objects.all(),
-        allow_null=True
+    subspecialties = serializers.PrimaryKeyRelatedField(
+        queryset=SubSpecialty.objects.all(),
+        many=True
+    )
+    states = serializers.PrimaryKeyRelatedField(
+        queryset=State.objects.all(),
+        many=True
+    )
+    deaStates = serializers.PrimaryKeyRelatedField(
+        queryset=State.objects.all(),
+        many=True
+    )
+    hospitals = serializers.PrimaryKeyRelatedField(
+        queryset=Hospital.objects.all(),
+        many=True
     )
     cmeTags = serializers.SerializerMethodField()
-    isSignupComplete = serializers.SerializerMethodField()
-    isNPIComplete = serializers.SerializerMethodField()
-
-    def get_isSignupComplete(self, obj):
-        return obj.isSignupComplete()
-
-    def get_isNPIComplete(self, obj):
-        return obj.isNPIComplete()
 
     def get_cmeTags(self, obj):
         qset = ProfileCmetag.objects.filter(profile=obj)
@@ -167,8 +224,13 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'id',
             'firstName',
             'lastName',
-            'contactEmail',
             'country',
+            'organization',
+            'residency',
+            'birthDate',
+            'residencyEndDate',
+            'affiliationText',
+            'interestText',
             'planId',
             'inviteId',
             'socialId',
@@ -181,16 +243,18 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'cmeTags',
             'degrees',
             'specialties',
+            'subspecialties',
+            'states',
+            'hasDEA',
+            'deaStates',
+            'hospitals',
             'verified',
             'accessedTour',
             'cmeStartDate',
             'cmeEndDate',
-            'isNPIComplete',
-            'isSignupComplete',
-            'created',
-            'modified'
         )
         read_only_fields = (
+            'organization',
             'cmeTags',
             'planId',
             'inviteId',
@@ -198,74 +262,99 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             'pictureUrl',
             'verified',
             'accessedTour',
-            'created',
-            'modified'
         )
 
     def update(self, instance, validated_data):
         """
-        If any new specialties added, then check for new cmeTags.
-        If a specialty is removed, then remove its cmeTags if not assigned to
-        any entry made by the user.
+        If specialties/subspecialties/states are updated: handle cmeTags assignment
+        Emit profile_saved signal for enterprise members at the end.
         """
         user = instance.user
-        upd_cmetags = False
-        tag_ids = None
-        del_tagids = set() # tagids to delete
-        new_tagids = set() # tagids to add
         # get current specialties before updating the instance
-        curSpecs = set([ps for ps in instance.specialties.all()])
+        curSpecs = set([m for m in instance.specialties.all()])
+        # get current subspecialties before updating the instance
+        curSubSpecs = set([m for m in instance.subspecialties.all()])
+        # get current states before updating the instance
+        curStates = set([m for m in instance.states.all()])
+        # get current deaStates before updating the instance
+        curDeaStates = set([m for m in instance.deaStates.all()])
         # update the instance
-        instance = super(UpdateProfileSerializer, self).update(instance, validated_data)
+        instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
+        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
+        del_tags = set([]) # tags to be removed or deactivated
+        if instance.deaStates.exists() and not instance.hasDEA:
+            logger.info('User {0} : clear deaStates'.format(user))
+            instance.deaStates.clear()
         # now handle cmeTags
-        spec_key = 'specialties'
-        if spec_key in validated_data:
-            # need to check if key exists, because a PATCH request may not contain the spec_key
-            pracSpecs = validated_data[spec_key]
-            newSpecs = set([ps for ps in pracSpecs])
-            newly_added_specs = newSpecs.difference(curSpecs)
-            del_specs = curSpecs.difference(newSpecs)
-            for ps in del_specs:
-                logger.info('User {0.email} : remove ps: {1.name}'.format(user, ps))
+        fieldName = 'specialties'
+        if fieldName in validated_data:
+            # need to check if key exists, because a PATCH request may not contain the fieldName
+            newSpecs = set([ps for ps in validated_data[fieldName]])
+            delSpecs = curSpecs.difference(newSpecs) # difference between old and new are the ones removed
+            for ps in delSpecs:
+                logger.info('User {0}: remove PracticeSpecialty: {1}'.format(user, ps))
+            delspectags = CmeTag.objects.filter(name__in=[ps.name for ps in delSpecs])
+            for t in delspectags:
+                del_tags.add(t)
+        fieldName = 'subspecialties'
+        if fieldName in validated_data:
+            # need to check if key exists, because a PATCH request may not contain the fieldName
+            newSubSpecs = set([ps for ps in validated_data[fieldName]])
+            delSubSpecs = curSubSpecs.difference(newSubSpecs)
+            for ps in delSubSpecs:
+                logger.info('User {0}: remove SubSpecialty: {1}'.format(user, ps))
                 for t in ps.cmeTags.all():
-                    pct_qset = ProfileCmetag.objects.filter(profile=instance, tag=t)
-                    if pct_qset.exists():
-                        pct = pct_qset[0]
-                        num_entries = t.entries.filter(user=user).count()
-                        #logger.debug('Num entries for tag {0} = {1}'.format(t, num_entries))
-                        if num_entries == 0:
-                            pct.delete()
-                            logger.info('Delete unused ProfileCmetag: {0}'.format(pct))
-                        elif pct.is_active:
-                            # Set is_active to false
-                            pct.is_active = False
-                            pct.save()
-                            logger.info('Inactivate ProfileCmetag: {0}'.format(pct))
-            # get refreshed set
-            tag_ids = set([t.pk for t in instance.cmeTags.all()])
-            for ps in newly_added_specs:
-                logger.info('User {0.email} : Add ps: {1.name}'.format(user, ps))
+                    del_tags.add(t)
+        fieldName = 'states'
+        if fieldName in validated_data:
+            # need to check if key exists, because a PATCH request may not contain the fieldName
+            newStates = set([ps for ps in validated_data[fieldName]])
+            delStates = curStates.difference(newStates)
+            for ps in delStates:
+                logger.info('User {0} : remove State: {1}'.format(user, ps))
                 for t in ps.cmeTags.all():
-                    # tag may already exist from a previous occasion in which ps was assigned to user
-                    pct, created = ProfileCmetag.objects.get_or_create(profile=instance, tag=t)
-                    if created:
-                        logger.info('New ProfileCmetag: {0}'.format(pct))
-                    elif not pct.is_active:
-                        pct.is_active = True
-                        pct.save()
-                        logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
+                    del_tags.add(t)
+        # Filter del_tags so it does not contain anything in add_tags
+        rtags = add_tags.intersection(del_tags)
+        for t in rtags:
+            del_tags.remove(t)
+
+        # Process del_tags: delete if unused, else inactivate
+        for t in del_tags:
+            qset = ProfileCmetag.objects.filter(profile=instance, tag=t)
+            if not qset.exists():
+                continue
+            pct = qset[0]
+            num_entries = t.entries.filter(user=user).count()
+            if num_entries == 0:
+                pct.delete()
+                logger.info('Delete unused ProfileCmetag: {0}'.format(pct))
+            elif pct.is_active:
+                pct.is_active = False
+                pct.save(update_fields=('is_active',))
+                logger.info('Inactivate ProfileCmetag: {0}'.format(pct))
+        # emit profile_saved signal
+        if user.groups.filter(name=GROUP_ENTERPRISE_MEMBER).exists():
+            ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
 
-class ReadProfileSerializer(serializers.ModelSerializer):
+class ProfileReadSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
-    # degrees and specialties are list of pkeyids
+    country = serializers.PrimaryKeyRelatedField(read_only=True)
+    organization = serializers.PrimaryKeyRelatedField(read_only=True)
+    # list of pkeyids
     degrees = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     specialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-    country = serializers.PrimaryKeyRelatedField(read_only=True)
+    subspecialties = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    hospitals = NestedHospitalSerializer(many=True, read_only=True)
+    states = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    deaStates = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
+    profileComplete = serializers.SerializerMethodField()
     cmeTags = serializers.SerializerMethodField()
+    residency = serializers.SerializerMethodField()
 
     def get_isSignupComplete(self, obj):
         return obj.isSignupComplete()
@@ -273,9 +362,18 @@ class ReadProfileSerializer(serializers.ModelSerializer):
     def get_isNPIComplete(self, obj):
         return obj.isNPIComplete()
 
+    def get_profileComplete(self, obj):
+        return obj.measureComplete()
+
     def get_cmeTags(self, obj):
         qset = ProfileCmetag.objects.filter(profile=obj)
         return [ProfileCmetagSerializer(m).data for m in qset]
+
+    def get_residency(self, obj):
+        if obj.residency:
+            s = NestedHospitalSerializer(obj.residency)
+            return s.data
+        return None
 
     class Meta:
         model = Profile
@@ -283,8 +381,13 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'id',
             'firstName',
             'lastName',
-            'contactEmail',
             'country',
+            'organization',
+            'residency',
+            'birthDate',
+            'residencyEndDate',
+            'affiliationText',
+            'interestText',
             'planId',
             'inviteId',
             'socialId',
@@ -297,816 +400,48 @@ class ReadProfileSerializer(serializers.ModelSerializer):
             'cmeTags',
             'degrees',
             'specialties',
+            'subspecialties',
+            'states',
+            'hasDEA',
+            'deaStates',
+            'hospitals',
             'verified',
             'accessedTour',
             'cmeStartDate',
             'cmeEndDate',
             'isNPIComplete',
             'isSignupComplete',
+            'profileComplete',
             'created',
             'modified'
         )
         read_only_fields = fields
 
 
-class CustomerSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(source='user.id', read_only=True)
-    class Meta:
-        model = Customer
-        fields = (
-            'id',
-            'customerId',
-            'created',
-            'modified'
-        )
-        read_only_fields = fields
 
 class StateLicenseSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-    state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all())
-    license_type = serializers.StringRelatedField(read_only=True)
+    state = serializers.PrimaryKeyRelatedField(read_only=True)
+    licenseType = serializers.StringRelatedField(read_only=True)
     class Meta:
         model = StateLicense
-        fields = ('id','user', 'state', 'license_type', 'license_no', 'expiryDate')
+        fields = ('id','user', 'state', 'licenseType', 'licenseNumber', 'expireDate')
 
-
-# Entire offer is read-only because offers are created by the plugin server.
-# A separate serializer exists to redeem the offer (and create br-cme entry in the user's feed).
-class OrbitCmeOfferSerializer(serializers.ModelSerializer):
-    userId = serializers.IntegerField(source='user.id', read_only=True)
-    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
-    url = serializers.StringRelatedField(read_only=True)
-    pageTitle = serializers.CharField(source='url.page_title', max_length=500, read_only=True, default='')
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
-    cmeTags = serializers.PrimaryKeyRelatedField(source='tags', many=True, read_only=True)
-
+# Nested version used by AuditReport and goals
+class NestedStateLicenseSerializer(serializers.ModelSerializer):
+    state = serializers.StringRelatedField(read_only=True)
+    licenseType = serializers.StringRelatedField(read_only=True)
     class Meta:
-        model = OrbitCmeOffer
-        fields = (
-            'id',
-            'userId',
-            'activityDate',
-            'url',
-            'pageTitle',
-            'suggestedDescr',
-            'expireDate',
-            'credits',
-            'sponsor',
-            'logo_url',
-            'cmeTags'
-        )
-        read_only_fields = fields
+        model = StateLicense
+        fields = ('state','licenseType', 'licenseNumber', 'expireDate')
 
-
-
-class SponsorSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Sponsor
-        fields = ('id', 'abbrev', 'name', 'logo_url')
-
-class EntryTypeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EntryType
-        fields = ('id', 'name','description')
-
-
-# intended to be used by SerializerMethodField on EntrySerializer
-class NotificationSubSerializer(serializers.ModelSerializer):
-    expireDate = serializers.ReadOnlyField()
-    class Meta:
-        model = Notification
-        fields = (
-            'expireDate',
-        )
-
-# intended to be used by SerializerMethodField on EntrySerializer
-class SRCmeSubSerializer(serializers.ModelSerializer):
-    credits = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
-    class Meta:
-        model = SRCme
-        fields = (
-            'credits',
-        )
-
-# intended to be used by SerializerMethodField on EntrySerializer
-class BRCmeSubSerializer(serializers.ModelSerializer):
-    offer = serializers.ReadOnlyField(source='offerId')
-    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-
-    class Meta:
-        model = BrowserCme
-        fields = (
-            'offer',
-            'credits',
-            'url',
-            'pageTitle',
-            'planEffect',
-            'planText',
-            'competence',
-            'performance',
-            'commercialBias',
-            'commercialBiasText'
-        )
-        read_only_fields = fields
-
-# intended to be used by SerializerMethodField on EntrySerializer
-class StoryCmeSubSerializer(serializers.ModelSerializer):
-    story = serializers.PrimaryKeyRelatedField(read_only=True)
-    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    url = serializers.ReadOnlyField()
-    title = serializers.ReadOnlyField()
-
-    class Meta:
-        model = StoryCme
-        fields = (
-            'story',
-            'credits',
-            'url',
-            'title'
-        )
-
-
-class DocumentReadSerializer(serializers.ModelSerializer):
-    url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
-    class Meta:
-        model = Document
-        fields = (
-            'id',
-            'url',
-            'name',
-            'md5sum',
-            'content_type',
-            'image_h',
-            'image_w',
-            'is_thumb',
-            'is_certificate'
-        )
-        read_only_fields = ('name','md5sum','content_type','image_h','image_w', 'is_thumb','is_certificate')
-
-
-class CreateSRCmeOutSerializer(serializers.ModelSerializer):
-    """Serializer for the response returned for create srcme entry"""
-    documents = DocumentReadSerializer(many=True, required=False)
-
-    class Meta:
-        model = Entry
-        fields = (
-            'id',
-            'documents',
-            'created',
-            'success'
-        )
-    success = serializers.SerializerMethodField()
-
-    def get_success(self, obj):
-        return True
-
-class UpdateSRCmeOutSerializer(serializers.ModelSerializer):
-    """Serializer for the response returned for update srcme entry"""
-    documents = DocumentReadSerializer(many=True, required=False)
-
-    class Meta:
-        model = Entry
-        fields = (
-            'id',
-            'documents',
-            'modified',
-            'success'
-        )
-    success = serializers.SerializerMethodField()
-
-    def get_success(self, obj):
-        return True
-
-class EntryReadSerializer(serializers.ModelSerializer):
-    user = serializers.IntegerField(source='user.id', read_only=True)
-    entryTypeId = serializers.PrimaryKeyRelatedField(source='entryType.id', read_only=True)
-    entryType = serializers.StringRelatedField(read_only=True)
-    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
-    tags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-    documents = DocumentReadSerializer(many=True, required=False)
-    creditType = serializers.ReadOnlyField(source='ama_pra_catg')
-    extra = serializers.SerializerMethodField()
-
-    def get_extra(self, obj):
-        etype = obj.entryType.name
-        if etype == ENTRYTYPE_BRCME:
-            s = BRCmeSubSerializer(obj.brcme)
-        elif etype == ENTRYTYPE_SRCME:
-            s = SRCmeSubSerializer(obj.srcme)
-        elif etype == ENTRYTYPE_STORY_CME:
-            s = StoryCmeSubSerializer(obj.storycme)
-        else:
-            s = NotificationSubSerializer(obj.notification)
-        return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>
-
-    class Meta:
-        model = Entry
-        fields = (
-            'id',
-            'user',
-            'entryType',
-            'entryTypeId',
-            'activityDate',
-            'description',
-            'tags',
-            'documents',
-            'creditType',
-            'extra',
-            'sponsor',
-            'logo_url',
-            'created',
-            'modified'
-        )
-        read_only_fields = fields
-
-# Serializer for Create brcme entry
-class BRCmeCreateSerializer(serializers.Serializer):
-    id = serializers.IntegerField(label='ID', read_only=True)
-    description = serializers.CharField(max_length=500)
-    planEffect = serializers.IntegerField(min_value=0, max_value=1)
-    competence = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
-    performance = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
-    commercialBias = serializers.IntegerField(min_value=0, max_value=2)
-    planText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
-    commercialBiasText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
-    offerId = serializers.PrimaryKeyRelatedField(
-        queryset=OrbitCmeOffer.objects.filter(redeemed=False)
-    )
-    tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
-        many=True,
-        required=False
-    )
-
-    class Meta:
-        fields = (
-            'id',
-            'offerId',
-            'description',
-            'planEffect',
-            'planText',
-            'competence',
-            'performance',
-            'commercialBias',
-            'commercialBiasText',
-            'tags'
-        )
-
-    def create(self, validated_data):
-        """Create parent Entry and BrowserCme instances.
-        Note: this expects the following keys in validated_data:
-            user: User instance
-        """
-        etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
-        offer = validated_data['offerId']
-        user=validated_data.get('user')
-        planText = validated_data.get('planText')
-        if planText is None:
-            planText = ''
-        commercialBiasText = validated_data.get('commercialBiasText')
-        if commercialBiasText is None:
-            commercialBiasText = ''
-        commercialBias = validated_data.get('commercialBias')
-        competence = validated_data.get('competence')
-        if competence is None:
-            competence = BrowserCme.objects.randResponse()
-        performance = validated_data.get('performance')
-        if performance is None:
-            performance = BrowserCme.objects.randResponse()
-        planEffect = validated_data.get('planEffect')
-        if planEffect:
-            if not planText:
-                planText = BrowserCme.objects.getDefaultPlanText(user)
-        else:
-            planEffect, planText = BrowserCme.objects.randPlanChange(user)
-        entry = Entry.objects.create(
-            entryType=etype,
-            sponsor=offer.sponsor,
-            activityDate=offer.activityDate,
-            description=validated_data.get('description'),
-            ama_pra_catg=Entry.CREDIT_CATEGORY_1,
-            user=user
-        )
-        # associate tags with saved entry
-        tag_ids = validated_data.get('tags', [])
-        if tag_ids:
-            entry.tags.set(tag_ids)
-        # Using parent entry, create BrowserCme instance
-        aurl = offer.url # AllowedUrl instance
-        instance = BrowserCme.objects.create(
-            entry=entry,
-            offerId=offer.pk,
-            purpose=0, # deprecated field
-            competence=competence,
-            performance=performance,
-            planEffect=planEffect,
-            planText=planText,
-            commercialBias=commercialBias,
-            commercialBiasText=commercialBiasText,
-            url=aurl.url,
-            pageTitle=aurl.page_title,
-            credits=offer.credits
-        )
-        # set redeemed flag on offer
-        offer.redeemed = True
-        offer.save()
-        return instance
-
-# Serializer for Update BrowserCme entry
-class BRCmeUpdateSerializer(serializers.Serializer):
-    id = serializers.IntegerField(label='ID', read_only=True)
-    description = serializers.CharField(max_length=500)
-    planEffect = serializers.IntegerField(min_value=0, max_value=1)
-    competence = serializers.IntegerField(min_value=0, max_value=2)
-    performance = serializers.IntegerField(min_value=0, max_value=2)
-    commercialBias = serializers.IntegerField(min_value=0, max_value=2)
-    planText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
-    commercialBiasText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
-    tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
-        many=True,
-        required=False
-    )
-
-    class Meta:
-        fields = (
-            'id',
-            'description',
-            'purpose',
-            'planEffect',
-            'planText',
-            'competence',
-            'performance',
-            'commercialBias',
-            'commercialBiasText',
-            'tags'
-        )
-
-    def update(self, instance, validated_data):
-        entry = instance.entry
-        entry.description = validated_data.get('description', entry.description)
-        entry.save() # updates modified timestamp
-        # if tags key is present: replace old with new (wholesale)
-        if 'tags' in validated_data:
-            tag_ids = validated_data['tags']
-            if tag_ids:
-                entry.tags.set(tag_ids)
-            else:
-                entry.tags.set([])
-        instance.competence = validated_data.get('competence', instance.competence)
-        instance.performance = validated_data.get('performance', instance.performance)
-        instance.commercialBias = validated_data.get('commercialBias', instance.commercialBias)
-        instance.planEffect = validated_data.get('planEffect', instance.planEffect)
-        if 'planText' in validated_data:
-            planText=validated_data.get('planText')
-            if planText is None:
-                planText = ''
-            instance.planText = planText
-        if 'commercialBiasText' in validated_data:
-            commercialBiasText=validated_data.get('commercialBiasText')
-            if commercialBiasText is None:
-                commercialBiasText = ''
-            instance.commercialBiasText = commercialBiasText
-        instance.save()
-        return instance
-
-
-class UploadDocumentSerializer(serializers.Serializer):
-    document = serializers.FileField(max_length=None, allow_empty_file=False)
-    fileMd5 = serializers.CharField(max_length=32)
-    name = serializers.CharField(max_length=255, required=False)
-    image_h = serializers.IntegerField(min_value=0, required=False)
-    image_w = serializers.IntegerField(min_value=0, required=False)
-    is_certificate = serializers.BooleanField()
-
-    class Meta:
-        fields = (
-            'document',
-            'fileMd5',
-            'name',
-            'image_h',
-            'image_w',
-            'is_certificate'
-        )
-
-    def validate(self, data):
-        """
-        Validate the client file_md5 matches server file_md5
-        """
-        if 'document' in data and 'fileMd5' in data:
-            client_md5 = data['fileMd5']
-            server_md5 = md5_uploaded_file(data['document'])
-            if client_md5 != server_md5:
-                raise serializers.ValidationError('Check md5sum failed')
-        return data
-
-    def create(self, validated_data):
-        """Create Document instance.
-        It expects that View has passed the following keys to the serializer.save
-        method, which then appear in validated_data:
-            user: User instance
-        """
-        hashgen = Hashids(salt=settings.DOCUMENT_HASHIDS_SALT, min_length=10)
-        newDoc = validated_data['document'] # UploadedFile (or subclass)
-        fileName = validated_data.get('name', '')
-        logger.debug('uploaded filename: {0}'.format(fileName))
-        basename, fileExt = os.path.splitext(fileName)
-        fileMd5 = validated_data['fileMd5']
-        docName = fileMd5 + fileExt
-        image_h=validated_data.get('image_h', None)
-        image_w=validated_data.get('image_w', None)
-        set_id = ''
-        thumb_size = 200
-        thumbMd5 = None
-        is_image = newDoc.content_type.lower().startswith('image')
-        if is_image:
-            try:
-                im = Image.open(newDoc)
-                image_w, image_h = im.size
-                if image_w > thumb_size or image_h > thumb_size:
-                    logger.debug('Creating thumbnail: {0}'.format(fileName))
-                    im.thumbnail((thumb_size, thumb_size), Image.ANTIALIAS)
-                    mime = mimetypes.guess_type(fileName)
-                    plain_ext = mime[0].split('/')[1]
-                    memory_file = StringIO()
-                    # save thumb to memory_file
-                    im.save(memory_file, plain_ext, quality=90)
-                    # calculate md5sum of thumb
-                    thumbMd5 = hashlib.md5(memory_file.getvalue()).hexdigest()
-            except IOError, e:
-                logger.exception('UploadDocument: Image open failed.')
-            else:
-                set_id = newUuid()
-        instance = Document(
-            md5sum = fileMd5,
-            content_type = newDoc.content_type,
-            name=validated_data.get('name', ''),
-            image_h=image_h,
-            image_w=image_w,
-            set_id=set_id,
-            user=validated_data.get('user'),
-            is_certificate=validated_data.get('is_certificate')
-        )
-        # Save the file, and save the model instance
-        instance.document.save(docName.lower(), newDoc, save=True)
-        instance.referenceId = 'document' + hashgen.encode(instance.pk)
-        instance.save(update_fields=('referenceId',))
-        # Save thumbnail instance
-        if thumbMd5:
-            thumbName = thumbMd5 + fileExt
-            thumb_instance = Document(
-                md5sum = thumbMd5,
-                content_type = newDoc.content_type,
-                name=instance.name,
-                image_h=thumb_size,
-                image_w=thumb_size,
-                set_id=set_id,
-                is_thumb=True,
-                user=validated_data.get('user'),
-                is_certificate=validated_data.get('is_certificate')
-            )
-            # Save the thumb file, and save the model instance
-            memory_file.seek(0)
-            cf = ContentFile(memory_file.getvalue()) # Create a ContentFile from the memory_file
-            thumb_instance.document.save(thumbName.lower(), cf, save=True)
-            thumb_instance.referenceId = 'document' + hashgen.encode(thumb_instance.pk)
-            thumb_instance.save(update_fields=('referenceId',))
-        return instance
-
-# Serializer for the combined fields of Entry + SRCme
-# Used for both create and update
-class SRCmeFormSerializer(serializers.Serializer):
-    id = serializers.IntegerField(label='ID', read_only=True)
-    activityDate = serializers.DateTimeField()
-    description = serializers.CharField(max_length=500)
-    creditType = serializers.CharField(max_length=2)
-    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False)
-    tags = serializers.PrimaryKeyRelatedField(
-        queryset=CmeTag.objects.all(),
-        many=True,
-        required=False
-    )
-    documents = serializers.PrimaryKeyRelatedField(
-        queryset=Document.objects.all(),
-        many=True,
-        required=False
-    )
-
-    class Meta:
-        fields = (
-            'id',
-            'activityDate',
-            'description',
-            'creditType',
-            'credits',
-            'tags',
-            'documents'
-        )
-
-    def create(self, validated_data):
-        """Create parent Entry and SRCme instances.
-        It expects that View has passed the following keys to the serializer.save
-        method, which then appear in validated_data:
-            user: User instance
-        """
-        etype = EntryType.objects.get(name=ENTRYTYPE_SRCME)
-        user = validated_data['user']
-        creditType = validated_data.get('creditType', Entry.CREDIT_CATEGORY_1)
-        entry = Entry(
-            entryType=etype,
-            activityDate=validated_data.get('activityDate'),
-            description=validated_data.get('description'),
-            ama_pra_catg=creditType,
-            user=user
-        )
-        entry.save()
-        # associate tags with saved entry
-        tags = validated_data.get('tags', [])
-        if tags:
-            entry.tags.set(tags)
-        # associate documents with saved entry
-        docs = validated_data.get('documents', [])
-        if docs:
-            entry.documents.set(docs)
-        # Using parent entry, create SRCme instance
-        instance = SRCme.objects.create(
-            entry=entry,
-            credits=validated_data.get('credits')
-        )
-        return instance
-
-    def update(self, instance, validated_data):
-        #entry = Entry.objects.get(pk=instance.pk)
-        entry = instance.entry
-        entry.activityDate = validated_data.get('activityDate', entry.activityDate)
-        entry.description = validated_data.get('description', entry.description)
-        entry.ama_pra_catg = validated_data.get('creditType', entry.ama_pra_catg)
-        entry.save()  # updates modified timestamp
-        # if tags key is present: replace old with new (wholesale)
-        if 'tags' in validated_data:
-            tag_ids = validated_data['tags']
-            if tag_ids:
-                entry.tags.set(tag_ids)
-            else:
-                entry.tags.set([])
-        if 'documents' in validated_data:
-            currentDocs = entry.documents.all()
-            current_doc_ids = set([m.pk for m in currentDocs])
-            #logger.debug(current_doc_ids)
-            docs = validated_data['documents']
-            doc_ids = [m.pk for m in docs]
-            #logger.debug(doc_ids)
-            if doc_ids:
-                # are there any docs to delete
-                delete_doc_ids = current_doc_ids.difference(set(doc_ids))
-                for docid in delete_doc_ids:
-                    m = Document.objects.get(pk=docid)
-                    logger.debug('updateSRCme: delete document {0}'.format(m))
-                    m.document.delete()
-                    m.delete()
-                # associate entry with docs
-                entry.documents.set(doc_ids)
-            else:
-                entry.documents.set([])
-        instance.credits = validated_data.get('credits', instance.credits)
-        instance.save()
-        return instance
-
-
-DISPLAY_PRICE_AS_MONTHLY = True
-
-class SubscriptionPlanSerializer(serializers.ModelSerializer):
-    plan_type = serializers.StringRelatedField(read_only=True)
-    price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0.01'))
-    discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
-    displayMonthlyPrice = serializers.SerializerMethodField()
-    plan_key = serializers.PrimaryKeyRelatedField(read_only=True)
-    upgrade_plan = serializers.PrimaryKeyRelatedField(read_only=True)
-    needs_payment_method = serializers.BooleanField(source='plan_type.needs_payment_method')
-
-    def get_displayMonthlyPrice(self, obj):
-        """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
-        return DISPLAY_PRICE_AS_MONTHLY
-
-    class Meta:
-        model = SubscriptionPlan
-        fields = (
-            'id',
-            'planId',
-            'plan_type',
-            'plan_key',
-            'display_name',
-            'price',
-            'discountPrice',
-            'trialDays',
-            'billingCycleMonths',
-            'displayMonthlyPrice',
-            'active',
-            'upgrade_plan',
-            'needs_payment_method',
-            'created',
-            'modified'
-        )
-
-class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
-    plan_type = serializers.StringRelatedField(read_only=True)
-    plan_key = serializers.StringRelatedField(read_only=True)
-    needs_payment_method = serializers.BooleanField(source='plan_type.needs_payment_method')
-    price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
-    discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
-    displayMonthlyPrice = serializers.SerializerMethodField()
-
-    def get_displayMonthlyPrice(self, obj):
-        """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
-        return DISPLAY_PRICE_AS_MONTHLY
-
-    class Meta:
-        model = SubscriptionPlan
-        fields = (
-            'id',
-            'planId',
-            'plan_type',
-            'plan_key',
-            'display_name',
-            'price',
-            'discountPrice',
-            'displayMonthlyPrice',
-            'needs_payment_method',
-            'trialDays',
-        )
-
-
-class ReadUserSubsSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
-    plan_type = serializers.StringRelatedField(source='plan.plan_type', read_only=True)
-    plan = serializers.PrimaryKeyRelatedField(read_only=True)
-    plan_name = serializers.ReadOnlyField(source='plan.name')
-    display_name = serializers.ReadOnlyField(source='plan.display_name')
-    bt_status = serializers.ReadOnlyField(source='status')
-    needs_payment_method = serializers.BooleanField(source='plan.plan_type.needs_payment_method')
-
-    class Meta:
-        model = UserSubscription
-        fields = (
-            'id',
-            'subscriptionId',
-            'user',
-            'plan',
-            'plan_type',
-            'plan_name',
-            'display_name',
-            'bt_status',
-            'display_status',
-            'billingFirstDate',
-            'billingStartDate',
-            'billingEndDate',
-            'needs_payment_method',
-            'created',
-            'modified'
-        )
-        read_only_fields = fields
-
-
-class CreateUserSubsSerializer(serializers.Serializer):
-    plan = serializers.PrimaryKeyRelatedField(
-        queryset=SubscriptionPlan.objects.all())
-    payment_method_token = serializers.CharField(max_length=64)
-    invitee_discount = serializers.BooleanField()
-    convertee_discount = serializers.BooleanField()
-    trial_duration = serializers.IntegerField(required=False)
-
-    def save(self, **kwargs):
-        """This expects user passed in to kwargs
-        Call Manager method UserSubscription createBtSubscription
-        with the following parameters:
-            plan_id: planId of plan
-            payment_method_token:str for Customer
-            trial_duration:int number of days of trial (if not given, use plan default)
-            invitee_discount:bool - used for InvitationDiscount
-            convertee_discount:bool - used for AffiliatePayout
-        Returns: tuple (result object, UserSubscription instance)
-        """
-        user = kwargs['user']
-        validated_data = self.validated_data
-        plan = validated_data['plan']
-        payment_method_token = validated_data['payment_method_token']
-        invitee_discount = validated_data['invitee_discount']
-        convertee_discount = validated_data['convertee_discount']
-        subs_params = {
-            'plan_id': plan.planId,
-            'payment_method_token': payment_method_token,
-            'invitee_discount': invitee_discount,
-            'convertee_discount': convertee_discount
-        }
-        key = 'trial_duration'
-        test_code = user.profile.isForTestTransaction()
-        if not test_code:
-            if key in validated_data:
-                subs_params[key] = validated_data[key]
-            return UserSubscription.objects.createBtSubscription(user, plan, subs_params)
-        else:
-            # user is designated for testing payment transactions
-            subs_params[key] = 1 # needed in order to test PASTDUE
-            subs_params['code'] = test_code
-            subs_params.pop('invitee_discount')
-            subs_params.pop('convertee_discount')
-            return UserSubscription.objects.createBtSubscriptionWithTestAmount(user, plan, subs_params)
-
-
-class ActivatePaidUserSubsSerializer(serializers.Serializer):
-    plan = serializers.PrimaryKeyRelatedField(
-        queryset=SubscriptionPlan.objects.all())
-    payment_method_token = serializers.CharField(max_length=64)
-
-    def save(self, **kwargs):
-        """This expects user_subs passed in to kwargs
-        Call Manager method UserSubscription startActivePaidPlan
-        Returns: tuple (result object, UserSubscription instance)
-        """
-        user_subs = kwargs['user_subs']
-        validated_data = self.validated_data
-        plan = validated_data['plan']
-        payment_token = validated_data['payment_method_token']
-        return UserSubscription.objects.startActivePaidPlan(user_subs, payment_token, plan)
-
-
-class UpgradePlanSerializer(serializers.Serializer):
-    plan = serializers.PrimaryKeyRelatedField(
-        queryset=SubscriptionPlan.objects.all())
-    payment_method_token = serializers.CharField(max_length=64)
-
-    def save(self, **kwargs):
-        """This expects user_subs passed into kwargs for the existing
-        UserSubscription to be canceled.
-        It calls UserSusbscription manager method upgradePlan.
-        Returns: tuple (result object, UserSubscription instance)
-        """
-        user_subs = kwargs['user_subs'] # existing user_subs on old plan
-        validated_data = self.validated_data
-        plan = validated_data['plan']
-        payment_method_token = validated_data['payment_method_token']
-        return UserSubscription.objects.upgradePlan(user_subs, plan, payment_method_token)
-
-
-SACME_LABEL = 'Self-Assessed CME'
-
-class StorySerializer(serializers.ModelSerializer):
-    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
-    displayLabel = serializers.SerializerMethodField()
-
-    def get_displayLabel(self, obj):
-        return SACME_LABEL
-
-    class Meta:
-        model = Story
-        fields = (
-            'id',
-            'title',
-            'description',
-            'startDate',
-            'expireDate',
-            'launch_url',
-            'sponsor',
-            'logo_url',
-            'displayLabel'
-        )
-
-
-# Note: this will not be used for Orbit Stories as it has been superseded by the Story model.
-# It will be changed at a later date to be used for personalized PinnedMessages.
-class PinnedMessageSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
-    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
-    displayLabel = serializers.SerializerMethodField()
-
-    def get_displayLabel(self, obj):
-        return SACME_LABEL
-
-    class Meta:
-        model = PinnedMessage
-        fields = (
-            'id',
-            'user',
-            'title',
-            'description',
-            'startDate',
-            'expireDate',
-            'launch_url',
-            'sponsor',
-            'logo_url',
-            'displayLabel'
-        )
 
 class UserFeedbackSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     entry = serializers.PrimaryKeyRelatedField(
             queryset=Entry.objects.all(),
-            allow_null=True
+            allow_null=True,
+            required=False
     )
     class Meta:
         model = UserFeedback
@@ -1144,11 +479,15 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
         instance = super(EligibleSiteSerializer, self).create(validated_data)
         example_url = urldefrag(validated_data['example_url'])[0]
         res = urlparse(example_url)
+        is_secure = res.scheme == 'https'
         netloc = res.netloc
         # create AllowedHost
         host, created = AllowedHost.objects.get_or_create(hostname=netloc)
         if created:
             logger.info('EligibleSite: new AllowedHost: {0}'.format(netloc))
+            if is_secure:
+                host.is_secure = True
+                host.save(update_fields=('is_secure',))
         # create AllowedUrl
         allowed_url, created = AllowedUrl.objects.get_or_create(
             host=host,
@@ -1161,88 +500,71 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
         return instance
 
 
-class CertificateReadSerializer(serializers.ModelSerializer):
+class DocumentReadSerializer(serializers.ModelSerializer):
     url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
-    tag = serializers.PrimaryKeyRelatedField(queryset=CmeTag.objects.all())
-    state_license = serializers.PrimaryKeyRelatedField(queryset=StateLicense.objects.all())
     class Meta:
-        model = Certificate
+        model = Document
         fields = (
-            'referenceId',
+            'id',
             'url',
             'name',
-            'startDate',
-            'endDate',
-            'credits',
-            'tag',
-            'state_license',
-            'created'
+            'md5sum',
+            'content_type',
+            'image_h',
+            'image_w',
+            'is_thumb',
+            'is_certificate'
         )
-        read_only_fields = fields
+        read_only_fields = ('name','md5sum','content_type','image_h','image_w', 'is_thumb','is_certificate')
 
+# Used by payment_views and auth_views
+class UserSubsReadSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    plan_type = serializers.StringRelatedField(source='plan.plan_type', read_only=True)
+    plan = serializers.PrimaryKeyRelatedField(read_only=True)
+    plan_name = serializers.ReadOnlyField(source='plan.name')
+    display_name = serializers.SerializerMethodField()
+    bt_status = serializers.ReadOnlyField(source='status')
+    needs_payment_method = serializers.BooleanField(source='plan.plan_type.needs_payment_method')
 
-class StateLicenseSubSerializer(serializers.ModelSerializer):
-    state = serializers.StringRelatedField(read_only=True)
-    license_type = serializers.StringRelatedField(read_only=True)
-    class Meta:
-        model = StateLicense
-        fields = ('state','license_type', 'license_no', 'expiryDate')
-
-class AuditReportReadSerializer(serializers.ModelSerializer):
-    npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
-    nbcrnaId = serializers.ReadOnlyField(source='user.profile.nbcrnaId')
-    degree = serializers.SerializerMethodField()
-    statelicense = serializers.SerializerMethodField()
-    country = serializers.SerializerMethodField()
-    isSampleName = serializers.SerializerMethodField()
-
-    def get_degree(self, obj):
-        return obj.user.profile.formatDegrees()
-
-    def get_isSampleName(self, obj):
-        """Return True if obj.name starts with Sample Only, else False"""
-        return obj.name.startswith('Sample Only')
-
-    def get_statelicense(self, obj):
-        """2017-12-20: Add isNurse if condition since we currently
-        only support Nurse statelicenses.
+    def get_display_name(self, obj):
+        """If enterprise plan or display_status is UI_ENTERPRISE_CANCELED: return org name.
+        else return plan.display_name
         """
-        user = obj.user
-        if user.profile.isNurse() and user.statelicenses.exists():
-            s =  StateLicenseSubSerializer(user.statelicenses.all()[0])
-            return s.data
-        return None
-
-    def get_country(self, obj):
-        """After upgrade to DRF 3.7, use SerializerMethodField because profile.country can be null
-        """
-        p = obj.user.profile
-        if p.country:
-            return p.country.code
-        return None
+        profile = obj.user.profile
+        if profile.organization and obj.plan.isEnterprise():
+            return profile.organization.name
+        if obj.display_status == UserSubscription.UI_ENTERPRISE_CANCELED:
+            # need to get org from OrgMember
+            qset = OrgMember.objects.filter(user=obj.user, removeDate__isnull=False).order_by('-removeDate')
+            if qset.exists():
+                return qset[0].organization.name
+        return obj.plan.display_name
 
     class Meta:
-        model = AuditReport
+        model = UserSubscription
         fields = (
-            'referenceId',
-            'name',
-            'npiNumber',
-            'nbcrnaId',
-            'country',
-            'degree',
-            'statelicense',
-            'startDate',
-            'endDate',
-            'saCredits',
-            'otherCredits',
-            'data',
+            'id',
+            'subscriptionId',
+            'user',
+            'plan',
+            'plan_type',
+            'plan_name',
+            'display_name',
+            'bt_status',
+            'display_status',
+            'billingFirstDate',
+            'billingStartDate',
+            'billingEndDate',
+            'needs_payment_method',
             'created',
-            'isSampleName'
+            'modified'
         )
         read_only_fields = fields
 
 
-class ReadInvitationDiscountSerializer(serializers.ModelSerializer):
+
+class InvitationDiscountReadSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='invitee.id', read_only=True)
     inviter = serializers.PrimaryKeyRelatedField(read_only=True)
     inviteeEmail = serializers.ReadOnlyField(source='invitee.email')
@@ -1263,7 +585,7 @@ class ReadInvitationDiscountSerializer(serializers.ModelSerializer):
         return 0
 
     class Meta:
-        model = UserFeedback
+        model = InvitationDiscount
         fields = (
             'id',
             'inviter',

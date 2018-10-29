@@ -18,7 +18,8 @@ from common.logutils import *
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
-from .serializers import ReadProfileSerializer, CmeTagSerializer, ActiveCmeTagSerializer, ReadUserSubsSerializer, StateLicenseSerializer, ReadInvitationDiscountSerializer
+from .serializers import ProfileReadSerializer, CmeTagSerializer, ActiveCmeTagSerializer, UserSubsReadSerializer, InvitationDiscountReadSerializer
+from .feed_serializers import CreditTypeSerializer
 
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
@@ -96,17 +97,12 @@ def serialize_user(user):
     }
 
 
-def serialize_customer(customer):
-    return {
-        'customerId': customer.customerId
-    }
-
 def serialize_subscription(user_subs):
-    s = ReadUserSubsSerializer(user_subs)
+    s = UserSubsReadSerializer(user_subs)
     return s.data
 
 def serialize_profile(profile):
-    s = ReadProfileSerializer(profile)
+    s = ProfileReadSerializer(profile)
     return s.data
 
 def serialize_active_cmetag(tag):
@@ -117,7 +113,16 @@ def serialize_statelicense(obj):
     return StateLicenseSerializer(obj).data
 
 def serialize_invitationDiscount(obj):
-    return ReadInvitationDiscountSerializer(obj).data
+    return InvitationDiscountReadSerializer(obj).data
+
+def serialize_creditTypes(profile):
+    degs = profile.degrees.all()
+    if degs:
+        qset = CreditType.objects.getForDegree(degs[0])
+    else:
+        qset = CreditType.object.getUniversal()
+    s = CreditTypeSerializer(qset, many=True)
+    return s.data
 
 def make_login_context(token, user):
     """Create context dict for response.
@@ -125,7 +130,6 @@ def make_login_context(token, user):
         token: dict - internal access token details
         user: User instance
     """
-    customer = Customer.objects.get(user=user)
     profile = Profile.objects.get(user=user)
     user_subs = UserSubscription.objects.getLatestSubscription(user)
     if user_subs:
@@ -136,9 +140,7 @@ def make_login_context(token, user):
         'token': token,
         'user': serialize_user(user),
         'profile': serialize_profile(profile),
-        'customer': serialize_customer(customer),
         'sacmetag': serialize_active_cmetag(sacme_tag),
-        'statelicense': None,
         'invitation': None,
         'brcme_limit': None
     }
@@ -147,14 +149,7 @@ def make_login_context(token, user):
     pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
     context['permissions'] = pdata['permissions']
     context['brcme_limit'] = pdata['brcme_limit']
-
-    context['creditTypes'] = [
-        dict(value=Entry.CREDIT_CATEGORY_1, label=Entry.CREDIT_CATEGORY_1_LABEL, needs_tm=True),
-        dict(value=Entry.CREDIT_OTHER, label=Entry.CREDIT_OTHER_LABEL, needs_tm=False)
-    ]
-    # 2017-08-15: add single object for user state license if exist
-    if user.statelicenses.exists():
-        context['statelicense'] = serialize_statelicense(user.statelicenses.all()[0])
+    context['creditTypes'] = serialize_creditTypes(profile)
     # 2017-08-29: add total number of completed InvitationDiscount for which user=inviter and total inviter-discount amount earned so far
     numCompleteInvites = InvitationDiscount.objects.getNumCompletedForInviter(user)
     if numCompleteInvites:

@@ -52,6 +52,12 @@ ADMINS = [
     ('Gleb Starodubstev',   'gleb@codeabovelab.com')
 ]
 
+MANAGERS = [
+    ('Ram Srinivasan',     'ram@orbitcme.com'),
+    ('Faria Chowdhury',     'faria.chowdhury@gmail.com'),
+#    ('Gleb Starodubstev',   'gleb@codeabovelab.com')
+]
+
 # Note: This value should match the X_FORWARDED_HOST in the nginx conf file.
 SERVER_HOSTNAME = get_environment_variable('ORBIT_SERVER_HOSTNAME')  # e.g. test1.orbitcme.com
 SERVER_IP = os.environ.get('ORBIT_SERVER_IP_ADDR', '')
@@ -65,22 +71,23 @@ APP_EXPIRE_SECONDS = 86400*90  # 90 days
 # Application definition
 
 INSTALLED_APPS = [
-    'dal', # django-autocomplete-light (dal)
-    'dal_select2',
-    'dal_admin_filters',
+    'dal', # 3rd party package: django-autocomplete-light (dal)
+    'dal_select2', # ,,
+    'dal_admin_filters',  # extra 3rd party package that depends on dal
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'django.contrib.postgres',
     'django.contrib.staticfiles',
     'corsheaders',
     'oauth2_provider',
     'rest_framework',
     'storages',
     'users.apps.UsersConfig',
+    'goals.apps.GoalsConfig',
     'rest_framework_swagger',
-    'pagedown',
     'django_extensions',
 ]
 
@@ -99,6 +106,7 @@ AWS_S3_ENCRYPTION = True
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 FEED_MEDIA_BASEDIR = 'entries'
 CERTIFICATE_MEDIA_BASEDIR = 'certificates'
+ORG_MEDIA_BASEDIR = 'org'
 MEDIA_URL = "http://%s.s3.amazonaws.com/" % AWS_STORAGE_BUCKET_NAME
 
 # File Upload settings
@@ -126,9 +134,11 @@ PAYPAL_API_BASEURL = 'https://api.paypal.com/v1/' if ENV_TYPE == ENV_PROD else '
 # Auth0
 #
 # environment vars
+AUTH0_DOMAIN = get_environment_variable('ORBIT_AUTH0_DOMAIN')
 AUTH0_CLIENTID = get_environment_variable('ORBIT_AUTH0_CLIENTID')
 AUTH0_SECRET = get_environment_variable('ORBIT_AUTH0_SECRET')
-AUTH0_DOMAIN = get_environment_variable('ORBIT_AUTH0_DOMAIN')
+AUTH0_MGMT_CLIENTID = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENTID')
+AUTH0_MGMT_SECRET = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENT_SECRET')
 
 AUTHENTICATION_BACKENDS = (
     'users.auth_backends.ImpersonateBackend',
@@ -384,11 +394,13 @@ EMAIL_FROM = 'mission-control@orbitcme.com'
 EMAIL_VERIFICATION_SUBJECT = 'Orbit email verification'
 # used for error reporting
 SERVER_EMAIL = EMAIL_FROM
+EMAIL_SUBJECT_PREFIX = '[Orbit] ' if ENV_TYPE == ENV_PROD else '[Orbit Test] '
+
 # recipient for user feedback
 FEEDBACK_RECIPIENT_EMAIL = 'feedback@orbitcme.com'
 SUPPORT_EMAIL = 'support@orbitcme.com'
 SALES_EMAIL = 'sales@orbitcme.com'
-#SALES_EMAIL = 'faria.chowdhury@gmail.com'
+#SALES_EMAIL = 'faria@orbitcme.com'
 
 HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
 DOCUMENT_HASHIDS_SALT = 'random AlVkkUk2Z14FCTXu1pC32pUYm3T6uYSEYZY9ZtOLVNEJ'
@@ -396,7 +408,7 @@ REPORT_HASHIDS_SALT = 'random AjMAVYQgiOgeS4Kwijb6ejHTzsMNsqvsauMIooVlxkOA'
 
 # Tufts license start/end dates that are printed on Certificates
 CERT_ORIGINAL_RELEASE_DATE = datetime(2017, 8, 7, tzinfo=pytz.utc)
-CERT_EXPIRE_DATE = datetime(2018, 8, 6, tzinfo=pytz.utc)
+CERT_EXPIRE_DATE = datetime(2019, 8, 6, tzinfo=pytz.utc)
 # Separate dates for Orbit Story Certificates
 STORY_CERT_ORIGINAL_RELEASE_DATE = datetime(2018, 3, 1, tzinfo=pytz.utc)
 STORY_CERT_EXPIRE_DATE = datetime(2019, 3, 1, tzinfo=pytz.utc)
@@ -409,3 +421,5 @@ COMPANY_ADDRESS = '265 Cambridge Ave, #61224, Palo Alto CA 94306'
 # UI links (relative to SERVER_HOSTNAME)
 UI_LINK_SUBSCRIPTION = '/subscription'
 UI_LINK_FEEDBACK = '/feedback'
+UI_LINK_LOGIN = '/login'
+UI_LINK_JOINTEAM = '/join-team'

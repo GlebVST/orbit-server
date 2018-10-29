@@ -1,6 +1,7 @@
+import logging
+import coreapi
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-import logging
 import premailer
 from io import StringIO
 from smtplib import SMTPException
@@ -11,16 +12,18 @@ from django.db import transaction
 from django.template.loader import get_template
 from django.utils import timezone
 import pytz
+from rest_framework.filters import BaseFilterBackend
 from rest_framework import generics, permissions, status
-from rest_framework.parsers import FormParser,MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # app
+from .auth0_tools import Auth0Api
+from .emailutils import sendCancelReminderEmail, sendRenewalReminderEmail, sendCardExpiredAlertEmail
 from .models import *
 from .permissions import *
 from .serializers import *
-from .emailutils import sendCancelReminderEmail, sendRenewalReminderEmail, sendCardExpiredAlertEmail
+from .enterprise_serializers import *
 
 class MakeOrbitCmeOffer(APIView):
     """
@@ -62,81 +65,6 @@ class MakeOrbitCmeOffer(APIView):
         context = {'success': True, 'id': offer.pk}
         return Response(context, status=status.HTTP_201_CREATED)
 
-
-class MakeNotification(APIView):
-    """
-    Create a test Notification Entry in the user's feed.
-    """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def post(self, request, format=None):
-        now = timezone.now()
-        activityDate = now - timedelta(seconds=10)
-        expireDate = now + timedelta(days=10)
-        entryType = EntryType.objects.get(name=ENTRYTYPE_NOTIFICATION)
-        with transaction.atomic():
-            entry = Entry.objects.create(
-                user=request.user,
-                entryType=entryType,
-                activityDate=activityDate,
-                description='Created for feed test'
-            )
-            Notification.objects.create(
-                entry=entry,
-                expireDate=expireDate,
-            )
-        context = {
-            'success': True,
-            'id': entry.pk,
-        }
-        return Response(context, status=status.HTTP_201_CREATED)
-
-
-class MakeStoryCme(APIView):
-    """
-    Create a test StoryCme entry for the user using the latest Story (if dne), else return the existing StoryCme.
-    The entry will be tagged with SA-CME.
-    """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def post(self, request, format=None):
-        story = Story.objects.all().order_by('-created')[0]
-        #user = User.objects.get(pk=3)
-        user = request.user
-        qset = StoryCme.objects.filter(story=story, entry__user=user)
-        if qset.exists():
-            m = qset[0]
-            context = {
-                'success': True,
-                'id': m.entry.pk,
-            }
-            return Response(context, status=status.HTTP_200_OK)
-        # else
-        now = timezone.now()
-        satag = CmeTag.objects.get(name=CMETAG_SACME)
-        activityDate = now - timedelta(seconds=5)
-        entryType = EntryType.objects.get(name=ENTRYTYPE_STORY_CME)
-        creditType = Entry.CREDIT_CATEGORY_1
-        with transaction.atomic():
-            entry = Entry.objects.create(
-                user=user,
-                entryType=entryType,
-                activityDate=activityDate,
-                ama_pra_catg=creditType,
-                sponsor=story.sponsor,
-                description='Created for feed test'
-            )
-            StoryCme.objects.create(
-                entry=entry,
-                story=story,
-                credits=story.credits,
-                url=story.entry_url,
-                title=story.entry_title
-            )
-            entry.tags.add(satag)
-        context = {
-            'success': True,
-            'id': entry.pk,
-        }
-        return Response(context, status=status.HTTP_201_CREATED)
 
 
 class EmailSubscriptionReceipt(APIView):
@@ -249,7 +177,7 @@ class EmailSubscriptionPaymentFailure(APIView):
 
 class InvitationDiscountList(generics.ListAPIView):
     """List of InvitationDiscounts for the current authenticated user as inviter"""
-    serializer_class = ReadInvitationDiscountSerializer
+    serializer_class = InvitationDiscountReadSerializer
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
@@ -309,32 +237,6 @@ class PreEmail(APIView):
             }
             return Response(context, status=status.HTTP_200_OK)
 
-
-class MakePinnedMessage(APIView):
-    """
-    Create a test PinnedMessage for the user.
-    The description field may contain Markdown syntax.
-    Reference: https://daringfireball.net/projects/markdown/syntax
-    """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def post(self, request, format=None):
-        now = timezone.now()
-        startDate = datetime(now.year, now.month, now.day, tzinfo=now.tzinfo)
-        expireDate = now + timedelta(days=30)
-        message = PinnedMessage.objects.create(
-            user=request.user,
-            startDate=startDate,
-            expireDate=expireDate,
-            title='Test PinnedMessage title',
-            description='This is the description',
-            sponsor_id=1,
-            launch_url='https://docs.google.com/'
-        )
-        context = {
-            'success': True,
-            'id': message.pk,
-        }
-        return Response(context, status=status.HTTP_201_CREATED)
 
 
 class EmailCardExpired(APIView):
@@ -411,3 +313,207 @@ class EmailSubscriptionCancelReminder(APIView):
                 'message': 'A message was emailed to {0.email}'.format(user),
             }
             return Response(context, status=status.HTTP_200_OK)
+
+
+class OrgMemberFilterBackend(BaseFilterBackend):
+    def get_schema_fields(self, view):
+        return [
+            coreapi.Field(
+                name='q',
+                location='query',
+                required=False,
+                type='string',
+                description='Search by firstName, lastName or email'
+                ),
+            coreapi.Field(
+                name='compliance',
+                location='query',
+                required=False,
+                type='string',
+                description='Filter by compliance: [0-4]'
+                ),
+            coreapi.Field(
+                name='verified',
+                location='query',
+                required=False,
+                type='string',
+                description='Filter by verified: 0 or 1'
+                ),
+            coreapi.Field(
+                name='o',
+                location='query',
+                required=False,
+                type='string',
+                description='Order By one of: lastname/created/compliance/verified'
+                ),
+            coreapi.Field(
+                name='otype',
+                location='query',
+                required=False,
+                type='string',
+                description='a for ASC. d for DESC'
+                ),
+            ]
+
+    def filter_queryset(self, request, queryset, view):
+        """This requires the model Manager to have a search_filter manager method"""
+        org = request.user.profile.organization
+        search_term = request.query_params.get('q', '').strip()
+        compliance = None
+        verified = None
+        q_compliance = request.query_params.get('compliance', '').strip()
+        try:
+            compliance = int(q_compliance)
+        except ValueError:
+            compliance = None
+        q_verified = request.query_params.get('verified', '').strip()
+        try:
+            verified = bool(int(q_verified))
+        except ValueError:
+            verified = None
+        # basic filter kwargs
+        filter_kwargs = {'organization': org, 'removeDate__isnull': True, 'pending': False}
+        if compliance is not None:
+            filter_kwargs['compliance'] = compliance
+        if verified is not None:
+            filter_kwargs['user__profile__verified'] = verified
+        o = request.query_params.get('o', 'lastname').strip()
+        otype = request.query_params.get('otype', 'a').strip() # sort primary field by ASC/DESC
+        # set orderByFields from o
+        if o == 'lastname':
+            orderByFields = ['user__profile__lastName', 'user__profile__firstName', 'created']
+        elif o == 'created':
+            orderByFields = ['created', 'fullname']
+        elif o == 'compliance':
+            orderByFields = ['compliance', 'fullname']
+        elif o == 'verified':
+            orderByFields = ['user__profile__verified', 'fullname']
+        if otype == 'd':
+            orderByFields[0] = '-' + orderByFields[0]
+        if search_term:
+            return OrgMember.objects.search_filter(search_term, filter_kwargs, orderByFields)
+        return queryset.filter(**filter_kwargs).order_by(*orderByFields)
+
+
+class OrgMemberList(generics.ListAPIView):
+    queryset = OrgMember.objects.filter(removeDate__isnull=True)
+    serializer_class = OrgMemberReadSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    filter_backends = (OrgMemberFilterBackend,)
+
+
+class CreateOrgMember(generics.CreateAPIView):
+    serializer_class = OrgMemberFormSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def perform_create(self, serializer, format=None):
+        """If email is given, check that it does not trample on an existing user account
+        Save auth0 token info to request.session
+        """
+        org = self.request.user.profile.organization
+        # check email
+        email = self.request.data.get('email', '')
+        if email:
+            qset = User.objects.filter(email__iexact=email)
+            if qset.exists():
+                u = qset[0]
+                org_qset = OrgMember.objects.filter(organization=org, user=u, removeDate__isnull=False)
+                if org_qset.exists():
+                    print('CreateOrgMember: re-activate existing membership for {0}'.format(u))
+                    instance = org_qset[0]
+                    instance.removeDate = None
+                    instance.save()
+                    return instance
+                error_msg = 'This email already belongs to another user account.'
+                raise serializers.ValidationError({'email': error_msg}, code='invalid')
+        apiConn = Auth0Api.getConnection(self.request)
+        with transaction.atomic():
+            instance = serializer.save(apiConn=apiConn, organization=org)
+        return instance
+
+    def create(self, request, *args, **kwargs):
+        form_data = request.data.copy()
+        serializer = self.get_serializer(data=form_data)
+        serializer.is_valid(raise_exception=True)
+        instance = self.perform_create(serializer)
+        out_serializer = OrgMemberReadSerializer(instance)
+        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
+class OrgMemberDetail(generics.RetrieveAPIView):
+    serializer_class = OrgMemberReadSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+
+    def get_queryset(self):
+        """This ensures that an OrgMember instance can only be retrieved by
+        an admin belonging to the same org as the member
+        """
+        org = self.request.user.profile.organization
+        return OrgMember.objects.filter(organization=org)
+
+
+class UpdateOrgMember(generics.UpdateAPIView):
+    serializer_class = OrgMemberFormSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+
+    def get_queryset(self):
+        """This ensures that an OrgMember instance can only be updated by
+        an admin belonging to the same org as the member
+        """
+        org = self.request.user.profile.organization
+        return OrgMember.objects.filter(organization=org)
+
+    def perform_update(self, serializer, format=None):
+        """If email is given, check that it does not trample on an existing user account"""
+        # check email
+        m = self.get_object()
+        email = self.request.data.get('email', '')
+        if email and m.user.email != email:
+            qset = User.objects.filter(email__iexact=email).exclude(pk=m.user.pk)
+            if qset.exists():
+                error_msg = 'The email {0} belongs to another user account.'.format(email)
+                raise serializers.ValidationError({'email': error_msg}, code='invalid')
+        apiConn = Auth0Api.getConnection(self.request)
+        with transaction.atomic():
+            instance = serializer.save(apiConn=apiConn)
+        return instance
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        form_data = request.data.copy()
+        in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
+        in_serializer.is_valid(raise_exception=True)
+        self.perform_update(in_serializer)
+        m = OrgMember.objects.get(pk=instance.pk)
+        out_serializer = OrgMemberReadSerializer(m)
+        return Response(out_serializer.data)
+
+
+class EmailSetPassword(APIView):
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
+    def post(self, request, *args, **kwargs):
+        memberid = self.kwargs.get('pk')
+        if memberid:
+            qset = OrgMember.objects.filter(pk=memberid)
+            if not qset.exists():
+                return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+            orgmember = qset[0]
+            user = orgmember.user
+            profile = user.profile
+            apiConn = Auth0Api.getConnection(self.request)
+            ticket_url = apiConn.change_password_ticket(profile.socialId, UI_LOGIN_URL)
+            try:
+                delivered = sendPasswordTicketEmail(orgmember, ticket_url)
+                if delivered:
+                    orgmember.setPasswordEmailSent = True
+                    orgmember.save(update_fields=('setPasswordEmailSent',))
+            except SMTPException as e:
+                logError('EmailSetPassword failed for user {0}. ticket_url={1}'.format(user, ticket_url))
+                return Response({'success': False}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                context = {'success': True}
+                return Response(context, status=status.HTTP_200_OK)
+        return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)

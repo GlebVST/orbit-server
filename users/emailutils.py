@@ -3,17 +3,17 @@ from datetime import timedelta
 import logging
 import premailer
 from io import StringIO
-import pytz
 from operator import itemgetter
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.template.loader import get_template
 from django.utils import timezone
+from common.dateutils import LOCAL_TZ, fmtLocalDatetime
 from .models import *
 from pprint import pprint
 
 ROCKET_ICON = u'\U0001F680'
-REPLY_TO = settings.SUPPORT_EMAIL if settings.ENV_TYPE == settings.ENV_PROD else 'faria@orbitcme.com'
+REPLY_TO = settings.SUPPORT_EMAIL
 
 TEST_ONLY_PREFIX = u'[test-only] '
 
@@ -24,10 +24,13 @@ def makeSubject(subject):
 
 def setCommonContext(ctx):
     hostname = settings.SERVER_HOSTNAME
-    if hostname.startswith('admin.'): # admin.orbitcme.com becomes orbitcme.com to use for links in the emails
+    if hostname.startswith('admin.'): # admin.orbitcme.com becomes orbitcme.com for links in emails
         hostname = hostname.replace('admin.', '')
+    elif hostname.startswith('testadmin.'): # testadmin.orbitcme.com becomes test1.orbitcme.com for links in emails
+        hostname = hostname.replace('testadmin', 'test1')
     ctx.update({
         'server_hostname': hostname,
+        'login_link': settings.UI_LINK_LOGIN,
         'feedback_link': settings.UI_LINK_FEEDBACK,
         'subscription_link': settings.UI_LINK_SUBSCRIPTION,
         'support_email': settings.SUPPORT_EMAIL,
@@ -39,9 +42,8 @@ def sendNewUserReportEmail(profiles, email_to):
     Can raise SMTPException
     """
     from_email = settings.EMAIL_FROM
-    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
     now = timezone.now()
-    subject = makeSubject('New User Accounts Report - {0:%b %d %Y}'.format(now.astimezone(tz)))
+    subject = makeSubject('New User Accounts Report - {0:%b %d %Y}'.format(now.astimezone(LOCAL_TZ)))
     data = []
     for p in profiles:
         user = p.user
@@ -179,7 +181,7 @@ def sendAfflEarningsStatementEmail(batchPayout, affl, afp_data):
     subject = makeSubject(u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear))
     subject_with_icon = u"{0} {1}".format(ROCKET_ICON, subject)
     encoded_subject = subject_with_icon.encode('utf-8')
-    print(encoded_subject)
+    #print(encoded_subject)
     # get affiliateId(s) for this Affiliate
     affIds = AffiliateDetail.objects.filter(affiliate=affl).values_list('affiliateId', flat=True).order_by('affiliateId')
     data_by_affid = {'Other': dict(num_convertees=0, total=0)} # affiliateId => {num_convertees:int, total:Decimal}
@@ -235,9 +237,8 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
     Info included: fullname, paymentEmail, num_convertees, payout, grandTotal for payout
     """
     from_email = settings.EMAIL_FROM
-    tz = pytz.timezone(settings.LOCAL_TIME_ZONE)
     now = timezone.now()
-    subject = makeSubject(u'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(tz)))
+    subject = makeSubject(u'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(LOCAL_TZ)))
     data = []
     grandTotal = 0
     totalUsers = 0
@@ -388,3 +389,65 @@ def sendCancelReminderEmail(user_subs, payment_method, extra_data):
         )
     msg.content_subtype = 'html'
     msg.send()
+
+
+def sendPasswordTicketEmail(orgmember, ticket_url, send_message=True):
+    """Send EmailMessage receipt to user using set_password_enterprise template
+    Args:
+        orgmember: OrgMember instance
+        ticket_url: URL for change-password-ticket
+        send_message: bool defaults to True. If False, msg will be returned instead
+    Returns:
+        If send_message is True: int (0 = failed. 1 = delivered)
+        If send_message is False: EmailMessage object
+    Can raise SMTPException
+
+    """
+    from_email = settings.SUPPORT_EMAIL
+    subject = makeSubject(u'Welcome to Orbit! Please set your password')
+    user = orgmember.user
+    ctx = {
+        'org': orgmember.organization,
+        'ticket_url': ticket_url,
+    }
+    setCommonContext(ctx)
+    message = get_template('email/set_password_enterprise.html').render(ctx)
+    msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
+    msg.content_subtype = 'html'
+    if send_message:
+        return msg.send() # 0 or 1
+    else:
+        return msg
+
+def sendJoinTeamEmail(user, org, send_message=True):
+    """Send JoinTeam invitation email to user using join_team_invite template
+    Args:
+        user: User instance
+        org: Organization instance
+        send_message: bool defaults to True. If False, msg will be returned instead
+    Returns:
+        If send_message is True: int (0 = failed. 1 = delivered)
+        If send_message is False: EmailMessage object
+    Can raise SMTPException
+    """
+    from_email = settings.SUPPORT_EMAIL
+    subject = makeSubject(u'Invitation to join Orbit Enterprise')
+    ctx = {
+        'user': user,
+        'org': org,
+        'join_url': settings.UI_LINK_JOINTEAM
+    }
+    setCommonContext(ctx)
+    message = get_template('email/join_team_invite.html').render(ctx)
+    msg = EmailMessage(
+            subject,
+            message,
+            to=[user.email],
+            from_email=from_email,
+            bcc=[from_email,]
+            )
+    msg.content_subtype = 'html'
+    if send_message:
+        return msg.send() # 0 or 1
+    else:
+        return msg

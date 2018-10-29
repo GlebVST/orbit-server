@@ -1,476 +1,55 @@
+"""Payment and subscription-related models"""
 from __future__ import unicode_literals
 import logging
 import braintree
 import calendar
-from collections import namedtuple
 from datetime import datetime, timedelta
 from dateutil.relativedelta import *
 from decimal import Decimal, ROUND_HALF_UP
 from hashids import Hashids
 import pytz
-import random
-import re
 import uuid
-from urlparse import urlparse
 from django.conf import settings
 from django.contrib.auth.models import User, Group, Permission
-from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ValidationError
 from django.db import models, connection
-from django.db.models import Q, Prefetch, Count, Sum
+from django.db.models import Q, Count, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
-
-logger = logging.getLogger('gen.models')
-
+from .base import (
+    ACTIVE_OFFDATE,
+    Organization,
+    Degree,
+    PracticeSpecialty
+)
+from .feed import BrowserCme
 from common.appconstants import (
-    MAX_URL_LENGTH,
-    SELF_REPORTED_AUTHORITY,
-    AMA_PRA_CATEGORY_LABEL,
+    GROUP_ENTERPRISE_MEMBER,
     ALL_PERMS,
-    PERM_VIEW_OFFER,
-    PERM_VIEW_FEED,
-    PERM_VIEW_DASH,
-    PERM_POST_SRCME,
     PERM_POST_BRCME,
     PERM_DELETE_BRCME,
     PERM_EDIT_BRCME,
-    PERM_PRINT_AUDIT_REPORT,
-    PERM_PRINT_BRCME_CERT,
-    MONTH_CME_LIMIT_MESSAGE,
-    YEAR_CME_LIMIT_MESSAGE
+    PERM_ALLOW_INVITE,
+    PERM_EDIT_PROFILECMETAG
 )
+
+logger = logging.getLogger('gen.models')
+
 #
 # constants (should match the database values)
 #
-ENTRYTYPE_BRCME = 'browser-cme'
-ENTRYTYPE_SRCME = 'sr-cme'
-ENTRYTYPE_STORY_CME = 'story-cme'
-ENTRYTYPE_NOTIFICATION = 'notification'
-CMETAG_SACME = 'SAM/SA-CME'
-COUNTRY_USA = 'USA'
-DEGREE_MD = 'MD'
-DEGREE_DO = 'DO'
-DEGREE_NP = 'NP'
-DEGREE_RN = 'RN'
-SPONSOR_BRCME = 'TUSM'
-ACTIVE_OFFDATE = datetime(3000,1,1,tzinfo=pytz.utc)
 INVITER_DISCOUNT_TYPE = 'inviter'
 INVITEE_DISCOUNT_TYPE = 'invitee'
 CONVERTEE_DISCOUNT_TYPE = 'convertee'
 ORG_DISCOUNT_TYPE = 'org'
 BASE_DISCOUNT_TYPE = 'base'
 
-PLAN_TYPE_BRAINTREE = 'Braintree'
-PLAN_TYPE_FREE = 'Free'
-
-# specialties that have SA-CME tag pre-selected on OrbitCmeOffer
-SACME_SPECIALTIES = (
-    'Radiology',
-    'Radiation Oncology',
-    'Pathology',
-)
-
-# maximum number of invites for which a discount is applied to the inviter's subscription.
-INVITER_MAX_NUM_DISCOUNT = 10
-
-LOCAL_TZ = pytz.timezone(settings.LOCAL_TIME_ZONE)
 TWO_PLACES = Decimal('.01')
-TEST_CARD_EMAIL_PATTERN = re.compile(r'testcode-(?P<code>\d+)')
-
-# Q objects
-Q_ADMIN = Q(username__in=('admin','radmin')) # django admin users not in auth0
-Q_IMPERSONATOR = Q(is_staff=True) & ~Q_ADMIN
 
 def makeAwareDatetime(a_date, tzinfo=pytz.utc):
     """Convert <date> to <datetime> with timezone info"""
     return timezone.make_aware(
         datetime.combine(a_date, datetime.min.time()), tzinfo)
-
-def asLocalTz(dt):
-    """Args:
-        dt: aware datetime object
-    Returns dt in the LOCAL_TIME_ZONE
-    """
-    return dt.astimezone(LOCAL_TZ)
-
-def default_expire():
-    """1 hour from now"""
-    return timezone.now() + timedelta(seconds=3600)
-
-@python_2_unicode_compatible
-class AuthImpersonation(models.Model):
-    """A way for an admin user to enable impersonate of a particular user for a fixed time period. This model is used by ImpersonateBackend."""
-    impersonator = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        db_index=True,
-        related_name='impersonators',
-        # staff users only (and exclude django-only admin users)
-        limit_choices_to=Q_IMPERSONATOR
-    )
-    impersonatee = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        db_index=True,
-        related_name='impersonatees'
-    )
-    expireDate = models.DateTimeField(default=default_expire)
-    valid = models.BooleanField(default=True)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-
-    def __str__(self):
-        return '{0.email}/{1.email}'.format(
-                self.impersonator, self.impersonatee)
-
-@python_2_unicode_compatible
-class Country(models.Model):
-    """Names of countries for country of practice.
-    """
-    name = models.CharField(max_length=100, unique=True)
-    code = models.CharField(max_length=5, blank=True, help_text='ISO Alpha-3 code')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-    class Meta:
-        verbose_name_plural = 'Countries'
-
-
-@python_2_unicode_compatible
-class State(models.Model):
-    """Names of states/provinces within a country.
-    """
-    country = models.ForeignKey(Country,
-        on_delete=models.CASCADE,
-        db_index=True,
-        related_name='states',
-    )
-    name = models.CharField(max_length=100)
-    abbrev = models.CharField(max_length=15, blank=True)
-    rnCertValid = models.BooleanField(default=False, help_text='True if RN/NP certificate is valid in this state')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        ordering = ['country','name']
-        unique_together = (('country', 'name'), ('country', 'abbrev'))
-
-class DegreeManager(models.Manager):
-    def insertDegreeAfter(self, from_deg, abbrev, name):
-        """Insert new degree after the given from_deg
-        and update sort_order of the items that need to be shuffled down.
-        """
-        new_deg = None
-        # make a hole
-        post_degs = Degree.objects.filter(sort_order__gt=from_deg.sort_order).order_by('sort_order')
-        with transaction.atomic():
-            for m in post_degs:
-                m.sort_order += 1
-                m.save()
-            new_sort_order = from_deg.sort_order + 1
-            logger.info('Adding new Degree {0} at sort_order: {1}'.format(abbrev, new_sort_order))
-            new_deg = Degree.objects.create(abbrev=abbrev, name=name, sort_order=new_sort_order)
-        return new_deg
-
-@python_2_unicode_compatible
-class Degree(models.Model):
-    """Names and abbreviations of professional degrees"""
-    abbrev = models.CharField(max_length=7, unique=True)
-    name = models.CharField(max_length=40)
-    sort_order = models.PositiveIntegerField(default=0)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-    objects = DegreeManager()
-
-    def __str__(self):
-        return self.abbrev
-
-    def isVerifiedForCme(self):
-        """Is degree verified for CME
-        Returns True if degree is MD/DO
-        """
-        abbrev = self.abbrev
-        return abbrev == DEGREE_MD or abbrev == DEGREE_DO
-
-    def isNurse(self):
-        """Returns True if degree is RN/NP"""
-        abbrev = self.abbrev
-        return abbrev == DEGREE_RN or abbrev == DEGREE_NP
-
-    def isPhysician(self):
-        """Returns True if degree is MD/DO"""
-        abbrev = self.abbrev
-        return abbrev == DEGREE_MD or abbrev == DEGREE_DO
-
-    class Meta:
-        ordering = ['sort_order',]
-
-# CME tag types (SA-CME tag has priority=1)
-class CmeTagManager(models.Manager):
-    def getSpecTags(self):
-        pspecs = PracticeSpecialty.objects.all()
-        pnames = [p.name for p in pspecs]
-        tags = self.model.objects.filter(name__in=pnames)
-        return tags
-
-@python_2_unicode_compatible
-class CmeTag(models.Model):
-    name= models.CharField(max_length=40, unique=True)
-    priority = models.IntegerField(
-        default=0,
-        help_text='Used for non-alphabetical sort.'
-    )
-    description = models.CharField(max_length=200, unique=True, help_text='Long-form name')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-    objects = CmeTagManager()
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name_plural = 'CME Tags'
-        ordering = ['-priority', 'name']
-
-
-@python_2_unicode_compatible
-class PracticeSpecialty(models.Model):
-    """Names of practice specialties.
-    """
-    name = models.CharField(max_length=100, unique=True)
-    cmeTags = models.ManyToManyField(CmeTag,
-        blank=True,
-        related_name='specialties',
-        help_text='Eligible cmeTags for this specialty'
-    )
-    is_abms_board = models.BooleanField(default=False, help_text='True if this is an ABMS Board/General Cert')
-    is_primary = models.BooleanField(default=False, help_text='True if this is a Primary Specialty Certificate')
-    planText = models.CharField(max_length=500, blank=True, default='',
-            help_text='Default response for changes to clinical plan')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-    def formatTags(self):
-        return ", ".join([t.name for t in self.cmeTags.all()])
-    formatTags.short_description = "cmeTags"
-
-    def formatSubSpecialties(self):
-        return ", ".join([t.name for t in self.subspecialties.all()])
-    formatSubSpecialties.short_description = "SubSpecialties"
-
-    class Meta:
-        verbose_name_plural = 'Practice Specialties'
-
-@python_2_unicode_compatible
-class SubSpecialty(models.Model):
-    specialty = models.ForeignKey(PracticeSpecialty,
-        on_delete=models.CASCADE,
-        db_index=True,
-        related_name='subspecialties',
-    )
-    name = models.CharField(max_length=60)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name_plural = 'Practice Sub Specialties'
-        unique_together = ('specialty', 'name')
-        ordering = ['name',]
-
-
-@python_2_unicode_compatible
-class Organization(models.Model):
-    """Organization - groups of users
-    """
-    name = models.CharField(max_length=100, unique=True)
-    code = models.CharField(max_length=20, unique=True, help_text='Org code for display')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.code
-
-
-@python_2_unicode_compatible
-class Profile(models.Model):
-    user = models.OneToOneField(User,
-        on_delete=models.CASCADE,
-        primary_key=True
-    )
-    firstName = models.CharField(max_length=30)
-    lastName = models.CharField(max_length=30)
-    contactEmail = models.EmailField(blank=True)
-    country = models.ForeignKey(Country,
-        on_delete=models.PROTECT,
-        db_index=True,
-        related_name='profiles',
-        null=True,
-        blank=True,
-        help_text='Primary country of practice'
-    )
-    inviter = models.ForeignKey(User,
-        on_delete=models.SET_NULL,
-        db_index=True,
-        related_name='invites',
-        null=True,
-        blank=True,
-        help_text='Set during profile creation to the user whose inviteId was provided upon first login.'
-    )
-    planId = models.CharField(max_length=36, blank=True, help_text='planId selected at signup')
-    npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
-    npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
-    npiLastName = models.CharField(max_length=30, blank=True, help_text='Last name from NPI Registry')
-    npiType = models.IntegerField(
-        default=1,
-        blank=True,
-        choices=((1, 'Individual'), (2, 'Organization')),
-        help_text='Type 1 (Individual). Type 2 (Organization).'
-    )
-    nbcrnaId = models.CharField(max_length=20, blank=True, default='', help_text='NBCRNA ID for Nurse Anesthetists')
-    inviteId = models.CharField(max_length=36, unique=True)
-    socialId = models.CharField(max_length=64, blank=True, help_text='Auth0 ID')
-    pictureUrl = models.URLField(max_length=1000, blank=True, help_text='Auth0 avatar URL')
-    cmeTags = models.ManyToManyField(CmeTag,
-            through='ProfileCmetag',
-            blank=True,
-            related_name='profiles')
-    degrees = models.ManyToManyField(Degree, blank=True) # called primaryrole in UI
-    specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
-    verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
-    is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
-    accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
-    cmeStartDate = models.DateTimeField(null=True, blank=True, help_text='Start date for CME requirements calculation')
-    cmeEndDate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
-    affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return '{0.firstName} {0.lastName}'.format(self)
-
-    def shouldReqNPINumber(self):
-        """
-        If (country=COUNTRY_USA) and (MD or DO in self.degrees),
-        then npiNumber should be requested
-        """
-        if self.country is None:
-            return False
-        us = Country.objects.get(code=COUNTRY_USA)
-        if self.country.pk != us.pk:
-            return False
-        deg_abbrevs = [d.abbrev for d in self.degrees.all()]
-        has_md = DEGREE_MD in deg_abbrevs
-        if has_md:
-            return True
-        has_do = DEGREE_DO in deg_abbrevs
-        if has_do:
-            return True
-        return False
-
-    def isNPIComplete(self):
-        """
-        True: obj.shouldReqNPINumber is False
-        True: If obj.shouldReqNPINumber and npiNumber is non-blank.
-        False: If obj.shouldReqNPINumber and npiNumber is blank.
-        """
-        if self.shouldReqNPINumber():
-            if self.npiNumber:
-                return True
-            return False
-        return True
-
-
-    def isSignupComplete(self):
-        """Signup is complete if:
-            1. User has entered first and last name
-            2. user has saved a UserSubscription
-
-        """
-        if not self.firstName or not self.lastName or not self.user.subscriptions.exists():
-            return False
-        return True
-
-    def getFullName(self):
-        return u"{0} {1}".format(self.firstName, self.lastName)
-
-    def getInitials(self):
-        """Returns initials from firstName, lastName"""
-        firstInitial = ''
-        lastInitial = ''
-        if self.firstName:
-            firstInitial = self.firstName[0].upper()
-        if self.lastName:
-            lastInitial = self.lastName[0].upper()
-        if firstInitial and lastInitial:
-            return u"{0}.{1}.".format(firstInitial, lastInitial)
-        return ''
-
-    def getFullNameAndDegree(self):
-        degrees = self.degrees.all()
-        degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
-        return u"{0} {1}, {2}".format(self.firstName, self.lastName, degree_str)
-
-    def formatDegrees(self):
-        return ", ".join([d.abbrev for d in self.degrees.all()])
-    formatDegrees.short_description = "Primary Role"
-
-    def formatSpecialties(self):
-        return ", ".join([d.name for d in self.specialties.all()])
-    formatSpecialties.short_description = "Specialties"
-
-    def isNurse(self):
-        degrees = self.degrees.all()
-        return any([m.isNurse() for m in degrees])
-
-    def isPhysician(self):
-        degrees = self.degrees.all()
-        return any([m.isPhysician() for m in degrees])
-
-    def getActiveCmetags(self):
-        """Need to query the through relation to filter by is_active=True"""
-        return ProfileCmetag.filter(profile=self, is_active=True)
-
-    def getAuth0Id(self):
-        delim = '|'
-        if delim in self.socialId:
-            L = self.socialId.split(delim, 1)
-            return L[-1]
-
-    def isForTestTransaction(self):
-        """Test if user.email matches TEST_CARD_EMAIL_PATTERN
-        Returns:int/None code from email or None if no match
-        """
-        user_email = self.user.email
-        m = TEST_CARD_EMAIL_PATTERN.match(user_email)
-        if m:
-            return int(m.groups()[0])
-        return None
-
-
-# Many-to-many through relation between Profile and CmeTag
-class ProfileCmetag(models.Model):
-    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, db_index=True)
-    tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        unique_together = ('profile','tag')
-        ordering = ['tag',]
-
-    def __str__(self):
-        return '{0.tag}|{0.is_active}'.format(self)
-
 
 class Affiliate(models.Model):
     user = models.OneToOneField(User,
@@ -506,48 +85,6 @@ class AffiliateDetail(models.Model):
 
     def __str__(self):
         return '{0.affiliate}|{0.affiliateId}'.format(self)
-
-class LicenseType(models.Model):
-    name = models.CharField(max_length=10, unique=True)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-class StateLicense(models.Model):
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='statelicenses',
-        db_index=True
-    )
-    state = models.ForeignKey(State,
-        on_delete=models.CASCADE,
-        related_name='statelicenses',
-        db_index=True
-    )
-    license_type = models.ForeignKey(LicenseType,
-        on_delete=models.CASCADE,
-        related_name='statelicenses',
-        db_index=True
-    )
-    license_no = models.CharField(max_length=40, blank=True, default='',
-            help_text='License number')
-    expiryDate = models.DateTimeField(null=True, blank=True)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        unique_together = ('user','state','license_type','license_no')
-
-    def __str__(self):
-        return self.license_no
-
-    def getLabelForCertificate(self):
-        """Returns str e.g. California RN License #12345
-        """
-        label = "{0.state.name} {0.license_type.name} License #{0.license_no}".format(self)
-        return label
 
 class CustomerManager(models.Manager):
     def findBtCustomer(self, customer):
@@ -696,662 +233,6 @@ class Customer(models.Model):
     def __str__(self):
         return str(self.customerId)
 
-# Sponsors for entries in feed
-@python_2_unicode_compatible
-class Sponsor(models.Model):
-    abbrev = models.CharField(max_length=10, unique=True)
-    name = models.CharField(max_length=200, unique=True)
-    url = models.URLField(max_length=1000, blank=True, help_text='Link to website of sponsor')
-    logo_url = models.URLField(max_length=1000, help_text='Link to logo of sponsor')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-
-class EligibleSiteManager(models.Manager):
-    def getSiteIdsForProfile(self, profile):
-        """Returns list of EligibleSite ids whose specialties intersect
-        with the profile's specialties
-        """
-        specids = [s.pk for s in profile.specialties.all()]
-        # need distinct here to weed out dups
-        esiteids = EligibleSite.objects.filter(specialties__in=specids).values_list('id', flat=True).distinct()
-        return esiteids
-
-@python_2_unicode_compatible
-class EligibleSite(models.Model):
-    """Eligible (or white-listed) domains that will be recognized by the plugin.
-    To start, we will have a manual system for translating data in this model
-    into the AllowedUrl model.
-    """
-    domain_name = models.CharField(max_length=100,
-        help_text='wikipedia.org')
-    domain_title = models.CharField(max_length=300,
-        help_text='e.g. Wikipedia Anatomy Pages')
-    example_url = models.URLField(max_length=1000,
-        help_text='A URL within the given domain')
-    example_title = models.CharField(max_length=300, blank=True,
-        help_text='Label for the example URL')
-    verify_journal = models.BooleanField(default=False,
-            help_text='If True, need to verify article belongs to an allowed journal before making offer.')
-    issn = models.CharField(max_length=9, blank=True, default='', help_text='ISSN')
-    electronic_issn = models.CharField(max_length=9, blank=True, default='', help_text='Electronic ISSN')
-    description = models.CharField(max_length=500, blank=True)
-    specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
-    needs_ad_block = models.BooleanField(default=False)
-    all_specialties = models.BooleanField(default=False)
-    is_unlisted = models.BooleanField(default=False, blank=True, help_text='True if site should be unlisted')
-    page_title_suffix = models.CharField(max_length=60, blank=True, default='', help_text='Common suffix for page titles')
-    doi_prefixes = models.CharField(max_length=80, blank=True, default='',
-            help_text='Comma separated list of common doi prefixes of articles of this site')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-    objects = EligibleSiteManager()
-
-    def __str__(self):
-        return self.domain_title
-
-
-# A Story is broadcast to many users.
-# The launch_url must be customized to include the user id when sending
-# it in the response for a given user.
-@python_2_unicode_compatible
-class Story(models.Model):
-    sponsor = models.ForeignKey(Sponsor,
-        on_delete=models.PROTECT,
-        db_index=True
-    )
-    title = models.CharField(max_length=500)
-    description = models.CharField(max_length=2000)
-    credits = models.DecimalField(max_digits=4, decimal_places=2, default=1, blank=True,
-        help_text='CME credits to be awarded upon completion (default = 1)')
-    startDate = models.DateTimeField()
-    expireDate = models.DateField(help_text='Expiration date for display')
-    endDate = models.DateTimeField(help_text='Expiration timestamp used by server')
-    launch_url = models.URLField(max_length=1000, help_text='Form URL')
-    entry_url = models.URLField(max_length=1000, help_text='Article URL will be copied to the feed entries.')
-    entry_title = models.CharField(max_length=1000, help_text='Article title will be copied to the feed entries.')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name_plural = 'Stories'
-
-    def __str__(self):
-        return self.title
-
-
-# Extensible list of entry types that can appear in a user's feed
-@python_2_unicode_compatible
-class EntryType(models.Model):
-    name = models.CharField(max_length=30, unique=True)
-    description = models.CharField(max_length=100, blank=True)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-
-def entry_document_path(instance, filename):
-    return '{0}/uid_{1}/{2}'.format(settings.FEED_MEDIA_BASEDIR, instance.user.id, filename)
-
-@python_2_unicode_compatible
-class Document(models.Model):
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='documents',
-        db_index=True
-    )
-    document = models.FileField(upload_to=entry_document_path)
-    name = models.CharField(max_length=255, blank=True, help_text='Original file name')
-    md5sum = models.CharField(max_length=32, blank=True, help_text='md5sum of the document file')
-    content_type = models.CharField(max_length=100, blank=True, help_text='file content_type')
-    image_h = models.PositiveIntegerField(null=True, blank=True, help_text='image height')
-    image_w = models.PositiveIntegerField(null=True, blank=True, help_text='image width')
-    is_thumb = models.BooleanField(default=False, help_text='True if the file is an image thumbnail')
-    set_id = models.CharField(max_length=36, blank=True, help_text='Used to group an image and its thumbnail into a set')
-    is_certificate = models.BooleanField(default=False, help_text='True if file is a certificate (if so, will be shared in audit report)')
-    referenceId = models.CharField(max_length=255,
-        null=True,
-        blank=True,
-        unique=True,
-        default=None,
-        help_text='alphanum unique key generated from the document id')
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.md5sum
-
-
-# Base class for all feed entries (contains fields common to all entry types)
-# A entry belongs to a user, and is defined by an activityDate and a description.
-
-AuditReportResult = namedtuple('AuditReportResult',
-    'saEntries brcmeEntries otherSrCmeEntries saCmeTotal otherCmeTotal creditSumByTag'
-)
-
-class EntryManager(models.Manager):
-
-    def prepareDataForAuditReport(self, user, startDate, endDate):
-        """
-        Filter entries by user and activityDate range, and order by activityDate desc.
-        Partition the qset into:
-            saEntries: entries with tag=CMETAG_SACME
-            The non SA-CME entries are further partitioned into:
-            brcmeEntries: entries with entryType=ENTRYTYPE_BRCME
-            otherSrCmeEntries: non SA-CME entries (sr-cme only)
-        Note that for some users, their br-cme entries will fall into the saEntries bucket.
-        Returns AuditReportResult
-        """
-        satag = CmeTag.objects.get(name=CMETAG_SACME)
-        filter_kwargs = dict(
-            user=user,
-            activityDate__gte=startDate,
-            activityDate__lte=endDate,
-            valid=True
-        )
-        p_docs = Prefetch('documents',
-            queryset=Document.objects.filter(user=user, is_certificate=True, is_thumb=False).order_by('-created'),
-            to_attr='cert_docs'
-        )
-        qset = self.model.objects \
-            .select_related('entryType', 'sponsor') \
-            .filter(**filter_kwargs) \
-            .exclude(entryType__name=ENTRYTYPE_NOTIFICATION) \
-            .prefetch_related('tags', p_docs) \
-            .order_by('-activityDate')
-        saEntries = []  # list of Entry instances having CMETAG_SACME in their tags
-        brcmeEntries = []
-        otherSrCmeEntries = []
-        creditSumByTag = {}
-        otherCmeTotal = 0
-        #print('Num entries: {0}'.format(qset.count()))
-        try:
-            for m in qset:
-                credits = 0
-                entry_tags = m.tags.all()
-                tagids = set([t.pk for t in entry_tags])
-                #tagnames = [t.name for t in entry_tags]
-                #print('{0.pk} {0}|{1}'.format(m, ','.join(tagnames)))
-                if satag.pk in tagids:
-                    saEntries.append(m)
-                    logger.debug('-- Add entry {0.pk} {0.entryType} to saEntries'.format(m))
-                else:
-                    if m.entryType.name == ENTRYTYPE_BRCME:
-                        brcmeEntries.append(m)
-                        credits = m.brcme.credits
-                    else:
-                        otherSrCmeEntries.append(m)
-                        credits = m.srcme.credits
-                    otherCmeTotal += credits
-                #print('-- credits: {0}'.format(credits))
-                # add credits to creditSumByTag
-                for t in entry_tags:
-                    if t.pk == satag.pk:
-                        continue
-                    creditSumByTag[t.name] = creditSumByTag.setdefault(t.name, 0) + credits
-                    #print('---- {0.name} : {1}'.format(t, creditSumByTag[t.name]))
-            # sum credit totals
-            saCmeTotal = sum([m.getCredits() for m in saEntries])
-        except Exception:
-            logger.exception('prepareDataForAuditReport exception')
-        else:
-            logger.debug('saCmeTotal: {0}'.format(saCmeTotal))
-            #logger.debug('otherCmeTotal: {0}'.format(otherCmeTotal))
-            res = AuditReportResult(
-                saEntries=saEntries,
-                brcmeEntries=brcmeEntries,
-                otherSrCmeEntries=otherSrCmeEntries,
-                saCmeTotal=saCmeTotal,
-                otherCmeTotal=otherCmeTotal,
-                creditSumByTag=creditSumByTag
-            )
-            return res
-
-    def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
-        """
-        Total valid Srcme credits over the given time period for the given user.
-        Optional filter by specific tag (cmeTag object).
-        Optional filter by untagged only. This arg cannot be specified together with tag.
-        """
-        filter_kwargs = dict(
-            valid=True,
-            user=user,
-            entryType__name=ENTRYTYPE_SRCME,
-            activityDate__gte=startDate,
-            activityDate__lte=endDate
-        )
-        if tag:
-            filter_kwargs['tags__exact'] = tag
-        qset = self.model.objects.select_related('entryType').filter(**filter_kwargs)
-        if untaggedOnly:
-            qset = qset.annotate(num_tags=Count('tags')).filter(num_tags=0)
-        total = qset.aggregate(credit_sum=Sum('srcme__credits'))
-        credit_sum = total['credit_sum']
-        if credit_sum:
-            return float(credit_sum)
-        return 0
-
-
-    def sumStoryCme(self, user, startDate, endDate):
-        """
-        Total valid StoryCme credits over the given time period for the given user.
-        """
-        filter_kwargs = dict(
-            valid=True,
-            user=user,
-            entryType__name=ENTRYTYPE_STORY_CME,
-            activityDate__gte=startDate,
-            activityDate__lte=endDate
-        )
-        qset = self.model.objects.select_related('entryType').filter(**filter_kwargs)
-        total = qset.aggregate(credit_sum=Sum('storycme__credits'))
-        credit_sum = total['credit_sum']
-        if credit_sum:
-            return float(credit_sum)
-        return 0
-
-
-    def sumBrowserCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
-        """
-        Total valid BrowserCme credits over the given time period for the given user.
-        Optional filter by specific tag (cmeTag object).
-        Optional filter by untagged only. This arg cannot be specified together with tag.
-        """
-        filter_kwargs = dict(
-            entry__valid=True,
-            entry__user=user,
-            entry__activityDate__gte=startDate,
-            entry__activityDate__lte=endDate
-        )
-        if tag:
-            filter_kwargs['entry__tags__exact'] = tag
-        qset = BrowserCme.objects.select_related('entry').filter(**filter_kwargs)
-        if untaggedOnly:
-            qset = qset.annotate(num_tags=Count('entry__tags')).filter(num_tags=0)
-        total = qset.aggregate(credit_sum=Sum('credits'))
-        credit_sum = total['credit_sum']
-        if credit_sum:
-            return float(credit_sum)
-        return 0
-
-
-@python_2_unicode_compatible
-class Entry(models.Model):
-    CREDIT_CATEGORY_1 = u'1'
-    CREDIT_CATEGORY_1_LABEL = AMA_PRA_CATEGORY_LABEL + u'1 Credit'
-    CREDIT_OTHER = u'0'
-    CREDIT_OTHER_LABEL = u'Other' # choice label in form
-    CREDIT_OTHER_TAGNAME = u'non-Category 1 Credit' # in audit report
-    # fields
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='entries',
-        db_index=True
-    )
-    entryType = models.ForeignKey(EntryType,
-        on_delete=models.PROTECT,
-        db_index=True
-    )
-    sponsor = models.ForeignKey(Sponsor,
-        on_delete=models.PROTECT,
-        null=True,
-        db_index=True
-    )
-    activityDate = models.DateTimeField()
-    description = models.CharField(max_length=500)
-    valid = models.BooleanField(default=True)
-    tags = models.ManyToManyField(CmeTag, related_name='entries')
-    documents = models.ManyToManyField(Document, related_name='entries')
-    ama_pra_catg = models.CharField(max_length=2, blank=True, help_text='AMA PRA Category')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-    objects = EntryManager()
-
-    def __str__(self):
-        return '{0.pk}|{0.entryType}|{0.user}|{0.activityDate}'.format(self)
-
-    def asLocalTz(self):
-        return self.created.astimezone(LOCAL_TZ)
-
-    def formatTags(self):
-        """Returns a comma-separated string of self.tags ordered by tag name"""
-        names = [t.name for t in self.tags.all()]  # should use default ordering on CmeTag model
-        return u', '.join(names)
-    formatTags.short_description = "CmeTags"
-
-    def formatNonSATags(self):
-        """Returns a comma-separated string of self.tags ordered by tag name excluding SA-CME"""
-        names = [t.name for t in self.tags.all() if t.name != CMETAG_SACME]  # should use default ordering on CmeTag model
-        return u', '.join(names)
-
-    def formatCreditType(self):
-        """The CREDIT_OTHER is formatted for the audit report"""
-        if self.ama_pra_catg == Entry.CREDIT_CATEGORY_1:
-            return Entry.CREDIT_CATEGORY_1_LABEL
-        if self.ama_pra_catg == Entry.CREDIT_OTHER:
-            return Entry.CREDIT_OTHER_TAGNAME
-        return u''
-
-    def getCredits(self):
-        """Returns credit:Decimal value"""
-        if self.entryType.name == ENTRYTYPE_SRCME:
-            return self.srcme.credits
-        if self.entryType.name == ENTRYTYPE_BRCME:
-            return self.brcme.credits
-        if self.entryType.name == ENTRYTYPE_STORY_CME:
-            return self.storycme.credits
-        return 0
-
-    def getCertDocReferenceId(self):
-        """This expects attr cert_docs:list from prefetch_related.
-        This is used by the CreateAuditReport view
-        Returns referenceId for the first item in the list or empty str
-        """
-        if self.cert_docs:
-            return self.cert_docs[0].referenceId
-        return u''
-
-    def getCertifyingAuthority(self):
-        """If sponsor, use sponsor name, else
-        use SELF_REPORTED_AUTHORITY
-        """
-        if self.sponsor:
-            return self.sponsor.name
-        return SELF_REPORTED_AUTHORITY
-
-    def getNumDocuments(self):
-        """Returns number of associated documents"""
-        return self.documents.all().count()
-
-    class Meta:
-        verbose_name_plural = 'Entries'
-        # custom permissions
-        # https://docs.djangoproject.com/en/1.10/topics/auth/customizing/#custom-permissions
-        permissions = (
-            (PERM_VIEW_FEED, 'Can view Feed'),
-            (PERM_VIEW_DASH, 'Can view Dashboard'),
-            (PERM_POST_BRCME, 'Can redeem BrowserCmeOffer'),
-            (PERM_DELETE_BRCME, 'Can delete BrowserCme entry'),
-            (PERM_EDIT_BRCME, 'Can edit BrowserCme entry'),
-            (PERM_POST_SRCME, 'Can post Self-reported Cme entry'),
-            (PERM_PRINT_AUDIT_REPORT, 'Can print/share audit report'),
-            (PERM_PRINT_BRCME_CERT, 'Can print/share BrowserCme certificate'),
-        )
-
-# Notification entry (in-feed message to user)
-@python_2_unicode_compatible
-class Notification(models.Model):
-    entry = models.OneToOneField(Entry,
-        on_delete=models.CASCADE,
-        related_name='notification',
-        primary_key=True
-    )
-    expireDate = models.DateTimeField(default=ACTIVE_OFFDATE)
-
-    def __str__(self):
-        return self.entry.activityDate
-
-# Self-reported CME
-# Earned credits are self-reported
-@python_2_unicode_compatible
-class SRCme(models.Model):
-    entry = models.OneToOneField(Entry,
-        on_delete=models.CASCADE,
-        related_name='srcme',
-        primary_key=True
-    )
-    credits = models.DecimalField(max_digits=6, decimal_places=2)
-
-    def __str__(self):
-        return str(self.credits)
-
-
-class BrowserCmeManager(models.Manager):
-
-    def hasEarnedMonthLimit(self, user_subs, year, month):
-        """Returns True if user has reached the monthly limit set by user_subs.plan
-        Note: this should only be called for LimitedCme plans.
-        Args:
-            user_subs: UserSubscription instance
-            year:int
-            month:int
-        """
-        user = user_subs.user
-        plan = user_subs.plan
-        qs = self.model.objects.select_related('entry').filter(
-            entry__user=user,
-            entry__created__year=year,
-            entry__created__month=month,
-            entry__valid=True
-        ).aggregate(cme_total=Sum('credits'))
-        return qs['cme_total'] >= plan.maxCmeMonth
-
-    def hasEarnedYearLimit(self, user_subs, year):
-        """Returns True if user has reached the monthly limit set by user_subs.plan
-        Note: this should only be called for LimitedCme plans.
-        Args:
-            user_subs: UserSubscription instance
-            dt: datetime - used for year count
-        """
-        user = user_subs.user
-        plan = user_subs.plan
-        qs = self.model.objects.select_related('entry').filter(
-            entry__user=user,
-            entry__created__year=year,
-            entry__valid=True
-        ).aggregate(cme_total=Sum('credits'))
-        return qs['cme_total'] >= plan.maxCmeYear
-
-    def totalCredits(self):
-        """Calculate total BrowserCme credits earned over all time
-        Returns: Decimal
-        """
-        qs = self.model.objects.select_related('entry').filter(
-            entry__valid=True
-        ).aggregate(cme_total=Sum('credits'))
-        return qs['cme_total']
-
-    def randResponse(self):
-        return random.randint(0, 2)
-
-    def getDefaultPlanText(self, user):
-        """Args:
-            user: User instance
-        Returns: str default value for planText based on user specialty
-        """
-        profile = user.profile
-        ps = set([p.name for p in profile.specialties.all()])
-        s = ps.intersection(SACME_SPECIALTIES)
-        if s:
-            planText = self.model.DIFFERENTIAL_DIAGNOSIS
-        else:
-            planText = self.model.TREATMENT_PLAN
-        return planText
-
-    def randPlanChange(self, user):
-        """Args:
-        user: User instance
-        Returns: tuple (planEffect:int, planText:str)
-        """
-        planEffect = random.randint(0, 1)
-        planText = ''
-        if planEffect:
-            planText = self.getDefaultPlanText(user)
-        return (planEffect, planText)
-
-# Browser CME entry
-# An entry is created when a Browser CME offer is redeemed by the user
-@python_2_unicode_compatible
-class BrowserCme(models.Model):
-    RESPONSE_NO = 0
-    RESPONSE_YES = 1
-    RESPONSE_UNSURE = 2
-    RESPONSE_CHOICES = (
-        (RESPONSE_YES, 'Yes'),
-        (RESPONSE_NO, 'No'),
-        (RESPONSE_UNSURE, 'Unsure')
-    )
-    PURPOSE_DX = 0  # Diagnosis
-    PURPOSE_TX = 1 # Treatment
-    PURPOSE_CHOICES = (
-        (PURPOSE_DX, 'DX'),
-        (PURPOSE_TX, 'TX')
-    )
-    PLAN_EFFECT_N = 0 # no change to plan
-    PLAN_EFFECT_Y = 1 # change to plan
-    PLAN_EFFECT_CHOICES = (
-        (RESPONSE_NO, 'No change'),
-        (RESPONSE_YES, 'Change')
-    )
-    DIFFERENTIAL_DIAGNOSIS = u'Differential diagnosis'
-    TREATMENT_PLAN = u'Treatment plan'
-    DIAGNOSTIC_TEST = u'Diagnostic tests'
-    entry = models.OneToOneField(Entry,
-        on_delete=models.CASCADE,
-        related_name='brcme',
-        primary_key=True
-    )
-    offerId = models.PositiveIntegerField(null=True, default=None)
-    credits = models.DecimalField(max_digits=5, decimal_places=2)
-    url = models.URLField(max_length=500)
-    pageTitle = models.TextField()
-    purpose = models.IntegerField(
-        default=0,
-        choices=PURPOSE_CHOICES,
-        help_text='DX = Diagnosis. TX = Treatment'
-    )
-    competence = models.IntegerField(
-        default=1,
-        choices=RESPONSE_CHOICES,
-        help_text='Change in competence - conceptual understanding'
-    )
-    performance = models.IntegerField(
-        default=1,
-        choices=RESPONSE_CHOICES,
-        help_text='Change in performance - transfer of knowledge to practice'
-    )
-    planEffect = models.IntegerField(
-        default=0,
-        choices=PLAN_EFFECT_CHOICES
-    )
-    planText = models.CharField(max_length=500, blank=True, default='',
-            help_text='Explanation of changes to clinical plan'
-    )
-    commercialBias = models.IntegerField(
-        default=0,
-        choices=RESPONSE_CHOICES,
-        help_text='Commercial bias in content'
-    )
-    commercialBiasText = models.CharField(max_length=500, blank=True, default='',
-            help_text='Explanation of commercial bias in content'
-    )
-    objects = BrowserCmeManager()
-
-    def __str__(self):
-        return self.url
-
-    def formatActivity(self):
-        res = urlparse(self.url)
-        return res.netloc + ' - ' + self.entry.description
-
-# Story CME entry
-# An entry is created by a script for users who completed a particular Story
-@python_2_unicode_compatible
-class StoryCme(models.Model):
-    entry = models.OneToOneField(Entry,
-        on_delete=models.CASCADE,
-        related_name='storycme',
-        primary_key=True
-    )
-    story = models.ForeignKey(Story,
-        on_delete=models.PROTECT,
-        related_name='storycme',
-        db_index=True
-    )
-    credits = models.DecimalField(max_digits=5, decimal_places=2)
-    url = models.URLField(max_length=500)
-    title = models.TextField()
-
-    def __str__(self):
-        return self.url
-
-
-@python_2_unicode_compatible
-class UserFeedback(models.Model):
-    SNIPPET_MAX_CHARS = 80
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        db_index=True
-    )
-    entry = models.OneToOneField(Entry,
-        on_delete=models.SET_NULL,
-        related_name='feedback',
-        null=True,
-        blank=True,
-        default=None
-    )
-    message = models.CharField(max_length=500)
-    hasBias = models.BooleanField(default=False)
-    hasUnfairContent = models.BooleanField(default=False)
-    reviewed = models.BooleanField(default=False)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.message
-
-    def message_snippet(self):
-        if len(self.message) > UserFeedback.SNIPPET_MAX_CHARS:
-            return self.message[0:UserFeedback.SNIPPET_MAX_CHARS] + '...'
-        return self.message
-    message_snippet.short_description = "Message Snippet"
-
-    def asLocalTz(self):
-        return self.created.astimezone(LOCAL_TZ)
-
-    class Meta:
-        verbose_name_plural = 'User Feedback'
-
-
-# Pinned Messages (different from in-feed Notification).
-# Message is pinned and exactly 0 or 1 active Message exists for a user at any given time.
-class PinnedMessageManager(models.Manager):
-    def getLatestForUser(self, user):
-        now = timezone.now()
-        qset = PinnedMessage.objects.filter(user=user, startDate__lte=now, expireDate__gt=now).order_by('-created')
-        if qset.exists():
-            return qset[0]
-
-# This model is no longer used for Orbit Stories, it has been superseded by Story. Its fields need to be changed once we use it for user-specified PinnedMessages.
-@python_2_unicode_compatible
-class PinnedMessage(models.Model):
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='pinnedmessages',
-        db_index=True
-    )
-    sponsor = models.ForeignKey(Sponsor,
-        on_delete=models.PROTECT,
-        null=True,
-        db_index=True
-    )
-    title = models.CharField(max_length=200)
-    description = models.CharField(max_length=1000)
-    startDate = models.DateTimeField()
-    expireDate = models.DateTimeField(default=ACTIVE_OFFDATE)
-    launch_url = models.URLField(max_length=1000,
-        help_text='A URL for the Launch button')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-    objects = PinnedMessageManager()
-
-    def __str__(self):
-        return self.title
-
 
 # A Discount must be created in the Braintree Control Panel, and synced with the db.
 @python_2_unicode_compatible
@@ -1382,6 +263,7 @@ class Discount(models.Model):
 
     class Meta:
         ordering = ['discountType', '-created']
+
 
 class SignupDiscountManager(models.Manager):
 
@@ -1477,6 +359,9 @@ class InvitationDiscountManager(models.Manager):
 
 @python_2_unicode_compatible
 class InvitationDiscount(models.Model):
+    # maximum number of invites for which a discount is applied to the inviter's subscription.
+    INVITER_MAX_NUM_DISCOUNT = 10
+    # fields
     invitee = models.OneToOneField(User,
         on_delete=models.CASCADE,
         primary_key=True
@@ -1490,6 +375,7 @@ class InvitationDiscount(models.Model):
         on_delete=models.CASCADE,
         db_index=True,
         null=True,
+        blank=True,
         related_name='inviterdiscounts',
         help_text='Set when inviter subscription has been updated with the discount'
     )
@@ -1572,7 +458,7 @@ class AffiliatePayoutManager(models.Manager):
             for m in qset:
                 user_subs = UserSubscription.objects.getLatestSubscription(m.convertee)
                 #if user_subs:
-                if user_subs and user_subs.status == UserSubscription.ACTIVE and SubscriptionTransaction.objects.filter(subscription=user_subs).exists():
+                if user_subs and user_subs.status == UserSubscription.ACTIVE and user_subs.transactions.exists():
                     #print(m)
                     filtered.append(m)
             if filtered:
@@ -1672,10 +558,14 @@ class SubscriptionPlanKey(models.Model):
         return self.name
 
 class SubscriptionPlanType(models.Model):
+    BRAINTREE = 'Braintree'
+    FREE_INDIVIDUAL = 'Free'
+    ENTERPRISE = 'Enterprise'
+    # fields
     name = models.CharField(max_length=64, unique=True,
             help_text='Name of plan type. Must be unique.')
     needs_payment_method = models.BooleanField(default=False,
-            help_text='If true: requires payment method on signup to create a subscription.')
+            help_text='If true: requires payment method on signup to create a UserSubscription.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -1725,8 +615,8 @@ class SubscriptionPlanManager(models.Manager):
         Note: Plus plan is unaffected by plan_key and is always the Braintree plan.
         Returns: SubscriptionPlan queryset order by price
         """
-        pt_bt = SubscriptionPlanType.objects.get(name=PLAN_TYPE_BRAINTREE)
-        pt_free = SubscriptionPlanType.objects.get(name=PLAN_TYPE_FREE)
+        pt_bt = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.BRAINTREE)
+        pt_free = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.FREE_INDIVIDUAL)
         filter_kwargs = dict(active=True, plan_key=plan_key)
         if plan_key.use_free_plan:
             qset = self.model.objects.filter(
@@ -1739,13 +629,13 @@ class SubscriptionPlanManager(models.Manager):
         return qset.order_by('price')
 
     def getPaidPlanForFreePlan(self, free_plan):
-        """Finds the partner BT Standard Plan for the given free plan
+        """Finds the partner BT Standard Plan for the given free-individual plan
         Args:
-            free_plan: SubscriptionPlan that is free
+            free_plan: SubscriptionPlan whose plan_type is free-individual
         Returns: SubscriptionPlan
         Raises SubscriptionPlan.DoesNotExist exception if none found.
         """
-        pt_bt = SubscriptionPlanType.objects.get(name=PLAN_TYPE_BRAINTREE)
+        pt_bt = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.BRAINTREE)
         filter_kwargs = dict(
                 plan_key=free_plan.plan_key,
                 active=True,
@@ -1753,16 +643,39 @@ class SubscriptionPlanManager(models.Manager):
                 plan_type=pt_bt)
         return self.model.objects.get(**filter_kwargs)
 
-# Recurring Billing Plans
-# https://developers.braintreepayments.com/guides/recurring-billing/plans
+    def getEnterprisePlan(self):
+        qset = self.model.objects.select_related('plan_type').filter(plan_type__name=SubscriptionPlanType.ENTERPRISE, active=True)
+        return qset[0]
+
+    def findPlanKeyForProfile(self, profile):
+        """Find a plan_key that matches profile.degrees and specialties
+        Args:
+            profile: Profile instance
+        Returns: SubscriptionPlanKey instance/None
+        """
+        # find pick first plan_key that matches user degree and specialty
+        degree = profile.degrees.all()[0] if profile.degrees.exists() else None
+        specs = [ps.pk for ps in profile.specialties.all()]
+        filter_kwargs = dict()
+        if degree:
+            filter_kwargs['degree'] = degree
+        if specs:
+            filter_kwargs['specialty__in'] = specs
+        if filter_kwargs:
+            qset = SubscriptionPlanKey.objects.filter(**filter_kwargs).order_by('id')
+            if qset.exists():
+                return qset[0]
+        return None
+
 # All plans with plan_type=Braintree must be created in the Braintree Control Panel, and synced with the db.
+# https://developers.braintreepayments.com/guides/recurring-billing/plans
 @python_2_unicode_compatible
 class SubscriptionPlan(models.Model):
     planId = models.CharField(max_length=36,
             unique=True,
             help_text='Unique. No whitespace. If plan_type is Braintree, the planId must be in sync with the actual plan in Braintree')
     name = models.CharField(max_length=80,
-            help_text='Internal Plan name (alphanumeric only). Must match value in Braintree. Will be used to set planId.')
+            help_text='Internal Plan name (alphanumeric only). If plan_type is Braintree, it must match value in Braintree. Will be used to set planId.')
     display_name = models.CharField(max_length=40,
             help_text='Display name - what the user sees (e.g. Standard).')
     price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
@@ -1774,8 +687,6 @@ class SubscriptionPlan(models.Model):
             help_text='discounted price in USD')
     active = models.BooleanField(default=True)
     plan_type = models.ForeignKey(SubscriptionPlanType,
-        null=True,
-        blank=True,
         on_delete=models.PROTECT,
         db_index=True,
         related_name='plans',
@@ -1830,8 +741,11 @@ class SubscriptionPlan(models.Model):
         """True if this is an limited CME rate plan, else False"""
         return self.maxCmeMonth > 0
 
-    def isFree(self):
-        return not self.plan_type.needs_payment_method
+    def isEnterprise(self):
+        return self.plan_type.name == SubscriptionPlanType.ENTERPRISE
+
+    def isFreeIndividual(self):
+        return self.plan_type.name == SubscriptionPlanType.FREE_INDIVIDUAL
 
     def isPaid(self):
         return self.plan_type.needs_payment_method
@@ -1841,32 +755,49 @@ class SubscriptionPlan(models.Model):
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
 class UserSubscriptionManager(models.Manager):
     def getLatestSubscription(self, user):
-        qset = UserSubscription.objects.filter(user=user).order_by('-created')
+        qset = UserSubscription.objects.select_related('plan').filter(user=user).order_by('-created')
         if qset.exists():
             return qset[0]
 
+    def allowSignupDiscount(self, user):
+        """Check if user is allowed signup discounts
+        Args:
+            user: User instance
+        Returns: bool
+        """
+        # has user ever had a paid subs
+        qset = UserSubscription.objects.select_related('plan').filter(user=user).order_by('created')
+        for m in qset:
+            if m.plan.isPaid():
+                return False
+        return True
+
     def getPermissions(self, user_subs):
-        """Return the permissions for the group given by user_subs.display_status
+        """Helper method used by serializer_permissions.
+        Get the permissions for the group that matches user_subs.display_status
+        This does not handle extra permissions based on the user's assigned groups.
+        Based on user_subs.plan:
+            Include PERM_DELETE_BRCME for plans with isUnlimitedCme (no year or month limit)
+            Include PERM_ALLOW_INVITE for paid plans with active status.
         Returns: tuple (Permission queryset, is_brcme_month_limit, is_brcme_year_limit)
         """
         is_brcme_month_limit = False
         is_brcme_year_limit = False
+        plan = user_subs.plan
         g = Group.objects.get(name=user_subs.display_status)
-        if user_subs.plan.isUnlimitedCme():
-            qs1 = g.permissions.all()
-            qs2 = Permission.objects.filter(codename=PERM_DELETE_BRCME)
-            qset = qs1.union(qs2).order_by('codename')
+        qset = g.permissions.all()
+        if plan.isUnlimitedCme():
+            qset = qset.union(Permission.objects.filter(codename=PERM_DELETE_BRCME))
         else:
-            filter_kwargs = {}
             user = user_subs.user
             now = timezone.now()
-            if user_subs.plan.isLimitedCmeRate():
+            if plan.isLimitedCmeRate():
                 is_brcme_month_limit = BrowserCme.objects.hasEarnedMonthLimit(user_subs, now.year, now.month)
             is_brcme_year_limit = BrowserCme.objects.hasEarnedYearLimit(user_subs, now.year)
-            if is_brcme_month_limit or is_brcme_year_limit:
-                qset = g.permissions.exclude(codename=PERM_POST_BRCME).order_by('codename')
-            else:
-                qset = g.permissions.all().order_by('codename')
+        if plan.isPaid() and user_subs.display_status == self.model.UI_ACTIVE:
+            # UI will display unique invite url for this user to invite others
+            qset = qset.union(Permission.objects.filter(codename=PERM_ALLOW_INVITE))
+        qset = qset.order_by('codename')
         return (qset, is_brcme_month_limit, is_brcme_year_limit)
 
 
@@ -1875,6 +806,7 @@ class UserSubscriptionManager(models.Manager):
         the allowed permissions for the user in the response.
         Returns list of dicts: [{codename:str, allowed:bool}]
         for the permissions in appconstants.ALL_PERMS.
+        Exclude PERM_POST_BRCME if user has reached monthly/yearly cme limit.
         Returns:dict {
             permissions:list of dicts {codename, allow:bool},
             brcme_limit:dict {
@@ -1886,13 +818,21 @@ class UserSubscriptionManager(models.Manager):
         allowed_codes = []
         is_brcme_month_limit = False
         is_brcme_year_limit = False
-        # get any special admin groups that user is a member of
+        # get any special groups to which the user belongs
+        discard_codes = set([])
         for g in user.groups.all():
             allowed_codes.extend([p.codename for p in g.permissions.all()])
+            if g.name == GROUP_ENTERPRISE_MEMBER:
+                discard_codes.add(PERM_EDIT_PROFILECMETAG)
         if user_subs:
             qset, is_brcme_month_limit, is_brcme_year_limit = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
+            if is_brcme_month_limit or is_brcme_year_limit:
+                # if either limit is reached, disallow post of brcme (e.g. disallow redeem offer)
+                discard_codes.add(PERM_POST_BRCME)
         allowed_codes = set(allowed_codes)
+        for codename in discard_codes:
+            allowed_codes.discard(codename) # remove from set if exist
         perms = [{
                 'codename': codename,
                 'allow': codename in allowed_codes
@@ -1925,10 +865,71 @@ class UserSubscriptionManager(models.Manager):
         else:
             return bt_subs
 
+
+    def createEnterpriseMemberSubscription(self, user, plan, startDate=None):
+        """Create enterprise UserSubscription instance for the given user.
+        Add user to GROUP_ENTERPRISE_MEMBER group.
+        The display_status of the new subs is UI_ACTIVE.
+        Note: The billing dates are not used for actual billing
+        Args:
+            user: User instance
+            plan: SubscriptionPlan instance whose plan_type is ENTERPRISE
+        Returns UserSubscription instance
+        """
+        if not startDate:
+            startDate = user.date_joined
+        now = timezone.now()
+        nowId = now.strftime('%Y%m%d%H%M')
+        subsId = "ent.{0}.{1}".format(user.pk, nowId) # a unique id
+        user_subs = UserSubscription.objects.create(
+            user=user,
+            plan=plan,
+            subscriptionId=subsId,
+            display_status=UserSubscription.UI_ACTIVE,
+            status=UserSubscription.ACTIVE,
+            billingFirstDate=startDate,
+            billingStartDate=startDate,
+            billingEndDate=ACTIVE_OFFDATE
+        )
+        user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
+        return user_subs
+
+    def activateEnterpriseSubscription(self, user, org):
+        """Terminate current user_subs (if not Enterprise) and start new Enterprise member subscription.
+        Set profile.organization to the given org
+        Args:
+            user: User instance
+            org: Organization instance
+        Returns: UserSubscription instance
+        """
+        plan = SubscriptionPlan.objects.getEnterprisePlan()
+        user_subs = self.getLatestSubscription(user)
+        profile = user.profile
+        now = timezone.now()
+        if user_subs and not user_subs.plan.isEnterprise() and not user_subs.inTerminalState():
+            # terminate
+            if user_subs.plan.isFreeIndividual():
+                user_subs.status = UserSubscription.CANCELED
+                user_subs.display_status = UserSubscription.UI_TRIAL_CANCELED
+                user_subs.billingEndDate = now
+                user_subs.save()
+            else:
+                cancel_result = self.terminalCancelBtSubscription(user_subs)
+                if cancel_result.is_success:
+                    logger.info('activateEnterpriseSubscription: terminalCancelBtSubscription completed for {0.subscriptionId}'.format(user_subs))
+                else:
+                    logger.error('activateEnterpriseSubscription: terminalCancelBtSubscription failed for {0.subscriptionId}'.format(user_subs))
+        # start new enterprise subs
+        user_subs = self.createEnterpriseMemberSubscription(user, plan, now)
+        # update profile
+        profile.organization = org
+        profile.planId = plan.planId
+        profile.save(update_fields=('organization','planId'))
+        return user_subs
+
     def createFreeSubscription(self, user, plan):
-        """Create free UserSubscription instance for the given plan.
+        """Create free-individual UserSubscription instance for the given plan.
         The display_status of the new subs is UI_TRIAL.
-        The subscriptionId is constructed from the profile.inviteId so it is guaranteed to be unique.
         The date fields are not billing dates, they only represent the duration of the free trial period.
         Args:
             user: User instance
@@ -1937,7 +938,8 @@ class UserSubscriptionManager(models.Manager):
         """
         startDate = timezone.now()
         endDate = startDate + timedelta(days=plan.trialDays)
-        subsId = "fr.{0}".format(user.profile.inviteId) # a unique id
+        nowId = startDate.strftime('%Y%m%d%H%M')
+        subsId = "fr.{0}.{1}".format(user.pk, nowId) # a unique id
         user_subs = UserSubscription.objects.create(
             user=user,
             plan=plan,
@@ -1949,6 +951,64 @@ class UserSubscriptionManager(models.Manager):
             billingEndDate=endDate
         )
         return user_subs
+
+    def endEnterpriseSubscription(self, user):
+        """End the current Enterprise user_subs.
+        Args:
+            user: User instance
+        Remove user from GROUP_ENTERPRISE_MEMBER group.
+        Set profile.organization to None
+        Find the appropriate Free Standard Plan for this user based on profile
+        Create Free user_subs and set to CANCELED state. This allow user to use UI
+        to enter in their payment info and activate a paid plan within the plan_key.
+        """
+        user_subs = self.getLatestSubscription(user)
+        if not user_subs.plan.isEnterprise():
+            logger.error('endEnterpriseSubscription: invalid subscription {0.subscriptionId}'.format(user_subs))
+            return None
+        profile = user.profile
+        pt_free = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.FREE_INDIVIDUAL)
+        now = timezone.now()
+        # end current user_subs
+        user_subs.status = self.model.CANCELED
+        user_subs.display_status = self.model.UI_EXPIRED
+        user_subs.billingEndDate = now
+        user_subs.save()
+        # remove user from EnterpriseMember group
+        ge = Group.objects.get(name=GROUP_ENTERPRISE_MEMBER)
+        user.groups.remove(ge)
+        # clear profile.organization
+        profile.organization = None
+        profile.save(update_fields=('organization',))
+        # find appropriate plan_key for user
+        plan_key = SubscriptionPlan.objects.findPlanKeyForProfile(profile)
+        if not plan_key:
+            logger.warning('endEnterpriseSubscription: could not find plan_key for user {0}. Remove enterprise user_subs.'.format(user))
+            # delete enterprise user_subs so that user can join as individual user (or be re-added back to org)
+            user_subs.delete()
+            return
+        # Assign user to the FREE_INDIVIDUAL Standard plan under plan_key
+        filter_kwargs = dict(
+                active=True,
+                plan_key=plan_key,
+                plan_type=pt_free,
+                display_name='Standard'
+                )
+        qset = SubscriptionPlan.objects.filter(**filter_kwargs)
+        if not qset.exists():
+            logger.warning('endEnterpriseSubscription: no Free plan for plan_key: {0}'.format(plan_key))
+            return
+        # else
+        free_plan = qset[0]
+        f_user_subs = self.createFreeSubscription(user, free_plan)
+        f_user_subs.status = self.model.CANCELED
+        # this status directs UI to display a specific banner message to user
+        f_user_subs.display_status = self.model.UI_ENTERPRISE_CANCELED
+        f_user_subs.billingEndDate = now
+        f_user_subs.save()
+        profile.planId = free_plan.planId
+        profile.save(update_fields=('planId',))
+        logger.info('endEnterpriseSubscription: transfer user {0} to plan {1.name}'.format(user, free_plan))
 
     def createSubscriptionFromBt(self, user, plan, bt_subs):
         """Handle the result of calling braintree.Subscription.create
@@ -2076,7 +1136,7 @@ class UserSubscriptionManager(models.Manager):
         is_convertee = False
         discounts = [] # Discount instances to be applied
         inv_discount = None # saved to either InvitationDiscount or AffiliatePayout
-        subs_price = None
+        subs_price = plan.discountPrice
         key = 'invitee_discount'
         if key in subs_params:
             is_invitee = subs_params.pop(key)
@@ -2087,12 +1147,13 @@ class UserSubscriptionManager(models.Manager):
             inviter = user.profile.inviter # User instance (used below)
             if not inviter:
                 raise ValueError('createBtSubscription: Invalid inviter')
+            if is_convertee:
+                affl = Affiliate.objects.get(user=inviter) # used below in saving AffiliatePayout instance
             # used below in saving InvitationDiscount/AffiliatePayout model instance
             inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
-        qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
-        is_signup = not qset.exists() # if True, this will be the first Active subs for the user
-        # If user's email exists in SignupEmailPromo then it overrides any other discounts
-        if is_signup:
+        allow_signup = UserSubscription.objects.allowSignupDiscount(user)
+        if allow_signup:
+            # If user's email exists in SignupEmailPromo then it overrides any other discounts
             promo = SignupEmailPromo.objects.get_casei(user.email)
             if promo:
                 subs_price = promo.first_year_price
@@ -2111,17 +1172,14 @@ class UserSubscriptionManager(models.Manager):
         else:
             if is_invitee or is_convertee:
                 discounts.append(inv_discount)
-                # calculate subs_price
-                subs_price = plan.discountPrice - inv_discount.amount
+                subs_price -= inv_discount.amount # update subs_price
             if is_signup:
                 sd = SignupDiscount.objects.getForUser(user)
                 if sd:
                     discount = sd.discount
                     discounts.append(discount)
                     logger.info('Signup discount: {0} for user {1}'.format(discount, user))
-                    if not subs_price:
-                        subs_price = plan.discountPrice
-                    subs_price -= discount.amount # subtract signup discount
+                    subs_price -= discount.amount # signup discount stacks on top of any inv_discount
             if discounts:
                 # Add discounts:add key to subs_params
                 subs_params['discounts'] = {
@@ -2134,21 +1192,25 @@ class UserSubscriptionManager(models.Manager):
         logger.info('createBtSubscription result: {0.is_success}'.format(result))
         if result.is_success:
             user_subs = self.createSubscriptionFromBt(user, plan, result.subscription)
-            if is_invitee and not InvitationDiscount.objects.filter(invitee=user).exists():
-                # user can end/create subscription multiple times, but only add invitee once to InvitationDiscount.
-                InvitationDiscount.objects.create(
-                    inviter=inviter,
-                    invitee=user,
-                    inviteeDiscount=inv_discount
-                )
-            elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
-                afp_amount = inviter.affiliate.bonus*subs_price
-                AffiliatePayout.objects.create(
-                    convertee=user,
-                    converteeDiscount=inv_discount,
-                    affiliate=inviter.affiliate, # Affiliate instance
-                    amount=afp_amount
-                )
+            try:
+                if is_invitee and not InvitationDiscount.objects.filter(invitee=user).exists():
+                    # user can end/create subscription multiple times, but only add invitee once to InvitationDiscount.
+                    InvitationDiscount.objects.create(
+                        inviter=inviter,
+                        invitee=user,
+                        inviteeDiscount=inv_discount
+                    )
+                elif is_convertee and affl.bonus > 0 and not AffiliatePayout.objects.filter(convertee=user).exists():
+                    afp_amount = affl.bonus*subs_price
+                    AffiliatePayout.objects.create(
+                        convertee=user,
+                        converteeDiscount=inv_discount,
+                        affiliate=affl, # Affiliate instance
+                        amount=afp_amount
+                    )
+            except Exception, e:
+                # catch all and return user_subs since we need the db transaction to commit since bt_subs was successfully created
+                logger.error("createBtSubscription Exception after bt_subs was created: {0}".format(e))
         return (result, user_subs)
 
     def createBtSubscriptionWithTestAmount(self, user, plan, subs_params):
@@ -2210,14 +1272,13 @@ class UserSubscriptionManager(models.Manager):
             # owed = total - amount_already_paid (omitting any signup discounts b/c user earned that regardless of upgrade)
             owed = total - old_plan.discountPrice
             discount_amount = new_plan.price - owed
-            logger.debug('total   : {0}'.format(total))
-            logger.debug('owed    : {0}'.format(owed))
-            logger.debug('discount: {0}'.format(discount_amount))
         else:
             # user in post-first year
-            # the nominal amount paid (omitting any inviter discounts b/c user earned that regardless of upgrade)
-            discount_amount = old_plan.price
-            owed = new_plan.price - discount_amount
+            discount_amount = 0
+            owed = new_plan.price
+        logger.debug('total   : {0}'.format(total))
+        logger.debug('owed    : {0}'.format(owed))
+        logger.debug('discount: {0}'.format(discount_amount))
         return (owed, discount_amount)
 
 
@@ -2422,8 +1483,10 @@ class UserSubscriptionManager(models.Manager):
         """
         Cancel Braintree subscription - this is a terminal state. Once
             canceled, a subscription cannot be reactivated.
-        Update instance: set display_status to:
+        Update instance:
+         1. set display_status to:
             UI_TRIAL_CANCELED if previous display_status was UI_TRIAL, else to UI_EXPIRED.
+         2. Set billingEndDate to now. This stores when the subs was cancelled.
         Reference: https://developers.braintreepayments.com/reference/request/subscription/cancel/python
         Can raise braintree.exceptions.not_found_error.NotFoundError
         Returns Braintree result object
@@ -2431,6 +1494,7 @@ class UserSubscriptionManager(models.Manager):
         old_display_status = user_subs.display_status
         result = braintree.Subscription.cancel(user_subs.subscriptionId)
         if result.is_success:
+            now = timezone.now()
             user_subs.status = result.subscription.status
             if old_display_status == self.model.UI_TRIAL:
                 user_subs.display_status = self.model.UI_TRIAL_CANCELED
@@ -2438,6 +1502,7 @@ class UserSubscriptionManager(models.Manager):
                 user_subs.billingEndDate = user_subs.billingStartDate
             elif old_display_status != self.model.UI_SUSPENDED:  # leave UI_SUSPENDED as is to preserve this info
                 user_subs.display_status = self.model.UI_EXPIRED
+            user_subs.billingEndDate = now
             user_subs.save()
         return result
 
@@ -2458,24 +1523,26 @@ class UserSubscriptionManager(models.Manager):
             Call startActivePaidPlan. Arg new_plan must be a paid SubscriptionPlan
         """
         cur_plan = user_subs.plan
-        if cur_plan.isFree():
+        if cur_plan.isFreeIndividual():
             return self.startActivePaidPlan(user_subs, payment_token, new_plan)
 
         # If not given: new_plan is cur_plan
         # If given (e.g. by UpgradePlan): switch to new_plan
         plan = new_plan if new_plan else cur_plan
         user = user_subs.user
+        profile = user.profile
         subs_params = {
             'plan_id': plan.planId,
             'trial_duration': 0,
             'payment_method_token': payment_token
         }
-        if user.profile.inviter:
+        if profile.inviter:
             qset = UserSubscription.objects.filter(user=user).exclude(pk=user_subs.pk)
             if not qset.exists():
                 # User has no other subscription except this Trial which is to be canceled.
                 # Can apply invitee discount to the new Active subscription
-                if Affiliate.objects.filter(user=user.profile.inviter).exists():
+                if profile.affiliateId and Affiliate.objects.filter(user=user.profile.inviter).exists():
+                    # inviter is Affiliate *and* profile.affiliateId is set which means user was converted
                     subs_params['convertee_discount'] = True
                     logger.info('SwitchTrialToActive: apply convertee discount to new subscription for {0}'.format(user))
                 else:
@@ -2502,13 +1569,14 @@ class UserSubscriptionManager(models.Manager):
         Returns: (Braintree result object, UserSubscription)
         """
         user = user_subs.user
+        profile = user.profile
         subs_params = {
             'plan_id': new_plan.planId,
             'trial_duration': 0,
             'payment_method_token': payment_token
         }
-        if user.profile.inviter:
-            if Affiliate.objects.filter(user=user.profile.inviter).exists():
+        if profile.inviter:
+            if profile.affiliateId and Affiliate.objects.filter(user=user.profile.inviter).exists():
                 subs_params['convertee_discount'] = True
                 logger.info('startActivePaidPlan: apply convertee discount to new subscription for {0}'.format(user))
             else:
@@ -2577,11 +1645,11 @@ class UserSubscriptionManager(models.Manager):
         for d in bt_subs.discounts:
             if d.id == discount.discountId:
                 add_new_discount = False
-                if d.quantity < INVITER_MAX_NUM_DISCOUNT:
+                if d.quantity < InvitationDiscount.INVITER_MAX_NUM_DISCOUNT:
                     # Update existing row: increment quantity
                     new_quantity = d.quantity + 1
                 else:
-                    logger.info('Inviter {0.user} has already earned  max discount quantity: {1}'.format(user_subs, INVITER_MAX_NUM_DISCOUNT))
+                    logger.info('Inviter {0.user} has already earned  max discount quantity.'.format(user_subs))
                 break
         subs_params = None
         if add_new_discount:
@@ -2631,7 +1699,7 @@ class UserSubscriptionManager(models.Manager):
         """
         today = timezone.now()
         saved = False
-        if user_subs.plan.isFree():
+        if user_subs.plan.isFreeIndividual():
             if user_subs.display_status == self.model.UI_TRIAL and (today > user_subs.billingEndDate):
                 # free subscription period is over. Switch to UI_TRIAL_CANCELED.
                 user_subs.status = self.model.CANCELED
@@ -2760,6 +1828,7 @@ class UserSubscription(models.Model):
     UI_ACTIVE_CANCELED = 'Active-Canceled'
     UI_ACTIVE_DOWNGRADE = 'Active-Downgrade-Scheduled'
     UI_TRIAL_CANCELED = 'Trial-Canceled'
+    UI_ENTERPRISE_CANCELED = 'Enterprise-Canceled'
     UI_SUSPENDED = 'Suspended'
     UI_EXPIRED = 'Expired'
     UI_STATUS_CHOICES = (
@@ -2770,6 +1839,7 @@ class UserSubscription(models.Model):
         (UI_EXPIRED, UI_EXPIRED),
         (UI_TRIAL_CANCELED, UI_TRIAL_CANCELED),
         (UI_ACTIVE_DOWNGRADE, UI_ACTIVE_DOWNGRADE),
+        (UI_ENTERPRISE_CANCELED, UI_ENTERPRISE_CANCELED)
     )
     RESULT_ALREADY_CANCELED = 'Subscription has already been canceled.'
     # fields
@@ -2812,6 +1882,16 @@ class UserSubscription(models.Model):
 
     def __str__(self):
         return self.subscriptionId
+
+    def inTerminalState(self):
+        """Returns True if status is CANCELED or EXPIRED"""
+        return self.status == UserSubscription.CANCELED or self.status == UserSubscription.EXPIRED
+
+    def canRejoinEnterpise(self):
+        """Returns True if self is inTerminalState or is already an existing Enterprise user_subs
+        """
+        return self.plan.isEnterprise() or self.inTerminalState()
+
 
 class SubscriptionEmailManager(models.Manager):
     def getOrCreate(self, user_subs):
@@ -2977,282 +2057,4 @@ class SubscriptionTransaction(models.Model):
                 SubscriptionTransaction.PROCESSOR_DECLINED
             )
 
-def certificate_document_path(instance, filename):
-    return '{0}/uid_{1}/{2}'.format(settings.CERTIFICATE_MEDIA_BASEDIR, instance.user.id, filename)
 
-# BrowserCme certificate - generated file
-@python_2_unicode_compatible
-class Certificate(models.Model):
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='certificates',
-        db_index=True
-    )
-    tag = models.ForeignKey(CmeTag,
-        on_delete=models.PROTECT,
-        related_name='certificates',
-        null=True,
-        default=None,
-        db_index=True
-    )
-    state_license = models.ForeignKey(StateLicense,
-        on_delete=models.PROTECT,
-        related_name='certificates',
-        null=True,
-        default=None,
-        db_index=True
-    )
-    referenceId = models.CharField(max_length=64,
-        null=True,
-        blank=True,
-        unique=True,
-        default=None,
-        help_text='alphanum unique key generated from the certificate id')
-    name = models.CharField(max_length=255, help_text='Name on certificate')
-    startDate = models.DateTimeField()
-    endDate = models.DateTimeField()
-    credits = models.DecimalField(max_digits=6, decimal_places=2)
-    document = models.FileField(upload_to=certificate_document_path)
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
-
-    def getAccessUrl(self):
-        """Returns the front-end URL to access this certificate"""
-        return "https://{0}/certificate/{1}".format(settings.SERVER_HOSTNAME, self.referenceId)
-
-def audit_report_document_path(instance, filename):
-    return '{0}/uid_{1}/{2}'.format(settings.AUDIT_REPORT_MEDIA_BASEDIR, instance.user.id, filename)
-
-# Audit Report - raw data for the report is saved in JSONField
-@python_2_unicode_compatible
-class AuditReport(models.Model):
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='auditreports',
-        db_index=True
-    )
-    certificate = models.ForeignKey(Certificate,
-        on_delete=models.PROTECT,
-        null=True,
-        db_index=True,
-        related_name='auditreports',
-        help_text='BrowserCme Certificate generated for the same date range'
-    )
-    referenceId = models.CharField(max_length=64,
-        null=True,
-        blank=True,
-        unique=True,
-        default=None,
-        help_text='alphanum unique key generated from the pk')
-    name = models.CharField(max_length=255, help_text='Name/title of the report')
-    startDate = models.DateTimeField()
-    endDate = models.DateTimeField()
-    saCredits = models.DecimalField(max_digits=6, decimal_places=2, help_text='Calculated number of SA-CME credits')
-    otherCredits = models.DecimalField(max_digits=6, decimal_places=2, help_text='Calculated number of other credits')
-    data = JSONField()
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.referenceId
-
-
-#
-# plugin models - managed by plugin_server project
-#
-@python_2_unicode_compatible
-class AllowedHost(models.Model):
-    id = models.AutoField(primary_key=True)
-    hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
-    description = models.CharField(max_length=500, blank=True, default='')
-    accept_query_keys = models.TextField(blank=True, default='', help_text='accepted keys in url query')
-    has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
-    allow_page_download = models.BooleanField(blank=True, default=True,
-            help_text='False if pages under this host should not be downloaded')
-    is_secure = models.BooleanField(blank=True, default=False, help_text='True if site uses a secure connection (https).')
-    created = models.DateTimeField(auto_now_add=True, blank=True)
-    modified = models.DateTimeField(auto_now=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_allowedhost'
-
-    def __str__(self):
-        return self.hostname
-
-@python_2_unicode_compatible
-class HostPattern(models.Model):
-    id = models.AutoField(primary_key=True)
-    host = models.ForeignKey(AllowedHost,
-        on_delete=models.CASCADE,
-        related_name='hostpatterns',
-        db_index=True
-    )
-    eligible_site = models.ForeignKey(EligibleSite,
-        on_delete=models.CASCADE,
-        db_index=True)
-    path_contains = models.CharField(max_length=200, blank=True, default='',
-        help_text='If given, url path part must contain this term. No trailing slash.')
-    path_reject = models.CharField(max_length=200, blank=True, default='',
-        help_text='If given, url path part must not contain this term. No trailing slash.')
-    pattern_key = models.CharField(max_length=40, help_text='valid key in URL_PATTERNS dict')
-    created = models.DateTimeField(auto_now_add=True, blank=True)
-    modified = models.DateTimeField(auto_now=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_hostpattern'
-        ordering = ['host','eligible_site','pattern_key','path_contains']
-
-    def __str__(self):
-        return '{0.host}|{0.eligible_site.domain_name}|{0.pattern_key}|pc:{0.path_contains}|pr: {0.path_reject}'.format(self)
-
-@python_2_unicode_compatible
-class AllowedUrl(models.Model):
-    id = models.AutoField(primary_key=True)
-    host = models.ForeignKey(AllowedHost,
-        on_delete=models.CASCADE,
-        db_index=True
-    )
-    eligible_site = models.ForeignKey(EligibleSite,
-        on_delete=models.CASCADE,
-        db_index=True)
-    url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
-    valid = models.BooleanField(default=True)
-    page_title = models.TextField(blank=True, default='')
-    metadata = models.TextField(blank=True, default='')
-    doi = models.CharField(max_length=100, blank=True,
-        help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
-    pmid = models.CharField(max_length=20, blank=True, help_text='PubMed Identifier (PMID)')
-    pmcid = models.CharField(max_length=20, blank=True, help_text='PubMedCentral Identifier (PMCID)')
-    set_id = models.CharField(max_length=500, blank=True,
-        help_text='Used to group a set of URLs that point to the same resource')
-    content_type = models.CharField(max_length=100, blank=True, help_text='page content_type')
-    cmeTags = models.ManyToManyField(CmeTag, blank=True, related_name='aurls')
-    created = models.DateTimeField(auto_now_add=True, blank=True)
-    modified = models.DateTimeField(auto_now=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_allowedurl'
-
-    def __str__(self):
-        return self.url
-
-class RejectedUrl(models.Model):
-    id = models.AutoField(primary_key=True)
-    host = models.ForeignKey(AllowedHost, db_index=True)
-    url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
-    starts_with = models.BooleanField(default=False, help_text='True if any sub URL under it should also be rejected')
-    created = models.DateTimeField(auto_now_add=True, blank=True)
-    modified = models.DateTimeField(auto_now=True, blank=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_rejectedurl'
-
-    def __str__(self):
-        return self.url
-
-# Requests made by plugin users for new AllowedUrl entries
-@python_2_unicode_compatible
-class RequestedUrl(models.Model):
-    id = models.AutoField(primary_key=True)
-    url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
-    valid = models.NullBooleanField(default=None)
-    users = models.ManyToManyField(User, through='WhitelistRequest')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_requestedurl'
-
-    def __str__(self):
-        return self.url
-
-# User-RequestedUrl association
-@python_2_unicode_compatible
-class WhitelistRequest(models.Model):
-    id = models.AutoField(primary_key=True)
-    req_url = models.ForeignKey(RequestedUrl, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    created = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_whitelistrequest'
-        unique_together = ('req_url', 'user')
-
-    def __str__(self):
-        return '{0}-{1}'.format(self.user, self.req_url.url)
-
-# OrbitCmeOffer
-# An offer for a user is generated based on the user's plugin activity.
-@python_2_unicode_compatible
-class OrbitCmeOffer(models.Model):
-    id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='new_offers',
-        db_index=True
-    )
-    sponsor = models.ForeignKey(Sponsor,
-        on_delete=models.PROTECT,
-        related_name='new_offers',
-        db_index=True
-    )
-    eligible_site = models.ForeignKey(EligibleSite,
-        on_delete=models.PROTECT,
-        related_name='new_offers',
-        db_index=True)
-    url = models.ForeignKey(AllowedUrl,
-        on_delete=models.PROTECT,
-        related_name='new_offers',
-        db_index=True)
-    activityDate = models.DateTimeField()
-    suggestedDescr = models.TextField(blank=True, default='')
-    expireDate = models.DateTimeField()
-    redeemed = models.BooleanField(default=False)
-    valid = models.BooleanField(default=True)
-    credits = models.DecimalField(max_digits=5, decimal_places=2,
-        help_text='CME credits to be awarded upon redemption')
-    tags = models.ManyToManyField(
-        CmeTag,
-        blank=True,
-        related_name='new_offers',
-        help_text='Suggested tags (intersected with user cmeTags by UI)'
-    )
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_orbitcmeoffer'
-        verbose_name_plural = 'OrbitCME Offers'
-
-    def __str__(self):
-        return self.url.url
-
-    def activityDateLocalTz(self):
-        return self.activityDate.astimezone(LOCAL_TZ)
-
-    def formatSuggestedTags(self):
-        return ", ".join([t.name for t in self.tags.all()])
-    formatSuggestedTags.short_description = "suggestedTags"
-
-    def assignCmeTags(self):
-        """Assign tags based on: eligible_site, url, and user"""
-        esite = self.eligible_site
-        # get suggested cmetags from the eligible_site.specialties
-        specnames = [p.name for p in esite.specialties.all()]
-        spectags = CmeTag.objects.filter(name__in=specnames) # tags whose name=pracspec.name
-        self.tags.set(list(spectags))
-        # tags from allowed_url
-        for t in self.url.cmeTags.all():
-            self.tags.add(t)
-        # check if can add SA-CME tag
-        profile = self.user.profile
-        if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
-            self.tags.add(CmeTag.objects.get(name=CMETAG_SACME))
