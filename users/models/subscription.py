@@ -1011,7 +1011,7 @@ class UserSubscriptionManager(models.Manager):
         profile.save(update_fields=('planId',))
         logger.info('endEnterpriseSubscription: transfer user {0} to plan {1.name}'.format(user, free_plan))
         # create local and BT Customer object
-        if not Customer.object.filter(user=user).exists():
+        if not Customer.objects.filter(user=user).exists():
             customer = Customer(user=user)
             customer.save()
             try:
