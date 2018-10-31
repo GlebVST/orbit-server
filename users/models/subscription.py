@@ -958,9 +958,10 @@ class UserSubscriptionManager(models.Manager):
             user: User instance
         Remove user from GROUP_ENTERPRISE_MEMBER group.
         Set profile.organization to None
-        Find the appropriate Free Standard Plan for this user based on profile
-        Create Free user_subs and set to CANCELED state. This allow user to use UI
+        Find the appropriate Free Standard Plan for this user based on profile.
+        Create Free user_subs and set to ENTERPRISE_CANCELED state. This allow user to use UI
         to enter in their payment info and activate a paid plan within the plan_key.
+        Create local and BT Customer object for user.
         """
         user_subs = self.getLatestSubscription(user)
         if not user_subs.plan.isEnterprise():
@@ -1009,6 +1010,20 @@ class UserSubscriptionManager(models.Manager):
         profile.planId = free_plan.planId
         profile.save(update_fields=('planId',))
         logger.info('endEnterpriseSubscription: transfer user {0} to plan {1.name}'.format(user, free_plan))
+        # create local and BT Customer object
+        if not Customer.object.filter(user=user).exists():
+            customer = Customer(user=user)
+            customer.save()
+            try:
+                # create braintree Customer
+                result = braintree.Customer.create({
+                    "id": str(customer.customerId),
+                    "email": user.email
+                })
+                if not result.is_success:
+                    logger.error('braintree.Customer.create failed. Result message: {0.message}'.format(result))
+            except:
+                logger.exception('braintree.Customer.create exception')
 
     def createSubscriptionFromBt(self, user, plan, bt_subs):
         """Handle the result of calling braintree.Subscription.create

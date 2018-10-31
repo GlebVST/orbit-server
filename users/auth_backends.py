@@ -34,7 +34,7 @@ class Auth0Backend(object):
             affiliateId = ''
         planId = user_info.get('planId', None) # required for new user creation (signup)
         try:
-            user = User.objects.get(username=email) # the unique constraint is on the username field in the users table
+            user = User.objects.get(username__iexact=email) # the unique constraint is on the username field in the users table
         except User.DoesNotExist:
             if not planId:
                 logger.error('New user signup error for {0}: planId was not provided.'.format(email))
