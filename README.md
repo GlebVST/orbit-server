@@ -2,6 +2,8 @@
 
 To run this project, first make sure you have python2.7, python-dev, pip, and virtualenv on your machine. 
 
+Note to setup project on Mac OSx additional step is installing graphviz via `brew install graphviz` prior to other deps.
+
   ```
   git clone ...
   virtualenv venv
@@ -10,6 +12,7 @@ To run this project, first make sure you have python2.7, python-dev, pip, and vi
   Create .env file in the same dir as manage.py with key=value for the keys below.
   ./run.sh
   ```
+
 
 ### Environment variables
 

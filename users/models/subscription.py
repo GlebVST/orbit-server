@@ -25,7 +25,11 @@ from .base import (
 from .feed import BrowserCme
 from common.appconstants import (
     GROUP_ENTERPRISE_MEMBER,
+    GROUP_ENTERPRISE_ADMIN,
     ALL_PERMS,
+    PERM_VIEW_FEED,
+    PERM_VIEW_DASH,
+    PERM_VIEW_GOAL,
     PERM_POST_BRCME,
     PERM_DELETE_BRCME,
     PERM_EDIT_BRCME,
@@ -820,10 +824,19 @@ class UserSubscriptionManager(models.Manager):
         is_brcme_year_limit = False
         # get any special groups to which the user belongs
         discard_codes = set([])
+        group_names = set([])
         for g in user.groups.all():
             allowed_codes.extend([p.codename for p in g.permissions.all()])
+            group_names.add(g.name)
             if g.name == GROUP_ENTERPRISE_MEMBER:
                 discard_codes.add(PERM_EDIT_PROFILECMETAG)
+
+        # remove standard ACTIVE user permissions like view_feed, view_dashboard etc. for pure enterprise admins
+        if (GROUP_ENTERPRISE_ADMIN in group_names) and (GROUP_ENTERPRISE_MEMBER not in group_names):
+            discard_codes.add(PERM_VIEW_FEED)
+            discard_codes.add(PERM_VIEW_DASH)
+            discard_codes.add(PERM_VIEW_GOAL)
+
         if user_subs:
             qset, is_brcme_month_limit, is_brcme_year_limit = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
