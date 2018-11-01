@@ -1201,7 +1201,7 @@ class UserSubscriptionManager(models.Manager):
             if is_invitee or is_convertee:
                 discounts.append(inv_discount)
                 subs_price -= inv_discount.amount # update subs_price
-            if is_signup:
+            if allow_signup:
                 sd = SignupDiscount.objects.getForUser(user)
                 if sd:
                     discount = sd.discount
