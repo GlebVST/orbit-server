@@ -10,20 +10,20 @@ from users.emailutils import sendJoinTeamEmail
 logger = logging.getLogger('mgmt.jointeam')
 
 class Command(BaseCommand):
-    help = "Send JoinTeam email invitation to existing user[s]. First arg is Org Code and rest are user emails"
+    help = "Send JoinTeam email invitation to existing user[s]. First arg is Org joinCode and rest are user emails"
 
     def add_arguments(self, parser):
         # positional arguments
-        parser.add_argument('org_code', type=str,
-                help='Organization code. User will be invited to join this org')
+        parser.add_argument('orgcode', type=str,
+                help='Organization joincode (no whitespace). User will be invited to join this org')
         parser.add_argument('user_email', type=str, nargs='+',
                 help='Space separated list of user emails')
 
     def handle(self, *args, **options):
         try:
-            org = Organization.objects.get(code=options['org_code'])
+            org = Organization.objects.get(joinCode=options['orgcode'])
         except Organization.DoesNotExist:
-            self.stdout.write('Invalid Organization Code: {0}'.format(options['org_code']))
+            self.stdout.write('Invalid Organization joinCode: {0}'.format(options['orgcode']))
             return
         users = []
         try:

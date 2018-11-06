@@ -9,17 +9,20 @@ from users.models import (
         User,
         Degree,
         Organization,
-        OrgMember
+        OrgMember,
+        SubscriptionPlan
     )
 logger = logging.getLogger('mgmt.eadmin')
 
 class Command(BaseCommand):
-    help = "Create new Enterprise Admin user for the given organization, firstName, lastName, email."
+    help = "Create new Enterprise Admin user for the given organization, planId, firstName, lastName, email."
 
     def add_arguments(self, parser):
         # positional arguments
         parser.add_argument('orgcode',
-                help='Organization code - must already exist in the db.')
+                help='Organization joincode. One word (no whitespace). Must already exist in the db.')
+        parser.add_argument('planId',
+                help='Enterprise SubscriptionPlan.planId (no whitespace). Must already exist in the db.')
         parser.add_argument('firstname',
                 help='First Name of user.')
         parser.add_argument('lastname',
@@ -29,9 +32,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         try:
-            org = Organization.objects.get(code__iexact=options['orgcode'])
+            org = Organization.objects.get(joinCode=options['orgcode'])
         except Organization.DoesNotExist:
-            self.stderr.write('Invalid Organization code: does not exist')
+            self.stderr.write('Invalid Organization joinCode: does not exist')
+            return
+        try:
+            plan = SubscriptionPlan.objects.get(planId=options['planId'])
+        except SubscriptionPlan.DoesNotExist:
+            self.stderr.write('Invalid SubscriptionPlan planId: please check SubscriptionPlan.planId field for valid values.')
             return
         # check email
         email = options['email']
@@ -47,14 +55,14 @@ class Command(BaseCommand):
             'firstName': options['firstname'],
             'lastName': options['lastname'],
             'email': email,
-            'degrees': [degree,],
+            'degrees': [degree.pk,],
             'password_ticket': password_ticket,
             'is_admin': True
         }
         ser = OrgMemberFormSerializer(data=form_data)
         ser.is_valid(raise_exception=True)
         with transaction.atomic():
-            orgmember = ser.save(organization=org, apiConn=api)
-            msg = u"Created Enterprise Admin: {0}".format(orgmember)
+            orgmember = ser.save(organization=org, apiConn=api, plan=plan)
+            msg = u"Created Enterprise Admin: {0} with plan: {1}".format(orgmember, plan)
             logger.info(msg)
             self.stdout.write(msg)

@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 from django import forms
 from django.contrib import admin
 from django.db.models import Count
+from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
 from common.ac_filters import UserFilter, StateFilter
@@ -56,8 +57,6 @@ class OrgForm(forms.ModelForm):
         exclude = (
             'joinCode',
             'credits',
-            'creditStartDate',
-            'creditEndDate',
             'providerStat',
             'created',
             'modified'
@@ -67,13 +66,15 @@ class OrgForm(forms.ModelForm):
         """Auto assign joinCode based on code"""
         m = super(OrgForm, self).save(commit=False)
         m.joinCode = m.code.replace(' ', '').lower()
+        if not m.creditStartDate:
+            m.creditStartDate = timezone.now()
         m.save()
         return m
 
 class OrgAdmin(admin.ModelAdmin):
-    list_display = ('id', 'code', 'name', 'credits', 'creditStartDate', 'joinCode')
+    list_display = ('id', 'joinCode', 'code', 'name', 'credits', 'creditStartDate')
     form = OrgForm
-    ordering = ('code',)
+    ordering = ('joinCode',)
 
 class OrgFileAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created')
