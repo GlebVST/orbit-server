@@ -68,6 +68,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         """This expects extra keys in the validated_data:
             apiConn: Auth0Api instance
             organization: Organization instance
+            plan: SubscriptionPlan instance whose plan_type is ENTERPRISE
         1. Create Auth0 user account
         2. Create User & Profile instance (and assign org)
         3. Create UserSubscription using plan_type=ENTERPRISE
@@ -78,14 +79,13 @@ class OrgMemberFormSerializer(serializers.Serializer):
         """
         apiConn = validated_data['apiConn']
         org = validated_data['organization']
+        plan = validated_data['plan']
         firstName = validated_data['firstName'].strip()
         lastName = validated_data['lastName'].strip()
         email = validated_data['email']
         degrees = validated_data['degrees']
         is_admin = validated_data.get('is_admin', False)
         password_ticket = validated_data.get('password_ticket', True)
-        # 0. get Enterprise Plan
-        plan = SubscriptionPlan.objects.getEnterprisePlan()
         country_usa = Country.objects.get(code=Country.USA)
         # 1. get or create auth0 user
         socialId = apiConn.findUserByEmail(email)

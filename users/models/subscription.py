@@ -907,31 +907,34 @@ class UserSubscriptionManager(models.Manager):
         user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
         return user_subs
 
-    def activateEnterpriseSubscription(self, user, org):
+    def activateEnterpriseSubscription(self, user, org, plan):
         """Terminate current user_subs (if not Enterprise) and start new Enterprise member subscription.
         Set profile.organization to the given org
         Args:
             user: User instance
             org: Organization instance
+            plan: SubscriptionPlan instance whose plan_type is ENTERPRISE
         Returns: UserSubscription instance
         """
-        plan = SubscriptionPlan.objects.getEnterprisePlan()
         user_subs = self.getLatestSubscription(user)
         profile = user.profile
         now = timezone.now()
-        if user_subs and not user_subs.plan.isEnterprise() and not user_subs.inTerminalState():
+        if user_subs and not user_subs.inTerminalState():
             # terminate
-            if user_subs.plan.isFreeIndividual():
-                user_subs.status = UserSubscription.CANCELED
-                user_subs.display_status = UserSubscription.UI_TRIAL_CANCELED
-                user_subs.billingEndDate = now
-                user_subs.save()
-            else:
+            if user_subs.plan.isPaid():
                 cancel_result = self.terminalCancelBtSubscription(user_subs)
                 if cancel_result.is_success:
                     logger.info('activateEnterpriseSubscription: terminalCancelBtSubscription completed for {0.subscriptionId}'.format(user_subs))
                 else:
                     logger.error('activateEnterpriseSubscription: terminalCancelBtSubscription failed for {0.subscriptionId}'.format(user_subs))
+            else:
+                if user_subs.plan.isEnterprise():
+                    user_subs.display_status = UserSubscription.UI_ENTERPRISE_CANCELED
+                else:
+                    user_subs.display_status = UserSubscription.UI_TRIAL_CANCELED
+                user_subs.status = UserSubscription.CANCELED
+                user_subs.billingEndDate = now
+                user_subs.save()
         # start new enterprise subs
         user_subs = self.createEnterpriseMemberSubscription(user, plan, now)
         # update profile
@@ -1914,11 +1917,6 @@ class UserSubscription(models.Model):
     def inTerminalState(self):
         """Returns True if status is CANCELED or EXPIRED"""
         return self.status == UserSubscription.CANCELED or self.status == UserSubscription.EXPIRED
-
-    def canRejoinEnterpise(self):
-        """Returns True if self is inTerminalState or is already an existing Enterprise user_subs
-        """
-        return self.plan.isEnterprise() or self.inTerminalState()
 
 
 class SubscriptionEmailManager(models.Manager):

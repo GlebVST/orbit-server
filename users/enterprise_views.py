@@ -31,7 +31,7 @@ from .enterprise_serializers import *
 from .serializers import ProfileReadSerializer, UserSubsReadSerializer
 from .upload_serializers import UploadOrgFileSerializer
 from .permissions import *
-from .emailutils import makeSubject
+from .emailutils import makeSubject, sendJoinTeamEmail
 
 logger = logging.getLogger('api.entpv')
 
@@ -151,43 +151,56 @@ class OrgMemberList(generics.ListCreateAPIView):
         return OrgMemberFormSerializer
 
     def perform_create(self, serializer, format=None):
-        """If email is given, check that it does not trample on an existing user account
-            unless user account is an inactive OrgMember, then reactivate and return this instance
-        Save auth0 token info to request.session
+        """If user account for email already exists:
+            call sendJoinTeamEmail to send invitation email to user
+        else:
+            Proceed with form and create new user account.
+            Save auth0 token info to request.session
+        Returns: OrgMember instance/None if no email in form_data
         """
-        org = self.request.user.profile.organization
+        req_user = self.request.user # EnterpriseAdmin user
+        org = req_user.profile.organization
+        req_user_subs = UserSubscription.objects.getLatestSubscription(req_user)
+        plan = req_user_subs.plan
+        if not plan.isEnterprise():
+            plan = SubscriptionPlan.objects.getEnterprisePlan()
         # check email
         email = self.request.data.get('email', '')
-        if email:
-            qset = User.objects.filter(email__iexact=email)
-            if qset.exists():
-                u = qset[0]
-                org_qset = OrgMember.objects.filter(organization=org, user=u, removeDate__isnull=False)
-                if org_qset.exists():
-                    instance = org_qset[0]
-                    user_subs = UserSubscription.objects.getLatestSubscription(instance.user)
-                    if user_subs is None or user_subs.canRejoinEnterpise():
-                        logInfo(logger, self.request, 'Re-activate membership for {0}'.format(u))
-                        with transaction.atomic():
-                            instance.removeDate = None
-                            instance.save()
-                            user_subs = UserSubscription.objects.activateEnterpriseSubscription(instance.user, org)
-                            return instance
-                    else:
-                        # User has an active Individual/BT subscription. User must opt-in via JoinTeam email
-                        error_msg = 'The user {0} must be transferred using join-team.'.format(email)
-                        logWarning(logger, self.request, error_msg)
-                        raise serializers.ValidationError({'email': error_msg}, code='invalid')
+        if not email:
+            return
+        user_qset = User.objects.filter(email__iexact=email)
+        if user_qset.exists():
+            user = user_qset[0]
+            # User account already exists, so need to send joinTeam invitation email
+            # Is user already a pending member of org
+            org_qset = OrgMember.objects.filter(organization=org, user=user).order_by('-created')
+            if org_qset.exists():
+                instance = org_qset[0]
+                if instance.pending:
+                    logInfo(logger, self.request, 'User is already pending OrgMember {0.pk}'.format(instance))
+                elif instance.removeDate is not None:
+                    logInfo(logger, self.request, 'User {0} is removed OrgMember {1.pk}. Set pending to True'.format(user, instance))
+                    instance.pending = True
+                    instance.save(update_field=('pending',))
                 else:
-                    # User account already exists and user is not an existing orgmember.
-                    # Cannot use this endpoint b/c this is intended to create a new user profile
-                    error_msg = 'The email {0} belongs to another user account.'.format(email)
+                    error_msg = 'The user {0} already belongs to the team.'.format(user)
                     logWarning(logger, self.request, error_msg)
                     raise serializers.ValidationError({'email': error_msg}, code='invalid')
-        apiConn = Auth0Api.getConnection(self.request)
-        with transaction.atomic():
-            instance = serializer.save(apiConn=apiConn, organization=org) # returns OrgMember instance
-        logInfo(logger, self.request, 'Created OrgMember {0.pk}'.format(instance))
+            else:
+                # create pending OrgMember
+                instance = OrgMember.objects.createMember(org, user.profile, pending=True)
+                logInfo(logger, self.request, 'Created pending OrgMember {0}'.format(instance))
+            # send JoinTeam email
+            try:
+                msg = sendJoinTeamEmail(user, org, send_message=True)
+            except SMTPException, e:
+                logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0}.'.format(u))
+        else:
+            # create new user account and send password ticket email
+            apiConn = Auth0Api.getConnection(self.request)
+            with transaction.atomic():
+                instance = serializer.save(apiConn=apiConn, organization=org, plan=plan) # returns OrgMember instance
+            logInfo(logger, self.request, 'Created OrgMember {0.pk}'.format(instance))
         return instance
 
     def create(self, request, *args, **kwargs):
@@ -382,6 +395,9 @@ class JoinTeam(APIView):
             error_msg = 'Invalid or expired invitation'
             raise serializers.ValidationError({'user': error_msg}, code='invalid')
         m = qset[0] # pending OrgMember instance
+        # Note: if multiple Enterprise plans exist in the future, then need to
+        # get specific plan to use.
+        plan = SubscriptionPlan.objects.getEnterprisePlan()
         with transaction.atomic():
             m.pending = False
             if m.removeDate is not None:
@@ -389,7 +405,7 @@ class JoinTeam(APIView):
             m.save(update_fields=('pending', 'removeDate',))
             logInfo(logger, self.request, 'JoinTeam for OrgMember {0}'.format(m))
             # transfer user to Enterprise subscription
-            user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, m.organization)
+            user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, m.organization, plan)
             # emit profile_saved signal
             ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
         # prepare context

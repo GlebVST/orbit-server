@@ -11,7 +11,7 @@ from users.models import Organization, OrgMember, Profile, Degree, Entry
 logger = logging.getLogger('mgmt.orgstat')
 
 class Command(BaseCommand):
-    help = "Compute and update various stats for enterprise orgs"
+    help = "Compute and update various stats for enterprise orgs. This should be called by a daily cron task."
 
     def handle(self, *args, **options):
         # get distinct orgs
