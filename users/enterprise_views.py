@@ -418,6 +418,6 @@ class JoinTeam(APIView):
             'profile': ProfileReadSerializer(profile).data,
             'subscription': UserSubsReadSerializer(user_subs).data,
             'permissions': pdata['permissions'],
-            'brcme_limit': pdata['brcme_limit']
+            'credits': pdata['credits']
         }
         return Response(context, status=status.HTTP_200_OK)

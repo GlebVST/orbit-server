@@ -1,7 +1,7 @@
 from decimal import Decimal
 import logging
 from rest_framework import serializers
-from .models import SubscriptionPlan, UserSubscription
+from .models import SubscriptionPlan, UserSubscription, CmeBoost, CmeBoostPurchase
 
 logger = logging.getLogger('gen.psrl')
 
@@ -147,3 +147,44 @@ class UpgradePlanSerializer(serializers.Serializer):
         plan = validated_data['plan']
         payment_method_token = validated_data['payment_method_token']
         return UserSubscription.objects.upgradePlan(user_subs, plan, payment_method_token)
+
+class CmeBoostSerializer(serializers.ModelSerializer):
+    credits = serializers.IntegerField()
+    price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
+
+    class Meta:
+        model = CmeBoost
+        fields = (
+            'id',
+            'name',
+            'credits',
+            'price'
+        )
+
+class CmeBoostPurchaseSerializer(serializers.ModelSerializer):
+    boost = serializers.PrimaryKeyRelatedField(
+        queryset=CmeBoost.objects.all())
+    payment_method_token = serializers.CharField(max_length=64)
+
+    class Meta:
+        model = CmeBoostPurchase
+        fields = (
+            'id',
+            'boost',
+            'created',
+            'modified'
+        )
+
+    def save(self, **kwargs):
+        """This expects user passed in to kwargs
+        Call Manager method CmeBoostPurchase purchaseBoost
+        with the following parameters:
+            boost_id: reference to specific boost option
+            payment_method_token:str for Customer
+        Returns: result object
+        """
+        user = kwargs['user']
+        validated_data = self.validated_data
+        boost = validated_data['boost']
+        payment_method_token = validated_data['payment_method_token']
+        return CmeBoostPurchase.objects.purchaseBoost(user, boost, payment_method_token)

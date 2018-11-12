@@ -292,8 +292,8 @@ class NewSubscription(generics.CreateAPIView):
                 if not cancel_result.is_success:
                     if cancel_result.message == UserSubscription.RESULT_ALREADY_CANCELED:
                         logInfo(logger, request, 'Existing bt_subs already canceled. Syncing with db.')
-                        bt_subs = UserSubscription.objects.findBtSubscription(user_subs.subscriptionId)
-                        UserSubscription.objects.updateSubscriptionFromBt(user_subs, bt_subs)
+                        bt_subs = UserSubscription.objects.findBtSubscription(last_subscription.subscriptionId)
+                        UserSubscription.objects.updateSubscriptionFromBt(last_subscription, bt_subs)
                     else:
                         context = {
                             'success': False,
@@ -470,7 +470,7 @@ class ActivatePaidSubscription(generics.CreateAPIView):
         context['subscription'] = out_serializer.data
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context['permissions'] = pdata['permissions']
-        context['brcme_limit'] = pdata['brcme_limit']
+        context['credits'] = pdata['credits']
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -700,7 +700,7 @@ class UpgradePlan(generics.CreateAPIView):
         # Return permissions b/c new_user_subs may allow different perms than prior subscription.
         pdata = UserSubscription.objects.serialize_permissions(user, new_user_subs)
         context['permissions'] = pdata['permissions']
-        context['brcme_limit'] = pdata['brcme_limit']
+        context['credits'] = pdata['credits']
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -939,6 +939,93 @@ class ResumeSubscription(APIView):
                 logInfo(logger, request, message)
                 return Response(context, status=status.HTTP_200_OK)
 
+class CmeBoostList(generics.ListAPIView):
+    queryset = CmeBoost.objects.filter(active=True).order_by('credits')
+    serializer_class = CmeBoostSerializer
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
+class CmeBoostPurchase(generics.CreateAPIView):
+    serializer_class = CmeBoostPurchaseSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def perform_create(self, serializer, format=None):
+        user = self.request.user
+        with transaction.atomic():
+            result, boost_purchase = serializer.save(user=user)
+        return (result, boost_purchase)
+
+    def create(self, request, *args, **kwargs):
+        """Override method to handle custom input/output data structures"""
+
+        logDebug(logger, request, 'Purchase CME Boost')
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        # form_data will be modified before passing it to serializer
+        form_data = request.data.copy()
+        payment_nonce = form_data.get('payment_method_nonce', None)
+        payment_token = form_data.get('payment_method_token', None)
+
+        # get local customer object and braintree customer
+        customer = user.customer
+        try:
+            bc = Customer.objects.findBtCustomer(customer)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            context = {
+                'success': False,
+                'message': 'BT Customer object not found.'
+            }
+            message = context['message'] + ' customerId: {0.customerId}'.format(customer)
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
+        # Convert nonce into token because it is required by subs
+        if payment_nonce:
+            # If user has multiple tokens, then delete their tokens
+            Customer.objects.makeSureNoMultipleMethods(customer)
+            try:
+                result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
+            except ValueError, e:
+                context = {
+                    'success': False,
+                    'message': str(e)
+                }
+                logException(logger, request, 'NewSubscription addOrUpdatePaymentMethod ValueError')
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            if not result.is_success:
+                message = 'Customer vault update failed. Result message: {0.message}'.format(result)
+                context = {
+                    'success': False,
+                    'message': message
+                }
+                logError(logger, request, message)
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            bc2 = Customer.objects.findBtCustomer(customer)
+            tokens = [m.token for m in bc2.payment_methods]
+            payment_token = tokens[0]
+
+        # finally update form_data for serializer
+        form_data['payment_method_token'] = payment_token
+
+        # set plan from profile.planId
+        # form_data['plan'] = SubscriptionPlan.objects.get(planId=profile.planId).pk
+        logDebug(logger, request, str(form_data))
+        in_serializer = self.get_serializer(data=form_data)
+        in_serializer.is_valid(raise_exception=True)
+        result, boost_purchase = self.perform_create(in_serializer)
+        context = {'success': result.is_success}
+        if not result.is_success:
+            message = 'CME Boost Purchase failed. Result message: {0.message}'.format(result)
+            context['message'] = message
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        logInfo(logger, request, 'CME Boost Purchase complete for user {0.id}: {1.id}'.format(user, boost_purchase))
+        out_serializer = CmeBoostPurchaseSerializer(boost_purchase)
+        context['boost'] = out_serializer.data
+        # Return permissions b/c new CME Boost may allow different perms than prior to purchase
+        pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
+        context['permissions'] = pdata['permissions']
+        context['credits'] = pdata['credits']
+        return Response(context, status=status.HTTP_201_CREATED)
 
 #
 # testing only

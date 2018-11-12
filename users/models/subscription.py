@@ -719,9 +719,11 @@ class SubscriptionPlan(models.Model):
     maxCmeMonth = models.PositiveIntegerField(
         default=0,
         help_text='Maximum allowed CME per month. 0 for unlimited rate.')
+    # decided to keep the name of this field as maxCmeYear despite the fact it now holds a semantics of maxCmePeriod -
+    # to keep things backwards compartible and avoid unnecessary production update risks
     maxCmeYear = models.PositiveIntegerField(
         default=0,
-        help_text='Maximum allowed CME per year. 0 for unlimited total.')
+        help_text='Maximum allowed CME per plan period (defined via billingCycleMonths - can be one or multiple years). 0 for unlimited total.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()
@@ -741,9 +743,9 @@ class SubscriptionPlan(models.Model):
         """True if this is an un-limited plan, else False"""
         return self.maxCmeMonth == 0 and self.maxCmeYear == 0
 
-    def isLimitedCmeRate(self):
-        """True if this is an limited CME rate plan, else False"""
-        return self.maxCmeMonth > 0
+    # def isLimitedCmeRate(self):
+    #     """True if this is an limited CME rate plan, else False"""
+    #     return self.maxCmeMonth > 0
 
     def isEnterprise(self):
         return self.plan_type.name == SubscriptionPlanType.ENTERPRISE
@@ -776,6 +778,26 @@ class UserSubscriptionManager(models.Manager):
                 return False
         return True
 
+    def setUserCmeCreditByPlan(self, user, plan):
+        plan_credits = plan.maxCmeYear
+        if plan.isUnlimitedCme():
+            plan_credits = self.model.MAX_FREE_SUBSCRIPTION_CME
+        # if user already had a cme credit record (from prev. subscriptions) just update it's plan_credits value to a new subscription plan's max value
+        existingUserCredit = UserCmeCredit.objects.get(user=user)
+        if existingUserCredit:
+            existingUserCredit.plan_credits = plan_credits
+            existingUserCredit.save()
+        else:
+            UserCmeCredit.objects.create(
+                user=user,
+                plan_credits=plan.maxCmeYear,
+                boost_credits=0
+            )
+
+    def refreshUserCmeCreditByCurrentPlan(self, user):
+        subscription = self.getLatestSubscription(user=user)
+        self.setUserCmeCreditByPlan(user, subscription.plan)
+
     def getPermissions(self, user_subs):
         """Helper method used by serializer_permissions.
         Get the permissions for the group that matches user_subs.display_status
@@ -783,26 +805,18 @@ class UserSubscriptionManager(models.Manager):
         Based on user_subs.plan:
             Include PERM_DELETE_BRCME for plans with isUnlimitedCme (no year or month limit)
             Include PERM_ALLOW_INVITE for paid plans with active status.
-        Returns: tuple (Permission queryset, is_brcme_month_limit, is_brcme_year_limit)
+        Returns: Permission queryset
         """
-        is_brcme_month_limit = False
-        is_brcme_year_limit = False
         plan = user_subs.plan
         g = Group.objects.get(name=user_subs.display_status)
         qset = g.permissions.all()
         if plan.isUnlimitedCme():
             qset = qset.union(Permission.objects.filter(codename=PERM_DELETE_BRCME))
-        else:
-            user = user_subs.user
-            now = timezone.now()
-            if plan.isLimitedCmeRate():
-                is_brcme_month_limit = BrowserCme.objects.hasEarnedMonthLimit(user_subs, now.year, now.month)
-            is_brcme_year_limit = BrowserCme.objects.hasEarnedYearLimit(user_subs, now.year)
         if plan.isPaid() and user_subs.display_status == self.model.UI_ACTIVE:
             # UI will display unique invite url for this user to invite others
             qset = qset.union(Permission.objects.filter(codename=PERM_ALLOW_INVITE))
         qset = qset.order_by('codename')
-        return (qset, is_brcme_month_limit, is_brcme_year_limit)
+        return qset
 
 
     def serialize_permissions(self, user, user_subs):
@@ -810,18 +824,13 @@ class UserSubscriptionManager(models.Manager):
         the allowed permissions for the user in the response.
         Returns list of dicts: [{codename:str, allowed:bool}]
         for the permissions in appconstants.ALL_PERMS.
-        Exclude PERM_POST_BRCME if user has reached monthly/yearly cme limit.
+        Exclude PERM_POST_BRCME if user depleted all cme credits.
         Returns:dict {
             permissions:list of dicts {codename, allow:bool},
-            brcme_limit:dict {
-                is_year_limit:bool
-                is_month_limit:bool
-            }
+            credits: decimal
         }
         """
         allowed_codes = []
-        is_brcme_month_limit = False
-        is_brcme_year_limit = False
         # get any special groups to which the user belongs
         discard_codes = set([])
         group_names = set([])
@@ -836,12 +845,14 @@ class UserSubscriptionManager(models.Manager):
             discard_codes.add(PERM_VIEW_FEED)
             discard_codes.add(PERM_VIEW_DASH)
             discard_codes.add(PERM_VIEW_GOAL)
-
+        userCredits = UserCmeCredit.objects.get(user=user)
+        # TODO if no UserCmeCredit yet then create one
+        remaining_credits = userCredits.remaining()
         if user_subs:
-            qset, is_brcme_month_limit, is_brcme_year_limit = self.getPermissions(user_subs) # Permission queryset
+            qset = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
-            if is_brcme_month_limit or is_brcme_year_limit:
-                # if either limit is reached, disallow post of brcme (e.g. disallow redeem offer)
+            if remaining_credits <= 0:
+                # if reached cme credit limit, disallow post of brcme (e.g. disallow redeem offer)
                 discard_codes.add(PERM_POST_BRCME)
         allowed_codes = set(allowed_codes)
         for codename in discard_codes:
@@ -852,9 +863,10 @@ class UserSubscriptionManager(models.Manager):
             } for codename in ALL_PERMS]
         data = {
             'permissions': perms,
-            'brcme_limit': {
-                'is_year_limit': is_brcme_year_limit,
-                'is_month_limit': is_brcme_month_limit
+            'credits' : {
+                'unlimited': user_subs.plan.isUnlimitedCme(),
+                'plan_credits': userCredits.plan_credits,
+                'boost_credits': userCredits.boost_credits
             }
         }
         return data
@@ -904,6 +916,7 @@ class UserSubscriptionManager(models.Manager):
             billingStartDate=startDate,
             billingEndDate=ACTIVE_OFFDATE
         )
+        self.setUserCmeCreditByPlan(user, plan)
         user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
         return user_subs
 
@@ -966,6 +979,7 @@ class UserSubscriptionManager(models.Manager):
             billingStartDate=startDate,
             billingEndDate=endDate
         )
+        self.setUserCmeCreditByPlan(user, plan)
         return user_subs
 
     def endEnterpriseSubscription(self, user):
@@ -1023,6 +1037,8 @@ class UserSubscriptionManager(models.Manager):
         f_user_subs.display_status = self.model.UI_ENTERPRISE_CANCELED
         f_user_subs.billingEndDate = now
         f_user_subs.save()
+        # update available credit amount to conform with a new plan
+        self.setUserCmeCreditByPlan(user, free_plan)
         profile.planId = free_plan.planId
         profile.save(update_fields=('planId',))
         logger.info('endEnterpriseSubscription: transfer user {0} to plan {1.name}'.format(user, free_plan))
@@ -1084,6 +1100,7 @@ class UserSubscriptionManager(models.Manager):
             billingEndDate=endDate,
             billingCycle=bt_subs.current_billing_cycle
         )
+        self.setUserCmeCreditByPlan(user, plan)
         # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist
         result_transactions = bt_subs.transactions # list
         if len(result_transactions):
@@ -1760,6 +1777,7 @@ class UserSubscriptionManager(models.Manager):
             payment_token: Payment token to use for the new subscription.
         """
         new_plan = user_subs.next_plan
+        user = user_subs.user
         if not new_plan:
             raise ValueError('completeDowngrade: next_plan not set on user subscription {0}'.format(user_subs))
         plan_discount = Discount.objects.get(discountType=new_plan.planId, activeForType=True)
@@ -1873,6 +1891,7 @@ class UserSubscription(models.Model):
         (UI_ENTERPRISE_CANCELED, UI_ENTERPRISE_CANCELED)
     )
     RESULT_ALREADY_CANCELED = 'Subscription has already been canceled.'
+    MAX_FREE_SUBSCRIPTION_CME = 100000
     # fields
     subscriptionId = models.CharField(max_length=36, unique=True)
     user = models.ForeignKey(User,
@@ -2083,4 +2102,119 @@ class SubscriptionTransaction(models.Model):
                 SubscriptionTransaction.PROCESSOR_DECLINED
             )
 
+@python_2_unicode_compatible
+class CmeBoost(models.Model):
+    # fields
+    name = models.CharField(max_length=50, unique=True)
+    credits = models.IntegerField(default=0)
+    price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD', default=0)
+    active = models.BooleanField(default=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return self.name
+
+class CmeBoostPurchaseManager(models.Manager):
+    def purchaseBoost(self, user, boost, payment_token):
+        boost_purchase = None
+        # Execute Braintree API method for sale: https://developers.braintreepayments.com/reference/request/transaction/sale/python
+        result = braintree.Transaction.sale({
+            "amount": boost.price,
+            "payment_method_token": payment_token,
+            "options": {
+                "submit_for_settlement": True
+            }
+        })
+        logger.info('purchaseCmeBoost braintree result: {0.is_success}'.format(result))
+        if result.is_success:
+            # If BT result is success then
+            # create new CmeBoostPurchase instance
+            bt_trans = result.transaction
+            card_type = bt_trans.credit_card.get('card_type')
+            card_last4 = bt_trans.credit_card.get('last_4')
+            proc_auth_code=bt_trans.processor_authorization_code or ''
+            boost_purchase = CmeBoostPurchase.objects.create(
+                user=user,
+                boost=boost,
+                transaction_id=bt_trans.id,
+                proc_auth_code=proc_auth_code,
+                proc_response_code=bt_trans.processor_response_code,
+                amount=bt_trans.amount,
+                status=bt_trans.status,
+                card_type=card_type,
+                card_last4=card_last4
+            )
+            # Update UserCmeCredit instance for the user
+            userCredits = UserCmeCredit.objects.get(user=user)
+            userCredits.boost_credits += boost.credits
+            userCredits.save()
+
+        return (result, boost_purchase)
+
+@python_2_unicode_compatible
+class CmeBoostPurchase(models.Model):
+    user = models.ForeignKey(User,
+                             on_delete=models.CASCADE,
+                             db_index=True,
+                             related_name='cme_boosts',
+                             )
+    boost = models.ForeignKey(CmeBoost,
+                             on_delete=models.CASCADE,
+                             db_index=True,
+                             related_name='user_boosts',
+                             )
+    transactionId = models.CharField(max_length=36, unique=True)
+    amount = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
+    status = models.CharField(max_length=200, blank=True)
+    card_type = models.CharField(max_length=100, blank=True)
+    card_last4 = models.CharField(max_length=4, blank=True)
+    proc_auth_code = models.CharField(max_length=10, blank=True, help_text='processor_authorization_code')
+    proc_response_code = models.CharField(max_length=4, blank=True, help_text='processor_response_code')
+    receipt_sent = models.BooleanField(default=False, help_text='set to True on send receipt email')
+    failure_alert_sent = models.BooleanField(default=False, help_text='set to True on send payment failure alert via email')
+    trans_type = models.CharField(max_length=10, default='sale', help_text='sale or credit')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    objects = CmeBoostPurchaseManager()
+
+    def __str__(self):
+        return '{0.user.id} by {0.boost.name}'.format(self)
+
+
+@python_2_unicode_compatible
+class UserCmeCredit(models.Model):
+    user = models.OneToOneField(User,
+                                on_delete=models.CASCADE,
+                                primary_key=True
+                                )
+    plan_credits = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    boost_credits = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return '{0.user.id}: {0.plan_credits}|{0.boost_credits}'.format(self)
+
+    def remaining(self):
+        return self.plan_credits + self.boost_credits
+
+    def enough(self, amount):
+        return (self.plan_credits + self.boost_credits) >= amount
+
+    def deduct(self, credits):
+        if self.enough(credits):
+            # deduct from planCredits/boostCredits correspondingly
+            if self.plan_credits > 0 and self.plan_credits >= credits:
+                # have enough plan credits to redeem the passed amount
+                self.plan_credits -= credits
+            elif self.plan_credits > 0:
+                # not enough plan credits to redeem entire passed amount so take a bite from boost credits
+                self.boost_credits -= (credits - self.plan_credits)
+                self.plan_credits = 0
+            else:
+                # plan credits depleted - use boost credits instead
+                self.boost_credits -= credits
+
+        return self

@@ -16,7 +16,8 @@ from .models import (
     SRCme,
     Story,
     StoryCme,
-    Notification
+    Notification,
+    UserCmeCredit
 )
 from .serializers import DocumentReadSerializer
 
@@ -246,6 +247,17 @@ class BRCmeCreateSerializer(serializers.Serializer):
         creditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
         offer = validated_data['offerId']
         user=validated_data.get('user')
+        # take care of user's CME credit limit
+        userCredits = UserCmeCredit.objects.get(user=user)
+        if not userCredits.enough(offer.credits):
+            logger.info('Can\'t add Orbit CME entry of {0.credits} cr. - user {1.id} reached credit limit ({2.plan_credits}|{2.boost_credits})'.format(offer, user, userCredits))
+            # normally user's won't see this message as UI should prevent from redeeming CME's when credit limit reached
+            raise serializers.ValidationError("Can't add more Orbit CME - credit limit reached")
+        else:
+            userCredits.deduct(offer.credits)
+            logger.info('Redeeming Orbit CME of {0.credits} cr. - user {1.id} updated credit limit ({2.plan_credits}|{2.boost_credits})'.format(offer, user, userCredits))
+            userCredits.save()
+
         planText = validated_data.get('planText')
         if planText is None:
             planText = ''

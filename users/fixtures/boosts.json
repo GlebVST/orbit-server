@@ -1,0 +1,26 @@
+[
+  {
+    "model": "users.cmeboost",
+    "pk": 1,
+    "fields": {
+      "name": "Boost 25",
+      "credits": "25",
+      "price": "14.99",
+      "active": true,
+      "created": "2018-11-12T00:00:00.000",
+      "modified": "2018-11-12T00:00:00.000"
+    }
+  },
+  {
+    "model": "users.cmeboost",
+    "pk": 2,
+    "fields": {
+      "name": "Boost 50",
+      "credits": "50",
+      "price": "19.99",
+      "active": true,
+      "created": "2018-11-12T00:00:00.000",
+      "modified": "2018-11-12T00:00:00.000"
+    }
+  }
+]
