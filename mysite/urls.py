@@ -86,7 +86,7 @@ api_patterns = [
     url(r'^shop/plans-public/(?P<landing_key>[a-zA-Z0-9_/\-]+)/?$', payment_views.SubscriptionPlanPublic.as_view(), name='shop-plan-public'),
     url(r'^shop/signup-discounts/?$', payment_views.SignupDiscountList.as_view(), name='shop-signup-discounts'),
     url(r'^shop/boosts/?$', payment_views.CmeBoostList.as_view(), name='shop-boosts'),
-    url(r'^shop/boosts/(?P<plan_pk>[0-9]+)/purchase?$', payment_views.CmeBoostPurchase.as_view(), name='shop-boost-purchase'),
+    url(r'^shop/boosts/purchase?$', payment_views.CmeBoostPurchase.as_view(), name='shop-boost-purchase'),
 
     # views
     url(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileUpdate.as_view()),

@@ -47,7 +47,7 @@ class SubscriptionPlanList(generics.ListAPIView):
         try:
             plan = SubscriptionPlan.objects.get(planId=profile.planId)
             if plan.isEnterprise():
-                filter_kwargs = dict(active=True, plan_type=plan.plan_type)
+                filter_kwargs = dict(plan_type=plan.plan_type)
                 return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('id')
             plan_key = plan.plan_key
         except SubscriptionPlan.DoesNotExist:
@@ -59,7 +59,7 @@ class SubscriptionPlanList(generics.ListAPIView):
                 if not plan_key:
                     plan_key = SubscriptionPlanKey.objects.all().order_by('id')[0]
             # return plans for the plan_key
-            filter_kwargs = dict(active=True, plan_key=plan_key)
+            filter_kwargs = dict(plan_key=plan_key)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
 
 

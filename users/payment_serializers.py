@@ -36,6 +36,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'active',
             'upgrade_plan',
             'needs_payment_method',
+            'maxCmeYear',
             'created',
             'modified'
         )
@@ -171,6 +172,7 @@ class CmeBoostPurchaseSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'boost',
+            'payment_method_token',
             'created',
             'modified'
         )
