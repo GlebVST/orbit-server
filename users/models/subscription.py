@@ -779,27 +779,31 @@ class UserSubscriptionManager(models.Manager):
         return True
 
     def setUserCmeCreditByPlan(self, user, plan):
+        """Create or update UserCmeCredit instance for the given user.
+        If instance already exists: update it to match plan's yearly limit, else create.
+        This should be called when new user account is created, or when user's subscription plan changes.
+        """
         plan_credits = plan.maxCmeYear
         if plan.isUnlimitedCme():
             plan_credits = self.model.MAX_FREE_SUBSCRIPTION_CME
-        # if user already had a cme credit record (from prev. subscriptions) just update it's plan_credits value to a new subscription plan's max value
-        existingUserCredit = UserCmeCredit.objects.get(user=user)
-        if existingUserCredit:
-            existingUserCredit.plan_credits = plan_credits
-            existingUserCredit.save()
-        else:
+        try:
+            existingUserCredit = UserCmeCredit.objects.get(user=user)
+        except UserCmeCredit.DoesNotExist:
             UserCmeCredit.objects.create(
                 user=user,
                 plan_credits=plan.maxCmeYear,
                 boost_credits=0
             )
+        else:
+            existingUserCredit.plan_credits = plan_credits
+            existingUserCredit.save()
 
     def refreshUserCmeCreditByCurrentPlan(self, user):
         subscription = self.getLatestSubscription(user=user)
         self.setUserCmeCreditByPlan(user, subscription.plan)
 
     def getPermissions(self, user_subs):
-        """Helper method used by serializer_permissions.
+        """Helper method used by serialize_permissions.
         Get the permissions for the group that matches user_subs.display_status
         This does not handle extra permissions based on the user's assigned groups.
         Based on user_subs.plan:
@@ -845,9 +849,13 @@ class UserSubscriptionManager(models.Manager):
             discard_codes.add(PERM_VIEW_FEED)
             discard_codes.add(PERM_VIEW_DASH)
             discard_codes.add(PERM_VIEW_GOAL)
-        userCredits = UserCmeCredit.objects.get(user=user)
-        # TODO if no UserCmeCredit yet then create one
-        remaining_credits = userCredits.remaining()
+        try:
+            userCredits = UserCmeCredit.objects.get(user=user)
+        except UserCmeCredit.DoesNotExist:
+            logger.exception('UserCmeCredit instance does not exist for user {0}'.format(user))
+            remaining_credits = 0
+        else:
+            remaining_credits = userCredits.remaining()
         if user_subs:
             qset = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
@@ -2118,6 +2126,12 @@ class CmeBoost(models.Model):
 class CmeBoostPurchaseManager(models.Manager):
     def purchaseBoost(self, user, boost, payment_token):
         boost_purchase = None
+        # first get the UserCmeCredit instance for this user
+        try:
+            userCredits = UserCmeCredit.objects.get(user=user)
+        except UserCmeCredit.DoesNotExist:
+            logger.exception('purchaseBoost: UserCmeCredit does not exist for user {0}'.format(user))
+            return
         # Execute Braintree API method for sale: https://developers.braintreepayments.com/reference/request/transaction/sale/python
         result = braintree.Transaction.sale({
             "amount": boost.price,
@@ -2146,10 +2160,8 @@ class CmeBoostPurchaseManager(models.Manager):
                 card_last4=card_last4
             )
             # Update UserCmeCredit instance for the user
-            userCredits = UserCmeCredit.objects.get(user=user)
             userCredits.boost_credits += boost.credits
             userCredits.save()
-
         return (result, boost_purchase)
 
 @python_2_unicode_compatible
