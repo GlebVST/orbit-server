@@ -484,24 +484,24 @@ class SRCme(models.Model):
 
 class BrowserCmeManager(models.Manager):
 
-    # def hasEarnedMonthLimit(self, user_subs, year, month):
-    #     """Returns True if user has reached the monthly limit set by user_subs.plan
-    #     Note: this should only be called for LimitedCme plans.
-    #     Args:
-    #         user_subs: UserSubscription instance
-    #         year:int
-    #         month:int
-    #     """
-    #     user = user_subs.user
-    #     plan = user_subs.plan
-    #     qs = self.model.objects.select_related('entry').filter(
-    #         entry__user=user,
-    #         entry__activityDate__year=year,
-    #         entry__activityDate__month=month,
-    #         entry__valid=True
-    #     ).aggregate(cme_total=Sum('credits'))
-    #     return qs['cme_total'] >= plan.maxCmeMonth
-    #
+    def hasEarnedMonthLimit(self, user_subs, year, month):
+        """Returns True if user has reached the monthly limit set by user_subs.plan
+        Note: this should only be called for LimitedCme plans.
+        Args:
+            user_subs: UserSubscription instance
+            year:int
+            month:int
+        """
+        user = user_subs.user
+        plan = user_subs.plan
+        qs = self.model.objects.select_related('entry').filter(
+            entry__user=user,
+            entry__activityDate__year=year,
+            entry__activityDate__month=month,
+            entry__valid=True
+        ).aggregate(cme_total=Sum('credits'))
+        return qs['cme_total'] >= plan.maxCmeMonth
+
     # def hasEarnedYearLimit(self, user_subs, year):
     #     """Returns True if user has reached the monthly limit set by user_subs.plan
     #     Note: this should only be called for LimitedCme plans.

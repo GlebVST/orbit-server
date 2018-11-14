@@ -36,6 +36,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'active',
             'upgrade_plan',
             'needs_payment_method',
+            'maxCmeMonth',
             'maxCmeYear',
             'created',
             'modified'

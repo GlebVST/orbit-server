@@ -743,9 +743,9 @@ class SubscriptionPlan(models.Model):
         """True if this is an un-limited plan, else False"""
         return self.maxCmeMonth == 0 and self.maxCmeYear == 0
 
-    # def isLimitedCmeRate(self):
-    #     """True if this is an limited CME rate plan, else False"""
-    #     return self.maxCmeMonth > 0
+    def isLimitedCmeRate(self):
+        """True if this is an limited CME rate plan, else False"""
+        return self.maxCmeMonth > 0
 
     def isEnterprise(self):
         return self.plan_type.name == SubscriptionPlanType.ENTERPRISE
@@ -816,11 +816,15 @@ class UserSubscriptionManager(models.Manager):
         qset = g.permissions.all()
         if plan.isUnlimitedCme():
             qset = qset.union(Permission.objects.filter(codename=PERM_DELETE_BRCME))
+        else:
+            now = timezone.now()
+            if plan.isLimitedCmeRate():
+                is_brcme_month_limit = BrowserCme.objects.hasEarnedMonthLimit(user_subs, now.year, now.month)
         if plan.isPaid() and user_subs.display_status == self.model.UI_ACTIVE:
             # UI will display unique invite url for this user to invite others
             qset = qset.union(Permission.objects.filter(codename=PERM_ALLOW_INVITE))
         qset = qset.order_by('codename')
-        return qset
+        return (qset, is_brcme_month_limit)
 
 
     def serialize_permissions(self, user, user_subs):
@@ -831,10 +835,11 @@ class UserSubscriptionManager(models.Manager):
         Exclude PERM_POST_BRCME if user depleted all cme credits.
         Returns:dict {
             permissions:list of dicts {codename, allow:bool},
-            credits: decimal
+            credits: {}
         }
         """
         allowed_codes = []
+        is_brcme_month_limit = False
         # get any special groups to which the user belongs
         discard_codes = set([])
         group_names = set([])
@@ -857,10 +862,10 @@ class UserSubscriptionManager(models.Manager):
         else:
             remaining_credits = userCredits.remaining()
         if user_subs:
-            qset = self.getPermissions(user_subs) # Permission queryset
+            qset, is_brcme_month_limit = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
-            if remaining_credits <= 0:
-                # if reached cme credit limit, disallow post of brcme (e.g. disallow redeem offer)
+            if remaining_credits <= 0 or is_brcme_month_limit:
+                # if reached cme credit limit or at monthly speed limit, disallow post of brcme (e.g. disallow redeem offer)
                 discard_codes.add(PERM_POST_BRCME)
         allowed_codes = set(allowed_codes)
         for codename in discard_codes:
@@ -872,6 +877,7 @@ class UserSubscriptionManager(models.Manager):
         data = {
             'permissions': perms,
             'credits' : {
+                'monthly_limit': is_brcme_month_limit,
                 'unlimited': user_subs.plan.isUnlimitedCme(),
                 'plan_credits': userCredits.plan_credits,
                 'boost_credits': userCredits.boost_credits
