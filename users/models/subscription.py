@@ -811,6 +811,7 @@ class UserSubscriptionManager(models.Manager):
             Include PERM_ALLOW_INVITE for paid plans with active status.
         Returns: Permission queryset
         """
+        is_brcme_month_limit = False
         plan = user_subs.plan
         g = Group.objects.get(name=user_subs.display_status)
         qset = g.permissions.all()
