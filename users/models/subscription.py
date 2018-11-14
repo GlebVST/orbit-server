@@ -842,6 +842,9 @@ class UserSubscriptionManager(models.Manager):
         allowed_codes = []
         is_brcme_month_limit = False
         is_unlimited_cme = False
+        remaining_credits = 0
+        plan_credits = 0
+        boost_credits = 0
         # get any special groups to which the user belongs
         discard_codes = set([])
         group_names = set([])
@@ -861,9 +864,10 @@ class UserSubscriptionManager(models.Manager):
         except UserCmeCredit.DoesNotExist:
             # might be a case when user hasn't completed signup so don't have a subscription yet
             logger.debug('UserCmeCredit instance does not exist for user {0}'.format(user))
-            remaining_credits = 0
         else:
             remaining_credits = userCredits.remaining()
+            plan_credits = userCredits.plan_credits
+            boost_credits = userCredits.boost_credits
         if user_subs:
             qset, is_brcme_month_limit = self.getPermissions(user_subs) # Permission queryset
             allowed_codes.extend([p.codename for p in qset])
@@ -884,8 +888,8 @@ class UserSubscriptionManager(models.Manager):
             'credits' : {
                 'monthly_limit': is_brcme_month_limit,
                 'unlimited': is_unlimited_cme,
-                'plan_credits': userCredits.plan_credits,
-                'boost_credits': userCredits.boost_credits
+                'plan_credits': plan_credits,
+                'boost_credits': boost_credits
             }
         }
         return data
