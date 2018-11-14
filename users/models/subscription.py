@@ -841,6 +841,7 @@ class UserSubscriptionManager(models.Manager):
         """
         allowed_codes = []
         is_brcme_month_limit = False
+        is_unlimited_cme = False
         # get any special groups to which the user belongs
         discard_codes = set([])
         group_names = set([])
@@ -858,7 +859,8 @@ class UserSubscriptionManager(models.Manager):
         try:
             userCredits = UserCmeCredit.objects.get(user=user)
         except UserCmeCredit.DoesNotExist:
-            logger.exception('UserCmeCredit instance does not exist for user {0}'.format(user))
+            # might be a case when user hasn't completed signup so don't have a subscription yet
+            logger.debug('UserCmeCredit instance does not exist for user {0}'.format(user))
             remaining_credits = 0
         else:
             remaining_credits = userCredits.remaining()
@@ -868,6 +870,8 @@ class UserSubscriptionManager(models.Manager):
             if remaining_credits <= 0 or is_brcme_month_limit:
                 # if reached cme credit limit or at monthly speed limit, disallow post of brcme (e.g. disallow redeem offer)
                 discard_codes.add(PERM_POST_BRCME)
+            if user_subs.plan:
+                is_unlimited_cme = user_subs.plan.isUnlimitedCme()
         allowed_codes = set(allowed_codes)
         for codename in discard_codes:
             allowed_codes.discard(codename) # remove from set if exist
@@ -879,7 +883,7 @@ class UserSubscriptionManager(models.Manager):
             'permissions': perms,
             'credits' : {
                 'monthly_limit': is_brcme_month_limit,
-                'unlimited': user_subs.plan.isUnlimitedCme(),
+                'unlimited': is_unlimited_cme,
                 'plan_credits': userCredits.plan_credits,
                 'boost_credits': userCredits.boost_credits
             }
