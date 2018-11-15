@@ -541,7 +541,7 @@ class SubscriptionPlanKey(models.Model):
             help_text='Must be unique. Must match the landing_key in the pricing page URL')
     description = models.TextField(blank=True, default='')
     use_free_plan = models.BooleanField(default=False,
-            help_text='If true: expects a Free Standard Plan assigned to it, to be used in place of the BT Standard Plan for signup')
+            help_text='If true: expects a Free Plan assigned to it, to be used in place of the BT Plan for signup')
     degree = models.ForeignKey(Degree,
         on_delete=models.PROTECT,
         db_index=True,
@@ -601,22 +601,22 @@ class SubscriptionPlanManager(models.Manager):
         return cleaned_name + '-{0}'.format(hash_pk)
 
     def getPlansForKey(self, plan_key):
-        """This swaps out the Braintree Standard Plan for the Free Standard Plan depending on plan_key.use_free_plan.
+        """This swaps out the Braintree Plan for the Free Plan depending on plan_key.use_free_plan.
         Args:
             plan_key: SubscriptionPlanKey instance
         If plan_key.use_free_plan is True:
-            The BT Standard Plan is swapped out for the Free Standard Plan.
+            The BT Basic Plan is swapped out for the Free Basic Plan.
             return [
-                Free Standard Plan,  # no payment method at signup
-                BT Plus Plan         # needs payment method at signup
+                Free Basic Plan,  # no payment method at signup
+                BT Pro Plan         # needs payment method at signup
             ]
         else:
             Only Braintree-type plans are returned. These require a payment method at signup
             return [
-                BT Standard Plan,
-                BT Plus Plan
+                BT Basic Plan,
+                BT Pro Plan
             ]
-        Note: Plus plan is unaffected by plan_key and is always the Braintree plan.
+        Note: Pro plan is unaffected by plan_key and is always the Braintree plan.
         Returns: SubscriptionPlan queryset order by price
         """
         pt_bt = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.BRAINTREE)
@@ -624,7 +624,7 @@ class SubscriptionPlanManager(models.Manager):
         filter_kwargs = dict(active=True, plan_key=plan_key)
         if plan_key.use_free_plan:
             qset = self.model.objects.filter(
-                Q(plan_type=pt_free, display_name='Standard') | Q(plan_type=pt_bt, display_name='Plus'),
+                Q(plan_type=pt_free, display_name='Basic') | Q(plan_type=pt_bt, display_name='Pro'),
                 **filter_kwargs
             )
         else:
@@ -633,19 +633,12 @@ class SubscriptionPlanManager(models.Manager):
         return qset.order_by('price')
 
     def getPaidPlanForFreePlan(self, free_plan):
-        """Finds the partner BT Standard Plan for the given free-individual plan
+        """Return upgrade_plan for the given free plan
         Args:
             free_plan: SubscriptionPlan whose plan_type is free-individual
-        Returns: SubscriptionPlan
-        Raises SubscriptionPlan.DoesNotExist exception if none found.
+        Returns: SubscriptionPlan/None
         """
-        pt_bt = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.BRAINTREE)
-        filter_kwargs = dict(
-                plan_key=free_plan.plan_key,
-                active=True,
-                display_name='Standard',
-                plan_type=pt_bt)
-        return self.model.objects.get(**filter_kwargs)
+        return free_plan.upgrade_plan
 
     def getEnterprisePlan(self):
         qset = self.model.objects.select_related('plan_type').filter(plan_type__name=SubscriptionPlanType.ENTERPRISE, active=True)
@@ -1011,7 +1004,7 @@ class UserSubscriptionManager(models.Manager):
             user: User instance
         Remove user from GROUP_ENTERPRISE_MEMBER group.
         Set profile.organization to None
-        Find the appropriate Free Standard Plan for this user based on profile.
+        Find the appropriate Free Basic Plan for this user based on profile.
         Create Free user_subs and set to ENTERPRISE_CANCELED state. This allow user to use UI
         to enter in their payment info and activate a paid plan within the plan_key.
         Create local and BT Customer object for user.
@@ -1041,12 +1034,12 @@ class UserSubscriptionManager(models.Manager):
             # delete enterprise user_subs so that user can join as individual user (or be re-added back to org)
             user_subs.delete()
             return
-        # Assign user to the FREE_INDIVIDUAL Standard plan under plan_key
+        # Assign user to the FREE_INDIVIDUAL Basic plan under plan_key
         filter_kwargs = dict(
                 active=True,
                 plan_key=plan_key,
                 plan_type=pt_free,
-                display_name='Standard'
+                display_name='Basic'
                 )
         qset = SubscriptionPlan.objects.filter(**filter_kwargs)
         if not qset.exists():
@@ -1354,7 +1347,7 @@ class UserSubscriptionManager(models.Manager):
 
 
     def upgradePlan(self, user_subs, new_plan, payment_token):
-        """This is called to upgrade the user to a higher-priced plan (e.g. Standard to Plus).
+        """This is called to upgrade the user to a higher-priced plan (e.g. Basic to Pro).
         Cancel existing subscription, and create new one.
         If the old subscription had some discounts to be applied at the next cycle, and the discount total is less
         that is what is owed for upgrade, then apply these discounts to the new subscription.
@@ -1500,7 +1493,7 @@ class UserSubscriptionManager(models.Manager):
         Use case: User is currently in Plus, and wants to downgrade at end of current billing cycle.
         Update BT subscription and set never_expires=False and number_of_billing_cycles to current cycle.
         Update model instance: set display_status = UI_ACTIVE_DOWNGRADE
-        Need separate management task that creates new subscription in Standard at end of the billing cycle.
+        Need separate management task that creates new subscription at end of the billing cycle.
         Returns Braintree result object
         """
         # find the downgrade_plan for the current plan
