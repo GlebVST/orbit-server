@@ -2159,7 +2159,7 @@ class CmeBoostPurchaseManager(models.Manager):
             boost_purchase = CmeBoostPurchase.objects.create(
                 user=user,
                 boost=boost,
-                transaction_id=bt_trans.id,
+                transactionId=bt_trans.id,
                 proc_auth_code=proc_auth_code,
                 proc_response_code=bt_trans.processor_response_code,
                 amount=bt_trans.amount,

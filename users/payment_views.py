@@ -1019,8 +1019,8 @@ class CmeBoostPurchase(generics.CreateAPIView):
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         logInfo(logger, request, 'CME Boost Purchase complete for user {0.id}: {1.id}'.format(user, boost_purchase))
-        out_serializer = CmeBoostPurchaseSerializer(boost_purchase)
-        context['boost'] = out_serializer.data
+        out_serializer = CmeBoostPurchaseReadSerializer(boost_purchase)
+        context['purchase'] = out_serializer.data
         # Return permissions b/c new CME Boost may allow different perms than prior to purchase
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context['permissions'] = pdata['permissions']

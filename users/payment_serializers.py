@@ -164,20 +164,21 @@ class CmeBoostSerializer(serializers.ModelSerializer):
             'price'
         )
 
-class CmeBoostPurchaseSerializer(serializers.ModelSerializer):
-    boost = serializers.PrimaryKeyRelatedField(
-        queryset=CmeBoost.objects.all())
-    payment_method_token = serializers.CharField(max_length=64)
-
+class CmeBoostPurchaseReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = CmeBoostPurchase
         fields = (
             'id',
             'boost',
-            'payment_method_token',
             'created',
             'modified'
         )
+
+
+class CmeBoostPurchaseSerializer(serializers.Serializer):
+    boost = serializers.PrimaryKeyRelatedField(
+        queryset=CmeBoost.objects.all())
+    payment_method_token = serializers.CharField(max_length=64)
 
     def save(self, **kwargs):
         """This expects user passed in to kwargs
