@@ -733,11 +733,11 @@ class SubscriptionPlan(models.Model):
 
     def monthlyPrice(self):
         """returns formatted str"""
-        return "{0:.2f}".format(self.price/Decimal('12.0'))
+        return "{0:.2f}".format(self.price/self.billingCycleMonths)
 
     def discountMonthlyPrice(self):
         """returns formatted str"""
-        return "{0:.2f}".format(self.discountPrice/Decimal('12.0'))
+        return "{0:.2f}".format(self.discountPrice/self.billingCycleMonths)
 
     def isUnlimitedCme(self):
         """True if this is an un-limited plan, else False"""

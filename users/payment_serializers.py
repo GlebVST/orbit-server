@@ -67,6 +67,7 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
             'displayMonthlyPrice',
             'needs_payment_method',
             'trialDays',
+            'billingCycleMonths',
         )
 
 
