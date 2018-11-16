@@ -685,16 +685,22 @@ class UpgradePlan(generics.CreateAPIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 
-class DowngradePlan(APIView):
+class DowngradePlan(generics.CreateAPIView):
     """
-    User is currently in Plus plan and wants to downgrade back to Standard.
+    User is currently in Pro plan and wants to downgrade back to lower price plan like Basic (specified via `plan` parameter).
     This will take effect at the end of the current billing cycle.
     """
+    serializer_class = DowngradePlanSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def post(self, request, *args, **kwargs):
+
+    def create(self, request, *args, **kwargs):
+        logDebug(logger, request, 'DowngradePlan begin')
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_plan = serializer.validated_data['plan']
         user_subs = UserSubscription.objects.getLatestSubscription(request.user)
         try:
-            result = UserSubscription.objects.makeActiveDowngrade(user_subs)
+            result = UserSubscription.objects.makeActiveDowngrade(new_plan, user_subs)
         except:
             context = {
                 'success': False,

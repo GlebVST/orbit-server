@@ -1454,25 +1454,20 @@ class UserSubscriptionManager(models.Manager):
         return result
 
 
-    def makeActiveDowngrade(self, user_subs):
+    def makeActiveDowngrade(self, downgrade_plan, user_subs):
         """
-        Use case: User is currently in Plus, and wants to downgrade at end of current billing cycle.
+        Use case: User is currently in Pro, and wants to downgrade at end of current billing cycle.
         Update BT subscription and set never_expires=False and number_of_billing_cycles to current cycle.
         Update model instance: set display_status = UI_ACTIVE_DOWNGRADE
         Need separate management task that creates new subscription at end of the billing cycle.
         Returns Braintree result object
         """
-        # find the downgrade_plan for the current plan
-        downgrade_plan = user_subs.plan.downgrade_plan
-        if not downgrade_plan:
-            raise ValueError('No downgrade_plan found for: {0}/{0.plan}'.format(user_subs))
-        else:
-            logger.debug('makeActiveDowngrade to {0}/{0.planId} for user_subs {1}'.format(downgrade_plan, user_subs))
-            result = self.setExpireAtBillingCycleEnd(user_subs)
-            if result.is_success:
-                user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
-                user_subs.next_plan = downgrade_plan
-                user_subs.save()
+        logger.debug('makeActiveDowngrade to {0}/{0.planId} for user_subs {1}'.format(downgrade_plan, user_subs))
+        result = self.setExpireAtBillingCycleEnd(user_subs)
+        if result.is_success:
+            user_subs.display_status = UserSubscription.UI_ACTIVE_DOWNGRADE
+            user_subs.next_plan = downgrade_plan
+            user_subs.save()
             return result
 
 

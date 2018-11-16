@@ -151,6 +151,9 @@ class UpgradePlanSerializer(serializers.Serializer):
         payment_method_token = validated_data['payment_method_token']
         return UserSubscription.objects.upgradePlan(user_subs, plan, payment_method_token)
 
+class DowngradePlanSerializer(serializers.Serializer):
+    plan = serializers.PrimaryKeyRelatedField(queryset=SubscriptionPlan.objects.all())
+
 class CmeBoostSerializer(serializers.ModelSerializer):
     credits = serializers.IntegerField()
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
