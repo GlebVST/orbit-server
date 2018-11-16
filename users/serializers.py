@@ -557,6 +557,7 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
             'billingStartDate',
             'billingEndDate',
             'needs_payment_method',
+            'next_plan',
             'created',
             'modified'
         )
