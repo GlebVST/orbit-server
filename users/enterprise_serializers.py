@@ -71,10 +71,11 @@ class OrgMemberFormSerializer(serializers.Serializer):
             plan: SubscriptionPlan instance whose plan_type is ENTERPRISE
         1. Create Auth0 user account
         2. Create User & Profile instance (and assign org)
-        3. Create UserSubscription using plan_type=ENTERPRISE
-        4. Create OrgAdmin model instance
-        5. Assign groups to the new user
-        6. Generate change-password-ticket if given
+        3. Create local and BT Customer object for user.
+        4. Create UserSubscription using plan_type=ENTERPRISE
+        5. Create OrgAdmin model instance
+        6. Assign groups to the new user
+        7. Generate change-password-ticket if given
         Returns: OrgMember model instance
         """
         apiConn = validated_data['apiConn']
@@ -107,14 +108,27 @@ class OrgMemberFormSerializer(serializers.Serializer):
         if degrees:
             profile.degrees.set(degrees)
         user = profile.user
-        # 3. Create Enterprise UserSubscription for user
+        # 3. create local and BT Customer object
+        customer = Customer(user=user)
+        customer.save()
+        try:
+            # create braintree Customer
+            result = braintree.Customer.create({
+                "id": str(customer.customerId),
+                "email": user.email
+            })
+            if not result.is_success:
+                logger.error('braintree.Customer.create failed. Result message: {0.message}'.format(result))
+        except:
+            logger.exception('braintree.Customer.create exception')
+        # 4. Create Enterprise UserSubscription for user
         user_subs = UserSubscription.objects.createEnterpriseMemberSubscription(user, plan)
-        # 4. create OrgMember instance
+        # 5. create OrgMember instance
         m = OrgMember.objects.createMember(org, profile, is_admin)
-        # 5. Assign extra groups
+        # 6. Assign extra groups
         if is_admin:
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
-        # 6. Create change-password ticket
+        # 7. Create change-password ticket
         if password_ticket:
             ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
             logger.debug('ticket_url for {0}={1}'.format(socialId, ticket_url))
