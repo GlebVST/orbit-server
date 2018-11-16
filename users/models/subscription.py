@@ -1218,11 +1218,11 @@ class UserSubscriptionManager(models.Manager):
                     ]
                 }
                 logger.info('SignupEmailPromo subs_price: {0}'.format(subs_price))
-        else:
-            if is_invitee or is_convertee:
-                discounts.append(inv_discount)
-                subs_price -= inv_discount.amount # update subs_price
-            if allow_signup:
+            else:
+                # no promo, check other signup discounts
+                if is_invitee or is_convertee:
+                    discounts.append(inv_discount)
+                    subs_price -= inv_discount.amount # update subs_price
                 sd = SignupDiscount.objects.getForUser(user)
                 if sd:
                     discount = sd.discount
@@ -1293,42 +1293,46 @@ class UserSubscriptionManager(models.Manager):
             return (result, None)
 
 
-    def getDiscountAmountForUpgrade(self, old_plan, new_plan, billingCycle, billingDay, numDaysInYear):
-        """Calculate the discount amount to be used as the update amount on the
-        new plan's first-year-dicountId.
+    def getDiscountAmountForUpgrade(self, user_subs, new_plan, billingDay, numDaysInYear):
+        """This should be called before current user_subs is canceled.
+        It calculates the discount amount based on how much the user paid for their current
+        annual subscription and how many days are left in the old subscription.
         Args:
-            old_plan: current (lower-priced) Plan
+            user_subs: UserSubscription
             new_plan: new (higher-priced) Plan
-            billingCycle: int >= 1. If 1, user is eligible for a pro-rated first year discount on the new plan
-            billingDay: int 1-365/366.  day in the current billing cycle on the old plan
+            billingDay: int 1-365 or 366.  day in the current billing cycle on the old plan
             numDaysInYear:int either 365 or 366
         Returns: (owed:Decimal, discount_amount:Decimal)
         """
-        if billingCycle == 1:
-            # user in first year
-            daysLeft = Decimal(numDaysInYear) - billingDay # days left in the old billing cycle
-            cf = Decimal(numDaysInYear*1.0) # conversion factor to get daily plan price
-            old_discount_price = old_plan.discountPrice/cf # daily discounted price
-            new_discount_price = new_plan.discountPrice/cf # daily discounted price
-            new_full_price = new_plan.price/cf # daily discounted price
-            # amount owed at the old plan discounted price
-            old_plan_discounted_amount = old_discount_price*(billingDay-1)
-            # amount owed at the new plan discounted price
-            new_plan_discounted_amount = new_discount_price*(daysLeft)
-            # amount owed at the new plan full price
-            new_plan_full_amount = new_full_price*(billingDay-1)
-            total = old_plan_discounted_amount + new_plan_discounted_amount + new_plan_full_amount
-            # owed = total - amount_already_paid (omitting any signup discounts b/c user earned that regardless of upgrade)
-            owed = total - old_plan.discountPrice
-            discount_amount = new_plan.price - owed
+        old_plan = user_subs.plan
+        daysLeft = Decimal(numDaysInYear) - billingDay # days left in the old billing cycle
+        cf = Decimal(numDaysInYear*1.0) # conversion factor to get daily plan price
+        # find the amount user paid for current user_subs
+        qset = user_subs.transactions.filter(
+                status=SubscriptionTransaction.SETTLED,
+                trans_type=SubscriptionTransaction.TYPE_SALE).order_by('-created')
+        if qset.exists():
+            amountPaid = qset[0].amount
         else:
-            # user in post-first year
-            discount_amount = 0
-            owed = new_plan.price
-        logger.debug('total   : {0}'.format(total))
-        logger.debug('owed    : {0}'.format(owed))
-        logger.debug('discount: {0}'.format(discount_amount))
-        return (owed, discount_amount)
+            logger.warning('getDiscountAmountForUpgrade: could not find amount paid for user_subs {0.pk}'.format(user_subs))
+            amountPaid = old_plan.price
+        pricePerDay = amountPaid/cf
+        discountAmount = pricePerDay*daysLeft
+        # check user_subs.nextBillingAmount for extra earned discounts (e.g. from InvitationDiscount)
+        if (user_subs.display_status == UserSubscription.UI_ACTIVE) and (old_plan.price > user_subs.nextBillingAmount):
+            # user had earned some discounts that would have been applied to the next billing cycle on their old plan
+            # (Active-Canceled users forfeited any earned discounts because they don't have a nextBillingAmount)
+            extraDiscount = old_plan.price - user_subs.nextBillingAmount
+            discountAmount += extraDiscount
+        if discountAmount < 1:
+            discountAmount = 0
+        # user will start brand new subscription on new plan with billingCycle back at 1
+        owed = new_plan.discountPrice
+        if owed > discountAmount:
+            owed -= discountAmount
+        else:
+            owed = 0
+        return (owed, discountAmount)
 
 
     def upgradePlan(self, user_subs, new_plan, payment_token):
@@ -1348,83 +1352,60 @@ class UserSubscriptionManager(models.Manager):
         old_plan = user_subs.plan
         if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
             return self.switchTrialToActive(user_subs, payment_token, new_plan)
-        # Get discountId for plan (must exist in Braintree)
-        newPlanDiscountId = 'firstyear-' + str(int(new_plan.price - new_plan.discountPrice))
-        discount_amount = None
+        # Get base-discount (must exist in Braintree)
+        baseDiscount = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
+        discountAmount = 0
         now = timezone.now()
         if user_subs.status == UserSubscription.EXPIRED:
             # user_subs is already in a terminal state
-            owed = new_plan.price
-            # this value will be used to override the default plan first-year discount
-            discount_amount = 0
+            discountAmount = 0
         elif user_subs.status == UserSubscription.CANCELED:
             # This method expects the user_subs to be canceled already
-            owed = new_plan.discountPrice
-            discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
-            for d in discounts:
-                owed -= d['discount'].amount
-            discount_amount = new_plan.price - owed
-            logger.debug('owed    : {0}'.format(owed))
-            logger.debug('discount: {0}'.format(discount_amount))
+            if user_subs.display_status == UserSubscription.UI_TRIAL_CANCELED:
+                # user can still get signup discounts
+                discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+                for d in discounts:
+                    discountAmount += d['discount'].amount
+                logger.debug('discount: {0}'.format(discountAmount))
+            else:
+                discountAmount = 0
         else:
-            # vars needed to calculate discount_amount
-            old_billingStartDate = user_subs.billingStartDate
-            old_billingCycle = user_subs.billingCycle
-            old_nextBillingAmount = old_plan.price
-            if user_subs.display_status == UserSubscription.UI_ACTIVE:
-                old_nextBillingAmount = user_subs.nextBillingAmount
+            # user has an active bt subscription that must be canceled
+            # Calculate discountAmount based on daysLeft in user_subs
+            td = now - user_subs.billingStartDate
+            billingDay = Decimal(td.days)
+            if billingDay == 0:
+                billingDay = 1
+            numDaysInYear = 365 if not calendar.isleap(now.year) else 366
+            owed, discountAmount = self.getDiscountAmountForUpgrade(user_subs, new_plan, billingDay, numDaysInYear)
+            logger.info('upgradePlan old_subs:{0.subscriptionId}|billingCycle={0.billingCycle}|billingDay={1}|discount={2}|owed={3}.'.format(
+                user_subs,
+                billingDay,
+                discountAmount.quantize(TWO_PLACES, ROUND_HALF_UP),
+                owed.quantize(TWO_PLACES, ROUND_HALF_UP)
+            ))
             # cancel existing subscription
             cancel_result = self.terminalCancelBtSubscription(user_subs)
             if not cancel_result.is_success:
                 logger.warning('upgradePlan: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
                 return (cancel_result, user_subs)
-            # Calculate discount_amount for the new subscription
-            td = now - old_billingStartDate
-            billingDay = Decimal(td.days)
-            if billingDay == 0:
-                billingDay = 1
-            numDaysInYear = 365 if not calendar.isleap(now.year) else 366
-            owed, discount_amount = self.getDiscountAmountForUpgrade(old_plan, new_plan, old_billingCycle, billingDay, numDaysInYear)
-            logger.info('upgradePlan old_subs:{0.subscriptionId}|billingCycle={1}|billingDay={2}|discount={3}|owed={4}.'.format(
-                user_subs,
-                old_billingCycle,
-                billingDay,
-                discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP),
-                owed.quantize(TWO_PLACES, ROUND_HALF_UP)
-            ))
-            if (user_subs.display_status == UserSubscription.UI_ACTIVE) and (old_plan.price > old_nextBillingAmount):
-                # user had earned some discounts that would have been applied to the next billing cycle on their old plan
-                # (Active-Canceled users forfeited any earned discounts because they don't have a nextBillingAmount)
-                earned_discount_amount = old_plan.price - old_nextBillingAmount
-                # check if can apply the earned_discount_amount right now
-                t = discount_amount + earned_discount_amount
-                if t < new_plan.price:
-                    discount_amount = t
-                    owed -= earned_discount_amount
-                    logger.info('Apply earned_discount={0}|New owed:{1}'.format(
-                        earned_discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP),
-                        owed.quantize(TWO_PLACES, ROUND_HALF_UP)
-                    ))
-                else:
-                    # Defer the earned discount to the next billingCycle on the new subscription
-                    ead = earned_discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP)
-                    logger.info('Defer earned_discount={0} from user_subs {1.subscriptionId}'.format(ead, user_subs))
-                    user.customer.balance += ead
-                    user.customer.save()
         # Create new subscription
         subs_params = {
             'plan_id': new_plan.planId,
             'trial_duration': 0,
-            'payment_method_token': payment_token,
-            'discounts': {
-                'update': [
+            'payment_method_token': payment_token
+        }
+        if discountAmount > 0:
+            # Add discounts:add key to subs_params
+            subs_params['discounts'] = {
+                'add': [
                     {
-                        'existing_id': newPlanDiscountId,
-                        'amount': discount_amount.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+                        "inherited_from_id": baseDiscount.discountId,
+                        'amount': discountAmount.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
                     }
                 ]
             }
-        }
+        # create new bt subs
         result = braintree.Subscription.create(subs_params)
         if result.is_success:
             logger.info('upgradePlan result: {0.is_success}'.format(result))

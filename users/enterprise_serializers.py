@@ -3,6 +3,7 @@ from decimal import Decimal
 from cStringIO import StringIO
 from hashids import Hashids
 import os
+import braintree
 import hashlib
 import logging
 import mimetypes
@@ -119,6 +120,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
             })
             if not result.is_success:
                 logger.error('braintree.Customer.create failed. Result message: {0.message}'.format(result))
+                return None
         except:
             logger.exception('braintree.Customer.create exception')
         # 4. Create Enterprise UserSubscription for user
