@@ -140,7 +140,8 @@ class EntryManager(models.Manager):
         Returns: list of dicts with keys:
             id: int - tag pk,
             name: str - tag name,
-            credit_sum: Decimal - sum of credits for this tag
+            brcme_sum: Decimal - sum of br-cme credits for this tag
+            srcme_sum: Decimal - sum of sr-cme credits for this tag
             entries: list of dicts - entries for this tag. An entry appears under all tags given by entry.tags
         Note: only tags which appear in user's entries for the given activityDate range are present in the output.
         """
@@ -173,11 +174,15 @@ class EntryManager(models.Manager):
                     .prefetch_related('tags', p_docs) \
                     .order_by('-activityDate')
             entryData = []
-            credit_sum = 0
+            srcme_sum = 0
+            brcme_sum = 0
             # each item in Entry queryset is a Entry model instance
             for m in userEntries:
                 credits = m.getCredits()
-                credit_sum += credits
+                if m.entryType.name == ENTRYTYPE_BRCME:
+                    brcme_sum += credits
+                else:
+                    srcme_sum += credits
                 ed = {
                     'id': m.pk,
                     'entryType': m.entryType.name, # no extra hit to db b/c of select_related on ForeignKey
@@ -193,7 +198,8 @@ class EntryManager(models.Manager):
             data.append({
                 'id': tag.pk,
                 'name': tag.name,
-                'credit_sum': credit_sum,
+                'srcme_sum': srcme_sum,
+                'brcme_sum': brcme_sum,
                 'entries': entryData
             })
         return data
