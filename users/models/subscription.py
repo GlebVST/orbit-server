@@ -1381,8 +1381,8 @@ class UserSubscriptionManager(models.Manager):
             logger.info('upgradePlan old_subs:{0.subscriptionId}|billingCycle={0.billingCycle}|billingDay={1}|discount={2}|owed={3}.'.format(
                 user_subs,
                 billingDay,
-                discountAmount.quantize(TWO_PLACES, ROUND_HALF_UP),
-                owed.quantize(TWO_PLACES, ROUND_HALF_UP)
+                discountAmount,
+                owed
             ))
             # cancel existing subscription
             cancel_result = self.terminalCancelBtSubscription(user_subs)
