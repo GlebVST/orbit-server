@@ -41,9 +41,11 @@ class SubscriptionPlanList(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def getUpgradeAmount(self, new_plan, user_subs):
-        user = user_subs.user
         can_upgrade = False
         amount = None
+        if not user_subs:
+            return (can_upgrade, amount)
+        user = user_subs.user
         # New plan must be an upgrade from the old plan (ignoring Enterprise)
         old_plan = user_subs.plan
         if new_plan and not new_plan.isEnterprise() and new_plan.price > old_plan.price:
