@@ -40,6 +40,41 @@ class SubscriptionPlanList(generics.ListAPIView):
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
+    def getUpgradeAmount(self, new_plan, user_subs):
+        user = user_subs.user
+        can_upgrade = False
+        amount = None
+        # New plan must be an upgrade from the old plan (ignoring Enterprise)
+        old_plan = user_subs.plan
+        if new_plan and not new_plan.isEnterprise() and new_plan.price > old_plan.price:
+            starterStatus = (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.UI_ENTERPRISE_CANCELED)
+            if user_subs.display_status in starterStatus:
+                # user hasn't ever paid yet so could utilize discounts on the next plan
+                can_upgrade = True
+                owed = new_plan.discountPrice
+                # discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+                # for d in discounts:
+                #     owed -= d['discount'].amount
+                amount = owed.quantize(TWO_PLACES, ROUND_HALF_UP)
+            elif user_subs.status == UserSubscription.EXPIRED or (user_subs.status == UserSubscription.CANCELED and user_subs.display_status == UserSubscription.UI_EXPIRED):
+                # user's last subscription is expired (this is the final state AFTER Active-Canceled) or terminally cancelled
+                # so user owes a full amount on the next plan
+                can_upgrade = True
+                amount = new_plan.price.quantize(TWO_PLACES, ROUND_HALF_UP)
+            elif user_subs.status == UserSubscription.ACTIVE:
+                # user_subs.display_status is one of Active/Active-Canceled
+                # need to calculate proration
+                can_upgrade = True
+                now = timezone.now()
+                daysInYear = 365 if not calendar.isleap(now.year) else 366
+                td = now - user_subs.billingStartDate
+                billingDay = td.days
+                owed, discount_amount = UserSubscription.objects.getDiscountAmountForUpgrade(
+                    user_subs, new_plan, billingDay, daysInYear)
+                amount = owed.quantize(TWO_PLACES, ROUND_HALF_UP)
+
+        return (can_upgrade, amount)
+
     def get_queryset(self):
         """Filter plans by plan_key sourced from the planId in request.user.profile"""
         user = self.request.user
@@ -58,9 +93,26 @@ class SubscriptionPlanList(generics.ListAPIView):
                 plan_key = SubscriptionPlan.objects.findPlanKeyForProfile(profile)
                 if not plan_key:
                     plan_key = SubscriptionPlanKey.objects.all().order_by('id')[0]
+
             # return plans for the plan_key
             filter_kwargs = dict(plan_key=plan_key)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
+
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        available_plans = serializer.data
+
+        user = self.request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+
+        for index, plan in enumerate(available_plans):
+            (can_upgrade, amount) = self.getUpgradeAmount(queryset[index], user_subs)
+            plan['can_upgrade'] = can_upgrade
+            plan['upgrade_amount'] = amount
+
+        return Response(available_plans)
 
 
 # SubscriptionPlanPublic : for AllowAny
@@ -719,10 +771,12 @@ class DowngradePlan(generics.CreateAPIView):
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             else:
+                out_serializer = UserSubsReadSerializer(user_subs)
                 context = {
                     'success': True,
                     'bt_status': user_subs.status,
-                    'display_status': user_subs.display_status
+                    'display_status': user_subs.display_status,
+                    'subscription': out_serializer.data
                 }
                 message = 'DowngradePlan set for subscriptionId: {0.subscriptionId}.'.format(user_subs)
                 logInfo(logger, request, message)
@@ -917,10 +971,12 @@ class ResumeSubscription(APIView):
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             else:
+                out_serializer = UserSubsReadSerializer(user_subs)
                 context = {
                     'success': True,
                     'bt_status': user_subs.status,
-                    'display_status': user_subs.display_status
+                    'display_status': user_subs.display_status,
+                    'subscription': out_serializer.data
                 }
                 message = 'ResumeSubscription complete for subscriptionId: {0.subscriptionId}.'.format(user_subs)
                 logInfo(logger, request, message)
