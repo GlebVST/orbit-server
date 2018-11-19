@@ -762,8 +762,13 @@ class AuditReport(models.Model):
         on_delete=models.PROTECT,
         null=True,
         db_index=True,
+        related_name='genauditreports',
+        help_text='Certificate generated for the same date range'
+    )
+    certificates = models.ManyToManyField(Certificate,
+        blank=True,
         related_name='auditreports',
-        help_text='BrowserCme Certificate generated for the same date range'
+        help_text='Specialty Certificates generated for the same date range'
     )
     referenceId = models.CharField(max_length=64,
         null=True,
