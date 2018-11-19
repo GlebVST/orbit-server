@@ -1498,6 +1498,8 @@ class UserSubscriptionManager(models.Manager):
         if result.is_success:
             # update model
             user_subs.display_status = UserSubscription.UI_ACTIVE
+            # cleanup next plan
+            user_subs.next_plan = None
             if curBillingCycle:
                 user_subs.billingCycle = curBillingCycle
             user_subs.save()
