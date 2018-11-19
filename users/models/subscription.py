@@ -1325,13 +1325,13 @@ class UserSubscriptionManager(models.Manager):
             extraDiscount = old_plan.price - user_subs.nextBillingAmount
             discountAmount += extraDiscount
         if discountAmount < 1:
-            discountAmount = 0
+            discountAmount = Decimal(0)
         # user will start brand new subscription on new plan with billingCycle back at 1
         owed = new_plan.discountPrice
         if owed > discountAmount:
             owed -= discountAmount
         else:
-            owed = 0
+            owed = Decimal(0)
         return (owed, discountAmount)
 
 
