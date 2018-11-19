@@ -697,6 +697,8 @@ class TrainingGoal(models.Model):
             validators=[
                 MinValueValidator(1),
                 MaxValueValidator(31)])
+    daysBeforeDue = models.PositiveIntegerField(default=180,
+            help_text='days before nextDueDate at which the next usergoal in a recurring series is created')
     objects = TrainingGoalManager()
 
     def __str__(self):
@@ -1015,7 +1017,7 @@ class UserGoalManager(models.Manager):
 
 @python_2_unicode_compatible
 class UserGoal(models.Model):
-    MAX_DUEDATE_DIFF_DAYS = 30 # used in recompute calculation
+    MAX_DUEDATE_DIFF_DAYS = 30 # used in recompute method for combining cmegoals grouped by tag
     PASTDUE = 0
     IN_PROGRESS = 1
     COMPLETED = 2
@@ -1136,7 +1138,6 @@ class UserGoal(models.Model):
             if totalDays > self.daysLeft:
                 progress = 100.0*(totalDays - self.daysLeft)/totalDays
         return int(progress)
-
 
     def makeUserLicenseDict(self):
         """Helper method for recompute
