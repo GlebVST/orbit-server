@@ -599,3 +599,32 @@ class InvitationDiscountReadSerializer(serializers.ModelSerializer):
             'modified'
         )
         read_only_fields = fields
+
+class UserEmailUpdateSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def update(self, instance, validated_data):
+        """This expects extra keys in the validated_data:
+            apiConn: Auth0Api instance
+        1. Set user with a new email
+        2. Mark profile as not verified again
+        3. Update Auth0 record with a new email that will trigger email verification
+        Returns: User model instance
+        """
+        apiConn = validated_data['apiConn']
+        # check email
+        email = validated_data.get('email')
+        user = instance
+        profile = user.profile
+        if email != user.email:
+            logger.info('Update User record: change email from {0.email} to {1}'.format(user, email))
+            # update user instance
+            user.username = email; user.email = email
+            user.save()
+            # update profile as new email needs verification
+            profile.verified = False
+            profile.save()
+            # update auth0
+            response = apiConn.updateUser(profile.socialId, email, True)
+            logger.info('Auth0 User update result: {}'.format(response))
+        return user
