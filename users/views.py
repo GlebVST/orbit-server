@@ -326,7 +326,7 @@ class CreateDocument(LogValidationErrorMixin, generics.CreateAPIView):
             qset = Document.objects.filter(user=request.user, set_id=instance.set_id, is_thumb=True)
             if qset.exists():
                 out_data.insert(0, qset[0])
-        msg = "Uploaded Document {0.pk}".format(instance.pk)
+        msg = "Uploaded Document {0.pk}".format(instance)
         logInfo(logger, request, msg)
         # serialized data contains either 1 or 2 records
         out_serializer = DocumentReadSerializer(out_data, many=True)
