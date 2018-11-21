@@ -539,11 +539,13 @@ class CreateAuditReport(CertificateMixin, APIView):
         else:
             reportName = SAMPLE_CERTIFICATE_NAME
 
+        profile_specs = [ps.name for ps in profile.specialties.all()]
         # report_data: JSON used by the UI to generate the HTML report
         report_data = {
             'saCredits': saCmeTotal,
             'otherCredits': otherCmeTotal,
-            'dataByTag': auditData
+            'dataByTag': auditData,
+            'profileSpecialties': profile_specs
         }
         # create AuditReport instance
         report = AuditReport(
