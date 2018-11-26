@@ -194,7 +194,7 @@ class OrgMemberList(generics.ListCreateAPIView):
             try:
                 msg = sendJoinTeamEmail(user, org, send_message=True)
             except SMTPException, e:
-                logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0}.'.format(u))
+                logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.id}.'.format(instance))
         else:
             # create new user account and send password ticket email
             apiConn = Auth0Api.getConnection(self.request)
@@ -315,21 +315,22 @@ class EmailSetPassword(APIView):
             if not qset.exists():
                 return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
             orgmember = qset[0]
-            user = orgmember.user
-            profile = user.profile
-            apiConn = Auth0Api.getConnection(self.request)
-            ticket_url = apiConn.change_password_ticket(profile.socialId, UI_LOGIN_URL)
-            try:
-                delivered = sendPasswordTicketEmail(orgmember, ticket_url)
-                if delivered:
-                    orgmember.setPasswordEmailSent = True
-                    orgmember.save(update_fields=('setPasswordEmailSent',))
-            except SMTPException as e:
-                logError(logger, request, 'EmailSetPassword failed for user {0}. ticket_url={1}'.format(user, ticket_url))
-                return Response({'success': False}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                context = {'success': True}
-                return Response(context, status=status.HTTP_200_OK)
+            if orgmember.pending:
+                # member get into a pending state only when existing Orbit user get invited to organisation
+                # so for such users we send a join-team email again
+                try:
+                    sendJoinTeamEmail(orgmember.user, orgmember.organization, send_message=True)
+                except SMTPException, e:
+                    logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(orgmember))
+            elif not orgmember.user.profile.verified:
+                # unverified users with with non-pending state are thos recently invited and never actually joined Orbit
+                # so for such users we send a set-password email
+                apiConn = Auth0Api.getConnection(self.request)
+                OrgMember.objects.sendPasswordTicket(orgmember.user.profile.socialId, orgmember, apiConn)
+
+            context = {'success': True}
+            return Response(context, status=status.HTTP_200_OK)
+
         return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
 
 
@@ -396,6 +397,7 @@ class JoinTeam(APIView):
             raise serializers.ValidationError({'user': error_msg}, code='invalid')
         m = qset[0] # pending OrgMember instance
         # Note: if multiple Enterprise plans exist in the future, then need to
+        profile = Profile.objects.get(pk=user.pk)
         # get specific plan to use.
         plan = SubscriptionPlan.objects.getEnterprisePlan()
         with transaction.atomic():
@@ -404,12 +406,22 @@ class JoinTeam(APIView):
                 m.removeDate = None
             m.save(update_fields=('pending', 'removeDate',))
             logInfo(logger, self.request, 'JoinTeam for OrgMember {0}'.format(m))
+
+            # make sure profile email is marked as verified once user join by the email link
+            # (say someone had unverified email when being independent user)
+            if not profile.verified:
+                profile.verified = True
+                profile.save(update_fields=('verified',))
+                # update Auth0 record to have the same email_verified state
+                apiConn = Auth0Api.getConnection(self.request)
+                apiConn.setEmailVerified(profile.socialId)
+
             # transfer user to Enterprise subscription
             user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, m.organization, plan)
             # emit profile_saved signal
             ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
+
         # prepare context
-        profile = Profile.objects.get(pk=user.pk)
         if not user_subs:
             user_subs = UserSubscription.objects.getLatestSubscription(user)
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)

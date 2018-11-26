@@ -20,19 +20,20 @@ from .emailutils import sendPasswordTicketEmail
 
 logger = logging.getLogger('gen.esrl')
 
-UI_LOGIN_URL = 'https://{0}{1}'.format(settings.SERVER_HOSTNAME, settings.UI_LINK_LOGIN)
-
 class OrgMemberReadSerializer(serializers.ModelSerializer):
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     email = serializers.ReadOnlyField(source='user.email')
     firstName = serializers.ReadOnlyField(source='user.profile.firstName')
     lastName = serializers.ReadOnlyField(source='user.profile.lastName')
-    verified = serializers.ReadOnlyField(source='user.profile.verified')
     degree = serializers.SerializerMethodField()
+    joined = serializers.SerializerMethodField()
 
     def get_degree(self, obj):
         return obj.user.profile.formatDegrees()
+
+    def get_joined(self, obj):
+        return (obj.user.profile.verified and not obj.pending)
 
     class Meta:
         model = OrgMember
@@ -47,7 +48,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'is_admin',
             'compliance',
             'removeDate',
-            'verified',
+            'joined',
             'created',
             'modified'
         )
@@ -132,19 +133,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
         # 7. Create change-password ticket
         if password_ticket:
-            ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
-            logger.debug('ticket_url for {0}={1}'.format(socialId, ticket_url))
-            try:
-                delivered = sendPasswordTicketEmail(m, ticket_url)
-                if delivered:
-                    m.setPasswordEmailSent = True
-                    m.save(update_fields=('setPasswordEmailSent',))
-            except SMTPException as e:
-                error_msg = u'sendPasswordTicketEmail failed for user {0}. ticket_url={1}'.format(user, ticket_url)
-                if settings.ENV_TYPE == settings.ENV_PROD:
-                    logger.exception(error_msg)
-                else:
-                    logger.warning(error_msg)
+            m = OrgMember.objects.sendPasswordTicket(socialId, m, apiConn)
         return m
 
 
