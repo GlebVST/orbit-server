@@ -553,6 +553,7 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
             'display_name',
             'bt_status',
             'display_status',
+            'billingCycle',
             'billingFirstDate',
             'billingStartDate',
             'billingEndDate',
