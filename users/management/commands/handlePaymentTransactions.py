@@ -26,6 +26,9 @@ class Command(BaseCommand):
             bt_subs = UserSubscription.objects.findBtSubscription(user_subs.subscriptionId)
             if user_subs.status != bt_subs.status or user_subs.billingCycle != bt_subs.current_billing_cycle or user_subs.nextBillingAmount != bt_subs.next_billing_period_amount:
                 logger.info('Updating subscriptionId: {0.subscriptionId} for user {0.user}'.format(user_subs))
+                # when active subscription rolls to a next period we need to increase user's cme plan credit
+                if bt_subs.status == UserSubscription.ACTIVE and user_subs.billingCycle != bt_subs.current_billing_cycle:
+                    UserSubscription.objects.refreshUserCmeCreditByCurrentPlan(user)
                 UserSubscription.objects.updateSubscriptionFromBt(user_subs, bt_subs)
             # create and/or update transactions for this user_subs
             created, updated = SubscriptionTransaction.objects.updateTransactionsFromBtSubs(user_subs, bt_subs)

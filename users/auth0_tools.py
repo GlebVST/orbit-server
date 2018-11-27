@@ -170,6 +170,19 @@ class Auth0Api(object):
         response = self.conn.users.update(user_id, body)
         return response
 
+    def setEmailVerified(self, user_id):
+        """Update email_verified of an existing user account
+        Args:
+            user_id: str - auth0 user_id
+        Returns: dict response object
+        """
+        body = {
+            'connection': DEFAULT_CONN_NAME,
+            'email_verified': True,
+        }
+        response = self.conn.users.update(user_id, body)
+        return response
+
 
     def change_password_ticket(self, user_id, redirect_url, ttl_days=7):
         """Create change_password_ticket

@@ -12,8 +12,11 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+from users.emailutils import sendPasswordTicketEmail
+from smtplib import SMTPException
 
 logger = logging.getLogger('gen.models')
+UI_LOGIN_URL = 'https://{0}{1}'.format(settings.SERVER_HOSTNAME, settings.UI_LINK_LOGIN)
 
 #
 # constants (should match the database values)
@@ -502,6 +505,22 @@ class OrgMemberManager(models.Manager):
             else:
                 users.append(user)
         return users
+
+    def sendPasswordTicket(self, socialId, member, apiConn):
+        ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
+        logger.debug('ticket_url for {0}={1}'.format(socialId, ticket_url))
+        try:
+            delivered = sendPasswordTicketEmail(member, ticket_url)
+            if delivered:
+                member.setPasswordEmailSent = True
+                member.save(update_fields=('setPasswordEmailSent',))
+        except SMTPException as e:
+            error_msg = u'sendPasswordTicketEmail failed for org member {0.fullname}. ticket_url={1}'.format(member, ticket_url)
+            if settings.ENV_TYPE == settings.ENV_PROD:
+                logger.exception(error_msg)
+            else:
+                logger.warning(error_msg)
+        return member
 
 @python_2_unicode_compatible
 class OrgMember(models.Model):

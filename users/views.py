@@ -25,6 +25,7 @@ from .models import *
 from .serializers import *
 from .upload_serializers import *
 from .permissions import *
+from .auth0_tools import Auth0Api
 
 logger = logging.getLogger('api.users')
 
@@ -254,6 +255,47 @@ class SetProfileAccessedTour(APIView):
         context = {'success': True}
         return Response(context, status=status.HTTP_200_OK)
 
+class UserEmailUpdate(generics.UpdateAPIView):
+    """This view updates current session user's email in our database and calls auth0 backend to trigger email re-verification.
+    Example JSON in the POST data:
+        {"email": "someemail@orbitcme.com"}
+    """
+    serializer_class = UserEmailUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        email = self.request.data.get('email', '')
+        # do update only when email has actually changed
+        if user.email != email:
+            # Check that email does not trample on an existing user account
+            qset = User.objects.filter(email__iexact=email).exclude(pk=user.pk)
+            if qset.exists():
+                error_msg = u'The email {0} belongs to another user account.'.format(email)
+                logWarning(logger, self.request, error_msg)
+                raise serializers.ValidationError({'email': error_msg}, code='invalid')
+            apiConn = Auth0Api.getConnection(self.request)
+            with transaction.atomic():
+                user = serializer.save(apiConn=apiConn)
+
+        return user
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.request.user
+        form_data = request.data.copy()
+        serializer = self.get_serializer(instance, data=form_data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        user = self.perform_update(serializer)
+        context = {
+            'success': True,
+            'user': {
+                'id': user.pk,
+                'email': user.email,
+                'username': user.username
+            }
+        }
+        return Response(context, status=status.HTTP_200_OK)
 
 class ManageProfileCmetags(APIView):
     """This view allows the user to set the value of the is_active flag on the

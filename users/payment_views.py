@@ -40,6 +40,43 @@ class SubscriptionPlanList(generics.ListAPIView):
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
+    def getUpgradeAmount(self, new_plan, user_subs):
+        can_upgrade = False
+        amount = None
+        if not user_subs:
+            return (can_upgrade, amount)
+        user = user_subs.user
+        # New plan must be an upgrade from the old plan (ignoring Enterprise)
+        old_plan = user_subs.plan
+        if new_plan and not new_plan.isEnterprise() and new_plan.price > old_plan.price:
+            starterStatus = (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.UI_ENTERPRISE_CANCELED)
+            if user_subs.display_status in starterStatus:
+                # user hasn't ever paid yet so could utilize discounts on the next plan
+                can_upgrade = True
+                owed = new_plan.discountPrice
+                # discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
+                # for d in discounts:
+                #     owed -= d['discount'].amount
+                amount = owed.quantize(TWO_PLACES, ROUND_HALF_UP)
+            elif user_subs.status == UserSubscription.EXPIRED or (user_subs.status == UserSubscription.CANCELED and user_subs.display_status == UserSubscription.UI_EXPIRED):
+                # user's last subscription is expired (this is the final state AFTER Active-Canceled) or terminally cancelled
+                # so user owes a full amount on the next plan
+                can_upgrade = True
+                amount = new_plan.price.quantize(TWO_PLACES, ROUND_HALF_UP)
+            elif user_subs.status == UserSubscription.ACTIVE:
+                # user_subs.display_status is one of Active/Active-Canceled
+                # need to calculate proration
+                can_upgrade = True
+                now = timezone.now()
+                daysInYear = 365 if not calendar.isleap(now.year) else 366
+                td = now - user_subs.billingStartDate
+                billingDay = td.days
+                owed, discount_amount = UserSubscription.objects.getDiscountAmountForUpgrade(
+                    user_subs, new_plan, billingDay, daysInYear)
+                amount = owed.quantize(TWO_PLACES, ROUND_HALF_UP)
+
+        return (can_upgrade, amount)
+
     def get_queryset(self):
         """Filter plans by plan_key sourced from the planId in request.user.profile"""
         user = self.request.user
@@ -47,7 +84,7 @@ class SubscriptionPlanList(generics.ListAPIView):
         try:
             plan = SubscriptionPlan.objects.get(planId=profile.planId)
             if plan.isEnterprise():
-                filter_kwargs = dict(active=True, plan_type=plan.plan_type)
+                filter_kwargs = dict(plan_type=plan.plan_type)
                 return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('id')
             plan_key = plan.plan_key
         except SubscriptionPlan.DoesNotExist:
@@ -58,9 +95,26 @@ class SubscriptionPlanList(generics.ListAPIView):
                 plan_key = SubscriptionPlan.objects.findPlanKeyForProfile(profile)
                 if not plan_key:
                     plan_key = SubscriptionPlanKey.objects.all().order_by('id')[0]
+
             # return plans for the plan_key
-            filter_kwargs = dict(active=True, plan_key=plan_key)
+            filter_kwargs = dict(plan_key=plan_key)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
+
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        available_plans = serializer.data
+
+        user = self.request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+
+        for index, plan in enumerate(available_plans):
+            (can_upgrade, amount) = self.getUpgradeAmount(queryset[index], user_subs)
+            plan['can_upgrade'] = can_upgrade
+            plan['upgrade_amount'] = amount
+
+        return Response(available_plans)
 
 
 # SubscriptionPlanPublic : for AllowAny
@@ -292,8 +346,8 @@ class NewSubscription(generics.CreateAPIView):
                 if not cancel_result.is_success:
                     if cancel_result.message == UserSubscription.RESULT_ALREADY_CANCELED:
                         logInfo(logger, request, 'Existing bt_subs already canceled. Syncing with db.')
-                        bt_subs = UserSubscription.objects.findBtSubscription(user_subs.subscriptionId)
-                        UserSubscription.objects.updateSubscriptionFromBt(user_subs, bt_subs)
+                        bt_subs = UserSubscription.objects.findBtSubscription(last_subscription.subscriptionId)
+                        UserSubscription.objects.updateSubscriptionFromBt(last_subscription, bt_subs)
                     else:
                         context = {
                             'success': False,
@@ -470,7 +524,7 @@ class ActivatePaidSubscription(generics.CreateAPIView):
         context['subscription'] = out_serializer.data
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context['permissions'] = pdata['permissions']
-        context['brcme_limit'] = pdata['brcme_limit']
+        context['credits'] = pdata['credits']
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -507,7 +561,6 @@ class UpgradePlanAmount(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         starterStatus = (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.UI_ENTERPRISE_CANCELED, UserSubscription.UI_SUSPENDED)
         if user_subs.display_status in starterStatus:
-            # For pastdue, billingDay is effectively 0 since user has not paid, and treat it the same as Trial for the calculation of owed.
             owed = new_plan.discountPrice
             discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
             for d in discounts:
@@ -515,6 +568,7 @@ class UpgradePlanAmount(APIView):
             can_upgrade = True
             message = ''
             if user_subs.status == UserSubscription.UI_SUSPENDED:
+                # billingDay is effectively 0 since user has not paid, and treat it the same as Trial for owed amount
                 can_upgrade = False # UI will redirect to credit card screen
                 message = 'Please enter a valid credit card for the new subscription'
             context = {
@@ -524,7 +578,7 @@ class UpgradePlanAmount(APIView):
             }
             return Response(context, status=status.HTTP_200_OK)
         if user_subs.display_status == UserSubscription.UI_ACTIVE_DOWNGRADE:
-            # user is already in upgraded plan (can re-activate to cancel the scheduled downgrade)
+            # user is already in upgraded plan. UI must call re-activate to cancel the scheduled downgrade
             context = {
                 'can_upgrade': True,
                 'amount': 0,
@@ -533,7 +587,7 @@ class UpgradePlanAmount(APIView):
             return Response(context, status=status.HTTP_200_OK)
         if user_subs.status == UserSubscription.EXPIRED:
             # user's last subscription is expired (this is the final state AFTER Active-Canceled)
-            # so they have already used up their first year (hence no proration on plan first-year discount at all).
+            # user owes full amount
             owed = new_plan.price
             context = {
                 'can_upgrade': True,
@@ -542,43 +596,24 @@ class UpgradePlanAmount(APIView):
             }
             return Response(context, status=status.HTTP_200_OK)
         if user_subs.status == UserSubscription.ACTIVE:
-            # if Active: user_subs.display_status is one of Active/Active-Canceled
-            if user_subs.billingCycle > 1:
-                # already used up their first year (no proration on plan first-year discount at all).
-                owed = new_plan.price
-                discount_amount = 0
-            else:
-                # need to calculate proration
-                now = timezone.now()
-                daysInYear = 365 if not calendar.isleap(now.year) else 366
-                td = now - user_subs.billingStartDate
-                billingDay = td.days
-                owed, discount_amount = UserSubscription.objects.getDiscountAmountForUpgrade(
-                        old_plan, new_plan, user_subs.billingCycle, billingDay, daysInYear)
-                logDebug(logger, request, 'SubscriptionId:{0.subscriptionId}|Cycle:{0.billingCycle}|Day:{1}|Owed:{2}|Discount:{3}'.format(
-                    user_subs,
-                    billingDay,
-                    owed.quantize(TWO_PLACES, ROUND_HALF_UP),
-                    discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP)
-                ))
-            apply_earned_discount = False
-            # check for earned discounts
-            if (user_subs.display_status == UserSubscription.UI_ACTIVE) and (old_plan.price > user_subs.nextBillingAmount):
-                # user has earned some discounts that would have been applied to the next billing cycle on their old plan
-                # (Active-Canceled users forfeited any earned discounts because they don't have a nextBillingAmount)
-                earned_discount_amount = old_plan.price - user_subs.nextBillingAmount
-                # check if can apply the earned_discount_amount right now
-                t = discount_amount + earned_discount_amount
-                if t < new_plan.price:
-                    discount_amount = t
-                    owed -= earned_discount_amount
-                    apply_earned_discount = True
-                    logDebug(logger, request, 'earned_discount_amount {0}'.format(earned_discount_amount))
+            # user_subs.display_status is one of Active/Active-Canceled
+            # need to calculate proration
+            now = timezone.now()
+            daysInYear = 365 if not calendar.isleap(now.year) else 366
+            td = now - user_subs.billingStartDate
+            billingDay = td.days
+            owed, discount_amount = UserSubscription.objects.getDiscountAmountForUpgrade(
+                    user_subs, new_plan, billingDay, daysInYear)
+            logDebug(logger, request, 'SubscriptionId:{0.subscriptionId}|Cycle:{0.billingCycle}|Day:{1}|Owed:{2}|Discount:{3}'.format(
+                user_subs,
+                billingDay,
+                owed.quantize(TWO_PLACES, ROUND_HALF_UP),
+                discount_amount.quantize(TWO_PLACES, ROUND_HALF_UP)
+            ))
             context = {
                 'can_upgrade': True,
                 'amount': owed.quantize(TWO_PLACES, ROUND_HALF_UP),
                 'message': '',
-                'apply_earned_discount': apply_earned_discount
             }
             return Response(context, status=status.HTTP_200_OK)
         if user_subs.status == UserSubscription.CANCELED and user_subs.display_status == UserSubscription.UI_EXPIRED:
@@ -700,20 +735,26 @@ class UpgradePlan(generics.CreateAPIView):
         # Return permissions b/c new_user_subs may allow different perms than prior subscription.
         pdata = UserSubscription.objects.serialize_permissions(user, new_user_subs)
         context['permissions'] = pdata['permissions']
-        context['brcme_limit'] = pdata['brcme_limit']
+        context['credits'] = pdata['credits']
         return Response(context, status=status.HTTP_201_CREATED)
 
 
-class DowngradePlan(APIView):
+class DowngradePlan(generics.CreateAPIView):
     """
-    User is currently in Plus plan and wants to downgrade back to Standard.
+    User is currently in Pro plan and wants to downgrade back to lower price plan like Basic (specified via `plan` parameter).
     This will take effect at the end of the current billing cycle.
     """
+    serializer_class = DowngradePlanSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
-    def post(self, request, *args, **kwargs):
+
+    def create(self, request, *args, **kwargs):
+        logDebug(logger, request, 'DowngradePlan begin')
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_plan = serializer.validated_data['plan']
         user_subs = UserSubscription.objects.getLatestSubscription(request.user)
         try:
-            result = UserSubscription.objects.makeActiveDowngrade(user_subs)
+            result = UserSubscription.objects.makeActiveDowngrade(new_plan, user_subs)
         except:
             context = {
                 'success': False,
@@ -732,10 +773,12 @@ class DowngradePlan(APIView):
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             else:
+                out_serializer = UserSubsReadSerializer(user_subs)
                 context = {
                     'success': True,
                     'bt_status': user_subs.status,
-                    'display_status': user_subs.display_status
+                    'display_status': user_subs.display_status,
+                    'subscription': out_serializer.data
                 }
                 message = 'DowngradePlan set for subscriptionId: {0.subscriptionId}.'.format(user_subs)
                 logInfo(logger, request, message)
@@ -930,15 +973,104 @@ class ResumeSubscription(APIView):
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
             else:
+                out_serializer = UserSubsReadSerializer(user_subs)
                 context = {
                     'success': True,
                     'bt_status': user_subs.status,
-                    'display_status': user_subs.display_status
+                    'display_status': user_subs.display_status,
+                    'subscription': out_serializer.data
                 }
                 message = 'ResumeSubscription complete for subscriptionId: {0.subscriptionId}.'.format(user_subs)
                 logInfo(logger, request, message)
                 return Response(context, status=status.HTTP_200_OK)
 
+class CmeBoostList(generics.ListAPIView):
+    queryset = CmeBoost.objects.filter(active=True).order_by('credits')
+    serializer_class = CmeBoostSerializer
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
+class CmeBoostPurchase(generics.CreateAPIView):
+    serializer_class = CmeBoostPurchaseSerializer
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def perform_create(self, serializer, format=None):
+        user = self.request.user
+        with transaction.atomic():
+            result, boost_purchase = serializer.save(user=user)
+        return (result, boost_purchase)
+
+    def create(self, request, *args, **kwargs):
+        """Override method to handle custom input/output data structures"""
+
+        logDebug(logger, request, 'Purchase CME Boost')
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        # form_data will be modified before passing it to serializer
+        form_data = request.data.copy()
+        payment_nonce = form_data.get('payment_method_nonce', None)
+        payment_token = form_data.get('payment_method_token', None)
+
+        # get local customer object and braintree customer
+        customer = user.customer
+        try:
+            bc = Customer.objects.findBtCustomer(customer)
+        except braintree.exceptions.not_found_error.NotFoundError:
+            context = {
+                'success': False,
+                'message': 'BT Customer object not found.'
+            }
+            message = context['message'] + ' customerId: {0.customerId}'.format(customer)
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
+        # Convert nonce into token because it is required by subs
+        if payment_nonce:
+            # If user has multiple tokens, then delete their tokens
+            Customer.objects.makeSureNoMultipleMethods(customer)
+            try:
+                result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
+            except ValueError, e:
+                context = {
+                    'success': False,
+                    'message': str(e)
+                }
+                logException(logger, request, 'NewSubscription addOrUpdatePaymentMethod ValueError')
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            if not result.is_success:
+                message = 'Customer vault update failed. Result message: {0.message}'.format(result)
+                context = {
+                    'success': False,
+                    'message': message
+                }
+                logError(logger, request, message)
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            bc2 = Customer.objects.findBtCustomer(customer)
+            tokens = [m.token for m in bc2.payment_methods]
+            payment_token = tokens[0]
+
+        # finally update form_data for serializer
+        form_data['payment_method_token'] = payment_token
+
+        # set plan from profile.planId
+        # form_data['plan'] = SubscriptionPlan.objects.get(planId=profile.planId).pk
+        logDebug(logger, request, str(form_data))
+        in_serializer = self.get_serializer(data=form_data)
+        in_serializer.is_valid(raise_exception=True)
+        result, boost_purchase = self.perform_create(in_serializer)
+        context = {'success': result.is_success}
+        if not result.is_success:
+            message = 'CME Boost Purchase failed. Result message: {0.message}'.format(result)
+            context['message'] = message
+            logError(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        logInfo(logger, request, 'CME Boost Purchase complete for user {0.id}: {1.id}'.format(user, boost_purchase))
+        out_serializer = CmeBoostPurchaseReadSerializer(boost_purchase)
+        context['purchase'] = out_serializer.data
+        # Return permissions b/c new CME Boost may allow different perms than prior to purchase
+        pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
+        context['permissions'] = pdata['permissions']
+        context['credits'] = pdata['credits']
+        return Response(context, status=status.HTTP_201_CREATED)
 
 #
 # testing only

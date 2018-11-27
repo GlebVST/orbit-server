@@ -85,10 +85,13 @@ api_patterns = [
     url(r'^shop/plans/?$', payment_views.SubscriptionPlanList.as_view(), name='shop-plans'),
     url(r'^shop/plans-public/(?P<landing_key>[a-zA-Z0-9_/\-]+)/?$', payment_views.SubscriptionPlanPublic.as_view(), name='shop-plan-public'),
     url(r'^shop/signup-discounts/?$', payment_views.SignupDiscountList.as_view(), name='shop-signup-discounts'),
+    url(r'^shop/boosts/?$', payment_views.CmeBoostList.as_view(), name='shop-boosts'),
+    url(r'^shop/boosts/purchase?$', payment_views.CmeBoostPurchase.as_view(), name='shop-boost-purchase'),
 
     # views
     url(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileUpdate.as_view()),
     url(r'^profiles/(?P<pk>[0-9]+)/update-initial/?$', views.ProfileInitialUpdate.as_view(), name='profile-initial-update'),
+    url(r'^profiles/set-email/?$', views.UserEmailUpdate.as_view()),
     url(r'^profiles/set-accessed-tour/?$', views.SetProfileAccessedTour.as_view(), name='profile-set-accessed-tour'),
     url(r'^profiles/set-cmetags/?$', views.ManageProfileCmetags.as_view(), name='profile-set-cmetags'),
     url(r'^cmetags/?$', views.CmeTagList.as_view()),
@@ -161,6 +164,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/orgmembers/(?P<pk>[0-9]+)/?$', debug_views.OrgMemberDetail.as_view()),
         url(r'^debug/orgmembers/(?P<pk>[0-9]+)/update/?$', debug_views.UpdateOrgMember.as_view()),
         url(r'^debug/orgmembers/(?P<pk>[0-9]+)/email-set-password/?$', debug_views.EmailSetPassword.as_view()),
+        url(r'^debug/audit-report/(?P<userid>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', debug_views.CreateAuditReport.as_view()),
     ])
 
 

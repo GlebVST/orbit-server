@@ -14,6 +14,7 @@ from django.utils import timezone
 import pytz
 from rest_framework.filters import BaseFilterBackend
 from rest_framework import generics, permissions, status
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
@@ -24,7 +25,9 @@ from .models import *
 from .permissions import *
 from .serializers import *
 from .enterprise_serializers import *
-
+from .dashboard_views import CertificateMixin
+from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate
+from .emailutils import sendJoinTeamEmail
 class MakeOrbitCmeOffer(APIView):
     """
     Create a test OrbitCmeOffer for the authenticated user.
@@ -416,14 +419,6 @@ class CreateOrgMember(generics.CreateAPIView):
         if email:
             qset = User.objects.filter(email__iexact=email)
             if qset.exists():
-                u = qset[0]
-                org_qset = OrgMember.objects.filter(organization=org, user=u, removeDate__isnull=False)
-                if org_qset.exists():
-                    print('CreateOrgMember: re-activate existing membership for {0}'.format(u))
-                    instance = org_qset[0]
-                    instance.removeDate = None
-                    instance.save()
-                    return instance
                 error_msg = 'This email already belongs to another user account.'
                 raise serializers.ValidationError({'email': error_msg}, code='invalid')
         apiConn = Auth0Api.getConnection(self.request)
@@ -501,19 +496,145 @@ class EmailSetPassword(APIView):
             if not qset.exists():
                 return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
             orgmember = qset[0]
-            user = orgmember.user
-            profile = user.profile
-            apiConn = Auth0Api.getConnection(self.request)
-            ticket_url = apiConn.change_password_ticket(profile.socialId, UI_LOGIN_URL)
-            try:
-                delivered = sendPasswordTicketEmail(orgmember, ticket_url)
-                if delivered:
-                    orgmember.setPasswordEmailSent = True
-                    orgmember.save(update_fields=('setPasswordEmailSent',))
-            except SMTPException as e:
-                logError('EmailSetPassword failed for user {0}. ticket_url={1}'.format(user, ticket_url))
-                return Response({'success': False}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                context = {'success': True}
-                return Response(context, status=status.HTTP_200_OK)
+            profile = orgmember.user.profile
+            if orgmember.pending:
+                # member get into a pending state only when existing Orbit user get invited to organisation
+                # so for such users we send a join-team email again
+                try:
+                    sendJoinTeamEmail(orgmember.user, orgmember.organization, send_message=True)
+                except SMTPException, e:
+                    logger.warn('sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(orgmember))
+            elif not orgmember.user.profile.verified:
+                # unverified users with with non-pending state are thos recently invited and never actually joined Orbit
+                # so for such users we send a set-password email
+                apiConn = Auth0Api.getConnection(self.request)
+                OrgMember.objects.sendPasswordTicket(orgmember.user.profile.socialId, orgmember, apiConn)
+
+            context = {'success': True}
+            return Response(context, status=status.HTTP_200_OK)
         return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+
+class CreateAuditReport(CertificateMixin, APIView):
+    """
+    This view expects a start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1) as URL parameters.
+    It generates an Audit Report for the date range, and uploads to S3.
+    For each tag with non-zero brcme credits, it also generates a Specialty Certificate that is associated with the report.
+    """
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
+    def post(self, request, userid, start, end):
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+            if startdt >= enddt:
+                context = {
+                    'error': 'Start date must be prior to End Date.'
+                }
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+            brcme_startdt = startdt
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        user = User.objects.get(pk=userid)
+        profile = user.profile
+        # get total self-reported cme credits earned by user in date range
+        srCmeTotal = Entry.objects.sumSRCme(user, startdt, enddt)
+        # get total Browser-cme credits earned by user in date range
+        browserCmeTotal = Entry.objects.sumBrowserCme(user, startdt, enddt)
+        cmeTotal = srCmeTotal + browserCmeTotal
+        if cmeTotal == 0:
+            context = {
+                'error': 'No CME credits earned in this date range.'
+            }
+            logInfo(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # check which cert class to use (MD or Nurse)
+        state_license = None
+        certClass = MDCertificate
+        if profile.isNurse():
+            state_license = user.statelicenses.all()[0]
+            certClass = NurseCertificate
+        # list of dicts: one for each tag having non-zero credits in date range
+        auditData = Entry.objects.newPrepareDataForAuditReport(user, startdt, enddt)
+        certificatesByTag = {} # tag.pk => Certificate instance
+        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        saCmeTotal = 0  # credit sum for SA-CME tag
+        otherCmeTotal = 0 # credit sum for all other tags
+        for d in auditData:
+            tag = CmeTag.objects.get(pk=d['id'])
+            brcme_sum = d['brcme_sum']
+            srcme_sum = d['srcme_sum']
+            d['brcmeCertReferenceId'] = None
+            if brcme_sum:
+                # tag has non-zero brcme credits, so make cert
+                print('Making certificate for {0.name}'.format(tag))
+                certificate = self.makeCertificate(
+                    certClass,
+                    profile,
+                    startdt,
+                    enddt,
+                    brcme_sum,
+                    tag, # this makes it a Specialty certificate
+                    state_license=state_license
+                )
+                certificatesByTag[tag.pk] = certificate
+                # set referenceId for the brcme entries
+                # Check w. Gleb if we can set single key brcmeCertReferenceId for all brcme entries under this tag to avoid for-loop
+                d['brcmeCertReferenceId'] = certificate.referenceId # preferred!
+                for ed in d['entries']:
+                    if ed['entryType'] == ENTRYTYPE_BRCME:
+                        ed['referenceId'] = certificate.referenceId
+            tag_sum = brcme_sum + srcme_sum
+            if tag.pk == satag.pk:
+                saCmeTotal += tag_sum
+            else:
+                otherCmeTotal += tag_sum
+
+        # make AuditReport instance and associate with the above certs
+        report = self.makeReport(profile, startdt, enddt, auditData, certificatesByTag, saCmeTotal, otherCmeTotal)
+        if report is None:
+            context = {
+                'error': 'There was an error in creating this Audit Report.'
+            }
+            logWarning(logger, request, context['error'])
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            context = {
+                'success': True,
+                'referenceId': report.referenceId
+            }
+            return Response(context, status=status.HTTP_201_CREATED)
+
+    def makeReport(self, profile, startdt, enddt, auditData, certificatesByTag, saCmeTotal, otherCmeTotal):
+        """Create AuditReport model instance, associate it with the certificates and return model instance
+        """
+        user = profile.user
+        reportName = profile.getFullNameAndDegree()
+        # report_data: JSON used by the UI to generate the HTML report
+        report_data = {
+            'saCredits': saCmeTotal,
+            'otherCredits': otherCmeTotal,
+            'dataByTag': auditData
+        }
+        # create AuditReport instance
+        report = AuditReport(
+            user=user,
+            name = reportName,
+            startDate = startdt,
+            endDate = enddt,
+            saCredits = saCmeTotal,
+            otherCredits = otherCmeTotal,
+            data=JSONRenderer().render(report_data)
+        )
+        report.save()
+        hashgen = Hashids(salt=settings.REPORT_HASHIDS_SALT, min_length=10)
+        report.referenceId = hashgen.encode(report.pk)
+        report.save(update_fields=('referenceId',))
+        # set report.certificates ManyToManyField
+        report.certificates.set([certificatesByTag[tagid] for tagid in certificatesByTag])
+        return report

@@ -1,5 +1,6 @@
 import logging
 import csv
+import StringIO
 from datetime import datetime, timedelta
 import io
 import pytz
@@ -248,9 +249,57 @@ class Command(BaseCommand):
             if not descr:
                 continue
             descriptions.append(descr)
-        #print(descriptions)
         return descriptions
 
+    def createSummaryCsv(self, ctx):
+        """Create a summary of the stats in csv format. To be used as an attachment
+        Args:
+            ctx: dictionary containing the stats
+        Returns: stats in csv format
+        """
+        csvfile = StringIO.StringIO()
+        wr = csv.writer(csvfile)
+        wr.writerow(['Total number of respondents in this period: ', str(ctx['numUsers'])])
+        wr.writerow([''])
+        wr.writerow(['Change In Competence'])
+        for competence in ctx['competence']:
+            wr.writerow([competence['value'], '%.2f' % competence['pct'] + '%'])
+        wr.writerow([''])
+        wr.writerow(['Change in Performance'])
+        for performance in ctx['performance']:
+            wr.writerow([performance['value'], '%.2f' % performance['pct'] + '%'])
+        wr.writerow([''])
+        wr.writerow(['Change in Clinical Plan?'])
+        for planEffect in ctx['planEffect']:
+            wr.writerow([planEffect['value'], '%.2f' % planEffect['pct'] + '%'])
+        wr.writerow([''])
+        wr.writerow(['If Yes, How?'])
+        for planText in ctx['planText']:
+            wr.writerow([planText['value'], '%.2f' % planText['pct'] + '%'])
+        wr.writerow([''])
+        wr.writerow(['Other changes to Clinical Plan'])
+        # without the check that len of element is > 0, strange output is created
+        # in attachment csv
+        for planTextOther in ctx['planTextOther']:
+            if (len(planTextOther) > 0):
+                wr.writerow([planTextOther])
+        wr.writerow([''])
+        wr.writerow(['Commercial Bias In Content'])
+        for commBias in ctx['commBias']:
+            wr.writerow([commBias['value'], '%.2f' % commBias['pct'] + '%'])
+        wr.writerow([''])
+        wr.writerow(['Specialty Tags'])
+        for tag in ctx['tags']:
+            wr.writerow([tag['tagname'], '%.2f' % tag['pct'] + '%'])
+        wr.writerow([''])
+        wr.writerow(['For what clinical information were you searching?'])
+        for description in ctx['descriptions']:
+            wr.writerow([description])
+        wr.writerow([''])
+        wr.writerow(['Feedback'])
+        wr.writerow(['None in this period'])
+
+        return csvfile
 
     def handle(self, *args, **options):
         # get brcme entries
@@ -298,14 +347,19 @@ class Command(BaseCommand):
         for row in results:
             writer.writerow(row)
         cf = output.getvalue() # to be used as attachment for EmailMessage
-        reportDate = endDate + timedelta(days=1) # use reportDate instead of now since cmd can be run at any time
-        rds = reportDate.strftime('%d%b%Y')
+        startReportDate = startDate
+        endReportDate = endDate + timedelta(days=1) # use reportDate instead of now since cmd can be run at any time
+        # string formatted dates for subject line and attachment file names
+        startRds = startReportDate.strftime('%b%Y')
+        endRds = endReportDate.strftime('%b%Y')
+        startSubjRds = startReportDate.strftime('%b/%d/%Y')
+        endSubjRds = endReportDate.strftime('%b/%d/%Y')
         # create EmailMessage
         from_email = settings.EMAIL_FROM
         to_emails = [t[1] for t in settings.MANAGERS] # list of emails
         to_emails.extend(TUFTS_RECIPIENTS)
-        subject = "Orbit Quarterly Report {0}".format(rds)
-        fileName = 'OrbitQuarterlyReport_{0}.csv'.format(rds)
+        subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
+        reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
         # data for context
         #
@@ -330,7 +384,14 @@ class Command(BaseCommand):
                 to=to_emails,
                 from_email=from_email)
         msg.content_subtype = 'html'
-        msg.attach(fileName, cf, 'application/vnd.ms-excel')
+
+        # summary of stats csv attachment
+        summaryCsvFile = self.createSummaryCsv(ctx)
+        summary = summaryCsvFile.getvalue()
+        summaryFileName = 'orbit-summary-{0}-{1}.csv'.format(startRds, endRds)
+
+        msg.attach(reportFileName, cf, 'application/vnd.ms-excel')
+        msg.attach(summaryFileName, summary, 'application/vnd.ms-excel')
         try:
             msg.send()
         except SMTPException as e:

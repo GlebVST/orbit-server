@@ -142,13 +142,13 @@ def make_login_context(token, user):
         'profile': serialize_profile(profile),
         'sacmetag': serialize_active_cmetag(sacme_tag),
         'invitation': None,
-        'brcme_limit': None
+        'credits': None
     }
     context['subscription'] = serialize_subscription(user_subs) if user_subs else None
     context['allowTrial'] = user_subs is None  # allow a trial period if user has never had a subscription
     pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
     context['permissions'] = pdata['permissions']
-    context['brcme_limit'] = pdata['brcme_limit']
+    context['credits'] = pdata['credits']
     context['creditTypes'] = serialize_creditTypes(profile)
     # 2017-08-29: add total number of completed InvitationDiscount for which user=inviter and total inviter-discount amount earned so far
     numCompleteInvites = InvitationDiscount.objects.getNumCompletedForInviter(user)

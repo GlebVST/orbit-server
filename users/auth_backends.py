@@ -82,6 +82,8 @@ class Auth0Backend(object):
                         logger.error('braintree.Customer.create failed. Result message: {0.message}'.format(result))
                 except:
                     logger.exception('braintree.Customer.create exception')
+                # initialize UserCmeCredit instance for this user
+                UserSubscription.objects.setUserCmeCreditByPlan(user, plan)
         else:
             profile = user.profile
             # profile.socialId must match user_id

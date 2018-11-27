@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+import calendar
 import logging
 from collections import namedtuple
 from datetime import datetime
@@ -11,7 +12,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import JSONField
 from django.db import models
-from django.db.models import Q, Prefetch, Count, Sum
+from django.db.models import Q, Prefetch, Count, Sum, Subquery
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from .base import (
@@ -127,8 +128,81 @@ class CreditType(models.Model):
         return ", ".join([d.abbrev for d in self.degrees.all()])
     formatDegrees.short_description = "Degrees"
 
-# Base class for all feed entries (contains fields common to all entry types)
 class EntryManager(models.Manager):
+
+    def newPrepareDataForAuditReport(self, user, startDate, endDate):
+        """For the given user and activityDate range, group user entries by tag,
+        compute credit_sum, and format entries for inclusion in audit report.
+        Args:
+            user: User instance
+            startDate: tz-aware datetime
+            endDate: tz-aware datetime
+        Returns: list of dicts with keys:
+            id: int - tag pk,
+            name: str - tag name,
+            brcme_sum: Decimal - sum of br-cme credits for this tag
+            srcme_sum: Decimal - sum of sr-cme credits for this tag
+            entries: list of dicts - entries for this tag. An entry appears under all tags given by entry.tags
+        Note: only tags which appear in user's entries for the given activityDate range are present in the output.
+        """
+        satag = CmeTag.objects.get(name=CMETAG_SACME) # special SA-CME tag
+        # Normal kwargs passed to filter are AND'd together
+        fkwargs = dict(
+                valid=True,
+                activityDate__gte=startDate,
+                activityDate__lte=endDate)
+        # Q object allows to construct OR statements
+        Q_etype = Q(entryType__name=ENTRYTYPE_BRCME) | Q(entryType__name=ENTRYTYPE_SRCME)
+        # entries is the related_name (see user field in Entry model)
+        subq = user.entries.filter(Q_etype, **fkwargs) # user's filtered entries
+        # find the distinct cmeTags used by this user. This returns a CmeTag queryset
+        distinctTags = CmeTag.objects.filter(entries__in=Subquery(subq.values('pk'))).distinct()
+        data = []
+        # Prefetch is an optimization to gather all the entry.documents upfront so that
+        # when we iterate over entries, we are not doing a separate db query for each entry
+        p_docs = Prefetch('documents',
+            queryset=Document.objects.filter(user=user, is_certificate=True, is_thumb=False).order_by('-created'),
+            to_attr='cert_docs'
+        )
+        for tag in distinctTags:
+            # get entries having this tag in its tags list
+            fkwargs['tags__exact'] = tag
+            # userEntries is a Entry queryset order by activityDate desc
+            userEntries = user.entries \
+                    .select_related('creditType', 'entryType','sponsor') \
+                    .filter(Q_etype, **fkwargs) \
+                    .prefetch_related('tags', p_docs) \
+                    .order_by('-activityDate')
+            entryData = []
+            srcme_sum = 0
+            brcme_sum = 0
+            # each item in Entry queryset is a Entry model instance
+            for m in userEntries:
+                credits = m.getCredits()
+                if m.entryType.name == ENTRYTYPE_BRCME:
+                    brcme_sum += credits
+                else:
+                    srcme_sum += credits
+                ed = {
+                    'id': m.pk,
+                    'entryType': m.entryType.name, # no extra hit to db b/c of select_related on ForeignKey
+                    'date': calendar.timegm(m.activityDate.timetuple()),
+                    'credit': float(credits),
+                    'creditType': m.formatCreditType(),
+                    'authority': m.getCertifyingAuthority(),
+                    'tags': m.formatTags(), # no extra hit to db b/c of prefetch_related on ManyToManyField
+                    'activity': m.formatActivity(),
+                    'referenceId': m.getCertDocReferenceId() # makes use of m.cert_docs attr added by the Prefetch clause
+                }
+                entryData.append(ed)
+            data.append({
+                'id': tag.pk,
+                'name': tag.name,
+                'srcme_sum': srcme_sum,
+                'brcme_sum': brcme_sum,
+                'entries': entryData
+            })
+        return data
 
     def prepareDataForAuditReport(self, user, startDate, endDate):
         """
@@ -274,6 +348,7 @@ class EntryManager(models.Manager):
         return 0
 
 
+# Base model for all feed entries
 @python_2_unicode_compatible
 class Entry(models.Model):
     user = models.ForeignKey(User,
@@ -341,6 +416,13 @@ class Entry(models.Model):
         if self.entryType.name == ENTRYTYPE_STORY_CME:
             return self.storycme.credits
         return 0
+
+    def formatActivity(self):
+        """format for audit report"""
+        if self.entryType.name == ENTRYTYPE_SRCME:
+            return self.description
+        if self.entryType.name == ENTRYTYPE_BRCME:
+            return self.brcme.formatActivity()
 
     def getCertDocReferenceId(self):
         """This expects attr cert_docs:list from prefetch_related.
@@ -426,21 +508,21 @@ class BrowserCmeManager(models.Manager):
         ).aggregate(cme_total=Sum('credits'))
         return qs['cme_total'] >= plan.maxCmeMonth
 
-    def hasEarnedYearLimit(self, user_subs, year):
-        """Returns True if user has reached the monthly limit set by user_subs.plan
-        Note: this should only be called for LimitedCme plans.
-        Args:
-            user_subs: UserSubscription instance
-            dt: datetime - used for year count
-        """
-        user = user_subs.user
-        plan = user_subs.plan
-        qs = self.model.objects.select_related('entry').filter(
-            entry__user=user,
-            entry__activityDate__year=year,
-            entry__valid=True
-        ).aggregate(cme_total=Sum('credits'))
-        return qs['cme_total'] >= plan.maxCmeYear
+    # def hasEarnedYearLimit(self, user_subs, year):
+    #     """Returns True if user has reached the monthly limit set by user_subs.plan
+    #     Note: this should only be called for LimitedCme plans.
+    #     Args:
+    #         user_subs: UserSubscription instance
+    #         dt: datetime - used for year count
+    #     """
+    #     user = user_subs.user
+    #     plan = user_subs.plan
+    #     qs = self.model.objects.select_related('entry').filter(
+    #         entry__user=user,
+    #         entry__activityDate__year=year,
+    #         entry__valid=True
+    #     ).aggregate(cme_total=Sum('credits'))
+    #     return qs['cme_total'] >= plan.maxCmeYear
 
     def totalCredits(self):
         """Calculate total BrowserCme credits earned over all time
@@ -686,8 +768,13 @@ class AuditReport(models.Model):
         on_delete=models.PROTECT,
         null=True,
         db_index=True,
+        related_name='genauditreports',
+        help_text='Certificate generated for the same date range'
+    )
+    certificates = models.ManyToManyField(Certificate,
+        blank=True,
         related_name='auditreports',
-        help_text='BrowserCme Certificate generated for the same date range'
+        help_text='Specialty Certificates generated for the same date range'
     )
     referenceId = models.CharField(max_length=64,
         null=True,

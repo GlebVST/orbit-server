@@ -447,10 +447,7 @@ class CreateAuditReport(CertificateMixin, APIView):
         # get total self-reported cme credits earned by user in date range
         srCmeTotal = Entry.objects.sumSRCme(user, startdt, enddt)
         # get total Browser-cme credits earned by user in date range
-        if brcme_startdt:
-            browserCmeTotal = Entry.objects.sumBrowserCme(user, brcme_startdt, enddt)
-        else:
-            browserCmeTotal = 0
+        browserCmeTotal = Entry.objects.sumBrowserCme(user, startdt, enddt)
         cmeTotal = srCmeTotal + browserCmeTotal
         if cmeTotal == 0:
             context = {
@@ -471,15 +468,50 @@ class CreateAuditReport(CertificateMixin, APIView):
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
-        certificate = None
+        # check which cert class to use (MD or Nurse)
         state_license = None
         certClass = MDCertificate
-        if browserCmeTotal > 0:
-            if profile.isNurse():
-                state_license = user.statelicenses.all()[0]
-                certClass = NurseCertificate
-            certificate = self.makeCertificate(certClass, profile, brcme_startdt, enddt, cmeTotal, state_license=state_license)
-        report = self.makeReport(profile, startdt, enddt, certificate)
+        if profile.isNurse():
+            state_license = user.statelicenses.all()[0]
+            certClass = NurseCertificate
+        # list of dicts: one for each tag having non-zero credits in date range
+        auditData = Entry.objects.newPrepareDataForAuditReport(user, startdt, enddt)
+        certificatesByTag = {} # tag.pk => Certificate instance
+        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        saCmeTotal = 0  # credit sum for SA-CME tag
+        otherCmeTotal = 0 # credit sum for all other tags
+        for d in auditData:
+            tag = CmeTag.objects.get(pk=d['id'])
+            brcme_sum = d['brcme_sum']
+            srcme_sum = d['srcme_sum']
+            d['brcmeCertReferenceId'] = None
+            if brcme_sum:
+                # tag has non-zero brcme credits, so make cert
+                logInfo(logger, request, 'Making certificate for {0.name}'.format(tag))
+                certificate = self.makeCertificate(
+                    certClass,
+                    profile,
+                    startdt,
+                    enddt,
+                    brcme_sum,
+                    tag, # this makes it a Specialty certificate
+                    state_license=state_license
+                )
+                certificatesByTag[tag.pk] = certificate
+                # set referenceId for the brcme entries
+                # Check w. Gleb if we can set single key brcmeCertReferenceId for all brcme entries under this tag to avoid for-loop
+                d['brcmeCertReferenceId'] = certificate.referenceId # preferred!
+                for ed in d['entries']:
+                    if ed['entryType'] == ENTRYTYPE_BRCME:
+                        ed['referenceId'] = certificate.referenceId
+            tag_sum = brcme_sum + srcme_sum
+            if tag.pk == satag.pk:
+                saCmeTotal += tag_sum
+            else:
+                otherCmeTotal += tag_sum
+
+        # make AuditReport instance and associate with the above certs
+        report = self.makeReport(profile, startdt, enddt, auditData, certificatesByTag, saCmeTotal, otherCmeTotal)
         if report is None:
             context = {
                 'error': 'There was an error in creating this Audit Report.'
@@ -493,10 +525,8 @@ class CreateAuditReport(CertificateMixin, APIView):
             }
             return Response(context, status=status.HTTP_201_CREATED)
 
-    def makeReport(self, profile, startdt, enddt, certificate):
-        """
-        The brcmeEvents.tags value contains the AMA PRA Category 1 label
-        as the first tag.
+    def makeReport(self, profile, startdt, enddt, auditData, certificatesByTag, saCmeTotal, otherCmeTotal):
+        """Create AuditReport model instance, associate it with the certificates and return model instance
         """
         user = profile.user
         can_print_report = hasUserSubscriptionPerm(user, PERM_PRINT_AUDIT_REPORT)
@@ -508,71 +538,31 @@ class CreateAuditReport(CertificateMixin, APIView):
                 reportName = SAMPLE_CERTIFICATE_NAME
         else:
             reportName = SAMPLE_CERTIFICATE_NAME
-        brcmeCertReferenceId = certificate.referenceId if certificate else None
-        # get AuditReportResult
-        res = Entry.objects.prepareDataForAuditReport(user, startdt, enddt)
-        if not res:
-            return None
-        saEvents = [{
-            'id': m.pk,
-            'entryType': m.entryType.name,
-            'date': calendar.timegm(m.activityDate.timetuple()),
-            'credit': float(m.getCredits()),
-            'creditType': m.formatCreditType(),
-            'tags': m.formatNonSATags(),
-            'authority': m.getCertifyingAuthority(),
-            'activity': m.description,
-            'referenceId': m.getCertDocReferenceId()
-        } for m in res.saEntries]
-        brcmeEvents = [{
-            'id': m.pk,
-            'entryType': m.entryType.name,
-            'date': calendar.timegm(m.activityDate.timetuple()),
-            'credit': float(m.brcme.credits),
-            'creditType': m.formatCreditType(),
-            'tags': m.formatTags(),
-            'authority': m.getCertifyingAuthority(),
-            'activity': m.brcme.formatActivity(),
-            'referenceId': brcmeCertReferenceId
-        } for m in res.brcmeEntries]
-        srcmeEvents = [{
-            'id': m.pk,
-            'entryType': m.entryType.name,
-            'date': calendar.timegm(m.activityDate.timetuple()),
-            'credit': float(m.srcme.credits),
-            'creditType': m.formatCreditType(),
-            'tags': m.formatTags(),
-            'authority': m.getCertifyingAuthority(),
-            'activity': m.description,
-            'referenceId': m.getCertDocReferenceId()
-        } for m in res.otherSrCmeEntries]
-        creditSumByTagList = sorted(
-            [{'name': k, 'total': float(v)} for k,v in res.creditSumByTag.items()],
-            key=itemgetter('name')
-        )
+
+        profile_specs = [ps.name for ps in profile.specialties.all()]
+        # report_data: JSON used by the UI to generate the HTML report
         report_data = {
-            'saEvents': saEvents,
-            'otherEvents': brcmeEvents+srcmeEvents,
-            'saCmeTotal': res.saCmeTotal,
-            'otherCmeTotal': res.otherCmeTotal,
-            'creditSumByTag': creditSumByTagList
+            'saCredits': saCmeTotal,
+            'otherCredits': otherCmeTotal,
+            'dataByTag': auditData,
+            'profileSpecialties': profile_specs
         }
-        ##pprint(report_data)
         # create AuditReport instance
         report = AuditReport(
             user=user,
             name = reportName,
             startDate = startdt,
             endDate = enddt,
-            saCredits = res.saCmeTotal,
-            otherCredits = res.otherCmeTotal,
-            certificate=certificate,
+            saCredits = saCmeTotal,
+            otherCredits = otherCmeTotal,
             data=JSONRenderer().render(report_data)
         )
         report.save()
         hashgen = Hashids(salt=settings.REPORT_HASHIDS_SALT, min_length=10)
         report.referenceId = hashgen.encode(report.pk)
         report.save(update_fields=('referenceId',))
+        # set report.certificates ManyToManyField
+        report.certificates.set([certificatesByTag[tagid] for tagid in certificatesByTag])
         return report
 
 

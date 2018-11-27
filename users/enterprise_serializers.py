@@ -3,6 +3,7 @@ from decimal import Decimal
 from cStringIO import StringIO
 from hashids import Hashids
 import os
+import braintree
 import hashlib
 import logging
 import mimetypes
@@ -19,19 +20,20 @@ from .emailutils import sendPasswordTicketEmail
 
 logger = logging.getLogger('gen.esrl')
 
-UI_LOGIN_URL = 'https://{0}{1}'.format(settings.SERVER_HOSTNAME, settings.UI_LINK_LOGIN)
-
 class OrgMemberReadSerializer(serializers.ModelSerializer):
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     email = serializers.ReadOnlyField(source='user.email')
     firstName = serializers.ReadOnlyField(source='user.profile.firstName')
     lastName = serializers.ReadOnlyField(source='user.profile.lastName')
-    verified = serializers.ReadOnlyField(source='user.profile.verified')
     degree = serializers.SerializerMethodField()
+    joined = serializers.SerializerMethodField()
 
     def get_degree(self, obj):
         return obj.user.profile.formatDegrees()
+
+    def get_joined(self, obj):
+        return (obj.user.profile.verified and not obj.pending)
 
     class Meta:
         model = OrgMember
@@ -46,7 +48,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'is_admin',
             'compliance',
             'removeDate',
-            'verified',
+            'joined',
             'created',
             'modified'
         )
@@ -71,10 +73,11 @@ class OrgMemberFormSerializer(serializers.Serializer):
             plan: SubscriptionPlan instance whose plan_type is ENTERPRISE
         1. Create Auth0 user account
         2. Create User & Profile instance (and assign org)
-        3. Create UserSubscription using plan_type=ENTERPRISE
-        4. Create OrgAdmin model instance
-        5. Assign groups to the new user
-        6. Generate change-password-ticket if given
+        3. Create local and BT Customer object for user.
+        4. Create UserSubscription using plan_type=ENTERPRISE
+        5. Create OrgAdmin model instance
+        6. Assign groups to the new user
+        7. Generate change-password-ticket if given
         Returns: OrgMember model instance
         """
         apiConn = validated_data['apiConn']
@@ -107,28 +110,30 @@ class OrgMemberFormSerializer(serializers.Serializer):
         if degrees:
             profile.degrees.set(degrees)
         user = profile.user
-        # 3. Create Enterprise UserSubscription for user
+        # 3. create local and BT Customer object
+        customer = Customer(user=user)
+        customer.save()
+        try:
+            # create braintree Customer
+            result = braintree.Customer.create({
+                "id": str(customer.customerId),
+                "email": user.email
+            })
+            if not result.is_success:
+                logger.error('braintree.Customer.create failed. Result message: {0.message}'.format(result))
+                return None
+        except:
+            logger.exception('braintree.Customer.create exception')
+        # 4. Create Enterprise UserSubscription for user
         user_subs = UserSubscription.objects.createEnterpriseMemberSubscription(user, plan)
-        # 4. create OrgMember instance
+        # 5. create OrgMember instance
         m = OrgMember.objects.createMember(org, profile, is_admin)
-        # 5. Assign extra groups
+        # 6. Assign extra groups
         if is_admin:
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
-        # 6. Create change-password ticket
+        # 7. Create change-password ticket
         if password_ticket:
-            ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
-            logger.debug('ticket_url for {0}={1}'.format(socialId, ticket_url))
-            try:
-                delivered = sendPasswordTicketEmail(m, ticket_url)
-                if delivered:
-                    m.setPasswordEmailSent = True
-                    m.save(update_fields=('setPasswordEmailSent',))
-            except SMTPException as e:
-                error_msg = u'sendPasswordTicketEmail failed for user {0}. ticket_url={1}'.format(user, ticket_url)
-                if settings.ENV_TYPE == settings.ENV_PROD:
-                    logger.exception(error_msg)
-                else:
-                    logger.warning(error_msg)
+            m = OrgMember.objects.sendPasswordTicket(socialId, m, apiConn)
         return m
 
 

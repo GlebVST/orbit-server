@@ -211,7 +211,7 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
             'created': entry.created,
             'brcme': model_to_dict(brcme),
             'permissions': pdata['permissions'],
-            'brcme_limit': pdata['brcme_limit']
+            'credits': pdata['credits']
         }
         return Response(context, status=status.HTTP_201_CREATED)
 
