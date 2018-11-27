@@ -27,6 +27,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'planId',
             'plan_type',
             'plan_key',
+            'name',
             'display_name',
             'price',
             'discountPrice',
