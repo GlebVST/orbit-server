@@ -13,6 +13,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
     displayMonthlyPrice = serializers.SerializerMethodField()
     plan_key = serializers.PrimaryKeyRelatedField(read_only=True)
+    plan_key_specialty = serializers.ReadOnlyField(source='plan_key.specialty.name')
     upgrade_plan = serializers.PrimaryKeyRelatedField(read_only=True)
     needs_payment_method = serializers.BooleanField(source='plan_type.needs_payment_method')
 
@@ -27,6 +28,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'planId',
             'plan_type',
             'plan_key',
+            'plan_key_specialty',
             'name',
             'display_name',
             'price',
