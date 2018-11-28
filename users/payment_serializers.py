@@ -13,13 +13,19 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
     displayMonthlyPrice = serializers.SerializerMethodField()
     plan_key = serializers.PrimaryKeyRelatedField(read_only=True)
-    plan_key_specialty = serializers.ReadOnlyField(source='plan_key.specialty.name')
+    plan_key_specialty = serializers.SerializerMethodField()
     upgrade_plan = serializers.PrimaryKeyRelatedField(read_only=True)
     needs_payment_method = serializers.BooleanField(source='plan_type.needs_payment_method')
 
     def get_displayMonthlyPrice(self, obj):
         """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
         return DISPLAY_PRICE_AS_MONTHLY
+
+    def get_plan_key_specialty(self, obj):
+        """Return specialty name if not null, else degree abbrev from plan_key"""
+        if obj.plan_key.specialty:
+            return obj.plan_key.specialty.name
+        return obj.plan_key.degree.abbrev
 
     class Meta:
         model = SubscriptionPlan
