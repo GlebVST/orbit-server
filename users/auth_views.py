@@ -120,7 +120,7 @@ def serialize_creditTypes(profile):
     if degs:
         qset = CreditType.objects.getForDegree(degs[0])
     else:
-        qset = CreditType.object.getUniversal()
+        qset = CreditType.objects.getUniversal()
     s = CreditTypeSerializer(qset, many=True)
     return s.data
 
