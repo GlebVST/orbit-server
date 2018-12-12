@@ -147,22 +147,18 @@ class Command(BaseCommand):
         stats = []
         comments = []
         clause = '{0}__exact'.format(fieldname)
-        print "clause: ", clause
         for v in RESPONSE_CHOICES:
             filter_kwargs = {clause: v}
             cnt = qset.filter(**filter_kwargs).count()
             pct = 100.0*cnt/num_entries
             nv = RESPONSE_MAP[v]
-            print "v: ", v, " nv: ", nv
             stats.append(dict(value=nv, count=cnt, pct=pct))
         if (fieldname == "commercialBias"):
             for m in qset:
                 cb = m.commercialBiasText
-                print "commercialBias: ", cb
                 if (cb != ''):
                     comments.append(cb)
 
-        print "comments: ", comments
         return (stats, comments)
 
     def calcPlanStats(self, qset):
@@ -188,7 +184,6 @@ class Command(BaseCommand):
         }
         planTextOther = []
         for m in qset:
-            print "m: ", m
             pt = m.planText
             if pt in planTextDict:
                 # keyed response
@@ -268,7 +263,6 @@ class Command(BaseCommand):
     def getPctVal(self, ctx, key, subvalue, subkey = 'value'):
         keyPct = '0.00' #key + ' value not found'
         for k in ctx[key]:
-            print k
             if (k[subkey] == subvalue):
                 keyPct = '%.2f' % k['pct'] + '%'
         return keyPct
@@ -296,143 +290,6 @@ class Command(BaseCommand):
         # string formatted dates
         startSubjRds = startReportDate.strftime('%b/%d/%Y')
         endSubjRds = endReportDate.strftime('%b/%d/%Y')
-
-        wr.writerow(['Report Timeframe: ' + startSubjRds + ' - ' + endSubjRds])
-        wr.writerow(['Overall Evaluation Participants N = ', str(ctx['numUsers'])])
-
-        wr.writerow(['', 'Conducting this search will result in a change ' + \
-                     'in my:', 'Did this information change your clinical ' + \
-                     'plan?', 'If yes, how?', 'Select relevant specialty ' + \
-                     'tags to categorize this credit', 'Did you perceive ' + \
-                     'commercial bias in the content?', 'If yes, explain', \
-                     'Please provide any feedback/comments regarding the ' + \
-                     'articles, or the overall system effectiveness'])
-
-        # Grab the comments list of commercial bias
-        commBiasComments = self.calcResponseStats(qset, 'commercialBias')[1]
-
-        # this is for the specialty tags column, it needs to be alphabetized
-        # (except for the Other (combined) tag which I put at the end)
-        tagnames = [''] * len(ctx['tags'])
-        addOther = 0
-        i = 0
-        for tag in ctx['tags']:
-            if (tag['pct'] > 0):
-                if (tag['tagname'] != 'Other (combined)'):
-                    tagnames[i] = tag['tagname']
-                    i += 1
-                else:
-                    addOther = 1
-
-        tagnames.sort()
-        
-        if (addOther):
-            tagnames.append('Other (combined)')
-
-        # calibrate tagnameIdx to point to the first non-empty tagname
-        # we have empty tag-names b/c some tagnames may be associated
-        # with a 0 percent, in which case we should not list them
-        # and they are marked with a blank string
-        tagnameIdx = 0
-        while (tagnames[tagnameIdx] == ''):
-            tagnameIdx += 1
-
-        # this is for planTextOther, which is in the plan change column (
-        # differential diagnosis, diagnostic test, treatment plan)
-        
-
-        # Determine the max number of rows
-        numPlanTextRows = 4 if (len(ctx['planText']) <= 4) else len(ctx['planText'])
-        numSpecialtyTags = len(tagnames) - tagnameIdx
-        numCommBiasComments = len(commBiasComments)
-
-        print "numPlanTextRows, ", numPlanTextRows
-        print "numSpecialtyTags, ", numSpecialtyTags
-        print "numCommBiasComments, ", numCommBiasComments
-        print "planTextOther, ", ctx['planTextOther']
-
-        maxNumRows = max([numPlanTextRows, numSpecialtyTags, numCommBiasComments])
-
-        print "ctx['planText']: ", ctx['planText']
-        print "len of ctx['planText']: ", len(ctx['planText'])
-
-        rowIdx = 0
-
-        # Fourth row is ''/Competence - #/Yes - #/Differential Diagnosis - #/
-        # First Tag - #/Yes - #/List all comments/List all comments
-        competencePct = self.getPctVal(ctx, 'competence', 'Yes')
-        planEffectPct = self.getPctVal(ctx, 'planEffect', 'Yes')
-        planChangeDiffDiag = self.getPctVal(ctx, 'planText', 
-                                            unicode('Differential diagnosis'))
-        (firstTagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames, 
-                                                       tagnameIdx)
-        commBiasYesPct = self.getPctVal(ctx, 'commBias', 'Yes')
-        firstCommBiasComment = '' if (rowIdx > len(commBiasComments) - 1) \
-                                  else commBiasComments[rowIdx]
-
-        wr.writerow(['', 'Competence - ' + competencePct, 
-                     'Yes - ' + planEffectPct, 
-                     'Differential diagnosis - ' + planChangeDiffDiag,
-                     firstTagEntry, 'Yes - ' + commBiasYesPct,
-                     firstCommBiasComment])
-
-        rowIdx += 1
-
-        # Fifth row is ''/Performance - #/No - #/Diagnostic tests - #/
-        # Second Tag - #/No - #/''/''  
-        performancePct = self.getPctVal(ctx, 'performance', 'Yes')
-        planEffectNoPct = self.getPctVal(ctx, 'planEffect', 'No')
-        planChangeDiagTest = self.getPctVal(ctx, 'planText', 
-                                            unicode('Diagnostic tests'))
-        (secondTagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames, 
-                                                        tagnameIdx)
-        commBiasNoPct = self.getPctVal(ctx, 'commBias', 'No')
-
-        secondCommBiasComment = '' if (rowIdx > len(commBiasComments) - 1) \
-                                   else commBiasComments[rowIdx]
-
-        wr.writerow(['', 'Performance - ' + performancePct, 
-                     'No - ' + planEffectNoPct,
-                     'Diagnostic tests - ' + planChangeDiagTest,
-                     secondTagEntry, 'No - ' + commBiasNoPct,
-                     secondCommBiasComment])
-
-        rowIdx += 1
-
-        # Sixth row is ''/Unsure - #/''/Treatment plan - #/Third Tag - #/
-        # Unsure - #/''/''
-        competenceUnsurePct = self.getPctVal(ctx, 'competence', 'Unsure')
-        performanceUnsurePct = self.getPctVal(ctx, 'performance', 'Unsure')
-        unsurePct = round(float(competenceUnsurePct[:-1]) \
-                    + float(performanceUnsurePct[:-1]), 2)
-        planChangeTreatPlan = self.getPctVal(ctx, 'planText', 
-                                             unicode('Treatment plan'))
-        (thirdTagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames, 
-                                                       tagnameIdx)
-        commBiasUnsurePct = self.getPctVal(ctx, 'commBias', 'Unsure')
-
-        thirdCommBiasComment = '' if (rowIdx > len(commBiasComments) - 1) \
-                                  else commBiasComments[rowIdx]
-
-        wr.writerow(['', 'Unsure - ' + '%.2f' % unsurePct + '%', '',
-                     'Treatment plan - ' + planChangeTreatPlan,
-                     thirdTagEntry, 'Unsure - ' + commBiasUnsurePct,
-                     thirdCommBiasComment])
-
-        rowIdx += 1
-
-        # Seventh row is ''/''/''/'Other (Please explain)'/Fourth tag - #/
-        #
-        (fourthTagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames,
-                                                        tagnameIdx)
-        wr.writerow(['', '', '', 'Other (Please explain) ', fourthTagEntry])
-
-        while (rowIdx < maxNumRows):
-            (tagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames,
-                                                            tagnameIdx)
-            wr.writerow(['', '', '', 'Other (Please explain) ', tagEntry])
-            rowIdx += 1
-
 
         # Column A
         columnA = ['Report Timeframe: ' + startSubjRds + ' - ' + endSubjRds, 'Overall Evaluation Participants N = ']
@@ -527,7 +384,6 @@ class Command(BaseCommand):
         # Column H
         columnH = ['', '', 'Please provide any feedback/comments regarding the articles, or the overall system effectiveness']
 
-        startReportDate = datetime(2017, 10, 1)
         entrySpecific = UserFeedback.objects.filter(entry__isnull=False, created__gte=startReportDate, created__lte=endReportDate).order_by('created')
         general = UserFeedback.objects.filter(entry__isnull=True, created__gte=startReportDate, created__lte=endReportDate).order_by('created')
 
@@ -559,8 +415,6 @@ class Command(BaseCommand):
                 columnH.append(generalComment.message)
                 generalIdx += 1
 
-        print columnH
-
         maxLength = max(len(columnA), len(columnB), len(columnC), len(columnD), 
                         len(columnE), len(columnF), len(columnG), len(columnH))
 
@@ -581,50 +435,8 @@ class Command(BaseCommand):
         rowBased = zip(*columnBased)
 
         for row in rowBased:
-          print row
-          wr.writerow(row)
-        
+            wr.writerow(row)
 
-        '''
-        wr.writerow([''])
-        wr.writerow(['Change In Competence'])
-        for competence in ctx['competence']:
-            wr.writerow([competence['value'], '%.2f' % competence['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['Change in Performance'])
-        for performance in ctx['performance']:
-            wr.writerow([performance['value'], '%.2f' % performance['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['Change in Clinical Plan?'])
-        for planEffect in ctx['planEffect']:
-            wr.writerow([planEffect['value'], '%.2f' % planEffect['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['If Yes, How?'])
-        for planText in ctx['planText']:
-            wr.writerow([planText['value'], '%.2f' % planText['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['Other changes to Clinical Plan'])
-        # without the check that len of element is > 0, strange output is created
-        # in attachment csv
-        for planTextOther in ctx['planTextOther']:
-            if (len(planTextOther) > 0):
-                wr.writerow([planTextOther])
-        wr.writerow([''])
-        wr.writerow(['Commercial Bias In Content'])
-        for commBias in ctx['commBias']:
-            wr.writerow([commBias['value'], '%.2f' % commBias['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['Specialty Tags'])
-        for tag in ctx['tags']:
-            wr.writerow([tag['tagname'], '%.2f' % tag['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['For what clinical information were you searching?'])
-        for description in ctx['descriptions']:
-            wr.writerow([description])
-        wr.writerow([''])
-        wr.writerow(['Feedback'])
-        wr.writerow(['None in this period'])
-        '''
         return csvfile
 
     def handle(self, *args, **options):
@@ -637,7 +449,6 @@ class Command(BaseCommand):
             profilesById[p.pk] = p
         results = []
         for m in qset:
-            #print "other m: ", m, " m.entry: ", m.entry, " m.entry.user: ", m.entry.user
             user = m.entry.user
             profile = profilesById[user.pk]
             d = dict()
@@ -692,7 +503,6 @@ class Command(BaseCommand):
         # data for context
         #
         planEffectStats, planTextStats, planTextOther = self.calcPlanStats(qset)
-        print "qset: ", qset
         ctx = {
             'startDate': startDate,
             'endDate': endDate,
