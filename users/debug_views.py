@@ -27,7 +27,7 @@ from .serializers import *
 from .enterprise_serializers import *
 from .dashboard_views import CertificateMixin
 from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate
-
+from .emailutils import sendJoinTeamEmail
 class MakeOrbitCmeOffer(APIView):
     """
     Create a test OrbitCmeOffer for the authenticated user.
@@ -496,21 +496,22 @@ class EmailSetPassword(APIView):
             if not qset.exists():
                 return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
             orgmember = qset[0]
-            user = orgmember.user
-            profile = user.profile
-            apiConn = Auth0Api.getConnection(self.request)
-            ticket_url = apiConn.change_password_ticket(profile.socialId, UI_LOGIN_URL)
-            try:
-                delivered = sendPasswordTicketEmail(orgmember, ticket_url)
-                if delivered:
-                    orgmember.setPasswordEmailSent = True
-                    orgmember.save(update_fields=('setPasswordEmailSent',))
-            except SMTPException as e:
-                logError('EmailSetPassword failed for user {0}. ticket_url={1}'.format(user, ticket_url))
-                return Response({'success': False}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                context = {'success': True}
-                return Response(context, status=status.HTTP_200_OK)
+            profile = orgmember.user.profile
+            if orgmember.pending:
+                # member get into a pending state only when existing Orbit user get invited to organisation
+                # so for such users we send a join-team email again
+                try:
+                    sendJoinTeamEmail(orgmember.user, orgmember.organization, send_message=True)
+                except SMTPException, e:
+                    logger.warn('sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(orgmember))
+            elif not orgmember.user.profile.verified:
+                # unverified users with with non-pending state are thos recently invited and never actually joined Orbit
+                # so for such users we send a set-password email
+                apiConn = Auth0Api.getConnection(self.request)
+                OrgMember.objects.sendPasswordTicket(orgmember.user.profile.socialId, orgmember, apiConn)
+
+            context = {'success': True}
+            return Response(context, status=status.HTTP_200_OK)
         return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
 
 class CreateAuditReport(CertificateMixin, APIView):

@@ -1,3 +1,9 @@
+##Organization of Orbit Server
+
+There are two apps in Orbit Server, each with it's own database structure (models.py):
+(1) User app
+(2) Goals app
+
 ## Installation
 
 To run this project, first make sure you have python2.7, python-dev, pip, and virtualenv on your machine. 

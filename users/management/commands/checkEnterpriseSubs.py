@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.core.management.base import BaseCommand
 logger = logging.getLogger('mgmt.checkentsubs')
 
+# This method should be run to update enterprise user plan credits on their period expiry (like every year)
 class Command(BaseCommand):
     help = "Check enterprise subscriptions daily and switch to a next plan period if needed (with resetting plan_credits)"
 
