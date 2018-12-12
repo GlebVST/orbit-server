@@ -11,7 +11,7 @@ from django.conf import settings
 from django.db.models import Subquery
 from django.template.loader import get_template
 from django.utils import timezone
-from users.models import User, Profile, Entry, BrowserCme
+from users.models import User, Profile, Entry, BrowserCme, UserFeedback
 from pprint import pprint
 
 logger = logging.getLogger('mgmt.tuftsqr')
@@ -26,10 +26,10 @@ outputFields = (
     'LastName',
     'FirstName',
     'Degree',
-    'NPINumber',
+    'NPI #',
     'Search Date',
     'Credit Earned',
-    'Attendee Type',
+    'Attendee Type (Physician or Other)',
     'TopicSearched',
     'Article/Website Consulted',
 )
@@ -139,18 +139,31 @@ class Command(BaseCommand):
         Args:
             qset: queryset from getEntries
             fieldname: one of: competence/performance/commercialBias
-        Returns: list of dicts w. keys: value, count, pct
+        Returns: a tuple of (1) list of dicts w. keys: value, count, pct
+                 and (2) list of comments for that particular field
+                 (if any)
         """
         num_entries = qset.count()
         stats = []
+        comments = []
         clause = '{0}__exact'.format(fieldname)
+        print "clause: ", clause
         for v in RESPONSE_CHOICES:
             filter_kwargs = {clause: v}
             cnt = qset.filter(**filter_kwargs).count()
             pct = 100.0*cnt/num_entries
             nv = RESPONSE_MAP[v]
+            print "v: ", v, " nv: ", nv
             stats.append(dict(value=nv, count=cnt, pct=pct))
-        return stats
+        if (fieldname == "commercialBias"):
+            for m in qset:
+                cb = m.commercialBiasText
+                print "commercialBias: ", cb
+                if (cb != ''):
+                    comments.append(cb)
+
+        print "comments: ", comments
+        return (stats, comments)
 
     def calcPlanStats(self, qset):
         """Calculate stats on planEffect and planText
@@ -175,6 +188,7 @@ class Command(BaseCommand):
         }
         planTextOther = []
         for m in qset:
+            print "m: ", m
             pt = m.planText
             if pt in planTextDict:
                 # keyed response
@@ -251,15 +265,327 @@ class Command(BaseCommand):
             descriptions.append(descr)
         return descriptions
 
-    def createSummaryCsv(self, ctx):
+    def getPctVal(self, ctx, key, subvalue, subkey = 'value'):
+        keyPct = '0.00' #key + ' value not found'
+        for k in ctx[key]:
+            print k
+            if (k[subkey] == subvalue):
+                keyPct = '%.2f' % k['pct'] + '%'
+        return keyPct
+
+    def getTagEntry(self, ctx, tagList, tagIdx): 
+        tagEntry = ''
+        if (tagIdx < len(tagList)):
+            tagPct = self.getPctVal(ctx, 'tags', tagList[tagIdx], 'tagname')
+            tagEntry = tagList[tagIdx] + ' - ' + tagPct
+            tagIdx += 1
+        return (tagEntry, tagIdx)
+
+    def createSummaryCsv(self, ctx, qset):
         """Create a summary of the stats in csv format. To be used as an attachment
         Args:
             ctx: dictionary containing the stats
+            qset: BrowserCme queryset for a specific date range based on now timestamp
         Returns: stats in csv format
         """
         csvfile = StringIO.StringIO()
         wr = csv.writer(csvfile)
-        wr.writerow(['Total number of respondents in this period: ', str(ctx['numUsers'])])
+
+        startReportDate = ctx['startDate']
+        endReportDate = ctx['endDate'] + timedelta(days=1) # use reportDate instead of now since cmd can be run at any time
+        # string formatted dates
+        startSubjRds = startReportDate.strftime('%b/%d/%Y')
+        endSubjRds = endReportDate.strftime('%b/%d/%Y')
+
+        wr.writerow(['Report Timeframe: ' + startSubjRds + ' - ' + endSubjRds])
+        wr.writerow(['Overall Evaluation Participants N = ', str(ctx['numUsers'])])
+
+        wr.writerow(['', 'Conducting this search will result in a change ' + \
+                     'in my:', 'Did this information change your clinical ' + \
+                     'plan?', 'If yes, how?', 'Select relevant specialty ' + \
+                     'tags to categorize this credit', 'Did you perceive ' + \
+                     'commercial bias in the content?', 'If yes, explain', \
+                     'Please provide any feedback/comments regarding the ' + \
+                     'articles, or the overall system effectiveness'])
+
+        # Grab the comments list of commercial bias
+        commBiasComments = self.calcResponseStats(qset, 'commercialBias')[1]
+
+        # this is for the specialty tags column, it needs to be alphabetized
+        # (except for the Other (combined) tag which I put at the end)
+        tagnames = [''] * len(ctx['tags'])
+        addOther = 0
+        i = 0
+        for tag in ctx['tags']:
+            if (tag['pct'] > 0):
+                if (tag['tagname'] != 'Other (combined)'):
+                    tagnames[i] = tag['tagname']
+                    i += 1
+                else:
+                    addOther = 1
+
+        tagnames.sort()
+        
+        if (addOther):
+            tagnames.append('Other (combined)')
+
+        # calibrate tagnameIdx to point to the first non-empty tagname
+        # we have empty tag-names b/c some tagnames may be associated
+        # with a 0 percent, in which case we should not list them
+        # and they are marked with a blank string
+        tagnameIdx = 0
+        while (tagnames[tagnameIdx] == ''):
+            tagnameIdx += 1
+
+        # this is for planTextOther, which is in the plan change column (
+        # differential diagnosis, diagnostic test, treatment plan)
+        
+
+        # Determine the max number of rows
+        numPlanTextRows = 4 if (len(ctx['planText']) <= 4) else len(ctx['planText'])
+        numSpecialtyTags = len(tagnames) - tagnameIdx
+        numCommBiasComments = len(commBiasComments)
+
+        print "numPlanTextRows, ", numPlanTextRows
+        print "numSpecialtyTags, ", numSpecialtyTags
+        print "numCommBiasComments, ", numCommBiasComments
+        print "planTextOther, ", ctx['planTextOther']
+
+        maxNumRows = max([numPlanTextRows, numSpecialtyTags, numCommBiasComments])
+
+        print "ctx['planText']: ", ctx['planText']
+        print "len of ctx['planText']: ", len(ctx['planText'])
+
+        rowIdx = 0
+
+        # Fourth row is ''/Competence - #/Yes - #/Differential Diagnosis - #/
+        # First Tag - #/Yes - #/List all comments/List all comments
+        competencePct = self.getPctVal(ctx, 'competence', 'Yes')
+        planEffectPct = self.getPctVal(ctx, 'planEffect', 'Yes')
+        planChangeDiffDiag = self.getPctVal(ctx, 'planText', 
+                                            unicode('Differential diagnosis'))
+        (firstTagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames, 
+                                                       tagnameIdx)
+        commBiasYesPct = self.getPctVal(ctx, 'commBias', 'Yes')
+        firstCommBiasComment = '' if (rowIdx > len(commBiasComments) - 1) \
+                                  else commBiasComments[rowIdx]
+
+        wr.writerow(['', 'Competence - ' + competencePct, 
+                     'Yes - ' + planEffectPct, 
+                     'Differential diagnosis - ' + planChangeDiffDiag,
+                     firstTagEntry, 'Yes - ' + commBiasYesPct,
+                     firstCommBiasComment])
+
+        rowIdx += 1
+
+        # Fifth row is ''/Performance - #/No - #/Diagnostic tests - #/
+        # Second Tag - #/No - #/''/''  
+        performancePct = self.getPctVal(ctx, 'performance', 'Yes')
+        planEffectNoPct = self.getPctVal(ctx, 'planEffect', 'No')
+        planChangeDiagTest = self.getPctVal(ctx, 'planText', 
+                                            unicode('Diagnostic tests'))
+        (secondTagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames, 
+                                                        tagnameIdx)
+        commBiasNoPct = self.getPctVal(ctx, 'commBias', 'No')
+
+        secondCommBiasComment = '' if (rowIdx > len(commBiasComments) - 1) \
+                                   else commBiasComments[rowIdx]
+
+        wr.writerow(['', 'Performance - ' + performancePct, 
+                     'No - ' + planEffectNoPct,
+                     'Diagnostic tests - ' + planChangeDiagTest,
+                     secondTagEntry, 'No - ' + commBiasNoPct,
+                     secondCommBiasComment])
+
+        rowIdx += 1
+
+        # Sixth row is ''/Unsure - #/''/Treatment plan - #/Third Tag - #/
+        # Unsure - #/''/''
+        competenceUnsurePct = self.getPctVal(ctx, 'competence', 'Unsure')
+        performanceUnsurePct = self.getPctVal(ctx, 'performance', 'Unsure')
+        unsurePct = round(float(competenceUnsurePct[:-1]) \
+                    + float(performanceUnsurePct[:-1]), 2)
+        planChangeTreatPlan = self.getPctVal(ctx, 'planText', 
+                                             unicode('Treatment plan'))
+        (thirdTagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames, 
+                                                       tagnameIdx)
+        commBiasUnsurePct = self.getPctVal(ctx, 'commBias', 'Unsure')
+
+        thirdCommBiasComment = '' if (rowIdx > len(commBiasComments) - 1) \
+                                  else commBiasComments[rowIdx]
+
+        wr.writerow(['', 'Unsure - ' + '%.2f' % unsurePct + '%', '',
+                     'Treatment plan - ' + planChangeTreatPlan,
+                     thirdTagEntry, 'Unsure - ' + commBiasUnsurePct,
+                     thirdCommBiasComment])
+
+        rowIdx += 1
+
+        # Seventh row is ''/''/''/'Other (Please explain)'/Fourth tag - #/
+        #
+        (fourthTagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames,
+                                                        tagnameIdx)
+        wr.writerow(['', '', '', 'Other (Please explain) ', fourthTagEntry])
+
+        while (rowIdx < maxNumRows):
+            (tagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames,
+                                                            tagnameIdx)
+            wr.writerow(['', '', '', 'Other (Please explain) ', tagEntry])
+            rowIdx += 1
+
+
+        # Column A
+        columnA = ['Report Timeframe: ' + startSubjRds + ' - ' + endSubjRds, 'Overall Evaluation Participants N = ']
+
+        # Column B
+        competencePct = self.getPctVal(ctx, 'competence', 'Yes')
+        performancePct = self.getPctVal(ctx, 'performance', 'Yes')
+        competenceUnsurePct = self.getPctVal(ctx, 'competence', 'Unsure')
+        performanceUnsurePct = self.getPctVal(ctx, 'performance', 'Unsure')
+        unsurePct = round(float(competenceUnsurePct[:-1]) \
+                     + float(performanceUnsurePct[:-1]), 2)
+        columnB = ['', str(ctx['numUsers']), 'Conducting this search will result in a change in my:', 
+                   'Competence - ' + competencePct, 'Performance - ' + performancePct,
+                   'Unsure - ' + '%.2f' % unsurePct + '%']
+
+        # Column C
+        planEffectPct = self.getPctVal(ctx, 'planEffect', 'Yes')
+        planEffectNoPct = self.getPctVal(ctx, 'planEffect', 'No')
+        columnC = ['', '', 'Did this information change your clinical plan?',
+                   'Yes - ' + planEffectPct, 'No - ' + planEffectNoPct]
+
+        # Column D
+        planChangeDiffDiag = self.getPctVal(ctx, 'planText',
+                                            unicode('Differential diagnosis'))
+        planChangeDiagTest = self.getPctVal(ctx, 'planText',
+                                            unicode('Diagnostic tests'))
+        planChangeTreatPlan = self.getPctVal(ctx, 'planText',
+                                             unicode('Treatment plan'))
+        planTextOther = ctx['planTextOther']
+        nonEmptyPlanTextOther = []
+        for text in planTextOther:
+            if text != u'':
+                nonEmptyPlanTextOther.append(text)
+        otherPleaseExplainAdd = '' if (len(nonEmptyPlanTextOther) == 0) else nonEmptyPlanTextOther[0]
+        columnD = ['', '', 'If yes, how?', 'Differential diagnosis - ' + planChangeDiffDiag,
+                   'Diagnostic tests - ' + planChangeDiagTest, 'Treatment plan - ' + planChangeTreatPlan,
+                   'Other (Please explain)' + otherPleaseExplainAdd]
+        planTextOtherIdx = 1
+        while (planTextOtherIdx < len(nonEmptyPlanTextOther)):
+            columnD.append(nonEmptyPlanTextOther[planTextOtherIdx])
+            planTextOtherIdx += 1
+
+        # Column E
+        columnE = ['', '', 'Select relevant specialty tags to categorize this credit']
+        # this is for the specialty tags column, it needs to be alphabetized
+        # (except for the Other (combined) tag which I put at the end)
+        tagnames = [''] * len(ctx['tags'])
+        addOther = 0
+        i = 0
+        for tag in ctx['tags']:
+            if (tag['pct'] > 0):
+                if (tag['tagname'] != 'Other (combined)'):
+                    tagnames[i] = tag['tagname']
+                    i += 1
+                else:
+                    addOther = 1
+
+        tagnames.sort()
+
+        if (addOther):
+            tagnames.append('Other (combined)')
+
+        # calibrate tagnameIdx to point to the first non-empty tagname
+        # we have empty tag-names b/c some tagnames may be associated
+        # with a 0 percent, in which case we should not list them
+        # and they are marked with a blank string
+        tagnameIdx = 0
+        while (tagnames[tagnameIdx] == ''):
+            tagnameIdx += 1
+
+        while (tagnameIdx < len(tagnames)):
+            (tagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames,
+                                                      tagnameIdx)
+            columnE.append(tagEntry)
+
+        # Column F
+        commBiasYesPct = self.getPctVal(ctx, 'commBias', 'Yes')
+        commBiasNoPct = self.getPctVal(ctx, 'commBias', 'No')
+        commBiasUnsurePct = self.getPctVal(ctx, 'commBias', 'Unsure')
+
+        columnF = ['', '', 'Did you perceive commercial bias in the content?',
+                   'Yes - ' + commBiasYesPct, 'No - ' + commBiasNoPct, 
+                   'Unsure - ' + commBiasUnsurePct]
+        
+        # Column G
+        columnG = ['', '', 'If yes, explain']
+
+        # Grab the comments list of commercial bias
+        commBiasComments = self.calcResponseStats(qset, 'commercialBias')[1]
+        columnG += commBiasComments
+
+        # Column H
+        columnH = ['', '', 'Please provide any feedback/comments regarding the articles, or the overall system effectiveness']
+
+        startReportDate = datetime(2017, 10, 1)
+        entrySpecific = UserFeedback.objects.filter(entry__isnull=False, created__gte=startReportDate, created__lte=endReportDate).order_by('created')
+        general = UserFeedback.objects.filter(entry__isnull=True, created__gte=startReportDate, created__lte=endReportDate).order_by('created')
+
+        generalIdx = 0
+        entrySpecificIdx = 0
+
+        while (generalIdx < len(general) and entrySpecificIdx < len(entrySpecific)):
+            if (general[generalIdx].created < entrySpecific[entrySpecificIdx].created):
+                generalComment = general[generalIdx]
+                columnH.append(generalComment.message)
+                generalIdx += 1
+            else:
+                entry = entrySpecific[entrySpecificIdx]
+                if ("https://" in entry.message or "http://" in entry.message):
+                    columnH.append(entry.message)
+                entrySpecificIdx += 1
+
+
+        if (generalIdx >= len(general)):
+            while (entrySpecificIdx < len(entrySpecific)):
+                entry = entrySpecific[entrySpecificIdx]
+                if ("https://" in entry.message or "http://" in entry.message):
+                    columnH.append(entry.message)
+                entrySpecificIdx += 1
+
+        if (entrySpecificIdx >= len(entrySpecific)):
+            while (generalIdx < len(general)):
+                generalComment = general[generalIdx]
+                columnH.append(generalComment.message)
+                generalIdx += 1
+
+        print columnH
+
+        maxLength = max(len(columnA), len(columnB), len(columnC), len(columnD), 
+                        len(columnE), len(columnF), len(columnG), len(columnH))
+
+
+        # to get general feedback, set entry__isnull=True
+        columnA += [''] * (maxLength - len(columnA) + 1)
+        columnB += [''] * (maxLength - len(columnB) + 1)
+        columnC += [''] * (maxLength - len(columnC) + 1)
+        columnD += [''] * (maxLength - len(columnD) + 1)
+        columnE += [''] * (maxLength - len(columnE) + 1)
+        columnF += [''] * (maxLength - len(columnF) + 1)
+        columnG += [''] * (maxLength - len(columnG) + 1)
+        columnH += [''] * (maxLength - len(columnH) + 1)
+
+        columnA[maxLength] = "Total # of respondents - " + str(ctx['numUsers'])  
+
+        columnBased = [columnA, columnB, columnC, columnD, columnE, columnF, columnG, columnH]
+        rowBased = zip(*columnBased)
+
+        for row in rowBased:
+          print row
+          wr.writerow(row)
+        
+
+        '''
         wr.writerow([''])
         wr.writerow(['Change In Competence'])
         for competence in ctx['competence']:
@@ -298,7 +624,7 @@ class Command(BaseCommand):
         wr.writerow([''])
         wr.writerow(['Feedback'])
         wr.writerow(['None in this period'])
-
+        '''
         return csvfile
 
     def handle(self, *args, **options):
@@ -311,16 +637,17 @@ class Command(BaseCommand):
             profilesById[p.pk] = p
         results = []
         for m in qset:
+            #print "other m: ", m, " m.entry: ", m.entry, " m.entry.user: ", m.entry.user
             user = m.entry.user
             profile = profilesById[user.pk]
             d = dict()
             for k in outputFields:
                 d[k] = ''
-            d['NPINumber'] = profile.npiNumber
+            d['NPI #'] = profile.npiNumber
             if profile.isPhysician():
-                d['Attendee Type'] = 'Physician'
+                d['Attendee Type (Physician or Other)'] = 'Physician'
             else:
-                d['Attendee Type'] = 'Other'
+                d['Attendee Type (Physician or Other)'] = 'Other'
             if profile.lastName:
                 d['LastName'] = profile.lastName.capitalize()
             elif profile.npiLastName:
@@ -358,20 +685,22 @@ class Command(BaseCommand):
         from_email = settings.EMAIL_FROM
         to_emails = [t[1] for t in settings.MANAGERS] # list of emails
         to_emails.extend(TUFTS_RECIPIENTS)
+        to_emails = ["logicalmath333@gmail.com"]
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
         # data for context
         #
         planEffectStats, planTextStats, planTextOther = self.calcPlanStats(qset)
+        print "qset: ", qset
         ctx = {
             'startDate': startDate,
             'endDate': endDate,
             'numUsers': len(profiles),
             'tags': self.calcTagStats(qset),
-            'competence': self.calcResponseStats(qset, 'competence'),
-            'performance': self.calcResponseStats(qset, 'performance'),
-            'commBias': self.calcResponseStats(qset, 'commercialBias'),
+            'competence': self.calcResponseStats(qset, 'competence')[0],
+            'performance': self.calcResponseStats(qset, 'performance')[0],
+            'commBias': self.calcResponseStats(qset, 'commercialBias')[0],
             'descriptions': self.getEntryDescriptions(qset),
             'planEffect': planEffectStats,
             'planText': planTextStats,
@@ -386,7 +715,7 @@ class Command(BaseCommand):
         msg.content_subtype = 'html'
 
         # summary of stats csv attachment
-        summaryCsvFile = self.createSummaryCsv(ctx)
+        summaryCsvFile = self.createSummaryCsv(ctx, qset)
         summary = summaryCsvFile.getvalue()
         summaryFileName = 'orbit-summary-{0}-{1}.csv'.format(startRds, endRds)
 
