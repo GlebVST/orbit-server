@@ -82,7 +82,10 @@ class CmeTag(models.Model):
         default=0,
         help_text='Used for non-alphabetical sort.'
     )
-    description = models.CharField(max_length=200, unique=True, help_text='Long-form name')
+    description = models.CharField(max_length=200, unique=True, help_text='Long-form name. Must be unique. Used on certificates.')
+    srcme_only = models.BooleanField(default=False,
+            help_text='True if tag is only valid for self-reported cme')
+    notes = models.TextField(default='', help_text='Long-form text. Used for self-reported cme tags')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = CmeTagManager()
