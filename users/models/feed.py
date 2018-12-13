@@ -382,7 +382,6 @@ class Entry(models.Model):
     documents = models.ManyToManyField(Document,
             blank=True,
             related_name='entries')
-    ama_pra_catg = models.CharField(max_length=2, blank=True, help_text='AMA PRA Category')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = EntryManager()
