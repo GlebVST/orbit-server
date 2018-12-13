@@ -261,13 +261,27 @@ class Command(BaseCommand):
         return descriptions
 
     def getPctVal(self, ctx, key, subvalue, subkey = 'value'):
-        keyPct = '0.00' #key + ' value not found'
+        """Create a string for displaying percentages in the csv file
+        Args:
+            ctx: dictionary containing the stats
+            key: key in ctx whose value will be another dictionary
+            subvalue: value in ctx[key] dictionary
+            subkey: key in ctx[key] dictionary
+        """
+        keyPct = '0.00'
         for k in ctx[key]:
             if (k[subkey] == subvalue):
                 keyPct = '%.2f' % k['pct'] + '%'
         return keyPct
 
     def getTagEntry(self, ctx, tagList, tagIdx): 
+        """ Gets the tagEntry corresponding to the tagIdx in tagList
+            Also returns an updated tagIdx
+        Args:
+            ctx: dictionary containing the stats
+            tagList: list of specialty tags
+            tagIdx: index into list 
+        """
         tagEntry = ''
         if (tagIdx < len(tagList)):
             tagPct = self.getPctVal(ctx, 'tags', tagList[tagIdx], 'tagname')
@@ -318,6 +332,8 @@ class Command(BaseCommand):
                                             unicode('Diagnostic tests'))
         planChangeTreatPlan = self.getPctVal(ctx, 'planText',
                                              unicode('Treatment plan'))
+        # Determine if we will need add any text to the 'Other (Please explain)'
+        # cell and add it if we have any text in planTextOther
         planTextOther = ctx['planTextOther']
         nonEmptyPlanTextOther = []
         for text in planTextOther:
@@ -327,6 +343,7 @@ class Command(BaseCommand):
         columnD = ['', '', 'If yes, how?', 'Differential diagnosis - ' + planChangeDiffDiag,
                    'Diagnostic tests - ' + planChangeDiagTest, 'Treatment plan - ' + planChangeTreatPlan,
                    'Other (Please explain)' + otherPleaseExplainAdd]
+        # Add the other text, if any, in the column in the rows that follow
         planTextOtherIdx = 1
         while (planTextOtherIdx < len(nonEmptyPlanTextOther)):
             columnD.append(nonEmptyPlanTextOther[planTextOtherIdx])
@@ -384,12 +401,16 @@ class Command(BaseCommand):
         # Column H
         columnH = ['', '', 'Please provide any feedback/comments regarding the articles, or the overall system effectiveness']
 
+        # entrySpecific entries have an article url inside of them
         entrySpecific = UserFeedback.objects.filter(entry__isnull=False, created__gte=startReportDate, created__lte=endReportDate).order_by('created')
         general = UserFeedback.objects.filter(entry__isnull=True, created__gte=startReportDate, created__lte=endReportDate).order_by('created')
 
         generalIdx = 0
         entrySpecificIdx = 0
 
+        # we order the general entries and entrySpecific entries by order of date
+        # both arrays are sorted and we want one array sorted containing both general
+        # and entrySpecific entries
         while (generalIdx < len(general) and entrySpecificIdx < len(entrySpecific)):
             if (general[generalIdx].created < entrySpecific[entrySpecificIdx].created):
                 generalComment = general[generalIdx]
@@ -401,7 +422,8 @@ class Command(BaseCommand):
                     columnH.append(entry.message)
                 entrySpecificIdx += 1
 
-
+        # if we go through all the general entries, just add on the
+        # the rest of the entrySpecific entries
         if (generalIdx >= len(general)):
             while (entrySpecificIdx < len(entrySpecific)):
                 entry = entrySpecific[entrySpecificIdx]
@@ -409,6 +431,8 @@ class Command(BaseCommand):
                     columnH.append(entry.message)
                 entrySpecificIdx += 1
 
+        # if we go through all the entrySpecific entries, just add on
+        # the rest of the general entries
         if (entrySpecificIdx >= len(entrySpecific)):
             while (generalIdx < len(general)):
                 generalComment = general[generalIdx]
@@ -432,6 +456,8 @@ class Command(BaseCommand):
         columnA[maxLength] = "Total # of respondents - " + str(ctx['numUsers'])  
 
         columnBased = [columnA, columnB, columnC, columnD, columnE, columnF, columnG, columnH]
+        # Transpose this array of columns to an array of rows that can be easily
+        # written as a csv
         rowBased = zip(*columnBased)
 
         for row in rowBased:
@@ -496,7 +522,7 @@ class Command(BaseCommand):
         from_email = settings.EMAIL_FROM
         to_emails = [t[1] for t in settings.MANAGERS] # list of emails
         to_emails.extend(TUFTS_RECIPIENTS)
-        to_emails = ["logicalmath333@gmail.com"]
+        to_emails = ["logicalmath333@gmail.com", "ram@orbitcme.com", "faria@orbitcme.com"]
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
