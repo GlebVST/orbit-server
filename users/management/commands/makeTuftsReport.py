@@ -522,7 +522,7 @@ class Command(BaseCommand):
         from_email = settings.EMAIL_FROM
         to_emails = [t[1] for t in settings.MANAGERS] # list of emails
         to_emails.extend(TUFTS_RECIPIENTS)
-        to_emails = ["logicalmath333@gmail.com", "ram@orbitcme.com", "faria@orbitcme.com"]
+        #to_emails = ["logicalmath333@gmail.com", "ram@orbitcme.com", "faria@orbitcme.com"]
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
