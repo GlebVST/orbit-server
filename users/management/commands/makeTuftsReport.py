@@ -17,9 +17,9 @@ from pprint import pprint
 logger = logging.getLogger('mgmt.tuftsqr')
 
 TUFTS_RECIPIENTS = [
-    'Mirosleidy.Tejeda@tufts.edu',
-    'Karin.Pearson@tufts.edu',
-    'Jennifer.Besaw@tufts.edu'
+    #'Mirosleidy.Tejeda@tufts.edu',
+    #'Karin.Pearson@tufts.edu',
+    #'Jennifer.Besaw@tufts.edu'
 ]
 
 outputFields = (
@@ -47,12 +47,12 @@ IGNORE_USERS = (
     'testsand@weppa.org',
 )
 
-# by month
+# quarterly month ranges
 DATE_RANGE_MAP = {
-    1: ((10, 1), (12, 31)),
-    4: ((1, 1), (3, 31)),
-    7: ((4, 1), (6, 30)),
-    10: ((7,1), (9, 30)),
+    1: ((10, 1), (12, 31)), # Q4
+    4: ((1, 1), (3, 31)), # Q1
+    7: ((4, 1), (6, 30)), # Q2
+    10: ((7,1), (9, 30)), # Q3
 }
 
 OTHER = 'Other (combined)'
@@ -90,27 +90,42 @@ def cleanDescription(d):
 class Command(BaseCommand):
     help = "Generate quarterly Tufts Report for the current quarter. This should be run on 1/1, 4/1, 7/1 and 10/1."
 
-    def getEntries(self, now):
-        """Returns BrowserCme queryset for a specific date range based on now timestamp
-        Args:
-            now: datetime
+    def calcReportDateRange(self, options):
+        """Calculate quarterly report date range
+        Returns tuple: (startDate: datetime, endDate: datetime)
         """
-        month = now.month
-        if month not in DATE_RANGE_MAP:
-            if month in (2, 3):
-                month = 4
-            elif month in (5, 6):
-                month = 7
-            elif month in (8, 9):
-                month = 10
-            elif month in (11, 12):
-                month = 1
-        s, e = DATE_RANGE_MAP[month]
-        year = now.year
-        if now.month == 1:
-            year -= 1 # calculate for previous year
+        now = timezone.now()
+        if options['report_month'] and options['report_year']:
+            mkey = options['report_month']
+            year = options['report_year']
+        else:
+            mkey = now.month
+            year = now.year
+            if now.month == 1:
+                year -= 1 # calculate for Q4 of previous year
+            # clamp mkey to one of: 1/4/7/10
+            if mkey not in DATE_RANGE_MAP:
+                # find closest on-going quarter
+                if mkey in (2, 3):
+                    mkey = 4 # Q1: 1/1 - 3/31
+                elif mkey in (5, 6):
+                    mkey = 7 # Q2: 4/1 - 6/30
+                elif mkey in (8, 9):
+                    mkey = 10 # Q3: 7/1 - 9/30
+                elif mkey in (11, 12):
+                    mkey = 1 # Q4: 10/1 - 12/31
+        # get the date range for a specific quarter
+        s, e = DATE_RANGE_MAP[mkey]
         startDate = datetime(year, s[0], s[1], tzinfo=pytz.utc)
         endDate = datetime(year, e[0], e[1], 23, 59, 59, tzinfo=pytz.utc)
+        return (startDate, endDate)
+
+    def getEntries(self, startDate, endDate):
+        """Returns BrowserCme queryset for a specific date range
+        Args:
+            startDate: utc datetime
+            endDate: utc datetime
+        """
         msg = "Getting entries from {0:%Y-%m-%d} to {1:%Y-%m-%d}".format(startDate, endDate)
         logger.info(msg)
         self.stdout.write(msg)
@@ -432,10 +447,40 @@ class Command(BaseCommand):
 
         return csvfile
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--report_month',
+            type=int,
+            const=0,
+            nargs='?',
+            help='Specify start month of 1, 4, 7, or 10. Default behavior uses now timestamp to calculate report dates'
+        )
+        parser.add_argument(
+            '--report_year',
+            type=int,
+            const=0,
+            nargs='?',
+            help='Specify start year. Default behavior uses now timestamp to calculate report dates'
+        )
+        parser.add_argument(
+            '--managers_only',
+            action='store_true',
+            dest='managers_only',
+            default=False,
+            help='Only email reports to MANAGERS. Default behavior is to include Tufts recipients in prod env. Test env never includes Tufts recipients.'
+        )
+
     def handle(self, *args, **options):
+        # options error check
+        if (options['report_month'] and not options['report_year']) or (options['report_year'] and not options['report_month']):
+            self.stderr.write('If specified, both report_month and report_year must be specified together')
+            return
+        if options['report_month'] and options['report_month'] not in DATE_RANGE_MAP:
+            self.stderr.write('Report month must be one of: 1, 4, 7, or 10')
+            return
+        startDate, endDate = self.calcReportDateRange(options)
         # get brcme entries
-        now = timezone.now()
-        qset, profiles, startDate, endDate = self.getEntries(now)
+        qset, profiles, startDate, endDate = self.getEntries(startDate, endDate)
         # profiles for the distinct users in qset
         profilesById = dict()
         for p in profiles:
@@ -488,8 +533,8 @@ class Command(BaseCommand):
         # create EmailMessage
         from_email = settings.EMAIL_FROM
         to_emails = [t[1] for t in settings.MANAGERS] # list of emails
-        to_emails.extend(TUFTS_RECIPIENTS)
-        to_emails = ["logicalmath333@gmail.com"]#, "ram@orbitcme.com", "faria@orbitcme.com"]
+        if (settings.ENV_TYPE == settings.ENV_PROD) and not options['managers_only']:
+            to_emails.extend(TUFTS_RECIPIENTS)
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
