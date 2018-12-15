@@ -17,9 +17,9 @@ from pprint import pprint
 logger = logging.getLogger('mgmt.tuftsqr')
 
 TUFTS_RECIPIENTS = [
-    #'Mirosleidy.Tejeda@tufts.edu',
-    #'Karin.Pearson@tufts.edu',
-    #'Jennifer.Besaw@tufts.edu'
+    'Mirosleidy.Tejeda@tufts.edu',
+    'Karin.Pearson@tufts.edu',
+    'Jennifer.Besaw@tufts.edu'
 ]
 
 outputFields = (
