@@ -35,6 +35,8 @@ The following keys are expected in the .env file which is read by manage.py and 
  * ORBIT_AUTH0_CLIENTID
  * ORBIT_AUTH0_SECRET
  * ORBIT_AUTH0_DOMAIN
+ * ORBIT_AUTH0_MGMT_CLIENTID - Auth0 non-interactive client with permission to access the Auth0 management API
+ * ORBIT_AUTH0_MGMT_CLIENT_SECRET
 
 #### Braintree
 
@@ -65,10 +67,6 @@ The following keys are expected in the .env file which is read by manage.py and 
  * PAYPAL_CLIENTID
  * PAYPAL_SECRET
 
-#### [optional] Auth0 non-interactive client with permission to access the Auth0 management API
-
- * ORBIT_AUTH0_MGMT_CLIENTID
- * ORBIT_AUTH0_MGMT_CLIENT_SECRET
 
 Note: AWS SES credentials are currently hard-coded in settings.py.
 
