@@ -55,7 +55,7 @@ ADMINS = [
 MANAGERS = [
     ('Ram Srinivasan',     'ram@orbitcme.com'),
     ('Faria Chowdhury',     'faria.chowdhury@gmail.com'),
-#    ('Gleb Starodubstev',   'gleb@codeabovelab.com')
+    ('Naoki Eto',   'logicalmath333@gmail.com')
 ]
 
 # Note: This value should match the X_FORWARDED_HOST in the nginx conf file.

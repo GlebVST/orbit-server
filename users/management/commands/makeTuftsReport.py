@@ -11,25 +11,25 @@ from django.conf import settings
 from django.db.models import Subquery
 from django.template.loader import get_template
 from django.utils import timezone
-from users.models import User, Profile, Entry, BrowserCme
+from users.models import User, Profile, Entry, BrowserCme, UserFeedback
 from pprint import pprint
 
 logger = logging.getLogger('mgmt.tuftsqr')
 
 TUFTS_RECIPIENTS = [
-    'Mirosleidy.Tejeda@tufts.edu',
-    'Karin.Pearson@tufts.edu',
-    'Jennifer.Besaw@tufts.edu'
+    #'Mirosleidy.Tejeda@tufts.edu',
+    #'Karin.Pearson@tufts.edu',
+    #'Jennifer.Besaw@tufts.edu'
 ]
 
 outputFields = (
     'LastName',
     'FirstName',
     'Degree',
-    'NPINumber',
+    'NPI #',
     'Search Date',
     'Credit Earned',
-    'Attendee Type',
+    'Attendee Type (Physician or Other)',
     'TopicSearched',
     'Article/Website Consulted',
 )
@@ -47,12 +47,12 @@ IGNORE_USERS = (
     'testsand@weppa.org',
 )
 
-# by month
+# quarterly month ranges
 DATE_RANGE_MAP = {
-    1: ((10, 1), (12, 31)),
-    4: ((1, 1), (3, 31)),
-    7: ((4, 1), (6, 30)),
-    10: ((7,1), (9, 30)),
+    1: ((10, 1), (12, 31)), # Q4
+    4: ((1, 1), (3, 31)), # Q1
+    7: ((4, 1), (6, 30)), # Q2
+    10: ((7,1), (9, 30)), # Q3
 }
 
 OTHER = 'Other (combined)'
@@ -90,27 +90,42 @@ def cleanDescription(d):
 class Command(BaseCommand):
     help = "Generate quarterly Tufts Report for the current quarter. This should be run on 1/1, 4/1, 7/1 and 10/1."
 
-    def getEntries(self, now):
-        """Returns BrowserCme queryset for a specific date range based on now timestamp
-        Args:
-            now: datetime
+    def calcReportDateRange(self, options):
+        """Calculate quarterly report date range
+        Returns tuple: (startDate: datetime, endDate: datetime)
         """
-        month = now.month
-        if month not in DATE_RANGE_MAP:
-            if month in (2, 3):
-                month = 4
-            elif month in (5, 6):
-                month = 7
-            elif month in (8, 9):
-                month = 10
-            elif month in (11, 12):
-                month = 1
-        s, e = DATE_RANGE_MAP[month]
-        year = now.year
-        if now.month == 1:
-            year -= 1 # calculate for previous year
+        now = timezone.now()
+        if options['report_month'] and options['report_year']:
+            mkey = options['report_month']
+            year = options['report_year']
+        else:
+            mkey = now.month
+            year = now.year
+            if now.month == 1:
+                year -= 1 # calculate for Q4 of previous year
+            # clamp mkey to one of: 1/4/7/10
+            if mkey not in DATE_RANGE_MAP:
+                # find closest on-going quarter
+                if mkey in (2, 3):
+                    mkey = 4 # Q1: 1/1 - 3/31
+                elif mkey in (5, 6):
+                    mkey = 7 # Q2: 4/1 - 6/30
+                elif mkey in (8, 9):
+                    mkey = 10 # Q3: 7/1 - 9/30
+                elif mkey in (11, 12):
+                    mkey = 1 # Q4: 10/1 - 12/31
+        # get the date range for a specific quarter
+        s, e = DATE_RANGE_MAP[mkey]
         startDate = datetime(year, s[0], s[1], tzinfo=pytz.utc)
         endDate = datetime(year, e[0], e[1], 23, 59, 59, tzinfo=pytz.utc)
+        return (startDate, endDate)
+
+    def getEntries(self, startDate, endDate):
+        """Returns BrowserCme queryset for a specific date range
+        Args:
+            startDate: utc datetime
+            endDate: utc datetime
+        """
         msg = "Getting entries from {0:%Y-%m-%d} to {1:%Y-%m-%d}".format(startDate, endDate)
         logger.info(msg)
         self.stdout.write(msg)
@@ -139,10 +154,13 @@ class Command(BaseCommand):
         Args:
             qset: queryset from getEntries
             fieldname: one of: competence/performance/commercialBias
-        Returns: list of dicts w. keys: value, count, pct
+        Returns: a tuple of (1) list of dicts w. keys: value, count, pct
+                 and (2) list of comments for that particular field
+                 (if any)
         """
         num_entries = qset.count()
         stats = []
+        comments = []
         clause = '{0}__exact'.format(fieldname)
         for v in RESPONSE_CHOICES:
             filter_kwargs = {clause: v}
@@ -150,7 +168,13 @@ class Command(BaseCommand):
             pct = 100.0*cnt/num_entries
             nv = RESPONSE_MAP[v]
             stats.append(dict(value=nv, count=cnt, pct=pct))
-        return stats
+        if (fieldname == "commercialBias"):
+            for m in qset:
+                cb = m.commercialBiasText
+                if (cb != ''):
+                    comments.append(cb)
+
+        return (stats, comments)
 
     def calcPlanStats(self, qset):
         """Calculate stats on planEffect and planText
@@ -251,60 +275,212 @@ class Command(BaseCommand):
             descriptions.append(descr)
         return descriptions
 
-    def createSummaryCsv(self, ctx):
+    def getPctVal(self, ctx, key, subvalue, subkey = 'value'):
+        """Create a string for displaying percentages in the csv file
+        Args:
+            ctx: dictionary containing the stats
+            key: key in ctx whose value will be another dictionary
+            subvalue: value in ctx[key] dictionary
+            subkey: key in ctx[key] dictionary
+        """
+        keyPct = '0.00'
+        for k in ctx[key]:
+            if (k[subkey] == subvalue):
+                keyPct = '%.2f' % k['pct'] + '%'
+        return keyPct
+
+    def getTagEntry(self, ctx, tagList, tagIdx): 
+        """ Gets the tagEntry corresponding to the tagIdx in tagList
+            Also returns an updated tagIdx
+        Args:
+            ctx: dictionary containing the stats
+            tagList: list of specialty tags
+            tagIdx: index into list 
+        """
+        tagEntry = ''
+        if (tagIdx < len(tagList)):
+            tagPct = self.getPctVal(ctx, 'tags', tagList[tagIdx], 'tagname')
+            tagEntry = tagList[tagIdx] + ' - ' + tagPct
+            tagIdx += 1
+        return (tagEntry, tagIdx)
+
+    def createSummaryCsv(self, ctx, qset):
         """Create a summary of the stats in csv format. To be used as an attachment
         Args:
             ctx: dictionary containing the stats
+            qset: BrowserCme queryset for a specific date range based on now timestamp
         Returns: stats in csv format
         """
         csvfile = StringIO.StringIO()
         wr = csv.writer(csvfile)
-        wr.writerow(['Total number of respondents in this period: ', str(ctx['numUsers'])])
-        wr.writerow([''])
-        wr.writerow(['Change In Competence'])
-        for competence in ctx['competence']:
-            wr.writerow([competence['value'], '%.2f' % competence['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['Change in Performance'])
-        for performance in ctx['performance']:
-            wr.writerow([performance['value'], '%.2f' % performance['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['Change in Clinical Plan?'])
-        for planEffect in ctx['planEffect']:
-            wr.writerow([planEffect['value'], '%.2f' % planEffect['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['If Yes, How?'])
-        for planText in ctx['planText']:
-            wr.writerow([planText['value'], '%.2f' % planText['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['Other changes to Clinical Plan'])
-        # without the check that len of element is > 0, strange output is created
-        # in attachment csv
-        for planTextOther in ctx['planTextOther']:
-            if (len(planTextOther) > 0):
-                wr.writerow([planTextOther])
-        wr.writerow([''])
-        wr.writerow(['Commercial Bias In Content'])
-        for commBias in ctx['commBias']:
-            wr.writerow([commBias['value'], '%.2f' % commBias['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['Specialty Tags'])
+
+        startReportDate = ctx['startDate']
+        endReportDate = ctx['endDate'] + timedelta(days=1) # use reportDate instead of now since cmd can be run at any time
+        # string formatted dates
+        startSubjRds = startReportDate.strftime('%b/%d/%Y')
+        endSubjRds = endReportDate.strftime('%b/%d/%Y')
+
+        # Column A
+        columnA = ['Report Timeframe: ' + startSubjRds + ' - ' + endSubjRds, 'Overall Evaluation Participants N = ']
+
+        # Column B
+        competencePct = self.getPctVal(ctx, 'competence', 'Yes')
+        performancePct = self.getPctVal(ctx, 'performance', 'Yes')
+        competenceUnsurePct = self.getPctVal(ctx, 'competence', 'Unsure')
+        performanceUnsurePct = self.getPctVal(ctx, 'performance', 'Unsure')
+        unsurePct = round(float(competenceUnsurePct[:-1]) \
+                     + float(performanceUnsurePct[:-1]), 2)
+        columnB = ['', str(ctx['numUsers']), 'Conducting this search will result in a change in my:', 
+                   'Competence - ' + competencePct, 'Performance - ' + performancePct,
+                   'Unsure - ' + '%.2f' % unsurePct + '%']
+
+        # Column C
+        planEffectPct = self.getPctVal(ctx, 'planEffect', 'Yes')
+        planEffectNoPct = self.getPctVal(ctx, 'planEffect', 'No')
+        columnC = ['', '', 'Did this information change your clinical plan?',
+                   'Yes - ' + planEffectPct, 'No - ' + planEffectNoPct]
+
+        # Column D
+        planChangeDiffDiag = self.getPctVal(ctx, 'planText',
+                                            unicode('Differential diagnosis'))
+        planChangeDiagTest = self.getPctVal(ctx, 'planText',
+                                            unicode('Diagnostic tests'))
+        planChangeTreatPlan = self.getPctVal(ctx, 'planText',
+                                             unicode('Treatment plan'))
+        # Determine if we will need add any text to the 'Other (Please explain)'
+        # cell and add it if we have any text in planTextOther
+        planTextOther = ctx['planTextOther']
+        nonEmptyPlanTextOther = []
+        for text in planTextOther:
+            if text != u'':
+                nonEmptyPlanTextOther.append(text)
+        otherPleaseExplainAdd = '' if (len(nonEmptyPlanTextOther) == 0) else nonEmptyPlanTextOther[0]
+        columnD = ['', '', 'If yes, how?', 'Differential diagnosis - ' + planChangeDiffDiag,
+                   'Diagnostic tests - ' + planChangeDiagTest, 'Treatment plan - ' + planChangeTreatPlan,
+                   'Other (Please explain)' + otherPleaseExplainAdd]
+        # Add the other text, if any, in the column in the rows that follow
+        planTextOtherIdx = 1
+        while (planTextOtherIdx < len(nonEmptyPlanTextOther)):
+            columnD.append(nonEmptyPlanTextOther[planTextOtherIdx])
+            planTextOtherIdx += 1
+
+        # Column E
+        columnE = ['', '', 'Select relevant specialty tags to categorize this credit']
+        # this is for the specialty tags column, it needs to be alphabetized
+        # (except for the Other (combined) tag which I put at the end)
+        tagnames = [''] * len(ctx['tags'])
+        addOther = 0
+        i = 0
         for tag in ctx['tags']:
-            wr.writerow([tag['tagname'], '%.2f' % tag['pct'] + '%'])
-        wr.writerow([''])
-        wr.writerow(['For what clinical information were you searching?'])
-        for description in ctx['descriptions']:
-            wr.writerow([description])
-        wr.writerow([''])
-        wr.writerow(['Feedback'])
-        wr.writerow(['None in this period'])
+            if (tag['pct'] > 0):
+                if (tag['tagname'] != 'Other (combined)'):
+                    tagnames[i] = tag['tagname']
+                    i += 1
+                else:
+                    addOther = 1
+
+        tagnames.sort()
+
+        if (addOther):
+            tagnames.append('Other (combined)')
+
+        # calibrate tagnameIdx to point to the first non-empty tagname
+        # we have empty tag-names b/c some tagnames may be associated
+        # with a 0 percent, in which case we should not list them
+        # and they are marked with a blank string
+        tagnameIdx = 0
+        while (tagnames[tagnameIdx] == ''):
+            tagnameIdx += 1
+
+        while (tagnameIdx < len(tagnames)):
+            (tagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames,
+                                                      tagnameIdx)
+            columnE.append(tagEntry)
+
+        # Column F
+        commBiasYesPct = self.getPctVal(ctx, 'commBias', 'Yes')
+        commBiasNoPct = self.getPctVal(ctx, 'commBias', 'No')
+        commBiasUnsurePct = self.getPctVal(ctx, 'commBias', 'Unsure')
+
+        columnF = ['', '', 'Did you perceive commercial bias in the content?',
+                   'Yes - ' + commBiasYesPct, 'No - ' + commBiasNoPct, 
+                   'Unsure - ' + commBiasUnsurePct]
+        
+        # Column G
+        columnG = ['', '', 'If yes, explain']
+
+        # Grab the comments list of commercial bias
+        commBiasComments = self.calcResponseStats(qset, 'commercialBias')[1]
+        columnG += commBiasComments
+
+        # Column H
+        columnH = ['', '', 'Please provide any feedback/comments regarding the articles, or the overall system effectiveness']
+
+        # entrySpecific entries have an article url inside of them
+        entrySpecific = UserFeedback.objects.filter(entry__isnull=False, created__gte=startReportDate, created__lte=endReportDate).order_by('created')
+
+        columnH += entrySpecific
+
+        # Determine max length so we can create a matrix that can be transposed
+        maxLength = max(len(columnA), len(columnB), len(columnC), len(columnD), 
+                        len(columnE), len(columnF), len(columnG), len(columnH))
+
+
+        columnA += [''] * (maxLength - len(columnA) + 1)
+        columnB += [''] * (maxLength - len(columnB) + 1)
+        columnC += [''] * (maxLength - len(columnC) + 1)
+        columnD += [''] * (maxLength - len(columnD) + 1)
+        columnE += [''] * (maxLength - len(columnE) + 1)
+        columnF += [''] * (maxLength - len(columnF) + 1)
+        columnG += [''] * (maxLength - len(columnG) + 1)
+        columnH += [''] * (maxLength - len(columnH) + 1)
+
+        columnA[maxLength] = "Total # of respondents - " + str(ctx['numUsers'])  
+
+        columnBased = [columnA, columnB, columnC, columnD, columnE, columnF, columnG, columnH]
+        # Transpose this array of columns to an array of rows that can be easily
+        # written as a csv
+        rowBased = zip(*columnBased)
+
+        for row in rowBased:
+            wr.writerow(row)
 
         return csvfile
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--report_month',
+            type=int,
+            const=0,
+            nargs='?',
+            help='Specify start month of 1, 4, 7, or 10. Default behavior uses now timestamp to calculate report dates'
+        )
+        parser.add_argument(
+            '--report_year',
+            type=int,
+            const=0,
+            nargs='?',
+            help='Specify start year. Default behavior uses now timestamp to calculate report dates'
+        )
+        parser.add_argument(
+            '--managers_only',
+            action='store_true',
+            dest='managers_only',
+            default=False,
+            help='Only email reports to MANAGERS. Default behavior is to include Tufts recipients in prod env. Test env never includes Tufts recipients.'
+        )
+
     def handle(self, *args, **options):
+        # options error check
+        if (options['report_month'] and not options['report_year']) or (options['report_year'] and not options['report_month']):
+            self.stderr.write('If specified, both report_month and report_year must be specified together')
+            return
+        if options['report_month'] and options['report_month'] not in DATE_RANGE_MAP:
+            self.stderr.write('Report month must be one of: 1, 4, 7, or 10')
+            return
+        startDate, endDate = self.calcReportDateRange(options)
         # get brcme entries
-        now = timezone.now()
-        qset, profiles, startDate, endDate = self.getEntries(now)
+        qset, profiles, startDate, endDate = self.getEntries(startDate, endDate)
         # profiles for the distinct users in qset
         profilesById = dict()
         for p in profiles:
@@ -316,11 +492,11 @@ class Command(BaseCommand):
             d = dict()
             for k in outputFields:
                 d[k] = ''
-            d['NPINumber'] = profile.npiNumber
+            d['NPI #'] = profile.npiNumber
             if profile.isPhysician():
-                d['Attendee Type'] = 'Physician'
+                d['Attendee Type (Physician or Other)'] = 'Physician'
             else:
-                d['Attendee Type'] = 'Other'
+                d['Attendee Type (Physician or Other)'] = 'Other'
             if profile.lastName:
                 d['LastName'] = profile.lastName.capitalize()
             elif profile.npiLastName:
@@ -357,7 +533,8 @@ class Command(BaseCommand):
         # create EmailMessage
         from_email = settings.EMAIL_FROM
         to_emails = [t[1] for t in settings.MANAGERS] # list of emails
-        to_emails.extend(TUFTS_RECIPIENTS)
+        if (settings.ENV_TYPE == settings.ENV_PROD) and not options['managers_only']:
+            to_emails.extend(TUFTS_RECIPIENTS)
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
@@ -369,9 +546,9 @@ class Command(BaseCommand):
             'endDate': endDate,
             'numUsers': len(profiles),
             'tags': self.calcTagStats(qset),
-            'competence': self.calcResponseStats(qset, 'competence'),
-            'performance': self.calcResponseStats(qset, 'performance'),
-            'commBias': self.calcResponseStats(qset, 'commercialBias'),
+            'competence': self.calcResponseStats(qset, 'competence')[0],
+            'performance': self.calcResponseStats(qset, 'performance')[0],
+            'commBias': self.calcResponseStats(qset, 'commercialBias')[0],
             'descriptions': self.getEntryDescriptions(qset),
             'planEffect': planEffectStats,
             'planText': planTextStats,
@@ -386,7 +563,7 @@ class Command(BaseCommand):
         msg.content_subtype = 'html'
 
         # summary of stats csv attachment
-        summaryCsvFile = self.createSummaryCsv(ctx)
+        summaryCsvFile = self.createSummaryCsv(ctx, qset)
         summary = summaryCsvFile.getvalue()
         summaryFileName = 'orbit-summary-{0}-{1}.csv'.format(startRds, endRds)
 
