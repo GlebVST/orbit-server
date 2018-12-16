@@ -534,7 +534,6 @@ class Command(BaseCommand):
         to_emails = [t[1] for t in settings.MANAGERS] # list of emails
         if (settings.ENV_TYPE == settings.ENV_PROD) and not options['managers_only']:
             to_emails.extend(TUFTS_RECIPIENTS)
-        to_emails = ['logicalmath333@gmail.com']
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
