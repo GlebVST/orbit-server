@@ -277,8 +277,7 @@ class Command(BaseCommand):
 
     def getVal(self, ctx, key, subvalue, subkey = 'value'):
         """Create a string for displaying counts in the csv file. This
-        expects ctx[key] dict to have a key called 'count' containing
-        the number of users.
+        is the number of users.
         Args:
             ctx: dictionary containing the stats
             key: key in ctx whose value will be another dictionary
@@ -288,7 +287,7 @@ class Command(BaseCommand):
         numUsers = '0'
         for k in ctx[key]:
             if (k[subkey] == subvalue):
-                numUsers = '%d' % int(k['count'])
+                numUsers = '%d' % int(round(k['pct']/100.0 * ctx['numUsers']))
         return numUsers
 
     def getTagEntry(self, ctx, tagList, tagIdx): 
