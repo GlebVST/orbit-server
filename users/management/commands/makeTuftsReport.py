@@ -179,8 +179,8 @@ class Command(BaseCommand):
     def calcPlanStats(self, qset):
         """Calculate stats on planEffect and planText
         Returns: tuple (
-            planEffectStats: list of dicts w. keys value, cnt, pct
-            planTextStats: list of dicts w. keys value, cnt, pct
+            planEffectStats: list of dicts w. keys value, count, pct
+            planTextStats: list of dicts w. keys value, count, pct
             planTextOther: list of strs
         """
         num_entries = qset.count()
@@ -218,7 +218,7 @@ class Command(BaseCommand):
         """
         Args:
             qset: BrowserCme queryset
-        Returns: list of dicts w. keys: tagname, tagpct
+        Returns: list of dicts w. keys: tagname, pct, count
         """
         counts = {
             OTHER: {'count': 0, 'pct': 0}
@@ -275,19 +275,21 @@ class Command(BaseCommand):
             descriptions.append(descr)
         return descriptions
 
-    def getPctVal(self, ctx, key, subvalue, subkey = 'value'):
-        """Create a string for displaying percentages in the csv file
+    def getVal(self, ctx, key, subvalue, subkey = 'value'):
+        """Create a string for displaying counts in the csv file. This
+        expects ctx[key] dict to have a key called 'count' containing
+        the number of users.
         Args:
             ctx: dictionary containing the stats
             key: key in ctx whose value will be another dictionary
             subvalue: value in ctx[key] dictionary
             subkey: key in ctx[key] dictionary
         """
-        keyPct = '0.00'
+        numUsers = '0'
         for k in ctx[key]:
             if (k[subkey] == subvalue):
-                keyPct = '%.2f' % k['pct'] + '%'
-        return keyPct
+                numUsers = '%d' % int(k['count'])
+        return numUsers
 
     def getTagEntry(self, ctx, tagList, tagIdx): 
         """ Gets the tagEntry corresponding to the tagIdx in tagList
@@ -299,8 +301,8 @@ class Command(BaseCommand):
         """
         tagEntry = ''
         if (tagIdx < len(tagList)):
-            tagPct = self.getPctVal(ctx, 'tags', tagList[tagIdx], 'tagname')
-            tagEntry = tagList[tagIdx] + ' - ' + tagPct
+            tagCnt = self.getVal(ctx, 'tags', tagList[tagIdx], 'tagname')
+            tagEntry = tagList[tagIdx] + ' - ' + tagCnt
             tagIdx += 1
         return (tagEntry, tagIdx)
 
@@ -324,28 +326,27 @@ class Command(BaseCommand):
         columnA = ['Report Timeframe: ' + startSubjRds + ' - ' + endSubjRds, 'Overall Evaluation Participants N = ']
 
         # Column B
-        competencePct = self.getPctVal(ctx, 'competence', 'Yes')
-        performancePct = self.getPctVal(ctx, 'performance', 'Yes')
-        competenceUnsurePct = self.getPctVal(ctx, 'competence', 'Unsure')
-        performanceUnsurePct = self.getPctVal(ctx, 'performance', 'Unsure')
-        unsurePct = round(float(competenceUnsurePct[:-1]) \
-                     + float(performanceUnsurePct[:-1]), 2)
+        competenceNum = self.getVal(ctx, 'competence', 'Yes')
+        performanceNum = self.getVal(ctx, 'performance', 'Yes')
+        competenceUnsureNum = self.getVal(ctx, 'competence', 'Unsure')
+        performanceUnsureNum = self.getVal(ctx, 'performance', 'Unsure')
+        unsureNum = int(competenceUnsureNum) + int(performanceUnsureNum)
         columnB = ['', str(ctx['numUsers']), 'Conducting this search will result in a change in my:', 
-                   'Competence - ' + competencePct, 'Performance - ' + performancePct,
-                   'Unsure - ' + '%.2f' % unsurePct + '%']
+                   'Competence - ' + competenceNum, 'Performance - ' + performanceNum,
+                   'Unsure - ' + '%d' % unsureNum]
 
         # Column C
-        planEffectPct = self.getPctVal(ctx, 'planEffect', 'Yes')
-        planEffectNoPct = self.getPctVal(ctx, 'planEffect', 'No')
+        planEffectNum = self.getVal(ctx, 'planEffect', 'Yes')
+        planEffectNoNum = self.getVal(ctx, 'planEffect', 'No')
         columnC = ['', '', 'Did this information change your clinical plan?',
-                   'Yes - ' + planEffectPct, 'No - ' + planEffectNoPct]
+                   'Yes - ' + planEffectNum, 'No - ' + planEffectNoNum]
 
         # Column D
-        planChangeDiffDiag = self.getPctVal(ctx, 'planText',
+        planChangeDiffDiag = self.getVal(ctx, 'planText',
                                             unicode('Differential diagnosis'))
-        planChangeDiagTest = self.getPctVal(ctx, 'planText',
+        planChangeDiagTest = self.getVal(ctx, 'planText',
                                             unicode('Diagnostic tests'))
-        planChangeTreatPlan = self.getPctVal(ctx, 'planText',
+        planChangeTreatPlan = self.getVal(ctx, 'planText',
                                              unicode('Treatment plan'))
         # Determine if we will need add any text to the 'Other (Please explain)'
         # cell and add it if we have any text in planTextOther
@@ -398,13 +399,13 @@ class Command(BaseCommand):
             columnE.append(tagEntry)
 
         # Column F
-        commBiasYesPct = self.getPctVal(ctx, 'commBias', 'Yes')
-        commBiasNoPct = self.getPctVal(ctx, 'commBias', 'No')
-        commBiasUnsurePct = self.getPctVal(ctx, 'commBias', 'Unsure')
+        commBiasYesNum = self.getVal(ctx, 'commBias', 'Yes')
+        commBiasNoNum = self.getVal(ctx, 'commBias', 'No')
+        commBiasUnsureNum = self.getVal(ctx, 'commBias', 'Unsure')
 
         columnF = ['', '', 'Did you perceive commercial bias in the content?',
-                   'Yes - ' + commBiasYesPct, 'No - ' + commBiasNoPct, 
-                   'Unsure - ' + commBiasUnsurePct]
+                   'Yes - ' + commBiasYesNum, 'No - ' + commBiasNoNum, 
+                   'Unsure - ' + commBiasUnsureNum]
         
         # Column G
         columnG = ['', '', 'If yes, explain']
