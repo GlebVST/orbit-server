@@ -179,8 +179,8 @@ class Command(BaseCommand):
     def calcPlanStats(self, qset):
         """Calculate stats on planEffect and planText
         Returns: tuple (
-            planEffectStats: list of dicts w. keys value, cnt, pct
-            planTextStats: list of dicts w. keys value, cnt, pct
+            planEffectStats: list of dicts w. keys value, count, pct
+            planTextStats: list of dicts w. keys value, count, pct
             planTextOther: list of strs
         """
         num_entries = qset.count()
@@ -218,7 +218,7 @@ class Command(BaseCommand):
         """
         Args:
             qset: BrowserCme queryset
-        Returns: list of dicts w. keys: tagname, tagpct
+        Returns: list of dicts w. keys: tagname, pct, count
         """
         counts = {
             OTHER: {'count': 0, 'pct': 0}
@@ -276,14 +276,15 @@ class Command(BaseCommand):
         return descriptions
 
     def getVal(self, ctx, key, subvalue, subkey = 'value'):
-        """Create a string for displaying percentages in the csv file
+        """Create a string for displaying counts in the csv file. This
+        is the number of users.
         Args:
             ctx: dictionary containing the stats
             key: key in ctx whose value will be another dictionary
             subvalue: value in ctx[key] dictionary
             subkey: key in ctx[key] dictionary
         """
-        keyPct = '0.00'
+        numUsers = '0'
         for k in ctx[key]:
             if (k[subkey] == subvalue):
                 numUsers = '%d' % int(round(k['pct']/100.0 * ctx['numOffers']))
@@ -299,8 +300,8 @@ class Command(BaseCommand):
         """
         tagEntry = ''
         if (tagIdx < len(tagList)):
-            tagPct = self.getVal(ctx, 'tags', tagList[tagIdx], 'tagname')
-            tagEntry = tagList[tagIdx] + ' - ' + tagPct
+            tagCnt = self.getVal(ctx, 'tags', tagList[tagIdx], 'tagname')
+            tagEntry = tagList[tagIdx] + ' - ' + tagCnt
             tagIdx += 1
         return (tagEntry, tagIdx)
 
