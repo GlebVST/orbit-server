@@ -286,7 +286,7 @@ class Command(BaseCommand):
         keyPct = '0.00'
         for k in ctx[key]:
             if (k[subkey] == subvalue):
-                numUsers = '%d' % int(round(k['pct']/100.0 * ctx['numUsers']))
+                numUsers = '%d' % int(round(k['pct']/100.0 * ctx['numOffers']))
         return numUsers
 
     def getTagEntry(self, ctx, tagList, tagIdx): 
@@ -485,6 +485,7 @@ class Command(BaseCommand):
         for p in profiles:
             profilesById[p.pk] = p
         results = []
+        numOffers = 0
         for m in qset:
             user = m.entry.user
             profile = profilesById[user.pk]
@@ -514,6 +515,7 @@ class Command(BaseCommand):
             d['TopicSearched'] = m.entry.description.encode("ascii", errors="ignore").decode()
             d['Article/Website Consulted'] = m.url
             results.append(d)
+            numOffers += 1
         # write results to file
         #output = io.StringIO() # TODO: use in py3
         output = io.BytesIO()
@@ -534,6 +536,9 @@ class Command(BaseCommand):
         to_emails = [t[1] for t in settings.MANAGERS] # list of emails
         if (settings.ENV_TYPE == settings.ENV_PROD) and not options['managers_only']:
             to_emails.extend(TUFTS_RECIPIENTS)
+        to_emails = ['ram@orbitcme.com']
+        cc_emails = ['ram@orbitcme.com']
+        bcc_emails = ['faria.chowdhury@gmail.com', 'logicalmath333@gmail.com']
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
@@ -544,6 +549,7 @@ class Command(BaseCommand):
             'startDate': startDate,
             'endDate': endDate,
             'numUsers': len(profiles),
+            'numOffers': numOffers,
             'tags': self.calcTagStats(qset),
             'competence': self.calcResponseStats(qset, 'competence')[0],
             'performance': self.calcResponseStats(qset, 'performance')[0],
@@ -558,6 +564,8 @@ class Command(BaseCommand):
                 subject,
                 message,
                 to=to_emails,
+                cc=cc_emails,
+                bcc=bcc_emails,
                 from_email=from_email)
         msg.content_subtype = 'html'
 
