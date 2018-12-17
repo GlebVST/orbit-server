@@ -534,9 +534,11 @@ class Command(BaseCommand):
         endSubjRds = endReportDate.strftime('%b/%d/%Y')
         # create EmailMessage
         from_email = settings.EMAIL_FROM
-        to_emails = [t[1] for t in settings.MANAGERS] # list of emails
+        #to_emails = [t[1] for t in settings.MANAGERS] # list of emails
+        to_emails = ['ram@orbitcme.com']
         if (settings.ENV_TYPE == settings.ENV_PROD) and not options['managers_only']:
             to_emails.extend(TUFTS_RECIPIENTS)
+        # NOTE: below line is for testing
         to_emails = ['ram@orbitcme.com']
         cc_emails = ['ram@orbitcme.com']
         bcc_emails = ['faria.chowdhury@gmail.com', 'logicalmath333@gmail.com']
