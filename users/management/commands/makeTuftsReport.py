@@ -277,7 +277,7 @@ class Command(BaseCommand):
 
     def getVal(self, ctx, key, subvalue, subkey = 'value'):
         """Create a string for displaying counts in the csv file. This
-        is the number of users.
+        is the number of offers.
         Args:
             ctx: dictionary containing the stats
             key: key in ctx whose value will be another dictionary
