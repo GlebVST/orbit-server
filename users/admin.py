@@ -397,6 +397,16 @@ class AffiliatePayoutAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     ordering = ('-modified',)
 
+class CmeBoostAdmin(admin.ModelAdmin):
+    list_display = ('id','name','credits','price','active','created')
+    list_filter = ('active',)
+    ordering = ('id',)
+
+class CmeBoostPurchaseAdmin(admin.ModelAdmin):
+    list_display = ('id','trans_type', 'user','boost','transactionId','amount','status','receipt_sent','created')
+    list_filter = ('receipt_sent','failure_alert_sent', 'boost')
+    ordering = ('-modified',)
+
 #
 # plugin models
 #
@@ -460,6 +470,8 @@ admin_site.register(AuthImpersonation, AuthImpersonationAdmin)
 admin_site.register(AuditReport, AuditReportAdmin)
 admin_site.register(BatchPayout, BatchPayoutAdmin)
 admin_site.register(Certificate, CertificateAdmin)
+admin_site.register(CmeBoost, CmeBoostAdmin)
+admin_site.register(CmeBoostPurchase, CmeBoostPurchaseAdmin)
 admin_site.register(CmeTag, CmeTagAdmin)
 admin_site.register(Country, CountryAdmin)
 admin_site.register(CreditType, CreditTypeAdmin)

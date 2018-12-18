@@ -277,18 +277,19 @@ class Command(BaseCommand):
 
     def getVal(self, ctx, key, subvalue, subkey = 'value'):
         """Create a string for displaying counts in the csv file. This
-        is the number of users.
+        is the number of BrowserCme entries. The dict in ctx that has
+        'pct' key also has a 'count' key which is being used here.
         Args:
             ctx: dictionary containing the stats
             key: key in ctx whose value will be another dictionary
             subvalue: value in ctx[key] dictionary
             subkey: key in ctx[key] dictionary
         """
-        numUsers = '0'
+        numEntries = '0'
         for k in ctx[key]:
             if (k[subkey] == subvalue):
-                numUsers = '%d' % int(round(k['pct']/100.0 * ctx['numUsers']))
-        return numUsers
+                numEntries = '%d' % int(k['count'])
+        return numEntries
 
     def getTagEntry(self, ctx, tagList, tagIdx): 
         """ Gets the tagEntry corresponding to the tagIdx in tagList
@@ -532,9 +533,15 @@ class Command(BaseCommand):
         endSubjRds = endReportDate.strftime('%b/%d/%Y')
         # create EmailMessage
         from_email = settings.EMAIL_FROM
-        to_emails = [t[1] for t in settings.MANAGERS] # list of emails
-        if (settings.ENV_TYPE == settings.ENV_PROD) and not options['managers_only']:
-            to_emails.extend(TUFTS_RECIPIENTS)
+        cc_emails = ['ram@orbitcme.com']
+        bcc_emails = ['faria@orbitcme.com', 'logicalmath333@gmail.com']
+        if settings.ENV_TYPE == settings.ENV_PROD:
+            to_emails = ['ram@orbitcme.com']
+            if not options['managers_only']:
+                to_emails.extend(TUFTS_RECIPIENTS)
+        else:
+            # NOTE: below line is for testing
+            to_emails = ['ram@orbitcme.com']
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
@@ -559,6 +566,8 @@ class Command(BaseCommand):
                 subject,
                 message,
                 to=to_emails,
+                cc=cc_emails,
+                bcc=bcc_emails,
                 from_email=from_email)
         msg.content_subtype = 'html'
 
