@@ -533,6 +533,7 @@ class Command(BaseCommand):
         endSubjRds = endReportDate.strftime('%b/%d/%Y')
         # create EmailMessage
         from_email = settings.EMAIL_FROM
+        cc_emails = ['ram@orbitcme.com']
         bcc_emails = ['faria@orbitcme.com', 'logicalmath333@gmail.com']
         if settings.ENV_TYPE == settings.ENV_PROD:
             to_emails = ['ram@orbitcme.com']
@@ -541,7 +542,6 @@ class Command(BaseCommand):
         else:
             # NOTE: below line is for testing
             to_emails = ['ram@orbitcme.com']
-            cc_emails = ['ram@orbitcme.com']
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
