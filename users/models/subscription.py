@@ -852,6 +852,7 @@ class UserSubscriptionManager(models.Manager):
             discard_codes.add(PERM_VIEW_FEED)
             discard_codes.add(PERM_VIEW_DASH)
             discard_codes.add(PERM_VIEW_GOAL)
+        userCredits = None
         try:
             userCredits = UserCmeCredit.objects.get(user=user)
         except UserCmeCredit.DoesNotExist:
@@ -869,6 +870,10 @@ class UserSubscriptionManager(models.Manager):
                 discard_codes.add(PERM_POST_BRCME)
             if user_subs.plan:
                 is_unlimited_cme = user_subs.plan.isUnlimitedCme()
+                # allow referral banner only to users redeemed at least 10 Browser CME credits
+                if userCredits and not is_unlimited_cme and (user_subs.plan.maxCmeYear - userCredits.plan_credits < 10):
+                    discard_codes.add(PERM_ALLOW_INVITE)
+
         allowed_codes = set(allowed_codes)
         for codename in discard_codes:
             allowed_codes.discard(codename) # remove from set if exist
