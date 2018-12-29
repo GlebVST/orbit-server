@@ -1347,14 +1347,16 @@ class UserSubscriptionManager(models.Manager):
         that is what is owed for upgrade, then apply these discounts to the new subscription.
         Returns (Braintree result object, UserSubscription)
         """
-        if settings.ENV_TYPE == settings.ENV_PROD:
+        old_plan = user_subs.plan
+        logger.info('Upgrading from {0.planId} {0.name} ({0.plan_type.name}) to {1.planId} {1.name} ({1.plan_type.name})'.format(old_plan, new_plan))
+        # check if a Free Trial subs then skip BT lookup
+        if not old_plan.isFreeIndividual() and settings.ENV_TYPE == settings.ENV_PROD:
             # In test env, we deliberately make db different from bt (e.g. to test suspended accounts)
             bt_subs = self.findBtSubscription(user_subs.subscriptionId)
             if not bt_subs:
                 raise ValueError('upgradePlan BT subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs))
             self.updateSubscriptionFromBt(user_subs, bt_subs)
         user = user_subs.user
-        old_plan = user_subs.plan
         if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
             return self.switchTrialToActive(user_subs, payment_token, new_plan)
         # Get base-discount (must exist in Braintree)
