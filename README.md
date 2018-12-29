@@ -67,6 +67,10 @@ The following keys are expected in the .env file which is read by manage.py and 
  * PAYPAL_CLIENTID
  * PAYPAL_SECRET
 
+#### Mailchimp
+
+  * ORBIT_MAILCHIMP_USERNAME
+  * ORBIT_MAILCHIMP_API_KEY
 
 Note: AWS SES credentials are currently hard-coded in settings.py.
 

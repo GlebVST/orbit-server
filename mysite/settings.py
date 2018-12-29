@@ -143,6 +143,7 @@ AUTH0_MGMT_SECRET = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENT_SECRET')
 ORBIT_MAILCHIMP_USERNAME = get_environment_variable('ORBIT_MAILCHIMP_USERNAME')
 ORBIT_MAILCHIMP_API_KEY = get_environment_variable('ORBIT_MAILCHIMP_API_KEY')
 ORBIT_EMAIL_SYNC_LIST_NAME = "Orbit Subscribers (Dev)"
+DEFAULT_ESP = "Mailchimp"
 
 AUTHENTICATION_BACKENDS = (
     'users.auth_backends.ImpersonateBackend',

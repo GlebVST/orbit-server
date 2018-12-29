@@ -1,15 +1,11 @@
-# Nightly synch to an Email Service Provider (ESP) of users and custom fields 
+# Nightly synch to an Email Service Provider (ESP) of users and custom fields
 
-# API utilities: Users.espSync.py
 # Management Command: users.management.commands.emailSync.py
-# Bash Script: admin_scripts.run_email_sync.sh
 from collections import OrderedDict
 import hashlib
 import inspect
 import requests, json
-
 from django.conf import settings
-
 from users.models.base import Profile
 
 
@@ -50,6 +46,8 @@ class EspApiBackend(object):
     SECRET = ""
     LOOKUP_FIELD_ESP = "" # Ex: 'email_address', if that's how the ESP identifies contacts
     SYNC_FIELD_MAP_ESP_TO_LOCAL = {} # ESP Fieldnames in ESP's terminology mapped to local fields, in local terminology. See MailchimpApi for example.
+    MANDATORY_FIELDS_ESP = [] # Which fields are required by the ESP, in ESP's terminology.
+
 
     def __init__(self, timeout = 30, headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}):
 
@@ -60,6 +58,7 @@ class EspApiBackend(object):
         self.toCreate = []
         self.toUpdate = []
         self.toRemove = []
+        self.incompleteData = []
 
         if self.ESP_NAME == "":
             self._notImplementedError(name="ESP_NAME", hint="This may be 'Mailchimp', 'SendGrid', etc.")  
@@ -88,6 +87,16 @@ class EspApiBackend(object):
         if hint:
             message += "\nHINT: %s" % (hint)
         raise NotImplementedError(message)
+
+    def _dictHasMandatoryFields(self, data_dict):
+        """Checks if user data dict contains all data required by ESP.
+        Expects the keys to be in terminology used by ESP.
+        If so, returns True. If data is incomplete, returns False.
+        """
+        if set(self.MANDATORY_FIELDS_ESP) < set(data_dict.keys()):
+            return True
+        else:
+            return False
  
     def _buildDataDict(self, master_source, lookup_fieldname, sync_map_values, xform_map = None):
         """Takes a master dictionary which may be a flat queryset from local data,
@@ -102,12 +111,13 @@ class EspApiBackend(object):
                 profile_data = OrderedDict()
                 for attr in sync_map_values:
                     val =  str(udict[attr])
-                    # Transform local field name to ESP field name so we always compare using same field name terminology
-                    if xform_map:
-                        transformed_attr = xform_map.get(attr)
-                        profile_data.update({ transformed_attr: val })
-                    else:
-                        profile_data.update({ attr: val })
+                    if val and val !="":
+                        # Transform local field name to ESP field name so we always compare using same field name terminology
+                        if xform_map:
+                            transformed_attr = xform_map.get(attr)
+                            profile_data.update({ transformed_attr: val })
+                        else:
+                            profile_data.update({ attr: val })
                 data_dict.update({lookup_value : profile_data})
 
         return data_dict
@@ -122,55 +132,60 @@ class EspApiBackend(object):
         """     
         esp_master_source=self._getEspContactList()
         esp_user_profiles_by_local_lookup = self._buildDataDict(
-                master_source=esp_master_source, 
-                lookup_fieldname=self.SYNC_FIELD_MAP_LOCAL_TO_ESP.get(self.LOOKUP_FIELD_LOCAL), 
+                master_source=esp_master_source,
+                lookup_fieldname=self.SYNC_FIELD_MAP_LOCAL_TO_ESP.get(self.LOOKUP_FIELD_LOCAL),
                 sync_map_values=self.SYNC_FIELD_MAP_ESP_TO_LOCAL.keys())
         esp_user_profiles_by_esp_lookup = self._buildDataDict(
                 master_source=esp_master_source,
-                lookup_fieldname=self.LOOKUP_FIELD_ESP, 
+                lookup_fieldname=self.LOOKUP_FIELD_ESP,
                 sync_map_values=self.SYNC_FIELD_MAP_ESP_TO_LOCAL.keys())
         local_user_profiles_by_local_lookup = self._buildDataDict(
                 master_source=Profile.objects.all().values(),
                 lookup_fieldname=self.LOOKUP_FIELD_LOCAL,
-                sync_map_values=self.SYNC_FIELD_MAP_ESP_TO_LOCAL.values(), 
+                sync_map_values=self.SYNC_FIELD_MAP_ESP_TO_LOCAL.values(),
                 xform_map=self.SYNC_FIELD_MAP_LOCAL_TO_ESP)
 
-        # Create a dictionary linking local id to likely ESP id
+        # Create a dictionary linking local id to likely ESP id. EX: {'1':'email@email.com'}
         sync_value_map_local_id_to_esp_id_for_users = {}
         for k,v in local_user_profiles_by_local_lookup.items():
             esp_id = v.get(self.LOOKUP_FIELD_ESP)
             sync_value_map_local_id_to_esp_id_for_users.update({k: esp_id})
 
+        # Iterate over local users
         for local_id, local_data_dict in local_user_profiles_by_local_lookup.items():
-            local_data_tuple = tuple(local_data_dict.values())
-            esp_data_dict = esp_user_profiles_by_local_lookup.get(local_id)
+            if self._dictHasMandatoryFields(local_data_dict): # If local user doesn't have mandatory fields, sync will not go through.
+                local_data_tuple = tuple(local_data_dict.values())
+                esp_data_dict = esp_user_profiles_by_local_lookup.get(local_id)
 
-            if esp_data_dict:
-                # If we can find the user in ESP based on previously synced local identifier
-                esp_data_tuple = tuple(esp_data_dict.values())
-                if local_data_tuple != esp_data_tuple:
-                    # Their data differs. Update it!
-                    esp_id = esp_data_dict.get(self.LOOKUP_FIELD_ESP)
-                    self.toUpdate.append({esp_id: local_data_dict})
-            else:
-                # We can't find this user by pk/profile_id.
-                esp_id = local_data_dict.get(self.LOOKUP_FIELD_ESP)
-                if esp_id:
-                    esp_data_dict = esp_user_profiles_by_esp_lookup.get(esp_id)
-                    if esp_data_dict:
-                        esp_data_tuple = tuple(esp_data_dict.values())
-                        if local_data_tuple != esp_data_tuple:
-                            esp_id = sync_value_map_local_id_to_esp_id_for_users.get(local_id)
-                            self.toUpdate.append({esp_id: local_data_dict})
-                    else:
-                        # Can't find in esp by local or esp lookups. Must be new.
-                        self.toCreate.append({esp_id: local_data_dict})            
+                if esp_data_dict:
+                    # If we can find the user in ESP based on previously synced local identifier
+                    esp_data_tuple = tuple(esp_data_dict.values())
+                    if local_data_tuple != esp_data_tuple:
+                        # Their data differs. Update it!
+                        esp_id = esp_data_dict.get(self.LOOKUP_FIELD_ESP)
+                        self.toUpdate.append({esp_id: local_data_dict})
                 else:
-                    # Can't find in esp by local or esp lookups. Must be new.
-                    self.toCreate.append({esp_id: local_data_dict}) 
+                    # We can't find this user by pk/profile_id.
+                    esp_id = local_data_dict.get(self.LOOKUP_FIELD_ESP)
+                    if esp_id:
+                        esp_data_dict = esp_user_profiles_by_esp_lookup.get(esp_id)
+                        if esp_data_dict:
+                            esp_data_tuple = tuple(esp_data_dict.values())
+                            if local_data_tuple != esp_data_tuple:
+                                # Their data differs. Update it!
+                                esp_id = sync_value_map_local_id_to_esp_id_for_users.get(local_id)
+                                self.toUpdate.append({esp_id: local_data_dict})
+                        else:
+                            # Can't find in esp by local or esp lookups. Must be new. Add them!
+                            self.toCreate.append({esp_id: local_data_dict})
+                    else:
+                        # Can't find in esp by local or esp lookups. Must be new. Add them!
+                        self.toCreate.append({esp_id: local_data_dict})
+            else:
+                self.incompleteData.append(local_data_dict)
 
         # Users that exist in mailchimp by local id but don't locally, were presumed deleted locally.
-        # Note, to allow for test subscribers,  we don't check for mailchimp contacts that have no local id,
+        # Note, to allow for test subscribers, we don't check for mailchimp contacts that have no local id,
         # and only exist in Mailchimp.
         local_ids = set(local_user_profiles_by_local_lookup.keys())
         esp_profile_ids = set(esp_user_profiles_by_local_lookup.keys())
@@ -178,9 +193,11 @@ class EspApiBackend(object):
         for local_id in differences:
             esp_data_dict = esp_user_profiles_by_local_lookup.get(local_id)
             esp_id = esp_data_dict.get(self.LOOKUP_FIELD_ESP)
+            # If you delete a contact you can never put that email address back on the list via the API!
+            # But it can be done via UI.
             self.toRemove.append({esp_id : esp_data_dict})
-        # If you delete a contact you can never put that emial address back on the list via the API!
-        # But it can be done via GUI.
+
+        # Data comparison is complete.
         return True
 
     def espIsReady(self):
@@ -214,6 +231,7 @@ class MailchimpApi(EspApiBackend):
     LOOKUP_FIELD_ESP = "email_address"
     SYNC_FIELD_MAP_ESP_TO_LOCAL = OrderedDict({'USER_ID': 'user_id', 'email_address': 'contactEmail',
             'FNAME':'firstName', 'LNAME':'lastName'})
+    MANDATORY_FIELDS_ESP = ["email_address"]
 
     # Mailchimp-specific variables:
     LIST_ID = None
@@ -221,7 +239,7 @@ class MailchimpApi(EspApiBackend):
     # They do not have to be all caps when creating, but they do need to be caps when updating, so might as well be consistent.
     # Mailchimp will allow max 10 chars for replacement tags, so if you want them to be consistent, try to keep all field names < 10 chars
     CUSTOM_FIELDS = {'USER_ID': {'type':'text'}}
-    # Mailchimp supplies default: ADDRESS, BIRTHDAY, FNAME, LNAME, PHONE. DEFAULT_MERGE_FIELDS specified whcih of those we care to sync.
+    # Mailchimp supplies default: ADDRESS, BIRTHDAY, FNAME, LNAME, PHONE. DEFAULT_MERGE_FIELDS specifies which of those we care to sync.
     DEFAULT_MERGE_FIELDS = ["FNAME", "LNAME"]
     ALL_MERGE_FIELDS = DEFAULT_MERGE_FIELDS + list(CUSTOM_FIELDS.keys())
 
@@ -320,7 +338,7 @@ class MailchimpApi(EspApiBackend):
                 })
         if len(update_data) > 0:
             list_id = self._getListId()
-            url = '%slists/%s/merge-fields' % (self.BASE_URL, list_id) 
+            url = '%slists/%s/merge-fields' % (self.BASE_URL, list_id)
             results = requests.post(url, auth=self.auth, headers=self.headers, timeout=self.timeout, json=update_data)
             if results.status_code == 200:
                 return True
@@ -393,12 +411,13 @@ class MailchimpApi(EspApiBackend):
         for field in self.ALL_MERGE_FIELDS:
             val = contact_dict.get(field)
             merge_fields.update({field : val})
-        data.update({'merge_fields': merge_fields})      
+        data.update({'merge_fields': merge_fields})
 
         return data
 
     def _addToBatchOperationsList(self, batch_operations_list, email_address, contact_dict, status='subscribed'):
-        """Takes information, formats it to dictionary which can be added to batch_operations_list for a batch update.
+        """Takes information, formats it to dictionary
+        which can be added to batch_operations_list for a batch update.
         """
         list_id = self._getListId()
         email_hash = hashlib.md5(email_address.lower().encode('utf-8')).hexdigest()
@@ -424,9 +443,12 @@ class MailchimpApi(EspApiBackend):
         """Uses dictionary lists from self.toCreate, self.toUpdate, and self.toRemove,
         to update contact data in Mailchimp.
         Expects dictionary list to use Mailchimp contact email address as key.
-        Note the user email address may have, changed, but the previous email is needed to identify & update contact via Mailchimp.
-        Because a deleted contact cannot be re-added via the Mailchimp API (only manually or through email verification),
-        stale users will not be deleted, only marked as 'unsubscibed' so that they will no longer receive emails.
+        Note the user email address may have, changed, but the previous email 
+        is needed to identify & update contact via Mailchimp.
+        Because a deleted contact cannot be re-added via the Mailchimp API 
+        (only manually or through email verification),
+        stale users will not be deleted, only marked as 'unsubscibed' 
+        so that they will no longer receive emails.
         """
         batch_id = None
         # Updating and Creating contact in Mailchimp can be done in the same way.
@@ -441,7 +463,7 @@ class MailchimpApi(EspApiBackend):
         for d in self.toRemove:
             for k,v in d.items():
                 batch_operations_list = self._addToBatchOperationsList(batch_operations_list, k, v, status="unsubscribed")
-       
+
         batch_results = self._createBatchOperation(batch_operations_list)
         batch_id = batch_results.json()['id']
 
