@@ -852,6 +852,7 @@ class UserSubscriptionManager(models.Manager):
             discard_codes.add(PERM_VIEW_FEED)
             discard_codes.add(PERM_VIEW_DASH)
             discard_codes.add(PERM_VIEW_GOAL)
+        userCredits = None
         try:
             userCredits = UserCmeCredit.objects.get(user=user)
         except UserCmeCredit.DoesNotExist:
@@ -869,6 +870,10 @@ class UserSubscriptionManager(models.Manager):
                 discard_codes.add(PERM_POST_BRCME)
             if user_subs.plan:
                 is_unlimited_cme = user_subs.plan.isUnlimitedCme()
+                # allow referral banner only to users redeemed at least 10 Browser CME credits
+                if userCredits and not is_unlimited_cme and (user_subs.plan.maxCmeYear - userCredits.plan_credits < 10):
+                    discard_codes.add(PERM_ALLOW_INVITE)
+
         allowed_codes = set(allowed_codes)
         for codename in discard_codes:
             allowed_codes.discard(codename) # remove from set if exist
@@ -1342,14 +1347,16 @@ class UserSubscriptionManager(models.Manager):
         that is what is owed for upgrade, then apply these discounts to the new subscription.
         Returns (Braintree result object, UserSubscription)
         """
-        if settings.ENV_TYPE == settings.ENV_PROD:
+        old_plan = user_subs.plan
+        logger.info('Upgrading from {0.planId} {0.name} ({0.plan_type.name}) to {1.planId} {1.name} ({1.plan_type.name})'.format(old_plan, new_plan))
+        # check if a Free Trial subs then skip BT lookup
+        if not old_plan.isFreeIndividual() and settings.ENV_TYPE == settings.ENV_PROD:
             # In test env, we deliberately make db different from bt (e.g. to test suspended accounts)
             bt_subs = self.findBtSubscription(user_subs.subscriptionId)
             if not bt_subs:
                 raise ValueError('upgradePlan BT subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs))
             self.updateSubscriptionFromBt(user_subs, bt_subs)
         user = user_subs.user
-        old_plan = user_subs.plan
         if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
             return self.switchTrialToActive(user_subs, payment_token, new_plan)
         # Get base-discount (must exist in Braintree)
