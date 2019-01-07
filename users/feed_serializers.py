@@ -5,6 +5,7 @@ from .models import (
     ENTRYTYPE_SRCME,
     ENTRYTYPE_STORY_CME,
     ENTRYTYPE_NOTIFICATION,
+    CMETAG_SACME,
     CmeTag,
     CreditType,
     Document,
@@ -317,6 +318,9 @@ class BRCmeCreateSerializer(serializers.Serializer):
             if qs.exists():
                 ug = qs[0]
                 ug.handleRedeemOffer()
+            # associate tag with AllowedUrl instance if not already in set
+            if tag.name != CMETAG_SACME:
+                aurl.cmeTags.add(tag) # add if not in set
         return instance
 
 # Serializer for Update BrowserCme entry

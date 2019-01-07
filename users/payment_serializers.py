@@ -23,6 +23,9 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
 
     def get_plan_key_specialty(self, obj):
         """Return specialty name if not null, else degree abbrev from plan_key"""
+        # Note Enterprise plan has no plan_key
+        if not obj.plan_key:
+            return None
         if obj.plan_key.specialty:
             return obj.plan_key.specialty.name
         return obj.plan_key.degree.abbrev
