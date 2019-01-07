@@ -93,6 +93,7 @@ class OrgMemberAdmin(admin.ModelAdmin):
 
 class CmeTagAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'priority', 'description', 'srcme_only', 'notes')
+    list_filter = ('srcme_only',)
 
 class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
@@ -447,6 +448,46 @@ class RequestedUrlAdmin(admin.ModelAdmin):
     num_users.short_description = 'Num requesters'
     num_users.admin_order_field = 'num_users'
 
+class ActivitySetAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'url', 'total_tracking_seconds', 'engaged_seconds', 'created')
+    raw_id_fields = ('url',)
+    readonly_fields = ('user','url','total_tracking_seconds',)
+    list_filter = (UserFilter, )
+    ordering = ('-created',)
+
+    class Media:
+        pass
+
+    def engaged_seconds(self, obj):
+        return obj.computed_value
+    engaged_seconds.short_description = 'Engaged Seconds'
+    engaged_seconds.admin_order_field = 'computed_value'
+
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'url', 'x_tracking_seconds', 'num_highlight', 'num_mouse_click', 'num_mouse_move', 'num_start_scroll', 'created')
+    raw_id_fields = ('activity_set',)
+    readonly_fields = ('activity_set','num_highlight','num_mouse_click','num_mouse_move','num_start_scroll')
+    ordering = ('-created',)
+
+    def get_queryset(self, request):
+        qs = super(ActivityLogAdmin, self).get_queryset(request)
+        return qs.select_related('activity_set')
+
+    def user(self, obj):
+        return str(obj.activity_set.user)
+
+    def url(self, obj):
+        return str(obj.activity_set.url)
+
+class RecAllowedUrlAdmin(admin.ModelAdmin):
+    list_display = ('id','user','cmeTag','url')
+    raw_id_fields = ('url',)
+    list_filter = (UserFilter, 'cmeTag')
+    ordering = ('cmeTag','user')
+
+    class Media:
+        pass
+
 class OrbitCmeOfferAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'valid', 'lastModified')
     #list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'formatSuggestedTags', 'lastModified')
@@ -511,4 +552,7 @@ admin_site.register(HostPattern, HostPatternAdmin)
 admin_site.register(AllowedUrl, AllowedUrlAdmin)
 admin_site.register(RejectedUrl, RejectedUrlAdmin)
 admin_site.register(RequestedUrl, RequestedUrlAdmin)
+admin_site.register(ActivitySet, ActivitySetAdmin)
+admin_site.register(ActivityLog, ActivityLogAdmin)
+admin_site.register(RecAllowedUrl, RecAllowedUrlAdmin)
 admin_site.register(OrbitCmeOffer, OrbitCmeOfferAdmin)

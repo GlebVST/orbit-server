@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+from django.contrib.postgres.fields import JSONField
 
 from common.appconstants import MAX_URL_LENGTH
 from .base import (
@@ -124,6 +125,58 @@ class RejectedUrl(models.Model):
 
     def __str__(self):
         return self.url
+
+# ActivitySet is a collection of 1+ ActivityLogs for a (user, url)
+@python_2_unicode_compatible
+class ActivitySet(models.Model):
+    MAX_EXTENT_SECONDS = 60*60*8 # max time extent of an activity set
+    TOTAL_SECONDS_THRESHOLD = 20
+    ENGAGED_SECONDS_THRESHOLD = 1
+    # fields
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activitysets')
+    url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='activitysets')
+    total_tracking_seconds = models.PositiveIntegerField(help_text='Sum of x_tracking_seconds over a set of logs')
+    computed_value = models.DecimalField(max_digits=9, decimal_places=2, help_text='Total number of engaged seconds')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_activityset'
+
+    def __str__(self):
+        return '{0}/{1} on {2}'.format(self.user, self.url, self.created)
+
+    def meetsThreshold(self):
+        """Returns True if cumulative values meet or exceed threshold"""
+        return self.total_tracking_seconds >= ActivitySet.TOTAL_SECONDS_THRESHOLD and self.computed_value >= ActivitySet.ENGAGED_SECONDS_THRESHOLD
+
+# ActivityLog is a log sent by the plugin client upon page load and every x_tracking_seconds while user is on the page
+@python_2_unicode_compatible
+class ActivityLog(models.Model):
+    id = models.AutoField(primary_key=True)
+    activity_set = models.ForeignKey(ActivitySet, on_delete=models.CASCADE, related_name='logs')
+    valid = models.BooleanField(default=True)
+    x_tracking_seconds = models.PositiveIntegerField()
+    browser_extensions = JSONField(blank=True)
+    # user stats recorded by the plugin
+    num_highlight = models.PositiveIntegerField(default=0)
+    num_mouse_click = models.PositiveIntegerField(default=0)
+    num_mouse_move = models.PositiveIntegerField(default=0)
+    num_start_scroll = models.PositiveIntegerField(default=0)
+    created = models.DateTimeField(auto_now_add=True, blank=True)
+    modified = models.DateTimeField(auto_now=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_activitylog'
+
+    def __str__(self):
+        return '{0.activity_set} on {0.created}'.format(self)
+
+    def isEngaged(self):
+        return self.valid and any([self.num_highlight + self.num_mouse_click + self.num_mouse_move + self.num_start_scroll])
 
 # Requests made by plugin users for new AllowedUrl entries
 @python_2_unicode_compatible
