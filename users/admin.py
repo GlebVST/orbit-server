@@ -291,14 +291,33 @@ class PlanForm(forms.ModelForm):
         )
 
     def clean(self):
-        """If given, check that maxCmeMonth < maxCmeYear"""
+        """Validation checks
+        1. If given, check that maxCmeMonth < maxCmeYear
+        2. If plan_type is Enterprise, then Org should be selected
+        3. If Organization is selected, then plan_type should be Enterprise
+        and Org should only be assigned to 1 active plan at any time.
+        """
         cleaned_data = super(PlanForm, self).clean()
         maxCmeMonth = cleaned_data.get('maxCmeMonth')
         maxCmeYear = cleaned_data.get('maxCmeYear')
+        plan_type = cleaned_data.get('plan_type')
+        org = cleaned_data.get('organization')
         if maxCmeYear and maxCmeMonth and (maxCmeMonth >= maxCmeYear):
             self.add_error('maxCmeMonth', 'maxCmeMonth must be strictly less than maxCmeYear.')
         if maxCmeYear == 0 and maxCmeMonth != 0:
             self.add_error('maxCmeMonth', 'If maxCmeYear=0, then maxCmeMonth must also be 0 (for unlimited CME).')
+        pt = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.ENTERPRISE)
+        if plan_type == pt and org is None:
+            self.add_error('organization', 'Organization must be selected for Enterprise plan_type')
+        if org is not None:
+            # check plan_type
+            if plan_type != pt:
+                self.add_error('plan_type', 'If Organization is selected, then plan_type must be Enterprise.')
+            # check that org is assigned to only 1 active plan
+            qs = SubscriptionPlan.objects.filter(organization=org, active=True)
+            if qs.exists():
+                p = qs[0]
+                self.add_error('organization', 'This Organization is already assigned to active plan: {0}.'.format(p))
 
     def save(self, commit=True):
         """Auto assign planId based on plan name and hashid of next id"""
@@ -319,6 +338,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'monthlyPrice',
         'discountPrice',
         'discountMonthlyPrice',
+        'organization',
         'maxCmeYear',
         'maxCmeMonth'
     )
@@ -328,7 +348,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     form = PlanForm
     fieldsets = (
         (None, {
-            'fields': ('plan_type', 'plan_key','name','display_name', 'upgrade_plan','downgrade_plan'),
+            'fields': ('plan_type', 'organization', 'plan_key','name','display_name', 'upgrade_plan','downgrade_plan'),
         }),
         ('Price', {
             'fields': ('price', 'discountPrice')

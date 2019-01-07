@@ -532,11 +532,10 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
         """If enterprise plan or display_status is UI_ENTERPRISE_CANCELED: return org name.
         else return plan.display_name
         """
-        profile = obj.user.profile
-        if profile.organization and obj.plan.isEnterprise():
-            return profile.organization.name
+        if obj.plan.isEnterprise() and obj.plan.organization:
+            return obj.plan.organization.name
         if obj.display_status == UserSubscription.UI_ENTERPRISE_CANCELED:
-            # need to get org from OrgMember
+            # User removed from org and switched to a free plan. Need to get org from OrgMember
             qset = OrgMember.objects.filter(user=obj.user, removeDate__isnull=False).order_by('-removeDate')
             if qset.exists():
                 return qset[0].organization.name

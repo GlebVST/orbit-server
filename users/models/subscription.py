@@ -640,8 +640,13 @@ class SubscriptionPlanManager(models.Manager):
         """
         return free_plan.upgrade_plan
 
-    def getEnterprisePlan(self):
-        qset = self.model.objects.select_related('plan_type').filter(plan_type__name=SubscriptionPlanType.ENTERPRISE, active=True)
+    def getEnterprisePlanForOrg(self, org):
+        """This returns SubscriptionPlan assigned to the given org
+        Raises IndexError if none found
+        """
+        qset = self.model.objects.select_related('plan_type').filter(
+                organization=org,
+                plan_type__name=SubscriptionPlanType.ENTERPRISE, active=True)
         return qset[0]
 
     def findPlanKeyForProfile(self, profile):
@@ -694,6 +699,15 @@ class SubscriptionPlan(models.Model):
         on_delete=models.PROTECT,
         db_index=True,
         related_name='plans',
+        help_text='Used to group Individual plans for the pricing pages'
+    )
+    organization = models.ForeignKey(Organization,
+        on_delete=models.CASCADE,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='plans',
+        help_text='Used to assign an enterprise plan to a particular Organization'
     )
     upgrade_plan = models.ForeignKey('self',
         null=True,
