@@ -160,10 +160,16 @@ class OrgMemberList(generics.ListCreateAPIView):
         """
         req_user = self.request.user # EnterpriseAdmin user
         org = req_user.profile.organization
-        req_user_subs = UserSubscription.objects.getLatestSubscription(req_user)
-        plan = req_user_subs.plan
-        if not plan.isEnterprise():
-            plan = SubscriptionPlan.objects.getEnterprisePlan()
+        if not org:
+            error_msg = 'Admin user is not assigned to any organization.'
+            raise serializers.ValidationError({'email': error_msg}, code='invalid')
+            return
+        try:
+            plan = SubscriptionPlan.objects.getEnterprisePlanForOrg(org)
+        except IndexError:
+            error_msg = "Failed to find SubscriptionPlan for Organization of admin user: {0.name}".format(org)
+            raise serializers.ValidationError({'email': error_msg}, code='invalid')
+            return
         # check email
         email = self.request.data.get('email', '')
         if not email:
@@ -396,10 +402,15 @@ class JoinTeam(APIView):
             error_msg = 'Invalid or expired invitation'
             raise serializers.ValidationError({'user': error_msg}, code='invalid')
         m = qset[0] # pending OrgMember instance
-        # Note: if multiple Enterprise plans exist in the future, then need to
+        org = m.organization
         profile = Profile.objects.get(pk=user.pk)
-        # get specific plan to use.
-        plan = SubscriptionPlan.objects.getEnterprisePlan()
+        # get specific Enterprise plan to use from org.
+        try:
+            plan = SubscriptionPlan.objects.getEnterprisePlanForOrg(org)
+        except IndexError:
+            error_msg = "Failed to find SubscriptionPlan for OrgMember organization: {0.name}".format(org)
+            raise serializers.ValidationError({'user': error_msg}, code='invalid')
+            return
         with transaction.atomic():
             m.pending = False
             if m.removeDate is not None:
