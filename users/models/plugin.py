@@ -1,8 +1,10 @@
 """Models managed by the plugin_server project"""
 from __future__ import unicode_literals
 import logging
+from datetime import timedelta
 from django.contrib.auth.models import User
 from django.db import models
+from django.db.models import Subquery
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.contrib.postgres.fields import JSONField
@@ -18,6 +20,7 @@ from .base import (
 from .feed import Sponsor
 logger = logging.getLogger('gen.models')
 
+OFFER_LOOKBACK_DAYS = 365
 
 @python_2_unicode_compatible
 class AllowedHost(models.Model):
@@ -213,12 +216,57 @@ class WhitelistRequest(models.Model):
 
 
 # User recommendations for AllowedUrls by tag
+class RecAllowedUrlManager(models.Manager):
+    def updateRecsForUser(self, user, tag):
+        """Maintain a list of upto MAX_RECS_PER_USERTAG recommended aurls for the given user and tag
+        Args:
+            user: User instance
+            tag: CmeTag instance
+        Returns: int - number of recs created
+        """
+        num_recs = self.model.MAX_RECS_PER_USERTAG - user.recaurls.filter(cmeTag=tag).count()
+        if num_recs <= 0:
+            return 0
+        num_created = 0
+        # exclude_offers: of the given tag redeemed by user since OFFER_LOOKBACK_DAYS. This is used as a subquery below
+        now = timezone.now()
+        startdate = now - timedelta(days=OFFER_LOOKBACK_DAYS)
+        filter_kwargs = dict(
+            user=user,
+            redeemed=True,
+            valid=True,
+            activityDate__gte=startdate,
+            tags=tag
+        )
+        exclude_offers = OrbitCmeOffer.objects.filter(**filter_kwargs)
+        # This query gets distinct AllowedUrls for the given tag and excludes exclude_offers
+        aurl_kwargs = dict(
+            valid=True,
+            cmeTags=tag,
+            host__has_paywall=True, # omit paywalled articles since not all users have access to them
+        )
+        aurls = AllowedUrl.objects.select_related('host').filter(**aurl_kwargs).exclude(
+            pk__in=Subquery(exclude_offers.values('url'))).order_by('-created')
+        ##print(aurls.count())
+        for aurl in aurls:
+            if aurl.host.main_host:
+                # skip proxy hosts
+                continue
+            m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
+            if created:
+                num_created += 1
+                if num_created >= num_recs:
+                    break
+        return num_created
+
 @python_2_unicode_compatible
 class RecAllowedUrl(models.Model):
+    MAX_RECS_PER_USERTAG = 20
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recaurls')
     url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='recaurls')
     cmeTag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='recaurls')
+    objects = RecAllowedUrlManager()
 
     class Meta:
         managed = False

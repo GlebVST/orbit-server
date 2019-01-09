@@ -252,7 +252,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
         userCredits = UserCmeCredit.objects.get(user=user)
         if not userCredits.enough(offer.credits):
             logger.info('Can\'t add Orbit CME entry of {0.credits} cr. - user {1.id} reached credit limit ({2.plan_credits}|{2.boost_credits})'.format(offer, user, userCredits))
-            # normally user's won't see this message as UI should prevent from redeeming CME's when credit limit reached
+            # normally user won't see this message as UI should prevent from redeeming CME's when credit limit reached
             raise serializers.ValidationError({'message': "Can't add more Orbit CME - credit limit reached"}, code='invalid')
         else:
             userCredits.deduct(offer.credits)
@@ -309,9 +309,16 @@ class BRCmeCreateSerializer(serializers.Serializer):
         offer.redeemed = True
         offer.save()
         # remove url from recommended aurls for user if exist
-        qset = user.recaurls.filter(url=aurl)
-        if qset.exists():
-            qset.delete()
+        if user.recaurls.exists():
+            qset = user.recaurls.filter(url=aurl)
+            if qset.exists():
+                recTag = qset[0].cmeTag
+                qset.delete()
+            # if no more recs for this tag, then refill
+            qs = user.recaurls.filter(cmeTag=recTag)
+            if not qs.exists():
+                num_added = RecAllowedUrl.objects.updateRecsForUser(user, recTag)
+                logger.debug('Refill RecAllowedUrl for {0}/{1}'.format(user, recTag))
         # update usergoals
         for tag in entry.tags.all():
             qs = user.usergoals.select_related('goal').filter(cmeTag=tag)

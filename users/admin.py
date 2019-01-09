@@ -336,10 +336,9 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'display_name',
         'price',
         'monthlyPrice',
-        'discountPrice',
-        'discountMonthlyPrice',
         'organization',
         'maxCmeYear',
+        'billingCycleMonths',
         'maxCmeMonth'
     )
     list_select_related = True
