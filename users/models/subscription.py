@@ -930,7 +930,8 @@ class UserSubscriptionManager(models.Manager):
         """Create enterprise UserSubscription instance for the given user.
         Add user to GROUP_ENTERPRISE_MEMBER group.
         The display_status of the new subs is UI_ACTIVE.
-        Note: The billing dates are not used for actual billing
+        Note: The billing dates are not used for actual billing, but the
+          start/end dates are advanced every cycle by checkEnterpriseSubs mgmt cmd.
         Args:
             user: User instance
             plan: SubscriptionPlan instance whose plan_type is ENTERPRISE
@@ -938,6 +939,7 @@ class UserSubscriptionManager(models.Manager):
         """
         if not startDate:
             startDate = user.date_joined
+        endDate = startDate + relativedelta(months=plan.billingCycleMonths)
         now = timezone.now()
         nowId = now.strftime('%Y%m%d%H%M')
         subsId = "ent.{0}.{1}".format(user.pk, nowId) # a unique id
@@ -949,7 +951,8 @@ class UserSubscriptionManager(models.Manager):
             status=UserSubscription.ACTIVE,
             billingFirstDate=startDate,
             billingStartDate=startDate,
-            billingEndDate=ACTIVE_OFFDATE
+            billingEndDate=endDate,
+            billingCycle=1
         )
         self.setUserCmeCreditByPlan(user, plan)
         user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
@@ -1364,7 +1367,7 @@ class UserSubscriptionManager(models.Manager):
         old_plan = user_subs.plan
         logger.info('Upgrading from {0.planId} {0.name} ({0.plan_type.name}) to {1.planId} {1.name} ({1.plan_type.name})'.format(old_plan, new_plan))
         # check if a Free Trial subs then skip BT lookup
-        if not old_plan.isFreeIndividual() and settings.ENV_TYPE == settings.ENV_PROD:
+        if not old_plan.isFreeIndividual() and not settings.ENV_TYPE == settings.ENV_PROD:
             # In test env, we deliberately make db different from bt (e.g. to test suspended accounts)
             bt_subs = self.findBtSubscription(user_subs.subscriptionId)
             if not bt_subs:

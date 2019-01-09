@@ -22,8 +22,10 @@ class Command(BaseCommand):
                 next_period_start = subs.billingStartDate + relativedelta(months=plan.billingCycleMonths)
                 if timezone.now() >= next_period_start:
                     prev_period_start = subs.billingStartDate
-                    # only change a start date here as end date would be far in the future for enterprise subs
+                    # Advance subscription cycle/startDate/endDate
                     subs.billingStartDate = next_period_start
+                    subs.billingEndDate = next_period_start + relativedelta(months=plan.billingCycleMonths)
+                    subs.billingCycle += 1
                     subs.save()
                     try:
                         existing_user_credit = UserCmeCredit.objects.get(user=user)
