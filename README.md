@@ -71,6 +71,7 @@ The following keys are expected in the .env file which is read by manage.py and 
 
   * ORBIT_MAILCHIMP_USERNAME
   * ORBIT_MAILCHIMP_API_KEY
+  * ORBIT_MAILCHIMP_SUBSCRIBERS_LIST - name of a List that will be synced with profile data by cron task
 
 Note: AWS SES credentials are currently hard-coded in settings.py.
 

@@ -6,7 +6,49 @@ import hashlib
 import inspect
 import requests, json
 from django.conf import settings
-from users.models.base import Profile
+from .models import Profile, UserSubscription
+
+def getDataFromDb():
+    """Fetches and combines data from Profile, UserSubscription models
+    Returns list of dicts with keys that are used as the values in SYNC_FIELD_MAP_ESP_TO_LOCAL
+    """
+    profiles = Profile.objects.select_related('organization').all().order_by('user_id')
+    data= []
+    for profile in profiles:
+        user = profile.user
+        orgName = ''
+        if profile.organization:
+            orgName = profile.organization.name
+        d = dict(
+            user_id=profile.pk,
+            email=profile.user.email,
+            firstName=profile.firstName,
+            lastName=profile.lastName,
+            organization=orgName,
+            degree=profile.formatDegrees(), # primary role. UI only allowes 1 degree selection
+            subscriptionId='',
+            plan_type='',
+            plan_name='',
+            subscription_status='',
+            billingFirstDate='',
+            billingStartDate='',
+            billingEndDate='',
+            billingCycle=0,
+        )
+        # Note: if user only signed up but never created a subscription, then user_subs is None
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        if user_subs:
+            d['subscriptionId'] = user_subs.subscriptionId
+            d['plan_type'] = user_subs.plan.plan_type.name
+            d['plan_name'] = user_subs.plan.display_name
+            d['subscription_status'] = user_subs.display_status
+            d['billingFirstDate'] = str(user_subs.billingFirstDate.date())
+            d['billingStartDate'] = str(user_subs.billingStartDate.date())
+            d['billingEndDate'] = str(user_subs.billingEndDate.date())
+            if user_subs.billingCycle:
+                d['billingCycle'] = user_subs.billingCycle
+        data.append(d)
+    return data
 
 
 class EspApiBackend(object):
@@ -140,7 +182,8 @@ class EspApiBackend(object):
                 lookup_fieldname=self.LOOKUP_FIELD_ESP,
                 sync_map_values=self.SYNC_FIELD_MAP_ESP_TO_LOCAL.keys())
         local_user_profiles_by_local_lookup = self._buildDataDict(
-                master_source=Profile.objects.all().values(),
+                #master_source=Profile.objects.all().values(),
+                master_source=getDataFromDb(),
                 lookup_fieldname=self.LOOKUP_FIELD_LOCAL,
                 sync_map_values=self.SYNC_FIELD_MAP_ESP_TO_LOCAL.values(),
                 xform_map=self.SYNC_FIELD_MAP_LOCAL_TO_ESP)
@@ -229,8 +272,23 @@ class MailchimpApi(EspApiBackend):
     # Required variables, for any derived class inheriting from EspApiBackend:
     ESP_NAME = "Mailchimp"
     LOOKUP_FIELD_ESP = "email_address"
-    SYNC_FIELD_MAP_ESP_TO_LOCAL = OrderedDict({'USER_ID': 'user_id', 'email_address': 'contactEmail',
-            'FNAME':'firstName', 'LNAME':'lastName'})
+    SYNC_FIELD_MAP_ESP_TO_LOCAL = OrderedDict({
+        'USER_ID': 'user_id',
+        'email_address': 'email',
+        'FNAME':'firstName',
+        'LNAME':'lastName',
+        'ORGANIZATION': 'organization',
+        'DEGREE': 'degree',
+        # Subscription fields
+        'SUSBCRIPTIONID': 'subscriptionId',
+        'PLAN_TYPE': 'plan_type',
+        'PLAN_NAME': 'plan_name',
+        'SUBSCRIPTION_STATUS': 'subscription_status',
+        'SUBSCRIPTION_FIRSTDATE': 'billingFirstDate',
+        'SUBSCRIPTION_STARTDATE': 'billingStartDate',
+        'SUBSCRIPTION_ENDDATE': 'billingEndDate',
+        'SUSBCRIPTION_CYCLE': 'billingCycle',
+    })
     MANDATORY_FIELDS_ESP = ["email_address"]
 
     # Mailchimp-specific variables:
@@ -238,7 +296,21 @@ class MailchimpApi(EspApiBackend):
     # CUSTOM_FIELDS are fields we have added, other than Mailchimp's default: ADDRESS, BIRTHDAY, FNAME, LNAME, PHONE
     # They do not have to be all caps when creating, but they do need to be caps when updating, so might as well be consistent.
     # Mailchimp will allow max 10 chars for replacement tags, so if you want them to be consistent, try to keep all field names < 10 chars
-    CUSTOM_FIELDS = {'USER_ID': {'type':'text'}}
+    # Reference
+    # https://mailchimp.com/help/manage-list-and-signup-form-fields/#List_Field_Types
+    CUSTOM_FIELDS = {
+        'USER_ID': {'type':'text'},
+        'ORGANIZATION': {'type':'text'},
+        'DEGREE': {'type':'text'},
+        'SUBSCRIPTIONID': {'type':'text'},
+        'PLAN_TYPE': {'type':'text'},
+        'PLAN_NAME': {'type':'text'},
+        'SUBSCRIPTION_STATUS': {'type':'text'},
+        'SUBSCRIPTION_FIRSTDATE': {'type':'date'},
+        'SUBSCRIPTION_STARTDATE': {'type':'date'},
+        'SUBSCRIPTION_ENDDATE': {'type':'date'},
+        'SUBSCRIPTION_CYCLE': {'type':'number'},
+    }
     # Mailchimp supplies default: ADDRESS, BIRTHDAY, FNAME, LNAME, PHONE. DEFAULT_MERGE_FIELDS specifies which of those we care to sync.
     DEFAULT_MERGE_FIELDS = ["FNAME", "LNAME"]
     ALL_MERGE_FIELDS = DEFAULT_MERGE_FIELDS + list(CUSTOM_FIELDS.keys())
