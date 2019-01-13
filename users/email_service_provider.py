@@ -277,18 +277,37 @@ class MailchimpApi(EspApiBackend):
         'email_address': 'email',
         'FNAME':'firstName',
         'LNAME':'lastName',
+        'ORGANIZAT': 'organization',
+        'DEGREE': 'degree',
+        # Subscription fields
+        'SUBSCN_ID': 'subscriptionId',
+        'PLAN_TYPE': 'plan_type',
+        'PLAN_NAME': 'plan_name',
+        'SUBSCN_STA': 'subscription_status',
+        'SUBSCN_FDT': 'billingFirstDate',
+        'SUBSCN_SDT': 'billingStartDate',
+        'SUBSCN_EDT': 'billingEndDate',
+        'SUBSCN_CYC': 'billingCycle',
+    })
+    '''
+    SYNC_FIELD_MAP_ESP_TO_LOCAL = OrderedDict({
+        'USER_ID': 'user_id',
+        'email_address': 'email',
+        'FNAME':'firstName',
+        'LNAME':'lastName',
         'ORGANIZATION': 'organization',
         'DEGREE': 'degree',
         # Subscription fields
-        'SUSBCRIPTIONID': 'subscriptionId',
+        'SUBSCRIPTIONID': 'subscriptionId',
         'PLAN_TYPE': 'plan_type',
         'PLAN_NAME': 'plan_name',
         'SUBSCRIPTION_STATUS': 'subscription_status',
         'SUBSCRIPTION_FIRSTDATE': 'billingFirstDate',
         'SUBSCRIPTION_STARTDATE': 'billingStartDate',
         'SUBSCRIPTION_ENDDATE': 'billingEndDate',
-        'SUSBCRIPTION_CYCLE': 'billingCycle',
+        'SUBSCRIPTION_CYCLE': 'billingCycle',
     })
+    '''
     MANDATORY_FIELDS_ESP = ["email_address"]
 
     # Mailchimp-specific variables:
@@ -298,6 +317,21 @@ class MailchimpApi(EspApiBackend):
     # Mailchimp will allow max 10 chars for replacement tags, so if you want them to be consistent, try to keep all field names < 10 chars
     # Reference
     # https://mailchimp.com/help/manage-list-and-signup-form-fields/#List_Field_Types
+    CUSTOM_FIELDS = {
+        'USER_ID': {'type':'text'},
+        'ORGANIZAT': {'type':'text'},
+        'DEGREE': {'type':'text'},
+        'SUBSCN_ID': {'type':'text'},
+        'PLAN_TYPE': {'type':'text'},
+        'PLAN_NAME': {'type':'text'},
+        'SUBSCN_STA': {'type':'text'},
+        'SUBSCN_FDT': {'type':'date'},
+        'SUBSCN_SDT': {'type':'date'},
+        'SUBSCN_EDT': {'type':'date'},
+        'SUBSCN_CYC': {'type':'number'},
+    }
+
+    '''
     CUSTOM_FIELDS = {
         'USER_ID': {'type':'text'},
         'ORGANIZATION': {'type':'text'},
@@ -311,6 +345,7 @@ class MailchimpApi(EspApiBackend):
         'SUBSCRIPTION_ENDDATE': {'type':'date'},
         'SUBSCRIPTION_CYCLE': {'type':'number'},
     }
+    '''
     # Mailchimp supplies default: ADDRESS, BIRTHDAY, FNAME, LNAME, PHONE. DEFAULT_MERGE_FIELDS specifies which of those we care to sync.
     DEFAULT_MERGE_FIELDS = ["FNAME", "LNAME"]
     ALL_MERGE_FIELDS = DEFAULT_MERGE_FIELDS + list(CUSTOM_FIELDS.keys())
@@ -482,7 +517,17 @@ class MailchimpApi(EspApiBackend):
         merge_fields = {}
         for field in self.ALL_MERGE_FIELDS:
             val = contact_dict.get(field)
-            merge_fields.update({field : val})
+            if field not in contact_dict and field not in merge_fields.keys():
+                if field in self.CUSTOM_FIELDS.keys():
+                    if self.CUSTOM_FIELDS[field]["type"] == "text" or self.CUSTOM_FIELDS[field]["type"] == "date": 
+                        merge_fields.update({field : ""})
+                        
+                    elif self.CUSTOM_FIELDS[field]["type"] == "number":
+                        merge_fields.update({field : 0})
+                elif field in self.DEFAULT_MERGE_FIELDS:
+                    merge_fields.update({field : ""})
+            else :
+                merge_fields.update({field : val})
         data.update({'merge_fields': merge_fields})
 
         return data
@@ -496,6 +541,9 @@ class MailchimpApi(EspApiBackend):
         path = '/lists/%s/members/%s/' % (list_id, email_hash)
 
         data = self._buildEspContactPayload(contact_dict=contact_dict, status=status)
+        #if (email_address == "asdf@asdf.com" or email_address == u'asdf@asdf.com'):
+        #    print "laker: ", contact_dict
+        #    print data
         batch_operations_list.append({"method" : "PUT", "path" : path, "body": json.dumps(data)})
         return batch_operations_list
 
@@ -503,6 +551,7 @@ class MailchimpApi(EspApiBackend):
         """Creates a batch operation to create or update many users with one API call."""
         url = '%sbatches' % (self.BASE_URL)
         data =  {'operations' : batch_operations_list}
+
         results = requests.post(url, auth=self.auth, headers=self.headers, timeout=self.timeout, json=data)
 
         if results.status_code != 200:
@@ -523,12 +572,20 @@ class MailchimpApi(EspApiBackend):
         so that they will no longer receive emails.
         """
         batch_id = None
+        #list_of_emails_tmp = []
         # Updating and Creating contact in Mailchimp can be done in the same way.
         batch_operations_list = []
         for l in [self.toUpdate, self.toCreate]:
             for d in l:
                 for k,v in d.items():
-                    batch_operations_list = self._addToBatchOperationsList(batch_operations_list, k, v)
+                    #if k == "asdf@asdf.com" or k == u'asdf@asdf.com':
+                    #    print "export: ", k, v
+                    #    v.update({'email_address' : u'logicalmath333@yahoo.com'})
+                    #    batch_operations_list = self._addToBatchOperationsList(batch_operations_list, u'logicalmath333@yahoo.com', v)
+                    #    list_of_emails_tmp.append(k)
+
+        #list_of_emails_tmp.sort()
+        #print "tmp: ", list_of_emails_tmp
 
         # If you delete a contact in Mailchimp, you cannot add that email address again programatically without them confirming via email.
         # Better to keep the contact and mark as 'cleaned' or 'unsubscribed'
@@ -538,6 +595,8 @@ class MailchimpApi(EspApiBackend):
 
         batch_results = self._createBatchOperation(batch_operations_list)
         batch_id = batch_results.json()['id']
+
+        print "batch_id: ", batch_id
 
         if batch_id:
             return True
