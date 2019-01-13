@@ -578,6 +578,8 @@ class MailchimpApi(EspApiBackend):
         for l in [self.toUpdate, self.toCreate]:
             for d in l:
                 for k,v in d.items():
+                    batch_operations_list = self._addToBatchOperationsList(batch_operations_list, k, v)
+
                     #if k == "asdf@asdf.com" or k == u'asdf@asdf.com':
                     #    print "export: ", k, v
                     #    v.update({'email_address' : u'logicalmath333@yahoo.com'})
