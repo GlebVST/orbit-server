@@ -12,11 +12,10 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
-from users.emailutils import sendPasswordTicketEmail
+from users.emailutils import getHostname, sendPasswordTicketEmail
 from smtplib import SMTPException
 
 logger = logging.getLogger('gen.models')
-UI_LOGIN_URL = 'https://{0}{1}'.format(settings.SERVER_HOSTNAME, settings.UI_LINK_LOGIN)
 
 #
 # constants (should match the database values)
@@ -510,6 +509,8 @@ class OrgMemberManager(models.Manager):
         return users
 
     def sendPasswordTicket(self, socialId, member, apiConn):
+        hostname = getHostname() # this ensures hostname is either prod or test server (not admin server)
+        UI_LOGIN_URL = 'https://{0}{1}'.format(hostname, settings.UI_LINK_LOGIN)
         ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
         logger.debug('ticket_url for {0}={1}'.format(socialId, ticket_url))
         try:

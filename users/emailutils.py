@@ -22,12 +22,17 @@ def makeSubject(subject):
         subject = TEST_ONLY_PREFIX + subject
     return subject
 
-def setCommonContext(ctx):
+def getHostname():
+    """Handle mapping admin to either prod or test server"""
     hostname = settings.SERVER_HOSTNAME
     if hostname.startswith('admin.'): # admin.orbitcme.com becomes orbitcme.com for links in emails
         hostname = hostname.replace('admin.', '')
     elif hostname.startswith('testadmin.'): # testadmin.orbitcme.com becomes test1.orbitcme.com for links in emails
         hostname = hostname.replace('testadmin', 'test1')
+    return hostname
+
+def setCommonContext(ctx):
+    hostname = getHostname()
     ctx.update({
         'server_hostname': hostname,
         'login_link': settings.UI_LINK_LOGIN,
