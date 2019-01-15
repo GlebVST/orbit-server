@@ -21,6 +21,7 @@ from users.models import (
     ARTICLE_CREDIT,
     CMETAG_SACME,
     CmeTag,
+    CreditType,
     Degree,
     Document,
     Entry,
@@ -30,6 +31,7 @@ from users.models import (
     LicenseType,
     State,
     StateLicense,
+    SubSpecialty
 )
 
 logger = logging.getLogger('gen.goals')
@@ -127,9 +129,14 @@ class BaseGoal(models.Model):
             validators=[MinValueValidator(0)],
             help_text='Interval in years for recurring goal')
     degrees = models.ManyToManyField(Degree, blank=True,
+            related_name='basegoals',
             help_text='Applicable primary roles. No selection means any')
     specialties = models.ManyToManyField(PracticeSpecialty, blank=True,
+            related_name='basegoals',
             help_text='Applicable specialties. No selection means any')
+    subspecialties = models.ManyToManyField(SubSpecialty, blank=True,
+            related_name='basegoals',
+            help_text='Applicable sub-specialties. If selected, they must be sub-specialties of the chosen PracticeSpecialties above. No selection means any')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     modifiedBy = models.ForeignKey(User,
@@ -183,6 +190,13 @@ class BaseGoal(models.Model):
             return ", ".join([d.name for d in self.specialties.all()])
         return u'Any'
     formatSpecialties.short_description = "Specialties"
+
+    @cached_property
+    def formatSubSpecialties(self):
+        if self.subspecialties.exists():
+            return ", ".join([d.name for d in self.subspecialties.all()])
+        return u'Any'
+    formatSubSpecialties.short_description = "Sub-Specialties"
 
     def getDegreesForMatching(self):
         """Returns queryset of self.degrees or all"""
@@ -261,15 +275,6 @@ class TrainingBaseGoal(BaseGoal):
         """
         if self.dueDateType > BaseGoal.ONE_OFF and not self.interval:
             raise ValidationError({'interval': INTERVAL_ERROR})
-        if self.dueDateType == BaseGoal.RECUR_MMDD:
-            if not self.dueMonth:
-                raise ValidationError({'dueMonth': DUE_MONTH_ERROR})
-            if not self.dueDay:
-                raise ValidationError({'dueDay': DUE_DAY_ERROR})
-            try:
-                d = makeAwareDatetime(2020, self.dueMonth, self.dueDay)
-            except ValueError:
-                raise ValidationError({'dueDay': DUE_DAY_ERROR})
 
 
 class CmeBaseGoalManager(models.Manager):
@@ -290,15 +295,6 @@ class CmeBaseGoal(BaseGoal):
         """
         if self.dueDateType > BaseGoal.ONE_OFF and not self.interval:
             raise ValidationError({'interval': INTERVAL_ERROR})
-        if self.dueDateType == BaseGoal.RECUR_MMDD:
-            if not self.dueMonth:
-                raise ValidationError({'dueMonth': DUE_MONTH_ERROR})
-            if not self.dueDay:
-                raise ValidationError({'dueDay': DUE_DAY_ERROR})
-            try:
-                d = makeAwareDatetime(2020, self.dueMonth, self.dueDay)
-            except ValueError:
-                raise ValidationError({'dueDay': DUE_DAY_ERROR})
 
 class LicenseGoalManager(models.Manager):
 
@@ -488,8 +484,10 @@ class CmeGoal(models.Model):
         blank=True,
         db_index=True,
         related_name='cmegoals',
-        help_text="Null value means the tag will be selected from the user's specialty"
+        help_text="Null value means tag is either user specialty or Any Topic (see mapNullTagToSpecialty)"
     )
+    mapNullTagToSpecialty = models.BooleanField(default=False,
+            help_text="If True, null value for cmeTag in goal definition means the UserGoal will have tag set to the user's specialty. Otherwise null cmeTag means Any Topic.")
     licenseGoal = models.ForeignKey(LicenseGoal,
         on_delete=models.CASCADE,
         null=True,
@@ -500,6 +498,10 @@ class CmeGoal(models.Model):
     )
     credits = models.DecimalField(max_digits=6, decimal_places=2,
             validators=[MinValueValidator(0.1)])
+    creditTypes = models.ManyToManyField(CreditType,
+            blank=True,
+            related_name='cmegoals',
+            help_text='Eligible creditTypes that satisfy this goal.')
     dueMonth = models.SmallIntegerField(blank=True, null=True,
             help_text='Must be specified if dueDateType is Fixed MMDD',
             validators=[

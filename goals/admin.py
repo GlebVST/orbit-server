@@ -8,7 +8,7 @@ from django.contrib import admin
 from django.db.models import Count
 from mysite.admin import admin_site
 from common.ac_filters import *
-from common.dateutils import fmtLocalDatetime
+from common.dateutils import fmtLocalDatetime, makeAwareDatetime
 from .models import *
 
 
@@ -236,12 +236,29 @@ class CmeGoalForm(forms.ModelForm):
             'dueDay': forms.NumberInput
         }
 
+    def clean(self):
+        cleaned_data = super(CmeGoalForm, self).clean()
+        dueMonth = cleaned_data.get('dueMonth')
+        dueDay = cleaned_data.get('dueDay')
+        if dueMonth and not dueDay:
+            self.add_error('dueDay', 'dueDay and dueMonth must be specified together')
+        if dueDay and not dueMonth:
+            self.add_error('dueMonth', 'dueMonth and dueDay must be specified together')
+        if dueMonth and dueDay:
+            try:
+                d = makeAwareDatetime(2020, dueMonth, dueDay)
+            except ValueError:
+                self.add_error('dueDay', 'Invalid date for the given dueDay and dueMonth.')
+
 class CmeGoalInline(admin.StackedInline):
     model = CmeGoal
     extra = 0
     min_num = 1
     max_num = 1
     form = CmeGoalForm
+    filter_horizontal = (
+        'creditTypes',
+    )
 
 class CmeBaseGoalAdmin(admin.ModelAdmin):
     list_display = ('id', 'getEntityType', 'getEntityName', 'getTag', 'getCredits', 'interval', 'fmtDueDateType', 'getDueMMDD', 'formatDegrees', 'formatSpecialties', 'lastModified')
@@ -251,6 +268,7 @@ class CmeBaseGoalAdmin(admin.ModelAdmin):
     filter_horizontal = (
         'degrees',
         'specialties',
+        #'subspecialties' # TODO - needs additional validation to ensure selection agrees with specialties
     )
     exclude = ('modifiedBy',)
 

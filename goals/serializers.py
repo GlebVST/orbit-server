@@ -1,10 +1,11 @@
 import logging
+import math
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 from .models import *
 from common.dateutils import makeAwareDatetime
-from users.models import RecAllowedUrl, ARTICLE_CREDIT
+from users.models import CreditType, RecAllowedUrl, ARTICLE_CREDIT
 from users.serializers import DocumentReadSerializer, NestedStateLicenseSerializer
 
 logger = logging.getLogger('gen.gsrl')
@@ -14,6 +15,11 @@ class GoalTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = GoalType
         fields = ('id', 'name','description')
+
+class NestedCreditTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreditType
+        fields = ('abbrev',)
 
 class RecAllowedUrlReadSerializer(serializers.ModelSerializer):
     domainTitle = serializers.ReadOnlyField(source='url.eligible_site.domain_title')
@@ -111,17 +117,35 @@ class TrainingGoalSubSerializer(serializers.ModelSerializer):
         return s.data
 
 class CmeGoalSubSerializer(serializers.ModelSerializer):
-    articlesLeft = serializers.SerializerMethodField()
+    creditsLeft = serializers.SerializerMethodField()
+    creditTypes = serializers.SerializerMethodField()
 
     class Meta:
         model = UserGoal
         fields = (
-            'articlesLeft',
+            'creditsLeft',
+            'creditTypes',
         )
 
-    def get_articlesLeft(self, obj):
-        return int(float(obj.creditsDue)/ARTICLE_CREDIT)
+    def get_creditsLeft(self, obj):
+        """Get diff between creditDue and floor(creditDue)
+        if diff = 0 or dif = 0.5: return as is
+        if diff < 0.5: return floor + 0.5 (round up to next 0.5)
+        else return ceil (round up to next int)
+        This rounds up to ensure we don't underestimate value.
+        """
+        c = float(obj.creditsDue)
+        f = math.floor(c)
+        d = c - f
+        if d == 0 or d == 0.5:
+            return c # no change
+        if d < 0.5:
+            return f + 0.5
+        return math.ceil(c)
 
+    def get_creditTypes(self, obj):
+        qset = obj.goal.cmegoal.creditTypes.all()
+        return [NestedCreditTypeSerializer(m).data for m in qset]
 
 class UserGoalReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)

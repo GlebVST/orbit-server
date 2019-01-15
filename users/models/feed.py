@@ -102,8 +102,8 @@ class CreditType(models.Model):
     # fields
     name = models.CharField(max_length=40, unique=True,
             help_text='Name used in UI form. Must be unique')
-    category = models.CharField(max_length=4,
-            help_text='Value only. e.g. 1-A')
+    abbrev = models.CharField(max_length=8,
+            help_text='Abbreviation used in Track View e.g. AMA-1 or AOA-1A')
     auditname = models.CharField(max_length=60,
             help_text='Name used in audit report')
     needs_tm = models.BooleanField(default=False,

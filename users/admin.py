@@ -179,7 +179,7 @@ class SponsorAdmin(admin.ModelAdmin):
 
 
 class CreditTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'auditname', 'sort_order', 'formatDegrees')
+    list_display = ('abbrev', 'name', 'auditname', 'sort_order', 'formatDegrees')
     filter_horizontal = ('degrees',)
 
     def get_queryset(self, request):
@@ -444,6 +444,7 @@ class AllowedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'eligible_site', 'url', 'valid', 'set_id', 'modified')
     list_select_related = ('host', 'eligible_site')
     list_filter = ('valid','host',)
+    filter_horizontal = ('cmeTags',)
     ordering = ('-modified',)
 
 class RejectedUrlAdmin(admin.ModelAdmin):
