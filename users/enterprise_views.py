@@ -106,7 +106,7 @@ class OrgMemberFilterBackend(BaseFilterBackend):
         filter_kwargs = {
             'organization': org,
             'removeDate__isnull': True,
-            'pending': False
+            'pending': True
         }
         if compliance is not None:
             filter_kwargs['compliance'] = compliance
