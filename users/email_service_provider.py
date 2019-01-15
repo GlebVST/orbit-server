@@ -517,16 +517,7 @@ class MailchimpApi(EspApiBackend):
         merge_fields = {}
         for field in self.ALL_MERGE_FIELDS:
             val = contact_dict.get(field)
-            if field not in contact_dict and field not in merge_fields.keys():
-                if field in self.CUSTOM_FIELDS.keys():
-                    if self.CUSTOM_FIELDS[field]["type"] == "text" or self.CUSTOM_FIELDS[field]["type"] == "date": 
-                        merge_fields.update({field : ""})
-                        
-                    elif self.CUSTOM_FIELDS[field]["type"] == "number":
-                        merge_fields.update({field : 0})
-                elif field in self.DEFAULT_MERGE_FIELDS:
-                    merge_fields.update({field : ""})
-            else :
+            if val != None:
                 merge_fields.update({field : val})
         data.update({'merge_fields': merge_fields})
 
