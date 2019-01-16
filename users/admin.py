@@ -71,10 +71,16 @@ class OrgForm(forms.ModelForm):
         m.save()
         return m
 
+class OrgGroupInline(admin.TabularInline):
+    model = OrgGroup
+
 class OrgAdmin(admin.ModelAdmin):
     list_display = ('id', 'joinCode', 'code', 'name', 'credits', 'creditStartDate')
     form = OrgForm
     ordering = ('joinCode',)
+    inlines = [
+        OrgGroupInline,
+    ]
 
 class OrgFileAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created')
@@ -82,7 +88,7 @@ class OrgFileAdmin(admin.ModelAdmin):
     ordering = ('-created',)
 
 class OrgMemberAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'pending', 'removeDate')
+    list_display = ('id', 'organization', 'group', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'pending', 'removeDate')
     list_select_related = True
     list_filter = ('is_admin', 'pending', 'setPasswordEmailSent', 'organization', UserFilter)
     raw_id_fields = ('orgfiles',)

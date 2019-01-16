@@ -20,12 +20,30 @@ from .emailutils import sendPasswordTicketEmail
 
 logger = logging.getLogger('gen.esrl')
 
+class OrgGroupSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=100)
+
+    class Meta:
+        model = OrgGroup
+        fields = (
+            'id',
+            'name',
+        )
+
+    def create(self, validated_data):
+        org = validated_data['organization']
+        name = validated_data['name'].strip()
+        instance = OrgGroup.objects.create(organization=org, name=name)
+        return instance
+
 class OrgMemberReadSerializer(serializers.ModelSerializer):
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
+    group = serializers.PrimaryKeyRelatedField(read_only=True)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     email = serializers.ReadOnlyField(source='user.email')
     firstName = serializers.ReadOnlyField(source='user.profile.firstName')
     lastName = serializers.ReadOnlyField(source='user.profile.lastName')
+    pending = serializers.ReadOnlyField()
     degree = serializers.SerializerMethodField()
     joined = serializers.SerializerMethodField()
 
@@ -40,10 +58,12 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'organization',
+            'group',
             'user',
             'firstName',
             'lastName',
             'email',
+            'pending',
             'degree',
             'is_admin',
             'compliance',
@@ -55,6 +75,10 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class OrgMemberFormSerializer(serializers.Serializer):
+    group = serializers.PrimaryKeyRelatedField(
+        queryset=OrgGroup.objects.all(),
+        allow_null=True
+    )
     firstName = serializers.CharField(max_length=30)
     lastName = serializers.CharField(max_length=30)
     email = serializers.EmailField()
@@ -82,6 +106,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         """
         apiConn = validated_data['apiConn']
         org = validated_data['organization']
+        group = validated_data['group']
         plan = validated_data['plan']
         firstName = validated_data['firstName'].strip()
         lastName = validated_data['lastName'].strip()
@@ -127,7 +152,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         # 4. Create Enterprise UserSubscription for user
         user_subs = UserSubscription.objects.createEnterpriseMemberSubscription(user, plan)
         # 5. create OrgMember instance
-        m = OrgMember.objects.createMember(org, profile, is_admin)
+        m = OrgMember.objects.createMember(org, group, profile, is_admin)
         # 6. Assign extra groups
         if is_admin:
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
@@ -150,6 +175,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         user = instance.user
         profile = user.profile
         apiConn = validated_data['apiConn']
+        group = validated_data.get('group', instance.group)
         firstName = validated_data.get('firstName', profile.firstName)
         lastName = validated_data.get('lastName', profile.lastName)
         email = validated_data.get('email', user.email)
@@ -183,6 +209,8 @@ class OrgMemberFormSerializer(serializers.Serializer):
                 # emit profile_saved signal
                 ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         # update OrgMember and user groups
+        if group != instance.group:
+            instance.group = group
         if removeDate != instance.removeDate:
             instance.removeDate = removeDate
             logger.info('UpdateOrgMember: remove user {0} on {1}'.format(user, removeDate))
