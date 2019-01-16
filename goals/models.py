@@ -975,7 +975,7 @@ class UserGoalManager(models.Manager):
         for ug in markInvalid:
             logger.info('Invalidating {0}'.format(ug))
             ug.valid = False
-            ug.save(update_fields=('invalid',))
+            ug.save(update_fields=('valid',))
         # check for any other stale TrainingGoals
         #print(' - check TrainingGoals for {0}'.format(user))
         existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.TRAINING, valid=True)
@@ -984,7 +984,7 @@ class UserGoalManager(models.Manager):
             if not tgoal.isMatchProfile(profileDegrees, profileSpecs, profileStates):
                 logger.info('Invalidating {0}'.format(ug))
                 ug.valid = False
-                ug.save(update_fields=('invalid',))
+                ug.save(update_fields=('valid',))
         #
         # for cme goals, only delete if all cmeGoals no longer apply
         # print(' - check CmeGoals for {0}'.format(user))
