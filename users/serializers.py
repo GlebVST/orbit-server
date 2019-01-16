@@ -31,12 +31,8 @@ class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     )
     class Meta:
         model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'specialties', 'srcme_only', 'notes')
+        fields = ('id', 'name', 'priority', 'description', 'specialties', 'srcme_only', 'instructions')
 
-class CmeTagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'srcme_only', 'notes')
 
 # Used by auth_view to serialize the SA-CME tag
 class ActiveCmeTagSerializer(serializers.ModelSerializer):
@@ -47,7 +43,7 @@ class ActiveCmeTagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only', 'notes')
+        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only', 'instructions')
 
 
 class NestedStateSerializer(serializers.ModelSerializer):

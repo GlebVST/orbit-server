@@ -74,7 +74,7 @@ class CmeTagManager(models.Manager):
 
 @python_2_unicode_compatible
 class CmeTag(models.Model):
-    name= models.CharField(max_length=40, unique=True)
+    name= models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
     priority = models.IntegerField(
         default=0,
         help_text='Used for non-alphabetical sort.'
@@ -82,7 +82,7 @@ class CmeTag(models.Model):
     description = models.CharField(max_length=200, unique=True, help_text='Long-form name. Must be unique. Used on certificates.')
     srcme_only = models.BooleanField(default=False,
             help_text='True if tag is only valid for self-reported cme')
-    notes = models.TextField(default='', help_text='Long-form text. Used for self-reported cme tags')
+    instructions = models.TextField(default='', help_text='Instructions to provider. May contain Markdown-formatted text.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = CmeTagManager()

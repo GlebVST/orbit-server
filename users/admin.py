@@ -98,7 +98,7 @@ class OrgMemberAdmin(admin.ModelAdmin):
         pass
 
 class CmeTagAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'priority', 'description', 'srcme_only', 'notes')
+    list_display = ('id', 'priority', 'name', 'description', 'srcme_only', 'instructions')
     list_filter = ('srcme_only',)
 
 class CountryAdmin(admin.ModelAdmin):
