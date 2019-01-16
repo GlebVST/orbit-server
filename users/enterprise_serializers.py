@@ -46,6 +46,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
     pending = serializers.ReadOnlyField()
     degree = serializers.SerializerMethodField()
     joined = serializers.SerializerMethodField()
+    groupName = serializers.SerializerMethodField()
 
     def get_degree(self, obj):
         return obj.user.profile.formatDegrees()
@@ -53,12 +54,18 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
     def get_joined(self, obj):
         return (obj.user.profile.verified and not obj.pending)
 
+    def get_groupName(self, obj):
+        if obj.group:
+            return obj.group.name
+        return ''
+
     class Meta:
         model = OrgMember
         fields = (
             'id',
             'organization',
             'group',
+            'groupName',
             'user',
             'firstName',
             'lastName',

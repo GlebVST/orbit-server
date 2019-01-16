@@ -122,7 +122,7 @@ class OrgMemberManager(models.Manager):
         Returns: queryset of active OrgMembers
         """
         org =  filter_kwargs['organization'] # ensure org is contained to filter by a given organization
-        base_qs = self.model.objects.select_related('user', 'user__profile').filter(**filter_kwargs)
+        base_qs = self.model.objects.select_related('user', 'user__profile', 'group').filter(**filter_kwargs)
         qs1 = base_qs.filter(fullname__contains=search_term.upper())
         qs2 = base_qs.filter(user__username__istartswith=search_term)
         qs = qs1
