@@ -215,68 +215,6 @@ class WhitelistRequest(models.Model):
         return '{0}-{1}'.format(self.user, self.req_url.url)
 
 
-# User recommendations for AllowedUrls by tag
-class RecAllowedUrlManager(models.Manager):
-    def updateRecsForUser(self, user, tag):
-        """Maintain a list of upto MAX_RECS_PER_USERTAG recommended aurls for the given user and tag
-        Args:
-            user: User instance
-            tag: CmeTag instance
-        Returns: int - number of recs created
-        """
-        num_recs = self.model.MAX_RECS_PER_USERTAG - user.recaurls.filter(cmeTag=tag).count()
-        if num_recs <= 0:
-            return 0
-        num_created = 0
-        # exclude_offers: of the given tag redeemed by user since OFFER_LOOKBACK_DAYS. This is used as a subquery below
-        now = timezone.now()
-        startdate = now - timedelta(days=OFFER_LOOKBACK_DAYS)
-        filter_kwargs = dict(
-            user=user,
-            redeemed=True,
-            valid=True,
-            activityDate__gte=startdate,
-            tags=tag
-        )
-        exclude_offers = OrbitCmeOffer.objects.filter(**filter_kwargs)
-        # This query gets distinct AllowedUrls for the given tag and excludes exclude_offers
-        aurl_kwargs = dict(
-            valid=True,
-            cmeTags=tag,
-            host__has_paywall=True, # omit paywalled articles since not all users have access to them
-        )
-        aurls = AllowedUrl.objects.select_related('host').filter(**aurl_kwargs).exclude(
-            pk__in=Subquery(exclude_offers.values('url'))).order_by('-created')
-        ##print(aurls.count())
-        for aurl in aurls:
-            if aurl.host.main_host:
-                # skip proxy hosts
-                continue
-            m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
-            if created:
-                num_created += 1
-                if num_created >= num_recs:
-                    break
-        return num_created
-
-@python_2_unicode_compatible
-class RecAllowedUrl(models.Model):
-    MAX_RECS_PER_USERTAG = 20
-    id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recaurls')
-    url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='recaurls')
-    cmeTag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='recaurls')
-    objects = RecAllowedUrlManager()
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_recallowedurl'
-        unique_together = ('user','url','cmeTag')
-
-    def __str__(self):
-        return '{0.user}|{0.cmeTag}|{0.url}'.format(self)
-
-
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.
 @python_2_unicode_compatible
@@ -365,3 +303,74 @@ class OrbitCmeOfferAgg(models.Model):
 
     def __str__(self):
         return "{0.day}".format(self)
+
+
+# User recommendations for AllowedUrls by tag
+class RecAllowedUrlManager(models.Manager):
+    def updateRecsForUser(self, user, tag):
+        """Maintain a list of upto MAX_RECS_PER_USERTAG recommended aurls for the given user and tag
+        Args:
+            user: User instance
+            tag: CmeTag instance
+        Returns: int - number of recs created
+        """
+        num_recs = self.model.MAX_RECS_PER_USERTAG - user.recaurls.filter(cmeTag=tag).count()
+        if num_recs <= 0:
+            return 0
+        num_created = 0
+        # exclude_offers: of the given tag redeemed by user since OFFER_LOOKBACK_DAYS. This is used as a subquery below
+        now = timezone.now()
+        startdate = now - timedelta(days=OFFER_LOOKBACK_DAYS)
+        filter_kwargs = dict(
+            user=user,
+            redeemed=True,
+            valid=True,
+            activityDate__gte=startdate,
+            tags=tag
+        )
+        exclude_offers = OrbitCmeOffer.objects.select_related('url').filter(**filter_kwargs)
+        # This query gets distinct AllowedUrls for the given tag and excludes
+        # any urls with the same set_id as those contained in exclude_offers
+        aurl_kwargs = dict(
+            valid=True,
+            cmeTags=tag,
+            host__has_paywall=False, # omit paywalled articles since not all users have access to them
+            host__main_host__isnull=True, # omit proxy hosts
+        )
+        aurls = AllowedUrl.objects \
+                .select_related('host') \
+                .filter(**aurl_kwargs) \
+                .exclude(set_id__in=Subquery(exclude_offers.values('url__set_id').distinct())) \
+                .order_by('-created')
+        ##print(aurls.count())
+        for aurl in aurls:
+            # check if user already has a rec with this set_id
+            qs = user.recaurls.select_related('url').filter(url__set_id=aurl.set_id)
+            if qs.exists():
+                continue
+            m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
+            if created:
+                num_created += 1
+                if num_created >= num_recs:
+                    break
+        return num_created
+
+@python_2_unicode_compatible
+class RecAllowedUrl(models.Model):
+    MAX_RECS_PER_USERTAG = 20
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recaurls')
+    url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='recaurls')
+    cmeTag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='recaurls')
+    offer = models.ForeignKey(OrbitCmeOffer, on_delete=models.CASCADE, null=True, blank=True, related_name='recaurls')
+    objects = RecAllowedUrlManager()
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_recallowedurl'
+        unique_together = ('user','url','cmeTag')
+
+    def __str__(self):
+        return '{0.user}|{0.cmeTag}|{0.url}'.format(self)
+
+

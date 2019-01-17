@@ -12,6 +12,7 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.functional import cached_property
 
 logger = logging.getLogger('gen.models')
 
@@ -631,7 +632,11 @@ class Profile(models.Model):
 
     def getActiveCmetags(self):
         """Need to query the through relation to filter by is_active=True"""
-        return ProfileCmetag.objects.filter(profile=self, is_active=True)
+        return ProfileCmetag.objects.select_related('tag').filter(profile=self, is_active=True)
+
+    def getActiveSRCmetags(self):
+        """Need to query the through relation to filter by is_active=True"""
+        return ProfileCmetag.objects.select_related('tag').filter(profile=self, is_active=True, tag__srcme_only=True)
 
     def getAuth0Id(self):
         delim = '|'
@@ -701,6 +706,47 @@ class Profile(models.Model):
                 pct.save(update_fields=('is_active',))
                 logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
         return add_tags
+
+    @cached_property
+    def activeCmeTagSet(self):
+        """All active pcts. Used in goal matching calculations"""
+        return set([m.pk for m in self.getActiveCmetags()])
+
+    @cached_property
+    def activeSRCmeTagSet(self):
+        """Active srcme_only pcts. Used in goal matching calculations"""
+        return set([m.pk for m in self.getActiveSRCmetags()])
+
+    @cached_property
+    def degreeSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.degrees.all()])
+
+    @cached_property
+    def specialtySet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.specialties.all()])
+
+    @cached_property
+    def subspecialtySet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.subspecialties.all()])
+
+    @cached_property
+    def stateSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.states.all()])
+
+    @cached_property
+    def deaStateSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.deaStates.all()])
+
+    @cached_property
+    def hospitalSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.hospitals.all()])
+
 
 # Many-to-many through relation between Profile and CmeTag
 class ProfileCmetag(models.Model):
