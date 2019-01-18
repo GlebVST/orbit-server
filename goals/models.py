@@ -48,7 +48,7 @@ def makeDueDate(month, day, now):
     """
     dueDate = makeAwareDatetime(now.year, month, day)
     if dueDate < now:
-        # advance dueDate to next year
+        # TODO: only advance dueDate to next year if extra arg, else leave as is
         dueDate = makeAwareDatetime(now.year+1, month, day)
     return dueDate
 
@@ -83,6 +83,7 @@ class Board(models.Model):
 class GoalType(models.Model):
     CME = 'CME'
     LICENSE = 'License'
+    SRCME = 'SR-CME'
     TRAINING = 'Training'
     # fields
     name = models.CharField(max_length=100, unique=True)
@@ -198,28 +199,33 @@ class BaseGoal(models.Model):
         return u'Any'
     formatSubSpecialties.short_description = "Sub-Specialties"
 
-    def getDegreesForMatching(self):
-        """Returns queryset of self.degrees or all"""
+    def degreeSet(self):
+        """Returns set of pkeyids from self.degrees or all"""
         degrees = self.degrees.all() if self.degrees.exists() else Degree.objects.all()
-        return degrees
+        return set([m.pk for m in degrees])
 
-    def getSpecialtiesForMatching(self):
-        """Returns queryset of self.specialties or all"""
-        specs = self.specialties.all() if self.specialties.exists() else PracticeSpecialty.objects.all()
-        return specs
-
-    def isMatchProfile(self, profileDegrees, profileSpecs):
-        """Returns True if intersection exists with profile specialties AND degrees.
+    def isMatchProfile(self, profile):
+        """Returns True if intersection exists with profile degrees, specialties and subspecialties.
         Args:
-            profileSpecs: set of PracticeSpecialty pkeyids
-            profileDegrees: set of Degree pkeyids
+            profile: Profile instance
         Returns: bool
         """
-        specs = set([m.pk for m in self.getSpecialtiesForMatching()])
-        degrees = set([m.pk for m in self.getDegreesForMatching()])
-        if degrees.isdisjoint(profileDegrees):
+        degrees = self.degreeSet()
+        if degrees.isdisjoint(profile.degreeSet):
             return False
-        if specs.isdisjoint(profileSpecs):
+        if not self.specialties.exists():
+            # matches all specialties
+            return True
+        # else
+        specs = set([m.pk for m in self.specialties.all().only('pk')])
+        if specs.isdisjoint(profile.specialtySet):
+            return False
+        if not self.subspecialties.exists():
+            # matches all subspecialties
+            return True
+        # else
+        subspecs = set([m.pk for m in self.subspecialties.all().only('pk')])
+        if subspecs.isdisjoint(profile.subspecialtySet):
             return False
         return True
 
@@ -253,25 +259,25 @@ class LicenseBaseGoal(BaseGoal):
             raise ValidationError({'dueDateType': 'dueDateType must be {0}'.format(BaseGoal.RECUR_LICENSE_DATE_LABEL)})
 
 
-class TrainingBaseGoalManager(models.Manager):
+class SRCmeBaseGoalManager(models.Manager):
     def get_queryset(self):
-        qs = super(TrainingBaseGoalManager, self).get_queryset()
-        return qs.filter(goalType__name=GoalType.TRAINING)
+        qs = super(SRCmeBaseGoalManager, self).get_queryset()
+        return qs.filter(goalType__name=GoalType.SRCME)
 
-class TrainingBaseGoal(BaseGoal):
+class SRCmeBaseGoal(BaseGoal):
     """Proxy model to BaseGoal for Training goalType"""
-    objects = TrainingBaseGoalManager()
+    objects = SRCmeBaseGoalManager()
 
     class Meta:
         proxy = True
-        verbose_name_plural = 'Training-Goals'
+        verbose_name_plural = 'SRCME-Goals'
 
     def __str__(self):
-        return self.traingoal.title
+        return self.srcmegoal.cmeTag
 
     def clean(self):
         """Validation checks. Invoked by admin form
-        Note: self is an instance of BaseGoal with goalType=TRAINING
+        Note: self is an instance of BaseGoal with goalType=SRCME
         """
         if self.dueDateType > BaseGoal.ONE_OFF and not self.interval:
             raise ValidationError({'interval': INTERVAL_ERROR})
@@ -296,26 +302,45 @@ class CmeBaseGoal(BaseGoal):
         if self.dueDateType > BaseGoal.ONE_OFF and not self.interval:
             raise ValidationError({'interval': INTERVAL_ERROR})
 
+
 class LicenseGoalManager(models.Manager):
 
-    def getMatchingGoalsForProfile(self, profile, profileDegrees, profileSpecs, profileStates, profileDEAStates):
+    def getMatchingGoalsForProfile(self, profile):
         """Find the goals that match the given profile:
         Returns: list of LicenseGoals.
         """
         matchedGoals = []
-        stateids = list(profileStates.union(profileDEAStates))
-        if not stateids or not profileDegrees:
+        if not profile.degreeSet:
             return []
-        base_qs = self.model.objects.select_related('goal','licenseType').prefetch_related('goal__degrees', 'goal__specialties')
-        Q_degree = Q(goal__degrees__in=list(profileDegrees)) | Q(goal__degrees=None)
+        stateids = list(profile.stateSet.union(profile.deaStateSet))
+        if not stateids:
+            return []
+        profileDegrees = list(profile.degreeSet)
+        profileSpecs = list(profile.specialtySet)
+        profileSubSpecs = list(profile.subspecialtySet)
+        base_qs = self.model.objects \
+                .select_related('goal','licenseType') \
+                .prefetch_related(
+                        'goal__degrees',
+                        'goal__specialties',
+                        'goal_subspecialties')
+        Q_degree = Q(goal__degrees__in=profileDegrees) | Q(goal__degrees=None)
+        Q_goal = Q_degree
+        if profileSpecs:
+            Q_spec = Q(goal__specialties__in=profileSpecs) | Q(goal__specialties=None)
+            Q_goal &= Q_spec
+            if profileSubSpecs:
+                Q_subspec = Q(goal__subspecialties__in=profileSubSpecs) | Q(goal__subspecialties=None)
+                Q_goal &= Q_subspec
+
         filter_kwargs = {
-                'goal__is_active': True,
-                'state__in': stateids
-            }
-        qset = base_qs.filter(Q_degree, **filter_kwargs)
-        for licensegoal in qset:
-            if licensegoal.isMatchProfile(profileDegrees, profileSpecs, profileStates, profileDEAStates):
-                matchedGoals.append(licensegoal)
+            'goal__is_active': True,
+            'state__in': stateids
+        }
+        qset = base_qs.filter(Q_goal, **filter_kwargs)
+        for goal in qset:
+            if goal.isMatchProfile(profile):
+                matchedGoals.append(goal)
         return matchedGoals
 
 
@@ -356,60 +381,60 @@ class LicenseGoal(models.Model):
         if not self.title:
             self.title = "{0.licenseType.name} License ({0.state.abbrev})".format(self)
 
-    def isMatchProfile(self, profileDegrees, profileSpecs, profileStates, profileDEAStates):
+    def isMatchProfile(self, profile):
         """Checks if self matches profile attributes
         Returns: bool
         """
         basegoal = self.goal
         # check state match (use state_id instead of state.pk b/c it is direct attr on self)
-        if not self.state_id in profileStates:
+        if not self.state_id in profile.stateSet:
             return False
         if self.licenseType.name == LicenseType.TYPE_DEA:
             # check DEA state match
-            if not self.state_id in profileDEAStates:
+            if not self.state_id in profile.deaStateSet:
                 return False
-        # check specialties/degrees intersection
-        if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
+        # check basegoal
+        if not basegoal.isMatchProfile(profile):
             return False
         return True
 
 
 class CmeGoalManager(models.Manager):
 
-    def getMatchingGoalsForProfile(self, profile, profileDegrees, profileSpecs, profileStates):
-        """Find the goals that match the given profile which must have non-empty profileDegrees
+    def getMatchingGoalsForProfile(self, profile):
+        """Find the goals that match the given profile which must have non-empty degrees
         Args:
             profile: Profile instance
-            profileDegrees: set of degree pks
-            profileSpecs: set of PracticeSpecialty pks
-            profileStates: set of State pks
         Returns: list of CmeGoals.
         """
         matchedGoals = []
-        if not profileDegrees:
+        if not profile.degreeSet:
             return []
-        profileHospitals = set([m.pk for m in profile.hospitals.all()])
-        profileTags = set([m.tag.pk for m in profile.getActiveCmetags()])
-        base_qs = self.model.objects.select_related('goal', 'cmeTag').prefetch_related('goal__degrees', 'goal__specialties')
-        Q_degree = Q(goal__degrees__in=list(profileDegrees)) | Q(goal__degrees=None)
+        profileDegrees = list(profile.degreeSet)
+        profileTags = list(profile.activeCmeTagSet)
+        profileSpecs = list(profile.specialtySet)
+        profileSubSpecs = list(profile.subspecialtySet)
+        base_qs = self.model.objects \
+            .select_related('goal', 'cmeTag') \
+            .prefetch_related(
+                    'goal__degrees',
+                    'goal__specialties',
+                    'goal__subspecialties')
+        Q_degree = Q(goal__degrees__in=profileDegrees) | Q(goal__degrees=None)
+        Q_goal = Q_degree
         if profileSpecs:
-            Q_spec = Q(goal__specialties__in=list(profileSpecs)) | Q(goal__specialties=None)
-            Q_goal = Q_degree & Q_spec
-        else:
-            Q_goal = Q_degree
-        # Note if filter by state, then have to break up qset by entityType (and compare state only for entityType=STATE)
+            Q_spec = Q(goal__specialties__in=profileSpecs) | Q(goal__specialties=None)
+            Q_goal &= Q_spec
+            if profileSubSpecs:
+                Q_subspec = Q(goal__subspecialties__in=profileSubSpecs) | Q(goal__subspecialties=None)
+                Q_goal &= Q_subspec
+        if profileTags:
+            Q_tag = Q(cmeTag__in=profileTags) | Q(cmeTag__isnull=True)
+            Q_goal &= Q_tag
         filter_kwargs = {'goal__is_active': True}
         qset = base_qs.filter(Q_goal, **filter_kwargs)
         for goal in qset:
-            if not goal.valid:
-                logger.error('Invalid CmeGoal {0.pk}|{0}.'.format(goal))
-                continue
-            if goal.isMatchProfile(
-                    profileDegrees,
-                    profileSpecs,
-                    profileStates,
-                    profileTags,
-                    profileHospitals):
+            if goal.isMatchProfile(profile):
                 matchedGoals.append(goal)
         return matchedGoals
 
@@ -549,35 +574,25 @@ class CmeGoal(models.Model):
             return "{0.dueMonth}/{0.dueDay}".format(self)
         return ''
 
-    def isTagMatchProfile(self, profileTags):
-        """Args:
-            profileTags: set of CmeTag pkeyids
-        Returns: bool
-        """
-        if not self.cmeTag:
-            return True # null tag matches any
-        return self.cmeTag.pk in profileTags
-
-
-    def isMatchProfile(self, profileDegrees, profileSpecs, profileStates, profileTags, profileHospitals):
+    def isMatchProfile(self, profile):
         """Checks if self matches profile attributes
         Returns: bool
         """
         basegoal = self.goal
         if self.entityType == CmeGoal.STATE:
             # check state match
-            if not self.state_id in profileStates:
+            if not self.state_id in profile.stateSet:
                 return False
         elif self.entityType == CmeGoal.HOSPITAL:
             # check hospital match
-            if not self.hospital_id in profileHospitals:
+            if not self.hospital_id in profile.hospitalSet:
                 return False
-        # check specialties/degrees intersection
-        if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
+        # check basegoal
+        if not basegoal.isMatchProfile(profile):
             return False
-        # check tag match
-        if not self.isTagMatchProfile(profileTags):
-            return False
+        # check tag
+        if self.cmeTag:
+            return self.cmeTag.pk in profile.activeCmeTagSet
         return True
 
 
@@ -641,29 +656,49 @@ class CmeGoal(models.Model):
         tagData = []
 
 
-class TrainingGoalManager(models.Manager):
+class SRCmeGoalManager(models.Manager):
 
-    def getMatchingGoalsForProfile(self, profile, profileDegrees, profileSpecs, profileStates):
+    def getMatchingGoalsForProfile(self, profile):
         """Find the goals that match the given profile:
-        Returns: list of TrainingGoals.
+        Note: These goals are state-specific.
+        Returns: list of SRCmeGoals.
         """
         matchedGoals = []
-        if not profileDegrees or not profileStates:
+        if not profile.degreeSet:
             return []
-        base_qs = self.model.objects.select_related('goal')
-        Q_degree = Q(goal__degrees__in=list(profileDegrees)) | Q(goal__degrees=None)
+        stateids = list(profile.stateSet.union(profile.deaStateSet))
+        if not stateids:
+            return []
+        profileDegrees = list(profile.degreeSet)
+        profileSpecs = list(profile.specialtySet)
+        profileSubSpecs = list(profile.subspecialtySet)
+        base_qs = self.model.objects \
+                .select_related('goal','cmeTag') \
+                .prefetch_related(
+                        'goal__degrees',
+                        'goal__specialties',
+                        'goal_subspecialties')
+
+        Q_degree = Q(goal__degrees__in=profileDegrees) | Q(goal__degrees=None)
+        Q_goal = Q_degree
+        if profileSpecs:
+            Q_spec = Q(goal__specialties__in=profileSpecs) | Q(goal__specialties=None)
+            Q_goal &= Q_spec
+            if profileSubSpecs:
+                Q_subspec = Q(goal__subspecialties__in=profileSubSpecs) | Q(goal__subspecialties=None)
+                Q_goal &= Q_subspec
         filter_kwargs = {
-                'goal__is_active': True,
-                'state__in': list(profileStates),
-            }
-        qset = base_qs.filter(Q_degree, **filter_kwargs).prefetch_related('goal__degrees', 'goal__specialties')
-        for tgoal in qset:
-            if tgoal.isMatchProfile(profileDegrees, profileSpecs, profileStates):
-                matchedGoals.append(tgoal)
+            'goal__is_active': True,
+            'state__in': stateids
+        }
+        qset = base_qs.filter(Q_goal, **filter_kwargs)
+        for goal in qset:
+            if goal.isMatchProfile(profile):
+                matchedGoals.append(goal)
         return matchedGoals
 
 @python_2_unicode_compatible
-class TrainingGoal(models.Model):
+class SRCmeGoal(models.Model):
     DUEDATE_TYPE_CHOICES = (
         (BaseGoal.ONE_OFF, BaseGoal.ONE_OFF_LABEL),
         (BaseGoal.RECUR_MMDD, BaseGoal.RECUR_MMDD_LABEL),
@@ -672,23 +707,34 @@ class TrainingGoal(models.Model):
     )
     goal = models.OneToOneField(BaseGoal,
         on_delete=models.CASCADE,
-        related_name='traingoal',
+        related_name='srcmegoal',
         primary_key=True
     )
     state = models.ForeignKey(State,
         on_delete=models.PROTECT,
         db_index=True,
-        related_name='traingoals',
+        related_name='srcmegoals',
     )
-    title = models.CharField(max_length=120, help_text='Name of the course or training to be done')
+    cmeTag = models.ForeignKey(CmeTag,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='srcmegoals',
+        help_text='State-specific CME Tag'
+    )
     licenseGoal = models.ForeignKey(LicenseGoal,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
         db_index=True,
-        related_name='traingoals',
+        related_name='srcmegoals',
         help_text="Must be selected if dueDate uses license expiration date. Null otherwise."
     )
+    credits = models.DecimalField(max_digits=6, decimal_places=2,
+            validators=[MinValueValidator(0.1)])
+    creditTypes = models.ManyToManyField(CreditType,
+            blank=True,
+            related_name='srcmegoals',
+            help_text='Eligible creditTypes that satisfy this goal.')
     dueMonth = models.SmallIntegerField(blank=True, null=True,
             help_text='Must be specified if dueDateType is Fixed MMDD',
             validators=[
@@ -699,12 +745,10 @@ class TrainingGoal(models.Model):
             validators=[
                 MinValueValidator(1),
                 MaxValueValidator(31)])
-    daysBeforeDue = models.PositiveIntegerField(default=180,
-            help_text='days before nextDueDate at which the next usergoal in a recurring series is created')
-    objects = TrainingGoalManager()
+    objects = SRCmeGoalManager()
 
     def __str__(self):
-        return self.title
+        return u"{0.state}|{0.cmeTag}".format(self)
 
     @cached_property
     def valid(self):
@@ -721,17 +765,17 @@ class TrainingGoal(models.Model):
             return "{0.dueMonth}/{0.dueDay}".format(self)
         return ''
 
-    def isMatchProfile(self, profileDegrees, profileSpecs, profileStates):
+    def isMatchProfile(self, profile):
         """Checks if self matches profile attributes
         Returns: bool
         """
         basegoal = self.goal
         # check state match
-        if not self.state_id in profileStates:
+        if not self.state_id in profile.stateSet:
             return False
-        # check specialties/degrees intersection
-        if not basegoal.isMatchProfile(profileDegrees, profileSpecs):
+        if not basegoal.isMatchProfile(profile):
             return False
+        # TODO: add DEA handling
         return True
 
     def computeDueDateForProfile(self, profile, userLicense, now):
@@ -762,8 +806,9 @@ class TrainingGoal(models.Model):
             return dueDate
         return UNKNOWN_DATE
 
+
 class UserGoalManager(models.Manager):
-    def assignCmeGoals(self, profile, profileDegrees, profileSpecs, profileStates):
+    def assignCmeGoals(self, profile):
         """Assign CME UserGoals by matching existing goals to the given profile.
         Steps:
             1. Find matching CmeGoals based on profile
@@ -774,7 +819,7 @@ class UserGoalManager(models.Manager):
         """
         user = profile.user
         usergoals = []
-        goals = CmeGoal.objects.getMatchingGoalsForProfile(profile, profileDegrees, profileSpecs, profileStates)
+        goals = CmeGoal.objects.getMatchingGoalsForProfile(profile)
         now = timezone.now()
         grouped = CmeGoal.objects.groupGoalsByTag(profile, goals)
         for tag in grouped:
@@ -807,7 +852,7 @@ class UserGoalManager(models.Manager):
             usergoals.append(usergoal)
         return usergoals
 
-    def assignLicenseGoals(self, profile, profileDegrees, profileSpecs, profileStates, profileDEAStates):
+    def assignLicenseGoals(self, profile):
         """Assign License UserGoals and create any uninitialized statelicenses for user as needed
         Steps:
             1. Find matching LicenseGoals based on profile
@@ -820,12 +865,7 @@ class UserGoalManager(models.Manager):
         Returns: list of newly created usergoals
         """
         user = profile.user
-        goals = LicenseGoal.objects.getMatchingGoalsForProfile(profile,
-                profileDegrees,
-                profileSpecs,
-                profileStates,
-                profileDEAStates
-            )
+        goals = LicenseGoal.objects.getMatchingGoalsForProfile(profile)
         usergoals = []
         now = timezone.now()
         for goal in goals:
@@ -876,18 +916,14 @@ class UserGoalManager(models.Manager):
                 usergoal.save(update_fields=('status',))
         return usergoals
 
-    def assignTrainingGoals(self, profile, profileDegrees, profileSpecs, profileStates):
+    def assignTrainingGoals(self, profile):
         """Assign Training UserGoals
         Steps:
             1. Find matching LicenseGoals based on profile
         Returns: list of newly created usergoals
         """
         user = profile.user
-        goals = TrainingGoal.objects.getMatchingGoalsForProfile(profile,
-                profileDegrees,
-                profileSpecs,
-                profileStates
-                )
+        goals = TrainingGoal.objects.getMatchingGoalsForProfile(profile)
         usergoals = []
         now = timezone.now()
         for goal in goals:
@@ -923,18 +959,11 @@ class UserGoalManager(models.Manager):
             3. Assign CME UserGoals
         Returns: list of newly created UserGoals
         """
-        qset = Profile.objects.filter(user=user).prefetch_related('degrees','specialties','states','hospitals')
-        if not qset.exists():
-            return []
-        profile = qset[0]
-        profileDegrees = set([m.pk for m in profile.degrees.all()])
-        profileSpecs = set([m.pk for m in profile.specialties.all()])
-        profileStates = set([m.pk for m in profile.states.all()])
-        profileDEAStates = set([m.pk for m in profile.deaStates.all()])
         usergoals = []
-        usergoals.extend(self.assignLicenseGoals(profile, profileDegrees, profileSpecs, profileStates, profileDEAStates))
-        usergoals.extend(self.assignTrainingGoals(profile, profileDegrees, profileSpecs, profileStates))
-        usergoals.extend(self.assignCmeGoals(profile, profileDegrees, profileSpecs, profileStates))
+        profile = user.profile
+        usergoals.extend(self.assignLicenseGoals(profile))
+        #usergoals.extend(self.assignSRCmeGoals(profile)) TODO
+        usergoals.extend(self.assignCmeGoals(profile))
         return usergoals
 
     def rematchGoals(self, user):
@@ -944,24 +973,15 @@ class UserGoalManager(models.Manager):
             2. Call assignGoals to create new UserGoals/update existing ones.
         Returns: list of newly created UserGoals
         """
-        #print('rematchGoals for {0}'.format(user))
-        qset = Profile.objects.filter(user=user).prefetch_related('degrees','specialties','states','hospitals')
-        if not qset.exists():
-            return []
-        profile = qset[0]
-        profileDegrees = set([m.pk for m in profile.degrees.all()])
-        profileSpecs = set([m.pk for m in profile.specialties.all()])
-        profileStates = set([m.pk for m in profile.states.all()])
-        profileHospitals = set([m.pk for m in profile.hospitals.all()])
-        profileTags = set([m.tag.pk for m in profile.getActiveCmetags()])
-        profileDEAStates = set([m.pk for m in profile.deaStates.all()])
+        logger.debug('rematchGoals for {0}'.format(user))
+        profile = user.profile
         # remove stale license goals
         stale = []
         markInvalid = []
         existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.LICENSE)
         for ug in existing:
             licensegoal = ug.goal.licensegoal
-            if not licensegoal.isMatchProfile(profileDegrees, profileSpecs, profileStates, profileDEAStates):
+            if not licensegoal.isMatchProfile(profile):
                 stale.append(ug)
                 # find user traingoals that depend on this licensegoal
                 for tgoal in licensegoal.traingoals.all():
@@ -981,7 +1001,7 @@ class UserGoalManager(models.Manager):
         existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.TRAINING, valid=True)
         for ug in existing:
             tgoal = ug.goal.traingoal
-            if not tgoal.isMatchProfile(profileDegrees, profileSpecs, profileStates):
+            if not tgoal.isMatchProfile(profile):
                 logger.info('Invalidating {0}'.format(ug))
                 ug.valid = False
                 ug.save(update_fields=('valid',))
@@ -993,12 +1013,7 @@ class UserGoalManager(models.Manager):
         for ug in existing:
             matchCount = 0
             for cmegoal in ug.cmeGoals.all():
-                if cmegoal.isMatchProfile(
-                        profileDegrees,
-                        profileSpecs,
-                        profileStates,
-                        profileTags,
-                        profileHospitals):
+                if cmegoal.isMatchProfile(profile):
                     matchCount += 1
             if not matchCount:
                 # none of the cmegoals match this profile anymore
@@ -1010,11 +1025,11 @@ class UserGoalManager(models.Manager):
         # Assign goals (create/update)
         usergoals = []
         #print('assignLicenseGoals for {0}'.format(user))
-        usergoals.extend(self.assignLicenseGoals(profile, profileDegrees, profileSpecs, profileStates, profileDEAStates))
-        #print('assignTrainingGoals for {0}'.format(user))
-        usergoals.extend(self.assignTrainingGoals(profile, profileDegrees, profileSpecs, profileStates))
+        usergoals.extend(self.assignLicenseGoals(profile))
+        #print('assignSRCmeGoals for {0}'.format(user))
+        #usergoals.extend(self.assignSRCmeGoals(profile))
         #print('assignCmeGoals for {0}'.format(user))
-        usergoals.extend(self.assignCmeGoals(profile, profileDegrees, profileSpecs, profileStates))
+        usergoals.extend(self.assignCmeGoals(profile))
         return usergoals
 
 @python_2_unicode_compatible
@@ -1051,6 +1066,14 @@ class UserGoal(models.Model):
         related_name='usergoals',
         db_index=True
     )
+    state = models.ForeignKey(State,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name='usergoals',
+        help_text="Used to filter goals by state"
+    )
     cmeTag = models.ForeignKey(CmeTag,
         on_delete=models.PROTECT,
         null=True,
@@ -1070,9 +1093,8 @@ class UserGoal(models.Model):
     status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, db_index=True)
     compliance = models.PositiveSmallIntegerField(default=1, db_index=True)
     dueDate = models.DateTimeField()
-    valid = models.BooleanField(default=True, help_text='Used for TrainingGoal. Set/clear flag instead of deleting to preserve information')
-    completeDate= models.DateTimeField(blank=True, null=True,
-            help_text='Used for Training/Wellness goal completion date.')
+    valid = models.BooleanField(default=True, help_text='Set/clear flag instead of deleting to preserve information')
+    completeDate= models.DateTimeField(blank=True, null=True)
     creditsDue = models.DecimalField(max_digits=6, decimal_places=2,
             null=True, blank=True,
             validators=[MinValueValidator(0)],
@@ -1389,3 +1411,51 @@ class GoalRecommendation(models.Model):
 
     def __str__(self):
         return self.url
+
+#
+# obsolete
+#
+@python_2_unicode_compatible
+class TrainingGoal(models.Model):
+    DUEDATE_TYPE_CHOICES = (
+        (BaseGoal.ONE_OFF, BaseGoal.ONE_OFF_LABEL),
+        (BaseGoal.RECUR_MMDD, BaseGoal.RECUR_MMDD_LABEL),
+        (BaseGoal.RECUR_BIRTH_DATE, BaseGoal.RECUR_BIRTH_DATE_LABEL),
+        (BaseGoal.RECUR_LICENSE_DATE, BaseGoal.RECUR_LICENSE_DATE_LABEL),
+    )
+    goal = models.OneToOneField(BaseGoal,
+        on_delete=models.CASCADE,
+        related_name='traingoal',
+        primary_key=True
+    )
+    state = models.ForeignKey(State,
+        on_delete=models.PROTECT,
+        db_index=True,
+        related_name='traingoals',
+    )
+    title = models.CharField(max_length=120, help_text='Name of the course or training to be done')
+    licenseGoal = models.ForeignKey(LicenseGoal,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name='traingoals',
+        help_text="Must be selected if dueDate uses license expiration date. Null otherwise."
+    )
+    dueMonth = models.SmallIntegerField(blank=True, null=True,
+            help_text='Must be specified if dueDateType is Fixed MMDD',
+            validators=[
+                MinValueValidator(1),
+                MaxValueValidator(12)])
+    dueDay = models.SmallIntegerField(blank=True, null=True,
+            help_text='Must be specified if dueDateType is Fixed MMDD',
+            validators=[
+                MinValueValidator(1),
+                MaxValueValidator(31)])
+    daysBeforeDue = models.PositiveIntegerField(default=180,
+            help_text='days before nextDueDate at which the next usergoal in a recurring series is created')
+
+    def __str__(self):
+        return self.title
+
+

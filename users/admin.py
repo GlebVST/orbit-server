@@ -506,10 +506,13 @@ class ActivityLogAdmin(admin.ModelAdmin):
         return str(obj.activity_set.url)
 
 class RecAllowedUrlAdmin(admin.ModelAdmin):
-    list_display = ('id','user','cmeTag','url')
-    raw_id_fields = ('url',)
+    list_display = ('id','user','cmeTag','url', 'offerid')
+    raw_id_fields = ('url', 'offer')
     list_filter = (UserFilter, 'cmeTag')
     ordering = ('cmeTag','user')
+
+    def offerid(self, obj):
+        return obj.offer.pk if obj.offer else None
 
     class Media:
         pass

@@ -7,6 +7,7 @@ from .models import *
 from common.dateutils import makeAwareDatetime
 from users.models import CreditType, RecAllowedUrl, ARTICLE_CREDIT
 from users.serializers import DocumentReadSerializer, NestedStateLicenseSerializer
+from users.feed_serializers import OrbitCmeOfferSerializer
 
 logger = logging.getLogger('gen.gsrl')
 PUB_DATE_FORMAT = '%b %Y'
@@ -27,6 +28,7 @@ class RecAllowedUrlReadSerializer(serializers.ModelSerializer):
     url = serializers.ReadOnlyField(source='url.url')
     pubDate = serializers.SerializerMethodField()
     numUsers = serializers.ReadOnlyField(source='url.numOffers')
+    offer = serializers.SerializerMethodField()
 
     class Meta:
         model = RecAllowedUrl
@@ -36,7 +38,8 @@ class RecAllowedUrlReadSerializer(serializers.ModelSerializer):
             'pageTitle',
             'url',
             'pubDate',
-            'numUsers'
+            'numUsers',
+            'offer'
         )
         read_only_fields = fields
 
@@ -46,6 +49,11 @@ class RecAllowedUrlReadSerializer(serializers.ModelSerializer):
     def get_pubDate(self, obj):
         if obj.url.pubDate:
             return obj.url.pubDate.strftime(PUB_DATE_FORMAT)
+        return None
+
+    def get_offer(self, obj):
+        if obj.offer:
+            return OrbitCmeOfferSerializer(obj.offer).data
         return None
 
 class GoalRecReadSerializer(serializers.ModelSerializer):
@@ -93,59 +101,77 @@ class LicenseGoalSubSerializer(serializers.ModelSerializer):
         s = GoalRecReadSerializer(qset, many=True)
         return s.data
 
-
-class TrainingGoalSubSerializer(serializers.ModelSerializer):
-    """UserTrainingGoal extra fields"""
-    daysLeft = serializers.SerializerMethodField()
-    recommendations = serializers.SerializerMethodField()
-
-    class Meta:
-        model = UserGoal
-        fields = (
-            'completeDate',
-            'daysLeft',
-            'recommendations'
-        )
-
-    def get_daysLeft(self, obj):
-        return obj.daysLeft
-
-
-    def get_recommendations(self, obj):
-        qset = obj.goal.recommendations.all().order_by('-created')[:3]
-        s = GoalRecReadSerializer(qset, many=True)
-        return s.data
+def roundCredits(c):
+    """Args:
+        c: float
+    Get diff between c and floor(c)
+    if diff = 0 or dif = 0.5: return as is
+    if diff < 0.5: return floor + 0.5 (round up to next 0.5)
+    else return ceil (round up to next int)
+    This rounds up to ensure we don't underestimate value.
+    Returns: float rounded to nearest 0 or 0.5
+    """
+    f = math.floor(c)
+    d = c - f
+    if d == 0 or d == 0.5:
+        return c # no change
+    if d < 0.5:
+        return f + 0.5
+    return math.ceil(c)
 
 class CmeGoalSubSerializer(serializers.ModelSerializer):
     creditsLeft = serializers.SerializerMethodField()
     creditTypes = serializers.SerializerMethodField()
+    instructions = serializers.SerializerMethodField()
 
     class Meta:
         model = UserGoal
         fields = (
             'creditsLeft',
             'creditTypes',
+            'instructions'
         )
 
     def get_creditsLeft(self, obj):
-        """Get diff between creditDue and floor(creditDue)
-        if diff = 0 or dif = 0.5: return as is
-        if diff < 0.5: return floor + 0.5 (round up to next 0.5)
-        else return ceil (round up to next int)
-        This rounds up to ensure we don't underestimate value.
-        """
-        c = float(obj.creditsDue)
-        f = math.floor(c)
-        d = c - f
-        if d == 0 or d == 0.5:
-            return c # no change
-        if d < 0.5:
-            return f + 0.5
-        return math.ceil(c)
+        return roundCredits(float(obj.creditsDue))
 
     def get_creditTypes(self, obj):
         qset = obj.goal.cmegoal.creditTypes.all()
         return [NestedCreditTypeSerializer(m).data for m in qset]
+
+    def instructions(self, obj):
+        """Returns cmeTag.instructions or empty str"""
+        cmeTag = obj.goal.cmegoal.cmeTag
+        if cmeTag:
+            return cmeTag.instructions
+        return ''
+
+class SRCmeGoalSubSerializer(serializers.ModelSerializer):
+    creditsLeft = serializers.SerializerMethodField()
+    creditTypes = serializers.SerializerMethodField()
+    instructions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserGoal
+        fields = (
+            'creditsLeft',
+            'creditTypes',
+            'instructions'
+        )
+
+    def get_creditsLeft(self, obj):
+        return roundCredits(float(obj.creditsDue))
+
+    def get_creditTypes(self, obj):
+        qset = obj.goal.srcmegoal.creditTypes.all()
+        return [NestedCreditTypeSerializer(m).data for m in qset]
+
+    def instructions(self, obj):
+        """Returns cmeTag.instructions or empty str"""
+        cmeTag = obj.goal.cmegoal.cmeTag
+        if cmeTag:
+            return cmeTag.instructions
+        return ''
 
 class UserGoalReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
@@ -164,12 +190,14 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
 
     def get_extra(self, obj):
         gtype = obj.goal.goalType.name
-        if gtype == GoalType.CME:
-            s = CmeGoalSubSerializer(obj)
-        elif gtype == GoalType.LICENSE:
+        if gtype == GoalType.LICENSE:
             s = LicenseGoalSubSerializer(obj)
+        elif gtype == GoalType.CME:
+            s = CmeGoalSubSerializer(obj)
+        elif gtype == GoalType.SRCME:
+            s = SRCmeGoalSubSerializer(obj)
         else:
-            s = TrainingGoalSubSerializer(obj)
+            return None
         return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>
 
     class Meta:
@@ -249,47 +277,3 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
             for ug in to_update:
                 ug.recompute()
         return instance
-
-class UserTrainingGoalUpdateSerializer(serializers.Serializer):
-    completeDate = serializers.DateTimeField()
-    documents = serializers.PrimaryKeyRelatedField(
-        queryset=Document.objects.all(),
-        many=True,
-        required=False
-    )
-
-    class Meta:
-        fields = (
-            'id',
-            'completeDate',
-            'documents'
-        )
-
-    def update(self, instance, validated_data):
-        """Update usergoal and create new usergoal if needed"""
-        completeDate = validated_data['completeDate']
-        docs = validated_data.get('documents', [])
-        instance.completeDate = completeDate
-        instance.status = UserGoal.COMPLETED
-        instance.compliance = UserGoal.COMPLIANT
-        instance.save(update_fields=('completeDate','status','compliance'))
-        if 'documents' in validated_data:
-            docs = validated_data['documents']
-            instance.documents.set(docs)
-        user = instance.user
-        basegoal = instance.goal
-        tgoal = basegoal.traingoal
-        if basegoal.interval:
-            year = instance.dueDate.year + basegoal.interval
-            nextDueDate = makeAwareDatetime(year, instance.dueDate.month, instance.dueDate.day)
-            if not UserGoal.objects.filter(user=user, goal=basegoal, dueDate=nextDueDate).exists():
-                usergoal = UserGoal.objects.create(
-                        user=user,
-                        goal=basegoal,
-                        dueDate=nextDueDate,
-                        status=UserGoal.IN_PROGRESS
-                    )
-                logger.info('Created UserTrainingGoal: {0}'.format(usergoal))
-        return instance
-
-
