@@ -139,7 +139,7 @@ class CmeGoalSubSerializer(serializers.ModelSerializer):
         qset = obj.goal.cmegoal.creditTypes.all()
         return [NestedCreditTypeSerializer(m).data for m in qset]
 
-    def instructions(self, obj):
+    def get_instructions(self, obj):
         """Returns cmeTag.instructions or empty str"""
         cmeTag = obj.goal.cmegoal.cmeTag
         if cmeTag:
@@ -166,7 +166,7 @@ class SRCmeGoalSubSerializer(serializers.ModelSerializer):
         qset = obj.goal.srcmegoal.creditTypes.all()
         return [NestedCreditTypeSerializer(m).data for m in qset]
 
-    def instructions(self, obj):
+    def get_instructions(self, obj):
         """Returns cmeTag.instructions or empty str"""
         cmeTag = obj.goal.cmegoal.cmeTag
         if cmeTag:
