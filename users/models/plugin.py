@@ -4,7 +4,7 @@ import logging
 from datetime import timedelta
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models import Subquery
+from django.db.models import Q, Subquery
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.contrib.postgres.fields import JSONField
@@ -328,28 +328,53 @@ class RecAllowedUrlManager(models.Manager):
             activityDate__gte=startdate,
             tags=tag
         )
-        exclude_offers = OrbitCmeOffer.objects.select_related('url').filter(**filter_kwargs)
-        # This query gets distinct AllowedUrls for the given tag and excludes
-        # any urls with the same set_id as those contained in exclude_offers
+        Q_offer_setid = Q(url__set_id='')
+        # redeemed offers whose aurl.set_id is blank
+        offers_blank_setid = OrbitCmeOffer.objects.select_related('url').filter(Q_offer_setid, **filter_kwargs)
+        # redeemed offers whose aurl.set_id is not blank (e.g. abs/pdf versions of the same article have the same set_id)
+        offers_setid = OrbitCmeOffer.objects.select_related('url').filter(~Q_offer_setid, **filter_kwargs)
         aurl_kwargs = dict(
             valid=True,
             cmeTags=tag,
             host__has_paywall=False, # omit paywalled articles since not all users have access to them
             host__main_host__isnull=True, # omit proxy hosts
         )
-        aurls = AllowedUrl.objects \
+        Q_setid = Q(set_id='')
+        # This query gets distinct AllowedUrls with blank set_id for the given tag and excludes
+        # any urls with the same pk as those contained in offers_blank_setid
+        aurls_blank_setid = AllowedUrl.objects \
                 .select_related('host') \
-                .filter(**aurl_kwargs) \
-                .exclude(set_id__in=Subquery(exclude_offers.values('url__set_id').distinct())) \
+                .filter(Q_setid, **aurl_kwargs) \
+                .exclude(pk__in=Subquery(offers_blank_setid.values('pk'))) \
                 .order_by('-created')
-        ##print(aurls.count())
-        for aurl in aurls:
-            # check if user already has a rec with this set_id
-            qs = user.recaurls.select_related('url').filter(url__set_id=aurl.set_id)
-            if qs.exists():
-                continue
+        # This query gets distinct AllowedUrls with non-blank set_id for the given tag and excludes
+        # any urls with the same set_id as those contained in exclude_offers
+        aurls_setid = AllowedUrl.objects \
+                .select_related('host') \
+                .filter(~Q_setid, **aurl_kwargs) \
+                .exclude(set_id__in=Subquery(offers_setid.values('url__set_id').distinct())) \
+                .order_by('-created')
+        # evaluate aurls_blank_setid first
+        for aurl in aurls_blank_setid:
             m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
             if created:
+                #print('blank set_id recaurl {0}'.format(m))
+                num_created += 1
+                if num_created >= num_recs:
+                    break
+        if num_created >= num_recs:
+            return num_created
+        #print('Num aurl blank set_id: {0}'.format(num_created))
+        # evalute aurls_setid if still need more recs
+        for aurl in aurls_setid:
+            if aurl.set_id:
+                # check if user already has a rec with this set_id
+                qs = user.recaurls.select_related('url').filter(url__set_id=aurl.set_id)
+                if qs.exists():
+                    continue
+            m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
+            if created:
+                #print('set_id recaurl {0}'.format(m))
                 num_created += 1
                 if num_created >= num_recs:
                     break
