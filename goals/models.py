@@ -323,7 +323,7 @@ class LicenseGoalManager(models.Manager):
                 .prefetch_related(
                         'goal__degrees',
                         'goal__specialties',
-                        'goal_subspecialties')
+                        'goal__subspecialties')
         Q_degree = Q(goal__degrees__in=profileDegrees) | Q(goal__degrees=None)
         Q_goal = Q_degree
         if profileSpecs:
@@ -677,7 +677,7 @@ class SRCmeGoalManager(models.Manager):
                 .prefetch_related(
                         'goal__degrees',
                         'goal__specialties',
-                        'goal_subspecialties')
+                        'goal__subspecialties')
 
         Q_degree = Q(goal__degrees__in=profileDegrees) | Q(goal__degrees=None)
         Q_goal = Q_degree
