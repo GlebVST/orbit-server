@@ -46,6 +46,30 @@ class LogValidationErrorMixin(object):
         return response
 
 
+# OrgGroup (Enterprise Practice Divisions)
+class OrgGroupList(LogValidationErrorMixin, generics.ListCreateAPIView):
+    serializer_class = OrgGroupSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        """Return only the groups belonging to the same Org as the request.user"""
+        return OrgGroup.objects.filter(organization=self.request.user.profile.organization).order_by('name')
+
+    def perform_create(self, serializer):
+        req_user = self.request.user # OrgMember user with is_admin=True
+        org = req_user.profile.organization
+        if not org:
+            error_msg = 'Admin user is not assigned to any organization.'
+            raise serializers.ValidationError({'name': error_msg}, code='invalid')
+            return
+        instance = serializer.save(organization=org)
+        return instance
+
+class OrgGroupDetail(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    queryset = OrgGroup.objects.all()
+    serializer_class = OrgGroupSerializer
+
 class OrgMemberFilterBackend(BaseFilterBackend):
     def get_schema_fields(self, view):
         return [
@@ -69,6 +93,13 @@ class OrgMemberFilterBackend(BaseFilterBackend):
                 required=False,
                 type='string',
                 description='Filter by verified: 0 or 1'
+                ),
+            coreapi.Field(
+                name='group',
+                location='query',
+                required=False,
+                type='string',
+                description='Filter by groupId'
                 ),
             coreapi.Field(
                 name='o',
@@ -102,16 +133,22 @@ class OrgMemberFilterBackend(BaseFilterBackend):
             verified = bool(int(q_verified))
         except ValueError:
             verified = None
+        q_group = request.query_params.get('group', '').strip()
+        try:
+            groupId = int(q_group)
+        except ValueError:
+            groupId = None
         # basic filter kwargs
         filter_kwargs = {
             'organization': org,
             'removeDate__isnull': True,
-            'pending': False
         }
         if compliance is not None:
             filter_kwargs['compliance'] = compliance
         if verified is not None:
             filter_kwargs['user__profile__verified'] = verified
+        if groupId is not None:
+            filter_kwargs['group'] = groupId
         o = request.query_params.get('o', 'lastname').strip()
         otype = request.query_params.get('otype', 'a').strip() # sort primary field by ASC/DESC
         # set orderByFields from o
@@ -170,6 +207,21 @@ class OrgMemberList(generics.ListCreateAPIView):
             error_msg = "Failed to find SubscriptionPlan for Organization of admin user: {0.name}".format(org)
             raise serializers.ValidationError({'email': error_msg}, code='invalid')
             return
+        # check group
+        groupid = self.request.data.get('group', None)
+        if group:
+            # verify that group.org = req_user's org
+            try:
+                orggroup = OrgGroup.objects.get(pk=groupid)
+            except OrgGroup.DoesNotExist:
+                error_msg = 'Invalid group id - does not exist.'
+                raise serializers.ValidationError({'group': error_msg}, code='invalid')
+                return
+            else:
+                if orggroup.organization != org:
+                    error_msg = 'Invalid group id for this org.'
+                    raise serializers.ValidationError({'group': error_msg}, code='invalid')
+                    return
         # check email
         email = self.request.data.get('email', '')
         if not email:

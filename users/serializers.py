@@ -31,12 +31,8 @@ class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     )
     class Meta:
         model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'specialties', 'srcme_only', 'notes')
+        fields = ('id', 'name', 'priority', 'description', 'specialties', 'srcme_only', 'instructions')
 
-class CmeTagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'srcme_only', 'notes')
 
 # Used by auth_view to serialize the SA-CME tag
 class ActiveCmeTagSerializer(serializers.ModelSerializer):
@@ -47,7 +43,7 @@ class ActiveCmeTagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only', 'notes')
+        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only', 'instructions')
 
 
 class NestedStateSerializer(serializers.ModelSerializer):
@@ -137,7 +133,8 @@ class ManageProfileCmetagSerializer(serializers.Serializer):
                     pct.save()
                     logger.info('Updated ProfileCmetag {0}'.format(pct))
         # emit profile_saved signal
-        ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
+        if user.groups.filter(name=GROUP_ENTERPRISE_MEMBER).exists():
+            ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
 class ProfileInitialUpdateSerializer(serializers.ModelSerializer):

@@ -12,8 +12,7 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
-from users.emailutils import getHostname, sendPasswordTicketEmail
-from smtplib import SMTPException
+from django.utils.functional import cached_property
 
 logger = logging.getLogger('gen.models')
 
@@ -76,7 +75,7 @@ class CmeTagManager(models.Manager):
 
 @python_2_unicode_compatible
 class CmeTag(models.Model):
-    name= models.CharField(max_length=40, unique=True)
+    name= models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
     priority = models.IntegerField(
         default=0,
         help_text='Used for non-alphabetical sort.'
@@ -84,7 +83,7 @@ class CmeTag(models.Model):
     description = models.CharField(max_length=200, unique=True, help_text='Long-form name. Must be unique. Used on certificates.')
     srcme_only = models.BooleanField(default=False,
             help_text='True if tag is only valid for self-reported cme')
-    notes = models.TextField(default='', help_text='Long-form text. Used for self-reported cme tags')
+    instructions = models.TextField(default='', help_text='Instructions to provider. May contain Markdown-formatted text.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = CmeTagManager()
@@ -372,11 +371,10 @@ class SubSpecialty(models.Model):
         unique_together = ('specialty', 'name')
         ordering = ['name',]
 
-
 @python_2_unicode_compatible
 class Organization(models.Model):
     name = models.CharField(max_length=100, unique=True)
-    code = models.CharField(max_length=20, unique=True, help_text='Org code for display')
+    code = models.CharField(max_length=20, unique=True, help_text='Org short code (ASCII only - used to create joinCode for command-line arguments)')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     credits = models.FloatField(default=0,
@@ -392,175 +390,12 @@ class Organization(models.Model):
     def __str__(self):
         return self.code
 
-
-class OrgFileManager(models.Manager):
-
-    def getCsvFileDialect(self, orgfile):
-        """This is called the OrgFileUpload hander to check the file dialect
-        Args:
-            orgfile: OrgFile instance
-        Expected file format: lastName, firstName, email, role
-        Returns: str - dialect found. None if none found
-        """
-        import csv
-        with open(orgfile.document, 'rb') as f:
-            try:
-                dialect = csv.Sniffer().sniff(f.read(1024))
-            except csv.Error:
-                logger.error('getCsvFileDialect csv.Error for file_id {0.pk}'.format(orgfile))
-                return None
-            else:
-                return dialect
-
 def orgfile_document_path(instance, filename):
+    """Used as the OrgFile document FileField upload_to value
+    Note: tried moving it to same file as OrgFile but it resulted in
+    a migration error
+    """
     return '{0}/org_{1}/{2}'.format(settings.ORG_MEDIA_BASEDIR, instance.organization.id, filename)
-
-@python_2_unicode_compatible
-class OrgFile(models.Model):
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        related_name='orgfiles',
-        db_index=True
-    )
-    organization = models.ForeignKey(Organization,
-        on_delete=models.CASCADE,
-        db_index=True,
-        related_name='orgfiles'
-    )
-    document = models.FileField(upload_to=orgfile_document_path,
-        help_text='Original document uploaded by user')
-    csvfile = models.FileField(null=True, blank=True, upload_to=orgfile_document_path,
-            help_text='If original document is not in plain-text CSV, then upload converted file here')
-    name = models.CharField(max_length=255, blank=True, help_text='document file name')
-    content_type = models.CharField(max_length=100, blank=True, help_text='document content_type')
-    processed = models.BooleanField(default=False)
-    created = models.DateTimeField(auto_now_add=True)
-    objects = OrgFileManager()
-
-    class Meta:
-        verbose_name_plural = 'Enterprise File Uploads'
-
-    def __str__(self):
-        return self.name
-
-
-class OrgMemberManager(models.Manager):
-
-    def makeFullName(self, firstName, lastName):
-        return u"{0} {1}".format(firstName.upper(), lastName.upper())
-
-    def createMember(self, org, profile, is_admin=False, pending=False):
-        """Create new OrgMember instance.
-        Args:
-            org: Organization instance
-            profile: Profile instance
-            is_admin: bool default is False
-            is_pending: bool default is False
-        Returns: OrgMember instance
-        """
-        user = profile.user
-        fullName = self.makeFullName(profile.firstName, profile.lastName)
-        compliance = 4 if is_admin else 2
-        m = self.model.objects.create(
-                organization=org,
-                user=user,
-                fullname=fullName,
-                compliance=compliance,
-                is_admin=is_admin,
-                pending=pending
-            )
-        return m
-
-    def search_filter(self, search_term, filter_kwargs, orderByFields):
-        """Returns a queryset that filters active OrgMembers by the given org and search_term
-        Args:
-            search_term: str : to query fullname and username
-            filter_kwargs: dict must contain key: organization, else raise KeyError
-            orderByFields: tuple of fields to order by
-        Returns: queryset of active OrgMembers
-        """
-        org =  filter_kwargs['organization'] # ensure org is contained to filter by a given organization
-        base_qs = self.model.objects.select_related('user', 'user__profile').filter(**filter_kwargs)
-        qs1 = base_qs.filter(fullname__contains=search_term.upper())
-        qs2 = base_qs.filter(user__username__istartswith=search_term)
-        qs = qs1
-        if not qs.exists():
-            qs = qs2
-        return qs.order_by(*orderByFields)
-
-    def getInactiveRemovedUsers(self, org):
-        """Find the users removed from the given org who do not
-        currently have a paid subscription (regardless of status)
-        Returns: list of User instances
-        """
-        qset = OrgMember.objects.filter(organization=org, removeDate__isnull=False).order_by('created')
-        if not qset.exists():
-            return []
-        users = []
-        for m in qset:
-            user = m.user
-            qs = user.subscriptions.select_related('plan').order_by('-created')
-            if qs.exists():
-                user_subs = qs[0]
-                if not user_subs.plan.isPaid():
-                    users.append(user)
-            else:
-                users.append(user)
-        return users
-
-    def sendPasswordTicket(self, socialId, member, apiConn):
-        hostname = getHostname() # this ensures hostname is either prod or test server (not admin server)
-        UI_LOGIN_URL = 'https://{0}{1}'.format(hostname, settings.UI_LINK_LOGIN)
-        ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
-        logger.debug('ticket_url for {0}={1}'.format(socialId, ticket_url))
-        try:
-            delivered = sendPasswordTicketEmail(member, ticket_url)
-            if delivered:
-                member.setPasswordEmailSent = True
-                member.save(update_fields=('setPasswordEmailSent',))
-        except SMTPException as e:
-            error_msg = u'sendPasswordTicketEmail failed for org member {0.fullname}. ticket_url={1}'.format(member, ticket_url)
-            if settings.ENV_TYPE == settings.ENV_PROD:
-                logger.exception(error_msg)
-            else:
-                logger.warning(error_msg)
-        return member
-
-@python_2_unicode_compatible
-class OrgMember(models.Model):
-    organization = models.ForeignKey(Organization,
-        on_delete=models.CASCADE,
-        db_index=True,
-        related_name='orgmembers'
-    )
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        db_index=True,
-        related_name='orgmembers',
-    )
-    fullname = models.CharField(max_length=100, db_index=True,
-            help_text='Uppercase first and last name for search')
-    is_admin = models.BooleanField(default=False, db_index=True,
-            help_text='True if user is an admin for this organization')
-    removeDate = models.DateTimeField(null=True, blank=True,
-            help_text='date the member was removed')
-    compliance = models.PositiveSmallIntegerField(default=1, db_index=True,
-            help_text='Cached compliance level aggregated over user goals')
-    setPasswordEmailSent = models.BooleanField(default=False,
-            help_text='Set to True when password-ticket email is sent')
-    orgfiles = models.ManyToManyField(OrgFile, blank=True, related_name='orgmembers')
-    pending = models.BooleanField(default=False,
-            help_text='Set to True when invitation is sent to existing user to join team.')
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-    objects = OrgMemberManager()
-
-    class Meta:
-        unique_together = ('organization', 'user')
-        verbose_name_plural = 'Enterprise Members'
-
-    def __str__(self):
-        return '{0.user}/{0.organization}'.format(self)
 
 
 class ProfileManager(models.Manager):
@@ -797,7 +632,11 @@ class Profile(models.Model):
 
     def getActiveCmetags(self):
         """Need to query the through relation to filter by is_active=True"""
-        return ProfileCmetag.objects.filter(profile=self, is_active=True)
+        return ProfileCmetag.objects.select_related('tag').filter(profile=self, is_active=True)
+
+    def getActiveSRCmetags(self):
+        """Need to query the through relation to filter by is_active=True"""
+        return ProfileCmetag.objects.select_related('tag').filter(profile=self, is_active=True, tag__srcme_only=True)
 
     def getAuth0Id(self):
         delim = '|'
@@ -867,6 +706,47 @@ class Profile(models.Model):
                 pct.save(update_fields=('is_active',))
                 logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
         return add_tags
+
+    @cached_property
+    def activeCmeTagSet(self):
+        """All active pcts. Used in goal matching calculations"""
+        return set([m.pk for m in self.getActiveCmetags()])
+
+    @cached_property
+    def activeSRCmeTagSet(self):
+        """Active srcme_only pcts. Used in goal matching calculations"""
+        return set([m.pk for m in self.getActiveSRCmetags()])
+
+    @cached_property
+    def degreeSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.degrees.all()])
+
+    @cached_property
+    def specialtySet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.specialties.all()])
+
+    @cached_property
+    def subspecialtySet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.subspecialties.all()])
+
+    @cached_property
+    def stateSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.states.all()])
+
+    @cached_property
+    def deaStateSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.deaStates.all()])
+
+    @cached_property
+    def hospitalSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.hospitals.all()])
+
 
 # Many-to-many through relation between Profile and CmeTag
 class ProfileCmetag(models.Model):

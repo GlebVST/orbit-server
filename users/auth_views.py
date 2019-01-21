@@ -18,7 +18,7 @@ from common.logutils import *
 # app
 from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
-from .serializers import ProfileReadSerializer, CmeTagSerializer, ActiveCmeTagSerializer, UserSubsReadSerializer, InvitationDiscountReadSerializer
+from .serializers import ProfileReadSerializer, ActiveCmeTagSerializer, UserSubsReadSerializer, InvitationDiscountReadSerializer
 from .feed_serializers import CreditTypeSerializer
 
 logger = logging.getLogger('api.auth')

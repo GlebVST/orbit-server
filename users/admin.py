@@ -71,10 +71,16 @@ class OrgForm(forms.ModelForm):
         m.save()
         return m
 
+class OrgGroupInline(admin.TabularInline):
+    model = OrgGroup
+
 class OrgAdmin(admin.ModelAdmin):
     list_display = ('id', 'joinCode', 'code', 'name', 'credits', 'creditStartDate')
     form = OrgForm
     ordering = ('joinCode',)
+    inlines = [
+        OrgGroupInline,
+    ]
 
 class OrgFileAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created')
@@ -82,7 +88,7 @@ class OrgFileAdmin(admin.ModelAdmin):
     ordering = ('-created',)
 
 class OrgMemberAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'pending', 'removeDate')
+    list_display = ('id', 'organization', 'group', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'pending', 'removeDate')
     list_select_related = True
     list_filter = ('is_admin', 'pending', 'setPasswordEmailSent', 'organization', UserFilter)
     raw_id_fields = ('orgfiles',)
@@ -92,7 +98,7 @@ class OrgMemberAdmin(admin.ModelAdmin):
         pass
 
 class CmeTagAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'priority', 'description', 'srcme_only', 'notes')
+    list_display = ('id', 'priority', 'name', 'description', 'srcme_only', 'instructions')
     list_filter = ('srcme_only',)
 
 class CountryAdmin(admin.ModelAdmin):
@@ -179,7 +185,7 @@ class SponsorAdmin(admin.ModelAdmin):
 
 
 class CreditTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'auditname', 'sort_order', 'formatDegrees')
+    list_display = ('abbrev', 'name', 'auditname', 'sort_order', 'formatDegrees')
     filter_horizontal = ('degrees',)
 
     def get_queryset(self, request):
@@ -444,6 +450,7 @@ class AllowedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'eligible_site', 'url', 'valid', 'set_id', 'modified')
     list_select_related = ('host', 'eligible_site')
     list_filter = ('valid','host',)
+    filter_horizontal = ('cmeTags',)
     ordering = ('-modified',)
 
 class RejectedUrlAdmin(admin.ModelAdmin):
@@ -499,10 +506,13 @@ class ActivityLogAdmin(admin.ModelAdmin):
         return str(obj.activity_set.url)
 
 class RecAllowedUrlAdmin(admin.ModelAdmin):
-    list_display = ('id','user','cmeTag','url')
-    raw_id_fields = ('url',)
+    list_display = ('id','user','cmeTag','url', 'offerid')
+    raw_id_fields = ('url', 'offer')
     list_filter = (UserFilter, 'cmeTag')
     ordering = ('cmeTag','user')
+
+    def offerid(self, obj):
+        return obj.offer.pk if obj.offer else None
 
     class Media:
         pass
