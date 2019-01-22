@@ -569,6 +569,17 @@ class MailchimpApi(EspApiBackend):
         for l in [self.toUpdate, self.toCreate]:
             for d in l:
                 for k,v in d.items():
+                    # Format the date values into MM/DD/YEAR (to match date
+                    # field type from MailChimp)
+                    DATE_KEYS = ['SUBSCN_FDT', 'SUBSCN_EDT', 'SUBSCN_SDT']
+                    for dateKey in DATE_KEYS:
+                        if dateKey in v.keys():
+                            dateVal = v[dateKey]
+                            year = dateVal[0:4]
+                            month = dateVal[5:7]
+                            day = dateVal[8:10]
+                            formattedDateVal = month + "/" + day + "/" + year
+                            v.update({dateKey : formattedDateVal})
                     batch_operations_list = self._addToBatchOperationsList(batch_operations_list, k, v)
 
                     #if k == "asdf@asdf.com" or k == u'asdf@asdf.com':
