@@ -177,10 +177,12 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     goalTypeId = serializers.PrimaryKeyRelatedField(source='goal.goalType.id', read_only=True)
     goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
+    is_composite_goal = serializers.ReadOnlyField()
     documents = DocumentReadSerializer(many=True, required=False)
     title = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     extra = serializers.SerializerMethodField()
+    state = serializers.PrimaryKeyRelatedField(read_only=True)
 
     def get_progress(self, obj):
         return obj.progress
@@ -207,6 +209,8 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
             'user',
             'goalType',
             'goalTypeId',
+            'is_composite_goal',
+            'state',
             'title',
             'dueDate',
             'status',
@@ -268,10 +272,10 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
                 qset = cmeGoal.usercmegoals.filter(user=instance.user)
                 for ug in qset: # UserGoal qset
                     to_update.add(ug)
-            for tGoal in licenseGoal.traingoals.all():
+            for srcmeGoal in licenseGoal.srcmegoals.all():
                 # use related name on UserGoal.goal FK field
-                logger.debug('trainGoal: {0.pk}/{0}'.format(tGoal))
-                qset = tGoal.goal.usergoals.filter(user=instance.user)
+                logger.debug('srcmeGoal: {0.pk}/{0}'.format(srcmeGoal))
+                qset = srcmeGoal.usersrcmegoals.filter(user=instance.user)
                 for ug in qset: # UserGoal qset
                     to_update.add(ug)
             for ug in to_update:

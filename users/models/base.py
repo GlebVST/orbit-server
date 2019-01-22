@@ -129,6 +129,17 @@ class State(models.Model):
         related_name='states',
         help_text='cmeTags to be added to profile for users who select this state'
     )
+    deaTags = models.ManyToManyField(CmeTag,
+        through='StateDeatag',
+        blank=True,
+        related_name='deastates',
+        help_text='cmeTags to be added to profile for users with DEA licenses'
+    )
+    doTags = models.ManyToManyField(CmeTag,
+        blank=True,
+        related_name='dostates',
+        help_text='cmeTags to be added to profile for users with DO degree'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -142,6 +153,28 @@ class State(models.Model):
     def formatTags(self):
         return ", ".join([t.name for t in self.cmeTags.all()])
     formatTags.short_description = "cmeTags"
+
+    def formatDEATags(self):
+        return ", ".join([t.name for t in self.deaTags.all()])
+    formatTags.short_description = "deaTags"
+
+    def formatDOTags(self):
+        return ", ".join([t.name for t in self.doTags.all()])
+    formatTags.short_description = "doTags"
+
+# Many-to-many through relation between State and CmeTag for DEA
+class StateDeatag(models.Model):
+    state = models.ForeignKey(State, on_delete=models.CASCADE, db_index=True)
+    tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
+    dea_in_state = models.BooleanField(default=True,
+        help_text='True if user needs DEA license in this particular state. False if any state')
+
+    class Meta:
+        unique_together = ('state','tag')
+        ordering = ['tag',]
+
+    def __str__(self):
+        return '{0.state}|{0.tag}'.format(self)
 
 
 
@@ -677,10 +710,14 @@ class Profile(models.Model):
             specialties: tags whose name matches the specialty name
             subspecialties: subspec.cmeTags
             states: state.cmeTags
+            deaStates: state.deaTags
+            state.doTags if DO degree
         Returns: set of CmeTag instances
         """
         satag = CmeTag.objects.get(name=CMETAG_SACME)
         isPhysician = self.isPhysician()
+        deg_abbrevs = [d.abbrev for d in self.degrees.all()]
+        is_do = Degree.DO in deg_abbrevs
         add_tags = set([]) # tags to be added (or re-activated if already exist)
         specnames = [ps.name for ps in self.specialties.all()]
         spectags = CmeTag.objects.filter(name__in=specnames)
@@ -689,12 +726,26 @@ class Profile(models.Model):
                 add_tags.add(satag)
         for t in spectags:
             add_tags.add(t)
-        for m in self.subspecialties.all():
-            for t in m.cmeTags.all():
+        for subspec in self.subspecialties.all():
+            for t in subspec.cmeTags.all():
                 add_tags.add(t)
-        for m in self.states.all():
-            for t in m.cmeTags.all():
+        for state in self.states.all():
+            for t in state.cmeTags.all():
                 add_tags.add(t)
+            # deaTags
+            dcts = StateDeatag.objects.filter(state=state)
+            for dct in dcts:
+                if dct.dea_in_state:
+                    # user must have DEA license in this state
+                    if state.pk in self.deaStateSet:
+                        add_tags.add(dct.tag)
+                elif self.hasDEA is True:
+                    # user has DEA license in some state
+                    add_tags.add(dct.tag)
+            # doTags
+            if is_do:
+                for t in state.doTags.all():
+                    add_tags.add(t)
         # Process add_tags
         for t in add_tags:
             # tag may exist from a previous assignment
