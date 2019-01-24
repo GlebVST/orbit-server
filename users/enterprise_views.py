@@ -209,7 +209,7 @@ class OrgMemberList(generics.ListCreateAPIView):
             return
         # check group
         groupid = self.request.data.get('group', None)
-        if group:
+        if groupid:
             # verify that group.org = req_user's org
             try:
                 orggroup = OrgGroup.objects.get(pk=groupid)
