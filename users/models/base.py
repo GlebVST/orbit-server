@@ -760,13 +760,15 @@ class Profile(models.Model):
 
     @cached_property
     def activeCmeTagSet(self):
-        """All active pcts. Used in goal matching calculations"""
-        return set([m.pk for m in self.getActiveCmetags()])
+        """All active pcts. Used in goal matching calculations
+        getActiveCmetags returns pct qset. Return tag pks from it.
+        """
+        return set([m.tag.pk for m in self.getActiveCmetags()])
 
     @cached_property
     def activeSRCmeTagSet(self):
         """Active srcme_only pcts. Used in goal matching calculations"""
-        return set([m.pk for m in self.getActiveSRCmetags()])
+        return set([m.tag.pk for m in self.getActiveSRCmetags()])
 
     @cached_property
     def degreeSet(self):

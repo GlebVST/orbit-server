@@ -280,11 +280,12 @@ class EntryManager(models.Manager):
             )
             return res
 
-    def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
+    def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False, creditTypes=None):
         """
         Total valid Srcme credits over the given time period for the given user.
         Optional filter by specific tag (cmeTag object).
         Optional filter by untagged only. This arg cannot be specified together with tag.
+        Optional filter by list of creditType pkeyids.
         """
         filter_kwargs = dict(
             valid=True,
@@ -295,6 +296,8 @@ class EntryManager(models.Manager):
         )
         if tag:
             filter_kwargs['tags__exact'] = tag
+        if creditTypes:
+            filter_kwargs['creditType__in'] = creditTypes
         qset = self.model.objects.select_related('entryType').filter(**filter_kwargs)
         if untaggedOnly:
             qset = qset.annotate(num_tags=Count('tags')).filter(num_tags=0)
