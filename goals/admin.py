@@ -330,10 +330,11 @@ class CmeBaseGoalAdmin(admin.ModelAdmin):
 
 
 class UserGoalAdmin(admin.ModelAdmin):
-    list_display = ('id','user','goal','title','status','getDueDate','progress', 'license','creditsDue', 'lastModified')
+    list_display = ('id','user','goal','title','status','getDueDate','progress', 'is_composite_goal','creditsDue', 'lastModified')
     list_selected_related = True
-    list_filter = ('status', 'goal__goalType', UserFilter)
+    list_filter = ('is_composite_goal', 'status', 'goal__goalType', UserFilter)
     ordering = ('-modified',)
+    raw_id_fields = ('documents','constituentGoals',)
 
     class Media:
         pass

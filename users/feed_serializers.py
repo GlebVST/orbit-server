@@ -244,8 +244,10 @@ class BRCmeCreateSerializer(serializers.Serializer):
         Note: this expects the following keys in validated_data:
             user: User instance
         """
+        from goals.models import UserGoal
+
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
-        creditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
+        ama1CreditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
         offer = validated_data['offerId']
         user=validated_data.get('user')
         # take care of user's CME credit limit
@@ -283,7 +285,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             sponsor=offer.sponsor,
             activityDate=offer.activityDate,
             description=validated_data.get('description'),
-            creditType=creditType,
+            creditType=ama1CreditType,
             user=user
         )
         # associate tags with saved entry
@@ -319,15 +321,31 @@ class BRCmeCreateSerializer(serializers.Serializer):
             if not qs.exists():
                 num_added = RecAllowedUrl.objects.updateRecsForUser(user, recTag)
                 logger.debug('Refill RecAllowedUrl for {0}/{1}'.format(user, recTag))
-        # update usergoals
+        # update affected usergoals
+        Q_c = Q(creditTypes=None) | Q(creditTypes=ama1CreditType) # accepts AMA_PRA_1 or any
+        goal_filter_kwargs = {
+            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS], # handleRedeemOffer on these statuses only
+        }
         for tag in entry.tags.all():
-            qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-            if qs.exists():
-                ug = qs[0]
-                ug.handleRedeemOffer()
+            Q_tag = Q(cmeTag=tag)
+            qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal','pk')
+            for ug in qs:
+                if not ug.is_composite_goal:
+                    ug.handleRedeemOffer()
+                else:
+                    ug.recompute()
+                logger.info('handleRedeemOffer for: {0}'.format(ug))
             # associate tag with AllowedUrl instance if not already in set
             if tag.name != CMETAG_SACME:
                 aurl.cmeTags.add(tag) # add if not in set
+        # handle ANY_TOPIC goal outside of for-loop
+        Q_tag = Q(cmeTag__isnull=True) # tag-specific or ANY_TOPIC goals are eligible
+        qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal','pk')
+        for ug in qs:
+            if not ug.is_composite_goal:
+                ug.handleRedeemOffer()
+            else:
+                ug.recompute()
         return instance
 
 # Serializer for Update BrowserCme entry
@@ -360,6 +378,8 @@ class BRCmeUpdateSerializer(serializers.Serializer):
         )
 
     def update(self, instance, validated_data):
+        from goals.models import UserGoal
+        ama1CreditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
         entry = instance.entry
         user = entry.user
         entry.description = validated_data.get('description', entry.description)
@@ -375,16 +395,21 @@ class BRCmeUpdateSerializer(serializers.Serializer):
                 entry.tags.set(vtags)
             else:
                 entry.tags.set([])
+            # recompute affected usergoals for newlyAdded tags
+            Q_c = Q(creditTypes=None) | Q(creditTypes=ama1CreditType) # accepts AMA_PRA_1 or any
+            goal_filter_kwargs = {
+                'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS],
+            }
             for tag in newlyAdded:
-                qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-                if qs.exists():
-                    ug = qs[0]
-                    ug.handleRedeemOffer()
-            for tag in delTags:
-                qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-                if qs.exists():
-                    ug = qs[0]
-                    ug.recompute() # just recompute
+                Q_tag = Q(cmeTag=tag)
+                qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal','pk')
+                for ug in qs:
+                    if not ug.is_composite_goal:
+                        ug.handleRedeemOffer()
+                    else:
+                        ug.recompute()
+            # for delTags: a complete goal may revert back to in_progress but this will be handled by the recompute cron
+        # update brcme instance
         instance.competence = validated_data.get('competence', instance.competence)
         instance.performance = validated_data.get('performance', instance.performance)
         instance.commercialBias = validated_data.get('commercialBias', instance.commercialBias)
@@ -440,6 +465,7 @@ class SRCmeFormSerializer(serializers.Serializer):
         method, which then appear in validated_data:
             user: User instance
         """
+        from goals.models import UserGoal
         etype = EntryType.objects.get(name=ENTRYTYPE_SRCME)
         user = validated_data['user']
         creditType = validated_data['creditType']
@@ -464,17 +490,27 @@ class SRCmeFormSerializer(serializers.Serializer):
             entry=entry,
             credits=validated_data.get('credits')
         )
-        # recompute usergoals
+        # recompute affected usergoals
+        Q_c = Q(creditTypes=None) | Q(creditTypes=creditType)
+        goal_filter_kwargs = {
+            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS],
+        }
         for tag in entry.tags.all():
-            qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-            if qs.exists():
-                ug = qs[0]
-                logger.info('srcme: recompute UserGoal {0} for tag: {0.cmeTag}'.format(ug))
-                ug.recompute()
+            Q_tag = Q(cmeTag=tag)
+            qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal', 'pk')
+            for ug in qs:
+                ug.recompute() # composite goals recomputed at end
+                logger.info('srcme-form: recomputed UserGoal {0}'.format(ug))
+        # handle ANY_TOPIC goal outside of for-loop
+        Q_tag = Q(cmeTag__isnull=True) # tag-specific or ANY_TOPIC goals are eligible
+        qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal','pk')
+        for ug in qs:
+            ug.recompute() # composite goals recomputed at end
+            logger.info('srcme-form: recomputed any_topic UserGoal {0}'.format(ug))
         return instance
 
     def update(self, instance, validated_data):
-        #entry = Entry.objects.get(pk=instance.pk)
+        from goals.models import UserGoal
         entry = instance.entry
         user = entry.user
         entry.activityDate = validated_data.get('activityDate', entry.activityDate)
@@ -493,10 +529,15 @@ class SRCmeFormSerializer(serializers.Serializer):
                 entry.tags.set(vtags)
             else:
                 entry.tags.set([])
-            for tag in updTags:
-                qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-                if qs.exists():
-                    ug = qs[0]
+            # recompute affected usergoals for newlyAdded tags
+            Q_c = Q(creditTypes=None) | Q(creditTypes=entry.creditType)
+            goal_filter_kwargs = {
+                'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS],
+            }
+            for tag in newlyAdded:
+                Q_tag = Q(cmeTag=tag)
+                qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal','pk')
+                for ug in qs:
                     ug.recompute()
         if 'documents' in validated_data:
             currentDocs = entry.documents.all()

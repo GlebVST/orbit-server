@@ -133,7 +133,8 @@ class CmeGoalSubSerializer(serializers.ModelSerializer):
         )
 
     def get_creditsLeft(self, obj):
-        return roundCredits(float(obj.creditsDue))
+        """Return dueMonthly"""
+        return roundCredits(float(obj.creditsDueMonthly))
 
     def get_creditTypes(self, obj):
         qset = obj.goal.cmegoal.creditTypes.all()
@@ -160,6 +161,7 @@ class SRCmeGoalSubSerializer(serializers.ModelSerializer):
         )
 
     def get_creditsLeft(self, obj):
+        """returns full creditsDue"""
         return roundCredits(float(obj.creditsDue))
 
     def get_creditTypes(self, obj):
@@ -168,7 +170,7 @@ class SRCmeGoalSubSerializer(serializers.ModelSerializer):
 
     def get_instructions(self, obj):
         """Returns cmeTag.instructions or empty str"""
-        cmeTag = obj.goal.cmegoal.cmeTag
+        cmeTag = obj.goal.srcmegoal.cmeTag
         if cmeTag:
             return cmeTag.instructions
         return ''
@@ -267,17 +269,27 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
             to_update = set([])
             logger.debug('Finding usergoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
             for cmeGoal in licenseGoal.cmegoals.all():
-                # Use related_name on UserGoal.cmeGoals M2Mfield
                 logger.debug('cmeGoal: {0.pk}/{0}'.format(cmeGoal))
-                qset = cmeGoal.usercmegoals.filter(user=instance.user)
+                basegoal = cmeGoal.goal
+                qset = basegoal.usergoals.filter(user=instance.user) # using related_name on UserGoal.goal FK field
                 for ug in qset: # UserGoal qset
                     to_update.add(ug)
             for srcmeGoal in licenseGoal.srcmegoals.all():
-                # use related name on UserGoal.goal FK field
                 logger.debug('srcmeGoal: {0.pk}/{0}'.format(srcmeGoal))
-                qset = srcmeGoal.usersrcmegoals.filter(user=instance.user)
+                basegoal = srcmeGoal.goal
+                qset = basegoal.usergoals.filter(user=instance.user) # using related_name on UserGoal.goal FK field
                 for ug in qset: # UserGoal qset
                     to_update.add(ug)
+            # split ug to_update into individual vs composite
+            indiv, composite = [], []
             for ug in to_update:
+                if ug.is_composite_goal:
+                    composite.append(ug)
+                else:
+                    indiv.append(ug)
+            # recompute individual goals first before composite goals
+            for ug in indiv:
+                ug.recompute()
+            for ug in composite:
                 ug.recompute()
         return instance

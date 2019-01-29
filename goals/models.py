@@ -39,17 +39,17 @@ logger = logging.getLogger('gen.goals')
 INTERVAL_ERROR = u'Interval in years must be specified for recurring dueDateType'
 DUE_MONTH_ERROR = u'dueMonth must be a valid month in range 1-12'
 DUE_DAY_ERROR = u'dueDay must be a valid day for the selected month in range 1-31'
-LICENSE_GRACE_PERIOD_DAYS = 30
-NEW_PROFILE_GRACE_PERIOD_DAYS = 30
+MARGINAL_COMPLIANT_CUTOFF_DAYS = 30
+SRCME_MARGINAL_COMPLIANT_CUTOFF_DAYS = 90
 ANY_TOPIC = u'Any Topic'
 
-def makeDueDate(month, day, now, advance_if_past=True):
-    """Create dueDate as (now.year,month,day) and advance to next year if dueDate is < now
+def makeDueDate(year, month, day, now, advance_if_past=True):
+    """Create dueDate as (year,month,day) and advance to next year if dueDate is < now
     Returns: datetime
     """
-    dueDate = makeAwareDatetime(now.year, month, day)
+    dueDate = makeAwareDatetime(year, month, day)
     if dueDate < now and advance_if_past:
-        dueDate = makeAwareDatetime(now.year+1, month, day)
+        dueDate = makeAwareDatetime(year+1, month, day)
     return dueDate
 
 def nround(n):
@@ -273,7 +273,9 @@ class SRCmeBaseGoal(BaseGoal):
         verbose_name_plural = 'SRCME-Goals'
 
     def __str__(self):
-        return self.srcmegoal.cmeTag
+        if self.srcmegoal.cmeTag:
+            return self.srcmegoal.cmeTag
+        return ANY_TOPIC
 
     def clean(self):
         """Validation checks. Invoked by admin form
@@ -398,6 +400,43 @@ class LicenseGoal(models.Model):
             return False
         return True
 
+def groupGoalsByTagAndCreditType(goals):
+    """Group the given goals by tag and common-intersection creditTypes
+    Args:
+        goals: list of CmeGoals or SRCmeGoals
+    Returns: dict {tag.pk/None => (creditType.pks tuple) => list of goals}
+
+    """
+    allCreditTypes = set([m.pk for m in CreditType.objects.all()])
+    allct_tuple = tuple(allCreditTypes)
+    grouped = defaultdict(dict)
+    for goal in goals:
+        tag = goal.cmeTag
+        goalcts = goal.creditTypeSet
+        if not goalcts: # goal accept any (=all)
+            goalcts = allCreditTypes
+            ct_tuple = allct_tuple
+        else:
+            ct_tuple = tuple(goalcts) # hashable key for dict
+        if tag not in grouped:
+            grouped[tag][ct_tuple] = [goal,]
+        else:
+            gd = grouped[tag]
+            added = False
+            # does goal.creditTypes intersect with an existing key
+            for ct in gd: # ct is a tuple of creditTypes pks
+                ctset = set(ct)
+                int_set = ctset.intersection(goalcts)
+                if int_set:
+                    # intersection exists: goal can fit in existing bucket
+                    gd[ct].append(goal)
+                    added = True
+                    break
+            if not added:
+                # start new creditTypes bucket
+                gd[ct_tuple] = [goal,]
+    return grouped
+
 
 class CmeGoalManager(models.Manager):
 
@@ -443,26 +482,46 @@ class CmeGoalManager(models.Manager):
         Args:
             profile: Profile instance
             goals: list of CmeGoals
-        Returns: dict {tag => list of CmeGoals}
+        Returns: dict {tag.pk/None => (creditType.pks) => list of CmeGoals}
         """
-        now = timezone.now()
-        grouped = defaultdict(list)
-        mapToSpec = []
+        allCreditTypes = set([m.pk for m in CreditType.objects.all()])
+        goals2 = []; mapToSpec = []
         for goal in goals:
             if goal.cmeTag:
-                tag = goal.cmeTag
-                grouped[tag].append(goal)
-            elif goal.mapNullTagToSpecialty:
-                mapToSpec.append(goal)
+                goals2.append(goal)
+            elif not goal.mapNullTagToSpecialty:
+                goals2.append(goal) # None remains as None (ANY_TOPIC)
             else:
-                grouped[None].append(goal) # any tag/topic
+                mapToSpec.append(goal)
+        # first pass
+        grouped = groupGoalsByTagAndCreditType(goals2)
+        # now handle mapNullTagToSpecialty goals
         profileSpecs = [ps.name for ps in profile.specialties.all()]
-        specTags = []
-        if profileSpecs:
-            specTags = CmeTag.objects.filter(name__in=profileSpecs)
-            for goal in mapToSpec:
-                for tag in specTags:
-                    grouped[tag].append(goal)
+        if not profileSpecs:
+            return grouped
+        specTags = CmeTag.objects.filter(name__in=profileSpecs)
+        for goal in mapToSpec:
+            goalcts = goal.creditTypeSet
+            if not goalcts: # goal accept any (=all)
+                goalcts = allCreditTypes
+            for tag in specTags:
+                # stand-in tag for curgoal
+                if tag not in grouped:
+                    grouped[tag][goalcts] = [goal,]
+                else:
+                    gd = grouped[tag]
+                    added = False
+                    # does goal.creditTypes intersect with an existing key
+                    for cTypes in gd:
+                        ctset = cTypes.intersection(goalcts)
+                        if ctset:
+                            # goal can fit in existing bucket
+                            gd[cTypes].append(goal)
+                            added = True
+                            break
+                    if not added:
+                        # start new creditTypes bucket
+                        gd[goalcts] = [goal,]
         return grouped
 
 @python_2_unicode_compatible
@@ -577,6 +636,10 @@ class CmeGoal(models.Model):
             return "{0.dueMonth}/{0.dueDay}".format(self)
         return ''
 
+    @cached_property
+    def creditTypeSet(self):
+        return set([m.pk for m in self.creditTypes.all()])
+
     def isMatchProfile(self, profile):
         """Checks if self matches profile attributes
         Returns: bool
@@ -607,56 +670,73 @@ class CmeGoal(models.Model):
         Returns: float/Decimal
         """
         if self.cmeTag:
-            creditsDue = self.credits
-        else:
-            # untagged = any Tag: split credits among user specialties
-            creditsDue = round(1.0*float(self.credits)/numProfileSpecs)
+            return self.credits
+        if not self.mapNullTagToSpecialty:
+            return self.credits
+        # else: untagged and split credits among specialties
+        creditsDue = round(1.0*float(self.credits)/numProfileSpecs)
         return creditsDue
 
-    def computeDueDateForProfile(self, profile, userLicense, now):
+    def computeDueDateForProfile(self, profile, userLicense, now, dueYear=None):
         """Attempt to find a dueDate based on dueDateType, profile, and userLicense
         Args:
             profile: Profile instance
             userLicense: StateLicense/None
             now: datetime
+            dueYear: int/None year to use for dueDate
         Returns: datetime
         Note: UNKNOWN_DATE is reserved for internal errors (e.g. unknown dueDateType)
         """
+        if not dueYear:
+            dueYear = now.year
         basegoal = self.goal
         if basegoal.isOneOff() or basegoal.isRecurAny():
-            td = now - profile.user.date_joined
-            if td.days < NEW_PROFILE_GRACE_PERIOD_DAYS:
-                return now + timedelta(days=NEW_PROFILE_GRACE_PERIOD_DAYS)
             return now
         if basegoal.isRecurMMDD():
-            dueDate = makeDueDate(self.dueMonth, self.dueDay, now)
+            dueDate = makeDueDate(dueYear, self.dueMonth, self.dueDay, now)
             return dueDate
         if basegoal.usesLicenseDate():
             if not userLicense or userLicense.isUnInitialized():
-                # allow grace period to update license
-                return now + timedelta(days=LICENSE_GRACE_PERIOD_DAYS)
+                return now
             else:
                 return userLicense.expireDate
         if basegoal.usesBirthDate():
             if not profile.birthDate:
                 return now
-            dueDate = makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
+            dueDate = makeDueDate(dueYear, profile.birthDate.month, profile.birthDate.day, now)
             return dueDate
         return UNKNOWN_DATE
 
-    def getTagDataForProfile(self, profile):
+    def computeCreditsEarnedOverInterval(self, user, endDate, cmeTag):
+        """Compute credits earned for user, tag, basegoal.interval, and self.creditTypes
+        Args:
+            user: User instance
+            endDate: datetime
+            cmeTag: CmeTag or None to count all credits
+        Returns: decimal - total credits earned
         """
-        If self.cmeTag is set, return it
-        If null: then select from profile.specialties
-        Returns:list of 2-tuples [(cmeTag, credits:Decimal),]
-        """
-        if self.cmeTag:
-            return [(self.cmeTag, self.credits),]
-        numspecs = profile.specialties.count()
-        if not numspecs:
-            logger.warning("CmeGoal {0.pk} has null tag and user {1} has no specialties".format(self, profile.user))
-            return []
-        tagData = []
+        basegoal = self.goal
+        yrs = basegoal.interval if basegoal.interval else 100
+        startDate = endDate - timedelta(days=365*float(yrs))
+        brcme_credits = 0; srcme_credits = 0
+        cset = self.creditTypeSet
+        include_brcme = False
+        if not cset:
+            # accepts any type, so no filter
+            cset=None
+            include_brcme = True
+        else:
+            ama1 = CreditType.objects.get(name=CreditType.AMA_PRA_1)
+            if ama1.pk in cset:
+                include_brcme = True
+        if include_brcme:
+            # can count brcme_credits (which are always ama1)
+            brcme_credits = Entry.objects.sumBrowserCme(user, startDate, endDate, tag=cmeTag)
+        # Count srcme credits that satisfy self.creditTypes
+        srcme_credits = Entry.objects.sumSRCme(user, startDate, endDate, tag=cmeTag, creditTypes=cset)
+        total = brcme_credits + srcme_credits
+        #print('- creditsEarned {0} over interval: {1} years'.format(total, yrs))
+        return total
 
 
 class SRCmeGoalManager(models.Manager):
@@ -677,10 +757,10 @@ class SRCmeGoalManager(models.Manager):
             return []
         if not profile.activeSRCmeTagSet:
             return []
-        profileDegrees = list(profile.degreeSet)
-        profileSpecs = list(profile.specialtySet)
-        profileSubSpecs = list(profile.subspecialtySet)
-        profileTags = list(profile.activeSRCmeTagSet)
+        profileDegrees = profile.degreeSet
+        profileSpecs = profile.specialtySet
+        profileSubSpecs = profile.subspecialtySet
+        profileTags = profile.activeSRCmeTagSet
         base_qs = self.model.objects \
                 .select_related('goal','cmeTag') \
                 .prefetch_related(
@@ -707,18 +787,14 @@ class SRCmeGoalManager(models.Manager):
                 matchedGoals.append(goal)
         return matchedGoals
 
-    def groupGoalsByTag(self, profile, goals):
-        """Group the given goals by tag
+    def groupGoalsByTag(self, goals):
+        """Group the given goals by tag and common-intersection creditTypes
         Args:
-            profile: Profile instance
             goals: list of SRCmeGoals
-        Returns: dict {tag => list of SRCmeGoals}
+        Returns: dict {tag.pk/None => (creditType.pks) => list of SRCmeGoals}
+
         """
-        now = timezone.now()
-        grouped = defaultdict(list)
-        for goal in goals:
-            tag = goal.cmeTag
-            grouped[tag].append(goal)
+        grouped = groupGoalsByTagAndCreditType(goals)
         return grouped
 
 
@@ -743,8 +819,10 @@ class SRCmeGoal(models.Model):
     cmeTag = models.ForeignKey(CmeTag,
         on_delete=models.PROTECT,
         db_index=True,
+        null=True,
+        blank=True,
         related_name='srcmegoals',
-        help_text='State-specific CME Tag'
+        help_text='State-specific SR-CME Tag. Null means Any Topic'
     )
     licenseGoal = models.ForeignKey(LicenseGoal,
         on_delete=models.CASCADE,
@@ -790,6 +868,10 @@ class SRCmeGoal(models.Model):
             return "{0.dueMonth}/{0.dueDay}".format(self)
         return ''
 
+    @cached_property
+    def creditTypeSet(self):
+        return set([m.pk for m in self.creditTypes.all()])
+
     def isMatchProfile(self, profile):
         """Checks if self matches profile attributes
         Returns: bool
@@ -799,39 +881,59 @@ class SRCmeGoal(models.Model):
         if not self.state_id in profile.stateSet:
             return False
         # check tag
-        if not self.cmeTag.pk in profile.activeSRCmeTagSet:
+        if self.cmeTag and not self.cmeTag.pk in profile.activeSRCmeTagSet:
             return False
         if not basegoal.isMatchProfile(profile):
             return False
         return True
 
-    def computeDueDateForProfile(self, profile, userLicense, now):
+    def computeDueDateForProfile(self, profile, userLicense, now, dueYear=None):
         """Attempt to find a dueDate based on dueDateType, profile, and userLicense
         Args:
             profile: Profile instance
             userLicense: StateLicense/None
             now: datetime
+            dueYear: int/None year to use for dueDate
         Returns: datetime
         Note: UNKNOWN_DATE is reserved for internal errors (e.g. unknown dueDateType)
         """
+        if not dueYear:
+            dueYear = now.year
         basegoal = self.goal
-        if basegoal.isOneOff():
+        if basegoal.isOneOff() or basegoal.isRecurAny():
             return now
         if basegoal.isRecurMMDD():
-            dueDate = makeDueDate(self.dueMonth, self.dueDay, now)
+            dueDate = makeDueDate(dueYear, self.dueMonth, self.dueDay, now)
             return dueDate
         if basegoal.usesLicenseDate():
             if not userLicense or userLicense.isUnInitialized():
-                # allow grace period to update license
-                return now + timedelta(days=LICENSE_GRACE_PERIOD_DAYS)
+                return now
             else:
                 return userLicense.expireDate
         if basegoal.usesBirthDate():
             if not profile.birthDate:
                 return now
-            dueDate = makeDueDate(profile.birthDate.month, profile.birthDate.day, now)
+            dueDate = makeDueDate(dueYear, profile.birthDate.month, profile.birthDate.day, now)
             return dueDate
         return UNKNOWN_DATE
+
+    def computeCreditsEarnedOverInterval(self, user, endDate, cmeTag):
+        """Compute srcme credits earned for user, tag, basegoal.interval, and self.creditTypes
+        Args:
+            user: User instance
+            endDate: datetime
+            cmeTag: CmeTag
+        Returns: decimal - total credits earned
+        """
+        basegoal = self.goal
+        yrs = basegoal.interval if basegoal.interval else 100
+        startDate = endDate - timedelta(days=365*float(yrs))
+        # Count srcme credits that satisfy self.creditTypes
+        cset = self.creditTypeSet
+        if not cset:
+            cset=None # accepts any type, so no filter
+        srcme_credits = Entry.objects.sumSRCme(user, startDate, endDate, tag=cmeTag, creditTypes=cset)
+        return srcme_credits
 
 
 class UserGoalManager(models.Manager):
@@ -913,7 +1015,7 @@ class UserGoalManager(models.Manager):
                 usergoal.save(update_fields=('status',))
         return usergoals
 
-    def handleGoalsForTag(self, tag, goals, userLicenseDict):
+    def handleGoalsForTag(self, user, tag, goals, userLicenseDict):
         """Create or update composite goal and individual usergoals
         Args:
             tag: CmeTag or None
@@ -921,9 +1023,12 @@ class UserGoalManager(models.Manager):
             userLicenseDict: dict {licenseBaseGoal.pk => StateLicense instance} for user
         """
         now = timezone.now()
+        usergoals = [] # newly created
+        consgoals = [] # all constituentGoals
         firstGoal = goals[0]
         goalType = firstGoal.goal.goalType
-        # check individual goals : ug.goal is a valid BaseGoal
+        basegoalids = [goal.goal.pk for goal in goals]
+        # check individual goals
         for goal in goals:
             basegoal = goal.goal
             # Does UserGoal for (user, basegoal) already exist
@@ -932,9 +1037,15 @@ class UserGoalManager(models.Manager):
                 'goal': basegoal,
                 'is_composite_goal': False
             }
+            if tag:
+                filter_kwargs['cmeTag'] = tag
+            else:
+                filter_kwargs['cmeTag__isnull'] = True
             # Does non-archived UserGoal for (user, basegoal) exist
             qs = self.model.objects.filter(**filter_kwargs).exclude(status=self.model.EXPIRED)
             if qs.exists():
+                ug = qs[0]
+                consgoals.append(ug)
                 continue
             # create UserGoal for (user, basegoal) with initial dueDate=now
             usergoal = self.model.objects.create(
@@ -945,15 +1056,19 @@ class UserGoalManager(models.Manager):
                     status=self.model.PASTDUE,
                     cmeTag=tag,
                     creditsDue=0,
+                    creditsDueMonthly=0,
                     creditsEarned=0,
                 )
             logger.info('Created UserGoal: {0}'.format(usergoal))
             usergoal.recompute(userLicenseDict)
             usergoals.append(usergoal)
-        # composite goal : ug.state is always null
+            consgoals.append(usergoal)
+        # composite goal : ug.state is always null. User can have several composite goals
+        # but they should all satisfy the unique_together on model.
         filter_kwargs = {
             'user': user,
-            'is_composite_goal': True
+            'is_composite_goal': True,
+            'goal__in': basegoalids, # to enable selection of the correct composite usergoal
         }
         if tag:
             filter_kwargs['cmeTag'] = tag
@@ -961,35 +1076,35 @@ class UserGoalManager(models.Manager):
             filter_kwargs['cmeTag__isnull'] = True
         qs = self.model.objects.filter(**filter_kwargs).exclude(status=self.model.EXPIRED)
         if qs.exists():
-            usergoal = qs[0]
-            saved = usergoal.checkUpdate(firstGoal, goals, userLicenseDict)
+            compositeGoal = qs[0]
+            saved = compositeGoal.checkUpdate(firstGoal, consgoals, userLicenseDict)
             if saved:
-                logger.info('Updated composite UserGoal: {0}'.format(usergoal))
+                logger.info('Updated composite UserGoal: {0}'.format(compositeGoal))
         else:
-            usergoal = self.model.objects.create(
+            compositeGoal = self.model.objects.create(
                     user=user,
-                    goal=firstGoal,
+                    goal=firstGoal.goal,
                     state=None,
                     dueDate=now,
                     status=self.model.PASTDUE,
                     cmeTag=tag,
                     creditsDue=0,
+                    creditsDueMonthly=0,
                     creditsEarned=0,
                     is_composite_goal=True
                 )
-            dest = usergoal.cmeGoals if goalType.name == GoalType.CME else usergoal.srcmeGoals
-            for goal in goals:
-                dest.add(goal)
-            logger.info('Created composite UserGoal: {0}'.format(usergoal))
-            usergoal.recompute(userLicenseDict)
-            usergoals.append(usergoal)
+            for ug in consgoals:
+                compositeGoal.constituentGoals.add(ug)
+            logger.info('Created composite UserGoal: {0}'.format(compositeGoal))
+            compositeGoal.recompute(userLicenseDict)
+            usergoals.append(compositeGoal)
         return usergoals
 
     def assignCmeGoals(self, profile, userLicenseDict):
         """Assign CME UserGoals by matching existing goals to the given profile. Note: license goals should be assigned first.
         Steps:
             1. Find matching CmeGoals based on profile
-            2. Group matched goals by tag
+            2. Group matched goals by tag/creditType
             3. If dne: create constituent Cme UserGoals for basegoal, tag, else recompute
             4. If dne: create composite Cme UserGoal for this tag, else check for updates and recompute
         Returns: list of newly created usergoals
@@ -997,11 +1112,12 @@ class UserGoalManager(models.Manager):
         user = profile.user
         usergoals = []
         goals = CmeGoal.objects.getMatchingGoalsForProfile(profile)
-        userLicenseDict = self.makeUserLicenseDict(user)
         grouped = CmeGoal.objects.groupGoalsByTag(profile, goals)
         for tag in grouped:
-            goals = grouped[tag] # list of cmegoals
-            usergoals.extend(self.handleGoalsForTag(tag, goals, userLicenseDict))
+            gd = grouped[tag]
+            for cTypes in gd:
+                goals = gd[cTypes] # list of cmegoals
+                usergoals.extend(self.handleGoalsForTag(user, tag, goals, userLicenseDict))
         return usergoals
 
     def assignSRCmeGoals(self, profile, userLicenseDict):
@@ -1016,10 +1132,12 @@ class UserGoalManager(models.Manager):
         user = profile.user
         usergoals = []
         goals = SRCmeGoal.objects.getMatchingGoalsForProfile(profile)
-        grouped = SRCmeGoal.objects.groupGoalsByTag(profile, goals)
+        grouped = SRCmeGoal.objects.groupGoalsByTag(goals)
         for tag in grouped:
-            goals = grouped[tag] # list of cmegoals
-            usergoals.extend(self.handleGoalsForTag(tag, goals, userLicenseDict))
+            gd = grouped[tag]
+            for cTypes in gd:
+                goals = gd[cTypes] # list of srcmegoals
+                usergoals.extend(self.handleGoalsForTag(user, tag, goals, userLicenseDict))
         return usergoals
 
     def assignGoals(self, user):
@@ -1039,6 +1157,93 @@ class UserGoalManager(models.Manager):
         usergoals.extend(self.assignSRCmeGoals(profile, userLicenseDict))
         return usergoals
 
+    def rematchLicenseGoals(self, user):
+        """Helper method for rematchGoals
+        Returns: int - number of stale goals deleted
+        """
+        profile = user.profile
+        stale = []
+        existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.LICENSE)
+        for ug in existing:
+            licensegoal = ug.goal.licensegoal
+            if not licensegoal.isMatchProfile(profile):
+                stale.append(ug)
+        num_stale = len(stale)
+        for ug in stale:
+            # Note: this only removes the UserGoal (any associated StateLicense is retained)
+            logger.info('Removing {0}'.format(ug))
+            ug.delete()
+        if num_stale:
+            logger.info('Deleted {0} licensegoals for {1}'.format(num_stale, user))
+        return num_stale
+
+    def rematchCmeGoals(self, user):
+        """Helper method for rematchGoals
+        Returns: int - number of stale goals deleted
+        """
+        profile = user.profile
+        stale = set([])
+        # individual goals
+        existing = user.usergoals.select_related('goal').filter(
+                goal__goalType__name=GoalType.CME,
+                is_composite_goal=False)
+        for ug in existing:
+            cmegoal = ug.goal.cmegoal
+            if not cmegoal.isMatchProfile(profile):
+                stale.add(ug)
+        # composite cme goals: delete if all constituentGoals are stale
+        existing = user.usergoals.select_related('goal').filter(
+                goal__goalType__name=GoalType.CME,
+                is_composite_goal=True)
+        for compositeGoal in existing:
+            consgoals = compositeGoal.constituentGoals.all()
+            cons_stale = [ug in stale for ug in consgoals]
+            if all(cons_stale):
+                # all of its constituent goals match are stale
+                stale.add(compositeGoal)
+        num_stale = len(stale)
+        # delete stale
+        for ug in stale:
+            logger.info('Removing {0}'.format(ug))
+            ug.delete()
+        if num_stale:
+            logger.info('Deleted {0} cmegoals for {1}'.format(num_stale, user))
+        return num_stale
+
+    def rematchSRCmeGoals(self, user):
+        """Helper method for rematchGoals
+        Returns: int - number of stale goals deleted
+        """
+        profile = user.profile
+        stale = set([])
+        # individual goals
+        existing = user.usergoals.select_related('goal').filter(
+                goal__goalType__name=GoalType.SRCME,
+                is_composite_goal=False)
+        for ug in existing:
+            cmegoal = ug.goal.srcmegoal
+            if not cmegoal.isMatchProfile(profile):
+                stale.add(ug)
+        # composite cme goals: delete if all constituentGoals are stale
+        existing = user.usergoals.select_related('goal').filter(
+                goal__goalType__name=GoalType.SRCME,
+                is_composite_goal=True)
+        for compositeGoal in existing:
+            consgoals = compositeGoal.constituentGoals.all()
+            cons_stale = [ug in stale for ug in consgoals]
+            if all(cons_stale):
+                # all of its constituent goals match are stale
+                stale.add(compositeGoal)
+        num_stale = len(stale)
+        # delete stale
+        for ug in stale:
+            logger.info('Removing {0}'.format(ug))
+            ug.delete()
+        if num_stale:
+            logger.info('Deleted {0} srcmegoals for {1}'.format(num_stale, user))
+        return num_stale
+
+
     def rematchGoals(self, user):
         """This should be called when user's profile changes, or when new goals are created (or existing goals inactivated).
         Steps:
@@ -1047,59 +1252,15 @@ class UserGoalManager(models.Manager):
         Returns: list of newly created UserGoals
         """
         logger.debug('rematchGoals for {0}'.format(user))
-        profile = user.profile
-        # remove stale license goals
-        stale = []
-        existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.LICENSE)
-        for ug in existing:
-            licensegoal = ug.goal.licensegoal
-            if not licensegoal.isMatchProfile(profile):
-                stale.append(ug)
-        for ug in stale:
-            # Note: this only removes the UserGoal (any associated StateLicense is retained)
-            logger.info('Removing {0}'.format(ug))
-            ug.delete()
-        # for cme goals: only delete if all cmeGoals no longer apply
-        # print(' - check CmeGoals for {0}'.format(user))
-        stale = []
-        existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.CME)
-        for ug in existing:
-            matchCount = 0
-            for cmegoal in ug.cmeGoals.all():
-                if cmegoal.isMatchProfile(profile):
-                    matchCount += 1
-            if not matchCount:
-                # none of the cmegoals match this profile anymore
-                # if only some no longer match, the usergoal will be updated and recomputed below
-                stale.append(ug)
-        for ug in stale:
-            logger.info('Removing {0}'.format(ug))
-            ug.delete()
-        # repeat for srcme goals
-        stale = []
-        existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.SRCME)
-        for ug in existing:
-            matchCount = 0
-            for cmegoal in ug.srcmeGoals.all():
-                if cmegoal.isMatchProfile(profile):
-                    matchCount += 1
-            if not matchCount:
-                # none of the cmegoals match this profile anymore
-                # if only some no longer match, the usergoal will be updated and recomputed below
-                stale.append(ug)
-        for ug in stale:
-            logger.info('Removing {0}'.format(ug))
-            ug.delete()
-
+        num_stale = self.rematchLicenseGoals(user)
+        num_stale = self.rematchCmeGoals(user)
+        num_stale = self.rematchSRCmeGoals(user)
         # Assign goals (create/update)
         usergoals = []
-        #print('assignLicenseGoals for {0}'.format(user))
         usergoals.extend(self.assignLicenseGoals(profile))
         # create userLicenseDict after assignment of license goals
         userLicenseDict = self.makeUserLicenseDict(user)
-        #print('assignCmeGoals for {0}'.format(user))
         usergoals.extend(self.assignCmeGoals(profile, userLicenseDict))
-        #print('assignSRCmeGoals for {0}'.format(user))
         usergoals.extend(self.assignSRCmeGoals(profile, userLicenseDict))
         return usergoals
 
@@ -1153,7 +1314,7 @@ class UserGoal(models.Model):
         blank=True,
         db_index=True,
         related_name='usergoals',
-        help_text="Used with CmeGoal"
+        help_text="Used with CmeGoal/SRCmeGoal. Null means Any Topic."
     )
     license = models.ForeignKey(StateLicense,
         on_delete=models.CASCADE,
@@ -1175,20 +1336,27 @@ class UserGoal(models.Model):
             validators=[MinValueValidator(0)],
             help_text='Used for CMEGoals'
     )
+    creditsDueMonthly = models.DecimalField(max_digits=6, decimal_places=2,
+            null=True, blank=True,
+            validators=[MinValueValidator(0)],
+            help_text='Used for CMEGoals'
+    )
     creditsEarned = models.DecimalField(max_digits=6, decimal_places=2,
             null=True, blank=True,
             validators=[MinValueValidator(0)],
             help_text='Used for CMEGoals'
     )
     documents = models.ManyToManyField(Document, related_name='usergoals')
-    cmeGoals = models.ManyToManyField(CmeGoal, related_name='usercmegoals')
-    srcmeGoals = models.ManyToManyField(SRCmeGoal, related_name='usersrcmegoals')
+    constituentGoals = models.ManyToManyField('self',
+            blank=True,
+            related_name='constituentGoals',
+            help_text='Populated for composite goals')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = UserGoalManager()
 
     class Meta:
-        unique_together = ('user','goal','dueDate', 'is_composite_goal')
+        unique_together = ('user','goal','dueDate', 'is_composite_goal', 'cmeTag')
         # custom permissions
         permissions = (
             (PERM_VIEW_GOAL, 'Can view Goal'),
@@ -1206,7 +1374,7 @@ class UserGoal(models.Model):
         return ''
 
     def __str__(self):
-        return '{0.pk}|{0.user}|{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}'.format(self)
+        return '{0.pk}|{0.user}|{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.is_composite_goal}'.format(self)
 
     @cached_property
     def daysLeft(self, now=None):
@@ -1237,18 +1405,6 @@ class UserGoal(models.Model):
             if totalDays > self.daysLeft:
                 progress = 100.0*(totalDays - self.daysLeft)/totalDays
         return int(progress)
-
-    def getCreditSumOverInterval(self, basegoal, endDate):
-        """Calls Entry.object.sumSRCme and sumBrowserCme for self.user, tag, and basegoal.interval
-        Returns: decimal - total credits earned
-        """
-        yrs = basegoal.interval if basegoal.interval else 10
-        startDate = endDate - timedelta(days=365*float(yrs))
-        srcme_credits = Entry.objects.sumSRCme(self.user, startDate, endDate, self.cmeTag)
-        brcme_credits = Entry.objects.sumBrowserCme(self.user, startDate, endDate, self.cmeTag)
-        total = brcme_credits + srcme_credits
-        #print('- creditsEarned {0} over interval: {1} years'.format(total, yrs))
-        return total
 
     def calcLicenseStatus(self, now):
         """Returns status based on now, expireDate, and daysBeforeDue"""
@@ -1289,11 +1445,11 @@ class UserGoal(models.Model):
             self.save(update_fields=('status', 'dueDate', 'compliance'))
         return
 
-    def recomputeSRCmeGoal(self, userLicenseDict, numProfileSpecs):
-        """Recompute cmegoal
-        """
+    def recomputeSRCmeGoal(self, userLicenseDict):
+        """Recompute individual srcmegoal"""
         status = self.status
         compliance = self.compliance
+        userLicense = None
         profile = self.user.profile
         basegoal = self.goal
         goal = basegoal.srcmegoal # SRCmeGoal
@@ -1304,11 +1460,12 @@ class UserGoal(models.Model):
             except KeyError:
                 logger.exception("No userLicense found for usergoal {0}".format(self))
                 return
+        # TODO: add NEW status if status is New or RECUR_ANY then
+        # dueYear = now.year, else preserve existing dueYear
         dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
         credits = goal.credits
         # compute creditsEarned for self.tag over goal interval
-        # TODO: count srcme credits only and factor in creditType
-        creditsEarned = self.getCreditSumOverInterval(basegoal, now)
+        creditsEarned = goal.computeCreditsEarnedOverInterval(self.user, now, self.cmeTag)
         creditsLeft = float(credits) - float(creditsEarned)
         daysLeft = 0
         if creditsLeft <= 0:
@@ -1319,7 +1476,7 @@ class UserGoal(models.Model):
             if dueDate >= now:
                 td = dueDate - now
                 daysLeft = td.days
-            if daysLeft <= 30:
+            if daysLeft <= SRCME_MARGINAL_COMPLIANT_CUTOFF_DAYS:
                 if daysLeft <= 0:
                     compliance = UserGoal.NON_COMPLIANT
                 else:
@@ -1342,14 +1499,17 @@ class UserGoal(models.Model):
         self.status = status
         self.dueDate = dueDate
         self.compliance = compliance
-        self.save(update_fields=('status', 'dueDate', 'compliance'))
+        self.creditsDue = creditsDue
+        self.creditsDueMonthly = creditsDue
+        self.creditsEarned = creditsEarned
+        self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
         logger.debug('recompute {0} creditsDue: {0.creditsDue}.'.format(self))
 
     def recomputeCmeGoal(self, userLicenseDict, numProfileSpecs):
-        """Recompute cmegoal
-        """
+        """Recompute individual cmegoal"""
         status = self.status
         compliance = self.compliance
+        userLicense = None
         profile = self.user.profile
         basegoal = self.goal
         goal = basegoal.cmegoal # CmeGoal
@@ -1360,22 +1520,27 @@ class UserGoal(models.Model):
             except KeyError:
                 logger.exception("No userLicense found for usergoal {0}".format(self))
                 return
+        # TODO: add NEW status if status is New or RECUR_ANY then
+        # dueYear = now.year, else preserve existing dueYear
         dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
+        # this handles splitting credits among specialties if needed
         credits = goal.computeCredits(numProfileSpecs)
         # compute creditsEarned for self.tag over goal interval
-        # TODO: needs to factor in creditType!
-        creditsEarned = self.getCreditSumOverInterval(basegoal, now)
+        creditsEarned = goal.computeCreditsEarnedOverInterval(self.user, now, self.cmeTag)
         creditsLeft = float(credits) - float(creditsEarned)
         daysLeft = 0
         if creditsLeft <= 0:
             creditsDue = 0
+            creditsDueMonthly = 0
             compliance = UserGoal.COMPLIANT
         else:
+            creditsDue = nround(creditsLeft) # full creditsLeft
             if dueDate >= now:
                 td = dueDate - now
                 daysLeft = td.days
             if daysLeft <= 30:
-                creditsDue = nround(creditsLeft) # all creditsLeft due at this time
+                # all creditsLeft due at this time
+                creditsDueMonthly = creditsDue
                 if daysLeft <= 0:
                     compliance = UserGoal.NON_COMPLIANT
                 else:
@@ -1385,7 +1550,7 @@ class UserGoal(models.Model):
                 monthsLeft = math.floor(daysLeft/30) # take floor to ensure we don't underestimate apm
                 articlesLeft = creditsLeft/ARTICLE_CREDIT
                 apm = round(articlesLeft/monthsLeft) # round to nearest int
-                creditsDue = apm*ARTICLE_CREDIT # creditsDue can be converted to an integer number of articles due
+                creditsDueMonthly = apm*ARTICLE_CREDIT # due this month
                 compliance = UserGoal.COMPLIANT
         #print(' - Tag {0.cmeTag}|creditsLeft: {1} | creditsDue: {2} for goal {3}'.format(self, creditsLeft, creditsDue, goal))
         # update compliance if incomplete info
@@ -1394,7 +1559,7 @@ class UserGoal(models.Model):
         elif basegoal.usesBirthDate() and not profile.birthDate:
             compliance = UserGoal.INCOMPLETE_PROFILE
         # compute status
-        if not creditsDue:
+        if not creditsDueMonthly:
             status = UserGoal.COMPLETED # for now
         elif not daysLeft or not creditsEarned:
             status = UserGoal.PASTDUE
@@ -1403,73 +1568,38 @@ class UserGoal(models.Model):
         self.status = status
         self.dueDate = dueDate
         self.compliance = compliance
-        self.save(update_fields=('status', 'dueDate', 'compliance'))
-        logger.debug('recompute {0} creditsDue: {0.creditsDue}.'.format(self))
+        self.creditsDue = creditsDue
+        self.creditsDueMonthly = creditsDueMonthly
+        self.creditsEarned = creditsEarned
+        self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+        logger.debug('recompute {0} creditsDue: {0.creditsDue} Monthly: {0.creditsDueMonthly}.'.format(self))
 
     def recomputeCompositeCmeGoal(self, userLicenseDict, numProfileSpecs):
         """Recompute composite cme usergoal
         """
-        profile = self.user.profile
-        userLicense = None
-        cmegoals = self.cmeGoals.all()
+        consgoals = self.constituentGoals.all()
         data = []
         creditsDue = 0 # init to 0 since status expects var to be set even if no cmegoals
-        for goal in cmegoals:
-            basegoal = goal.goal
-            if basegoal.usesLicenseDate():
-                try:
-                    userLicense = userLicenseDict[goal.licenseGoal.pk]
-                except KeyError:
-                    logger.exception("No userLicense found for user {0.user} and CmeGoal {1.pk} that uses LicenseGoal {2.pk}".format(self, goal, goal.licenseGoal))
-                    return
-            dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
-            credits = goal.computeCredits(numProfileSpecs)
-            # compute creditsEarned for self.tag over goal interval
-            # TODO: needs to factor in creditType!
-            creditsEarned = self.getCreditSumOverInterval(basegoal, now)
-            creditsLeft = float(credits) - float(creditsEarned)
-            daysLeft = 0
-            if creditsLeft <= 0:
-                creditsDue = 0
-                subCompliance = UserGoal.COMPLIANT
-            else:
-                if dueDate >= now:
-                    td = dueDate - now
-                    daysLeft = td.days
-                if daysLeft <= 30:
-                    creditsDue = nround(creditsLeft) # all creditsLeft due at this time
-                    if daysLeft <= 0:
-                        subCompliance = UserGoal.NON_COMPLIANT
-                    else:
-                        subCompliance = UserGoal.MARGINAL_COMPLIANT
-                else:
-                    # articles per month needed to earn creditsLeft by daysLeft
-                    monthsLeft = math.floor(daysLeft/30) # take floor to ensure we don't underestimate apm
-                    articlesLeft = creditsLeft/ARTICLE_CREDIT
-                    apm = round(articlesLeft/monthsLeft) # round to nearest int
-                    creditsDue = apm*ARTICLE_CREDIT # creditsDue can be converted to an integer number of articles due
-                    subCompliance = UserGoal.COMPLIANT
-            #print(' - Tag {0.cmeTag}|creditsLeft: {1} | creditsDue: {2} for goal {3}'.format(self, creditsLeft, creditsDue, goal))
-            # update subCompliance if incomplete info
-            if basegoal.usesLicenseDate() and userLicense.isUnInitialized():
-                subCompliance = UserGoal.INCOMPLETE_LICENSE
-            elif basegoal.usesBirthDate() and not profile.birthDate:
-                subCompliance = UserGoal.INCOMPLETE_PROFILE
+        daysLeft = 0
+        for goal in consgoals:
             data.append({
                 'goal': goal,
-                'dueDate': dueDate,
-                'daysLeft': daysLeft,
-                'creditsDue': creditsDue,
-                'creditsEarned': creditsEarned,
-                'subCompliance': subCompliance
+                'dueDate': goal.dueDate,
+                'daysLeft': goal.daysLeft,
+                'creditsDue': goal.creditsDue,
+                'creditsDueMonthly': goal.creditsDueMonthly,
+                'creditsEarned': goal.creditsEarned,
+                'subCompliance': goal.compliance
             })
+        data.sort(key=itemgetter('dueDate'))
+        dueDate = data[0]['dueDate'] # earliest
+        daysLeft = data[0]['daysLeft']
+        creditsDue = data[0]['creditsDue']
+        creditsDueMonthly = data[0]['creditsDueMonthly']
+        creditsEarned = data[0]['creditsEarned']
         if len(data) > 1:
-            data.sort(key=itemgetter('dueDate'))
             # compare creditsDue for the two earliest dueDates
-            daysLeft = data[0]['daysLeft'] # daysLeft for the earliest
-            dueDate = data[0]['dueDate'] # earliest
             dueDate1 = data[1]['dueDate'] # 2nd-earliest
-            creditsDue = data[0]['creditsDue']
             creditsDue1 = data[1]['creditsDue']
             td = dueDate1 - dueDate
             dayDiff = td.days
@@ -1478,8 +1608,9 @@ class UserGoal(models.Model):
                 if creditsDue1 > creditsDue:
                     creditsDue = creditsDue1
                     creditsEarned = data[1]['creditsEarned'] # paired with creditsDue1
+                    creditsDueMonthly = data[1]['creditsDueMonthly']
         # compute status
-        if not creditsDue:
+        if not creditsDueMonthly:
             status = UserGoal.COMPLETED # for now
         elif not daysLeft or not creditsEarned:
             status = UserGoal.PASTDUE
@@ -1488,72 +1619,39 @@ class UserGoal(models.Model):
         # update model instance
         self.dueDate = dueDate # earliest
         self.creditsDue = creditsDue
+        self.creditsDueMonthly = creditsDueMonthly
         self.creditsEarned = creditsEarned
         self.status = status
         self.compliance = min([d['subCompliance'] for d in data])
-        self.save()
-        logger.debug('recompute {0} creditsDue: {0.creditsDue}.'.format(self))
+        self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+        logger.debug('recompute compositeCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
-    def recomputeCompositeSRCmeGoal(self, userLicenseDict, numProfileSpecs):
-        """Recompute composite cme usergoal
+    def recomputeCompositeSRCmeGoal(self, userLicenseDict):
+        """Recompute composite srcme usergoal. This should be called after the individual goals are recomputed.
         """
-        profile = self.user.profile
-        userLicense = None
-        cmegoals = self.srcmeGoals.all()
+        consgoals = self.constituentGoals.all()
         data = []
         creditsDue = 0 # init to 0 since status expects var to be set even if no cmegoals
-        for goal in cmegoals:
-            basegoal = goal.goal
-            if basegoal.usesLicenseDate():
-                try:
-                    userLicense = userLicenseDict[goal.licenseGoal.pk]
-                except KeyError:
-                    logger.exception("No userLicense found for user {0.user} and CmeGoal {1.pk} that uses LicenseGoal {2.pk}".format(self, goal, goal.licenseGoal))
-                    return
-            dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
-            credits = goal.credits
-            # compute creditsEarned for self.tag over goal interval
-            # TODO: needs to factor in creditType!
-            creditsEarned = self.getCreditSumOverInterval(basegoal, now)
-            creditsLeft = float(credits) - float(creditsEarned)
-            daysLeft = 0
-            if creditsLeft <= 0:
-                creditsDue = 0
-                subCompliance = UserGoal.COMPLIANT
-            else:
-                creditsDue = nround(creditsLeft) # all creditsLeft due at this time
-                if dueDate >= now:
-                    td = dueDate - now
-                    daysLeft = td.days
-                if daysLeft <= 30:
-                    if daysLeft <= 0:
-                        subCompliance = UserGoal.NON_COMPLIANT
-                    else:
-                        subCompliance = UserGoal.MARGINAL_COMPLIANT
-                else:
-                    subCompliance = UserGoal.COMPLIANT
-            #print(' - Tag {0.cmeTag}|creditsLeft: {1} | creditsDue: {2} for goal {3}'.format(self, creditsLeft, creditsDue, goal))
-            # update subCompliance if incomplete info
-            if basegoal.usesLicenseDate() and userLicense.isUnInitialized():
-                subCompliance = UserGoal.INCOMPLETE_LICENSE
-            elif basegoal.usesBirthDate() and not profile.birthDate:
-                subCompliance = UserGoal.INCOMPLETE_PROFILE
+        daysLeft = 0
+        for goal in consgoals:
             data.append({
                 'goal': goal,
-                'dueDate': dueDate,
-                'daysLeft': daysLeft,
-                'creditsDue': creditsDue,
-                'creditsEarned': creditsEarned,
-                'subCompliance': subCompliance
+                'dueDate': goal.dueDate,
+                'daysLeft': goal.daysLeft,
+                'creditsDue': goal.creditsDue,
+                'creditsDueMonthly': goal.creditsDueMonthly,
+                'creditsEarned': goal.creditsEarned,
+                'subCompliance': goal.compliance
             })
+        data.sort(key=itemgetter('dueDate'))
+        dueDate = data[0]['dueDate'] # earliest
+        daysLeft = data[0]['daysLeft']
+        creditsDue = data[0]['creditsDue']
+        creditsEarned = data[0]['creditsEarned']
         if len(data) > 1:
-            data.sort(key=itemgetter('dueDate'))
             # compare creditsDue for the two earliest dueDates
-            daysLeft = data[0]['daysLeft'] # daysLeft for the earliest
-            dueDate = data[0]['dueDate'] # earliest
             dueDate1 = data[1]['dueDate'] # 2nd-earliest
-            creditsDue = data[0]['creditsDue']
             creditsDue1 = data[1]['creditsDue']
             td = dueDate1 - dueDate
             dayDiff = td.days
@@ -1564,7 +1662,7 @@ class UserGoal(models.Model):
                     creditsEarned = data[1]['creditsEarned'] # paired with creditsDue1
         # compute status
         if not creditsDue:
-            status = UserGoal.COMPLETED # for now
+            status = UserGoal.COMPLETED
         elif not daysLeft or not creditsEarned:
             status = UserGoal.PASTDUE
         else:
@@ -1572,11 +1670,13 @@ class UserGoal(models.Model):
         # update model instance
         self.dueDate = dueDate # earliest
         self.creditsDue = creditsDue
+        self.creditsDueMonthly = creditsDue
         self.creditsEarned = creditsEarned
         self.status = status
         self.compliance = min([d['subCompliance'] for d in data])
         self.save()
-        logger.debug('recompute {0} creditsDue: {0.creditsDue}.'.format(self))
+        self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+        logger.debug('recompute compositeSRCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
 
@@ -1608,22 +1708,31 @@ class UserGoal(models.Model):
                 return
         if gtype == GoalType.SRCME:
             if self.is_composite_goal:
-                self.recomputeCompositeSRCmeGoal(userLicenseDict, numProfileSpecs)
+                self.recomputeCompositeSRCmeGoal(userLicenseDict)
             else:
-                self.recomputeSRCmeGoal(userLicenseDict, numProfileSpecs)
+                self.recomputeSRCmeGoal(userLicenseDict)
         return
+
+    def needsCompletion(self):
+        return self.status in (UserGoal.PASTDUE, UserGoal.IN_PROGRESS)
 
     def handleRedeemOffer(self):
         """Called when an offer is redeemed to subtract one ARTICLE_CREDIT from creditsDue"""
         v = Decimal(str(ARTICLE_CREDIT))
+        goalType = self.goal.goalType
+        is_cme = goalType.name == GoalType.CME
         if self.creditsDue >= v:
             self.creditsDue -= v
+            self.creditsDueMonthly -= v
             self.creditsEarned += v
-            self.status = UserGoal.IN_PROGRESS
-            self.save(update_fields=('creditsDue','creditsEarned','status'))
-            logger.debug('handleRedeemOffer: User {0.user} creditsDue: {0.creditsDue} for Tag {0.cmeTag}.'.format(self))
+            # For CME goals: mark as completed if dueMonthly is 0
+            # SRCME goals: full due must be 0 for completion
+            compValue = self.creditsDueMonthly if is_cme else self.creditsDue
+            if not compValue and self.needsCompletion():
+                self.status = UserGoal.COMPLETED
+            self.save(update_fields=('creditsDue','creditsDueMonthly', 'creditsEarned','status'))
 
-    def checkUpdate(self, firstGoal, cmegoals, userLicenseDict):
+    def checkUpdate(self, firstGoal, usergoals, userLicenseDict):
         """Check and update fields if needed for a composite cmegoal
         Returns: bool True if model instance was updated
         """
@@ -1634,10 +1743,9 @@ class UserGoal(models.Model):
             saved = True
         if saved:
             self.save(update_fields=('goal',))
-        goalType = basegoal.goalType
-        dest = self.cmeGoals if goalType.name == GoalType.CME else self.srcmeGoals
+        dest = self.constituentGoals
         curgoalids = set([g.pk for g in dest.all()])
-        newgoalids = set([g.pk for g in cmegoals])
+        newgoalids = set([g.pk for g in usergoals])
 
         to_del = curgoalids.difference(newgoalids)
         to_add = newgoalids.difference(curgoalids)
