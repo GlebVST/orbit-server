@@ -1002,6 +1002,7 @@ class UserGoalManager(models.Manager):
                 usergoal = self.model.objects.create(
                         user=user,
                         goal=basegoal,
+                        state=goal.state, # State
                         dueDate=dueDate,
                         status=status,
                         license=userLicense
