@@ -1079,6 +1079,7 @@ class UserGoalManager(models.Manager):
                     creditsDueMonthly=0,
                     creditsEarned=0,
                 )
+            usergoal.creditTypes.set(goal.creditTypes.all())
             logger.info('Created UserGoal: {0}'.format(usergoal))
             usergoal.recompute(userLicenseDict)
             usergoals.append(usergoal)
@@ -1366,6 +1367,10 @@ class UserGoal(models.Model):
             validators=[MinValueValidator(0)],
             help_text='Used for CMEGoals'
     )
+    creditTypes = models.ManyToManyField(CreditType,
+            blank=True,
+            related_name='usergoals',
+            help_text='Eligible creditTypes that satisfy this goal (not used for composite goals).')
     documents = models.ManyToManyField(Document, related_name='usergoals')
     constituentGoals = models.ManyToManyField('self',
             blank=True,
@@ -1395,6 +1400,13 @@ class UserGoal(models.Model):
 
     def __str__(self):
         return '{0.pk}|{0.user}|{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.is_composite_goal}'.format(self)
+
+    def formatCreditTypes(self):
+        """Returns string of comma separated CreditType abbrev values"""
+        s = ','.join([m.abbrev for m in self.creditTypes.all()])
+        if not s:
+            return 'Any'
+        return s
 
     @cached_property
     def daysLeft(self, now=None):
