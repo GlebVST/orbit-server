@@ -485,6 +485,7 @@ class CmeGoalManager(models.Manager):
         Returns: dict {tag.pk/None => (creditType.pks) => list of CmeGoals}
         """
         allCreditTypes = set([m.pk for m in CreditType.objects.all()])
+        allct_tuple = tuple(allCreditTypes)
         goals2 = []; mapToSpec = []
         for goal in goals:
             if goal.cmeTag:
@@ -504,24 +505,28 @@ class CmeGoalManager(models.Manager):
             goalcts = goal.creditTypeSet
             if not goalcts: # goal accept any (=all)
                 goalcts = allCreditTypes
+                ct_tuple = allct_tuple
+            else:
+                ct_tuple = tuple(goalcts) # hashable key for dict
             for tag in specTags:
                 # stand-in tag for curgoal
                 if tag not in grouped:
-                    grouped[tag][goalcts] = [goal,]
+                    grouped[tag][ct_tuple] = [goal,]
                 else:
                     gd = grouped[tag]
                     added = False
                     # does goal.creditTypes intersect with an existing key
-                    for cTypes in gd:
-                        ctset = cTypes.intersection(goalcts)
-                        if ctset:
+                    for ct in gd: # ct is a tuple of creditTypes pks
+                        ctset = set(ct)
+                        int_set = ctset.intersection(goalcts)
+                        if int_set:
                             # goal can fit in existing bucket
-                            gd[cTypes].append(goal)
+                            gd[ct].append(goal)
                             added = True
                             break
                     if not added:
                         # start new creditTypes bucket
-                        gd[goalcts] = [goal,]
+                        gd[ct_tuple] = [goal,]
         return grouped
 
 @python_2_unicode_compatible
@@ -639,6 +644,13 @@ class CmeGoal(models.Model):
     @cached_property
     def creditTypeSet(self):
         return set([m.pk for m in self.creditTypes.all()])
+
+    def formatCreditTypes(self):
+        """Returns string of comma separated CreditType abbrev values"""
+        s = ','.join([m.abbrev for m in self.creditTypes.all()])
+        if not s:
+            return 'Any'
+        return s
 
     def isMatchProfile(self, profile):
         """Checks if self matches profile attributes
@@ -871,6 +883,13 @@ class SRCmeGoal(models.Model):
     @cached_property
     def creditTypeSet(self):
         return set([m.pk for m in self.creditTypes.all()])
+
+    def formatCreditTypes(self):
+        """Returns string of comma separated CreditType abbrev values"""
+        s = ','.join([m.abbrev for m in self.creditTypes.all()])
+        if not s:
+            return 'Any'
+        return s
 
     def isMatchProfile(self, profile):
         """Checks if self matches profile attributes

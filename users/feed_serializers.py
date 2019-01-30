@@ -1,4 +1,5 @@
 import logging
+from django.db.models import Q
 from rest_framework import serializers
 from .models import (
     ENTRYTYPE_BRCME,
