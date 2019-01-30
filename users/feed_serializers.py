@@ -19,7 +19,8 @@ from .models import (
     Story,
     StoryCme,
     Notification,
-    UserCmeCredit
+    UserCmeCredit,
+    RecAllowedUrl
 )
 from .serializers import DocumentReadSerializer
 
