@@ -1,17 +1,12 @@
 import logging
 import coreapi
-from datetime import date, datetime, timedelta
-from decimal import Decimal
 import premailer
 from io import StringIO
 from smtplib import SMTPException
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.mail import EmailMessage
-from django.db import transaction
 from django.template.loader import get_template
-from django.utils import timezone
-import pytz
 from rest_framework.filters import BaseFilterBackend
 from rest_framework import generics, permissions, status
 from rest_framework.renderers import JSONRenderer
@@ -37,8 +32,6 @@ class MakeOrbitCmeOffer(APIView):
     def post(self, request, format=None):
         user = request.user
         now = timezone.now()
-        activityDate = now - timedelta(seconds=10)
-        expireDate = datetime(now.year+1, 1,1, tzinfo=pytz.utc)
         esiteids = EligibleSite.objects.getSiteIdsForProfile(user.profile)
         # exclude urls for which user already has un-redeemed un-expired offers waiting to be redeemed
         exclude_urls = OrbitCmeOffer.objects.filter(
@@ -49,24 +42,13 @@ class MakeOrbitCmeOffer(APIView):
         ).values_list('url', flat=True).distinct()
         #print('Num exclude_urls: {0}'.format(len(exclude_urls)))
         aurl = AllowedUrl.objects.filter(eligible_site__in=esiteids).exclude(pk__in=exclude_urls).order_by('?')[0]
-        esite = aurl.eligible_site
-        specnames = [p.name for p in esite.specialties.all()]
-        #print(specnames)
-        spectags = CmeTag.objects.filter(name__in=specnames)
-        with transaction.atomic():
-            offer = OrbitCmeOffer.objects.create(
-                user=user,
-                eligible_site=esite,
-                url=aurl,
-                activityDate=activityDate,
-                expireDate=expireDate,
-                suggestedDescr=aurl.page_title,
-                credits=Decimal('0.5'),
-                sponsor_id=1
-            )
-            offer.tags.set(list(spectags))
-        context = {'success': True, 'id': offer.pk}
-        return Response(context, status=status.HTTP_201_CREATED)
+        offer = OrbitCmeOffer.objects.makeDebugOffer(aurl, user)
+        if offer:
+            context = {'success': True, 'id': offer.pk}
+            return Response(context, status=status.HTTP_201_CREATED)
+        else:
+            context = {'success': False, 'message': 'No offer created'}
+            return Response(context, status=status.HTTP_200_OK)
 
 
 
