@@ -1285,6 +1285,69 @@ class UserGoalManager(models.Manager):
         usergoals.extend(self.assignSRCmeGoals(profile, userLicenseDict))
         return usergoals
 
+    def handleRedeemOfferForUser(self, user, tags):
+        """Calls handleRedeemOffer or recompute on eligible usergoals"""
+        ama1CreditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
+        creditGoalTypes = GoalType.objects.filter(name__in=[GoalType.CME, GoalType.SRCME])
+        num_ug = 0
+        Q_c = Q(creditTypes=None) | Q(creditTypes=ama1CreditType) # accepts AMA_PRA_1 or any
+        goal_filter_kwargs = {
+            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS],
+            'goal__goalType__in': creditGoalTypes
+        }
+        for tag in tags:
+            Q_tag = Q(cmeTag=tag)
+            qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal','pk')
+            for ug in qs:
+                if not ug.is_composite_goal:
+                    ug.handleRedeemOffer()
+                else:
+                    ug.recompute()
+                num_ug += 1
+                logger.info('handleRedeemOffer for: {0}'.format(ug))
+        # handle ANY_TOPIC goal outside of for-loop
+        Q_tag = Q(cmeTag__isnull=True) # tag-specific or ANY_TOPIC goals are eligible
+        qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal','pk')
+        for ug in qs:
+            if not ug.is_composite_goal:
+                ug.handleRedeemOffer()
+            else:
+                ug.recompute()
+            num_ug += 1
+            logger.info('handleRedeemOffer for: {0}'.format(ug))
+        return num_ug # number of usergoals updated
+
+    def handleSRCmeForUser(self, user, creditType, tags):
+        """Calls recompute on eligible usergoals
+        Args:
+            user: User instance
+            creditType: CreditType instance selected for the srcme entry
+            tags: CmeTags list
+        """
+        num_ug = 0
+        creditGoalTypes = GoalType.objects.filter(name__in=[GoalType.CME, GoalType.SRCME])
+        Q_c = Q(creditTypes=None) | Q(creditTypes=creditType)
+        goal_filter_kwargs = {
+            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS],
+            'goal__goalType__in': creditGoalTypes
+        }
+        for tag in tags:
+            Q_tag = Q(cmeTag=tag)
+            qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal', 'pk')
+            for ug in qs:
+                ug.recompute() # composite goals recomputed at end
+                num_ug += 1
+                logger.info('srcme-form: recompute UserGoal {0}'.format(ug))
+        # handle ANY_TOPIC cmegoals outside of for-loop
+        Q_tag = Q(cmeTag__isnull=True)
+        qs = user.usergoals.select_related('goal').filter(Q_tag, Q_c, **goal_filter_kwargs).order_by('is_composite_goal','pk')
+        for ug in qs:
+            ug.recompute()
+            num_ug += 1
+            logger.info('handleRedeemOffer for: {0}'.format(ug))
+        return num_ug # number of usergoals updated
+
+
 @python_2_unicode_compatible
 class UserGoal(models.Model):
     MAX_DUEDATE_DIFF_DAYS = 30 # used in recompute method for combining cmegoals grouped by tag
