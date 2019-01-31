@@ -1411,7 +1411,7 @@ class UserGoal(models.Model):
     status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, db_index=True)
     compliance = models.PositiveSmallIntegerField(default=1, db_index=True)
     dueDate = models.DateTimeField()
-    valid = models.BooleanField(default=True, help_text='Set/clear flag instead of deleting to preserve information')
+    valid = models.BooleanField(default=True)
     completeDate= models.DateTimeField(blank=True, null=True)
     is_composite_goal = models.BooleanField(default=False,
             help_text='True if goal represents a composite of multiple goals')
@@ -1433,7 +1433,7 @@ class UserGoal(models.Model):
     creditTypes = models.ManyToManyField(CreditType,
             blank=True,
             related_name='usergoals',
-            help_text='Eligible creditTypes that satisfy this goal (not used for composite goals).')
+            help_text='Eligible creditTypes that satisfy this goal (used for credit goals).')
     documents = models.ManyToManyField(Document, related_name='usergoals')
     constituentGoals = models.ManyToManyField('self',
             blank=True,
@@ -1676,6 +1676,7 @@ class UserGoal(models.Model):
         data = []
         creditsDue = 0 # init to 0 since status expects var to be set even if no cmegoals
         daysLeft = 0
+        dueGoal = None
         for goal in consgoals:
             data.append({
                 'goal': goal,
@@ -1688,6 +1689,7 @@ class UserGoal(models.Model):
             })
         data.sort(key=itemgetter('dueDate'))
         dueDate = data[0]['dueDate'] # earliest
+        dueGoal = data[0]['goal']
         daysLeft = data[0]['daysLeft']
         creditsDue = data[0]['creditsDue']
         creditsDueMonthly = data[0]['creditsDueMonthly']
@@ -1698,12 +1700,14 @@ class UserGoal(models.Model):
             creditsDue1 = data[1]['creditsDue']
             td = dueDate1 - dueDate
             dayDiff = td.days
-            if dayDiff < UserGoal.MAX_DUEDATE_DIFF_DAYS:
+            if dayDiff < UserGoal.MAX_DUEDATE_DIFF_DAYS or (creditsDue == 0):
+                # goal dueDates are within N days of each other -or- earliest goal has no creditsDue at this time
                 # get max of (creditsDue, creditsDue1)
                 if creditsDue1 > creditsDue:
                     creditsDue = creditsDue1
                     creditsEarned = data[1]['creditsEarned'] # paired with creditsDue1
                     creditsDueMonthly = data[1]['creditsDueMonthly']
+                    dueGoal = data[1]['goal']
         # compute status
         if not creditsDueMonthly:
             status = UserGoal.COMPLETED # for now
@@ -1719,6 +1723,8 @@ class UserGoal(models.Model):
         self.status = status
         self.compliance = min([d['subCompliance'] for d in data])
         self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+        if dueGoal:
+            self.creditTypes.set(dueGoal.creditTypes.all())
         logger.debug('recompute compositeCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
@@ -1729,6 +1735,7 @@ class UserGoal(models.Model):
         data = []
         creditsDue = 0 # init to 0 since status expects var to be set even if no cmegoals
         daysLeft = 0
+        dueGoal = None
         for goal in consgoals:
             data.append({
                 'goal': goal,
@@ -1741,6 +1748,7 @@ class UserGoal(models.Model):
             })
         data.sort(key=itemgetter('dueDate'))
         dueDate = data[0]['dueDate'] # earliest
+        dueGoal = data[0]['goal']
         daysLeft = data[0]['daysLeft']
         creditsDue = data[0]['creditsDue']
         creditsEarned = data[0]['creditsEarned']
@@ -1750,11 +1758,13 @@ class UserGoal(models.Model):
             creditsDue1 = data[1]['creditsDue']
             td = dueDate1 - dueDate
             dayDiff = td.days
-            if dayDiff < UserGoal.MAX_DUEDATE_DIFF_DAYS:
+            if dayDiff < UserGoal.MAX_DUEDATE_DIFF_DAYS or (creditsDue == 0):
+                # goal dueDates are within N days of each other -or- earliest goal has no creditsDue at this time
                 # get max of (creditsDue, creditsDue1)
                 if creditsDue1 > creditsDue:
                     creditsDue = creditsDue1
                     creditsEarned = data[1]['creditsEarned'] # paired with creditsDue1
+                    dueGoal = data[1]['goal']
         # compute status
         if not creditsDue:
             status = UserGoal.COMPLETED
@@ -1771,6 +1781,8 @@ class UserGoal(models.Model):
         self.compliance = min([d['subCompliance'] for d in data])
         self.save()
         self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+        if dueGoal:
+            self.creditTypes.set(dueGoal.creditTypes.all())
         logger.debug('recompute compositeSRCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
