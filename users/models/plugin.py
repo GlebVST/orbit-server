@@ -245,7 +245,7 @@ class OrbitCmeOfferManager(models.Manager):
         now = timezone.now()
         activityDate = now + timedelta(seconds=20)
         expireDate = datetime(now.year, now.month+1, 1, tzinfo=pytz.utc)
-        return self.createOffer(aurl, user, activityDate, expireDate)
+        return self.makeOffer(aurl, user, activityDate, expireDate)
 
     def makeWelcomeOffer(self, user):
         aurl = None
@@ -259,7 +259,7 @@ class OrbitCmeOfferManager(models.Manager):
         now = timezone.now()
         activityDate = now - timedelta(seconds=10)
         expireDate = datetime(now.year+1, 1, 1, tzinfo=pytz.utc)
-        return self.createOffer(aurl, user, activityDate, expireDate)
+        return self.makeOffer(aurl, user, activityDate, expireDate)
 
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.
