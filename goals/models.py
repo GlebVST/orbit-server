@@ -1427,7 +1427,7 @@ class UserGoal(models.Model):
         """Returns: int between 0 and 100"""
         gtype = self.goal.goalType.name
         progress = 0
-        if gtype == GoalType.CME:
+        if gtype == GoalType.CME or gtype == GoalType.SRCME:
             if self.creditsDue:
                 progress = 100.0*float(self.creditsEarned)/float(self.creditsDue + self.creditsEarned)
             else:

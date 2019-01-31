@@ -137,7 +137,7 @@ class CmeGoalSubSerializer(serializers.ModelSerializer):
         return roundCredits(float(obj.creditsDueMonthly))
 
     def get_creditTypes(self, obj):
-        qset = obj.goal.cmegoal.creditTypes.all()
+        qset = obj.creditTypes.all()
         return [NestedCreditTypeSerializer(m).data for m in qset]
 
     def get_instructions(self, obj):
@@ -165,7 +165,7 @@ class SRCmeGoalSubSerializer(serializers.ModelSerializer):
         return roundCredits(float(obj.creditsDue))
 
     def get_creditTypes(self, obj):
-        qset = obj.goal.srcmegoal.creditTypes.all()
+        qset = obj.creditTypes.all()
         return [NestedCreditTypeSerializer(m).data for m in qset]
 
     def get_instructions(self, obj):
