@@ -268,21 +268,32 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         Emit profile_saved signal for enterprise members at the end.
         """
         user = instance.user
-        # get current specialties before updating the instance
+        # get current data before updating the instance
+        curDegs = set([m for m in instance.degrees.all()])
         curSpecs = set([m for m in instance.specialties.all()])
-        # get current subspecialties before updating the instance
         curSubSpecs = set([m for m in instance.subspecialties.all()])
-        # get current states before updating the instance
         curStates = set([m for m in instance.states.all()])
-        # get current deaStates before updating the instance
         curDeaStates = set([m for m in instance.deaStates.all()])
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
-        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
-        del_tags = set([]) # tags to be removed or deactivated
+        # if user unchecked DEA box, then clear deaStates
         if instance.deaStates.exists() and not instance.hasDEA:
             logger.info('User {0} : clear deaStates'.format(user))
             instance.deaStates.clear()
+        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
+        del_tags = set([]) # tags to be removed or deactivated
+        fieldName = 'degrees'
+        if fieldName in validated_data:
+            # need to check if key exists, because a PATCH request may not contain the fieldName
+            newDegs = set([deg for deg in validated_data[fieldName]])
+            delDegs = curDegs.difference(newDegs) # difference between old and new are the ones removed
+            for deg in delDegs:
+                if deg.abbrev == Degree.DO:
+                    # delete DO tags
+                    for state in curStates:
+                        for t in state.doTags:
+                            del_tags.add(t)
+                logger.info('User {0}: remove Degree: {1}'.format(user, deg))
         # now handle cmeTags
         fieldName = 'specialties'
         if fieldName in validated_data:
@@ -296,7 +307,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 del_tags.add(t)
         fieldName = 'subspecialties'
         if fieldName in validated_data:
-            # need to check if key exists, because a PATCH request may not contain the fieldName
             newSubSpecs = set([ps for ps in validated_data[fieldName]])
             delSubSpecs = curSubSpecs.difference(newSubSpecs)
             for ps in delSubSpecs:
@@ -305,12 +315,13 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                     del_tags.add(t)
         fieldName = 'states'
         if fieldName in validated_data:
-            # need to check if key exists, because a PATCH request may not contain the fieldName
             newStates = set([ps for ps in validated_data[fieldName]])
             delStates = curStates.difference(newStates)
-            for ps in delStates:
-                logger.info('User {0} : remove State: {1}'.format(user, ps))
-                for t in ps.cmeTags.all():
+            for state in delStates:
+                logger.info('User {0} : remove State: {1}'.format(user, state))
+                for t in state.cmeTags.all():
+                    del_tags.add(t)
+                for t in state.deaTags.all():
                     del_tags.add(t)
         # Filter del_tags so it does not contain anything in add_tags
         rtags = add_tags.intersection(del_tags)

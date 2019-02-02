@@ -133,10 +133,11 @@ class CmeGoalSubSerializer(serializers.ModelSerializer):
         )
 
     def get_creditsLeft(self, obj):
-        return roundCredits(float(obj.creditsDue))
+        """Return dueMonthly"""
+        return roundCredits(float(obj.creditsDueMonthly))
 
     def get_creditTypes(self, obj):
-        qset = obj.goal.cmegoal.creditTypes.all()
+        qset = obj.creditTypes.all()
         return [NestedCreditTypeSerializer(m).data for m in qset]
 
     def get_instructions(self, obj):
@@ -160,15 +161,16 @@ class SRCmeGoalSubSerializer(serializers.ModelSerializer):
         )
 
     def get_creditsLeft(self, obj):
+        """returns full creditsDue"""
         return roundCredits(float(obj.creditsDue))
 
     def get_creditTypes(self, obj):
-        qset = obj.goal.srcmegoal.creditTypes.all()
+        qset = obj.creditTypes.all()
         return [NestedCreditTypeSerializer(m).data for m in qset]
 
     def get_instructions(self, obj):
         """Returns cmeTag.instructions or empty str"""
-        cmeTag = obj.goal.cmegoal.cmeTag
+        cmeTag = obj.goal.srcmegoal.cmeTag
         if cmeTag:
             return cmeTag.instructions
         return ''
@@ -177,10 +179,12 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     goalTypeId = serializers.PrimaryKeyRelatedField(source='goal.goalType.id', read_only=True)
     goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
+    is_composite_goal = serializers.ReadOnlyField()
     documents = DocumentReadSerializer(many=True, required=False)
     title = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     extra = serializers.SerializerMethodField()
+    state = serializers.PrimaryKeyRelatedField(read_only=True)
 
     def get_progress(self, obj):
         return obj.progress
@@ -207,6 +211,8 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
             'user',
             'goalType',
             'goalTypeId',
+            'is_composite_goal',
+            'state',
             'title',
             'dueDate',
             'status',
@@ -263,17 +269,27 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
             to_update = set([])
             logger.debug('Finding usergoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
             for cmeGoal in licenseGoal.cmegoals.all():
-                # Use related_name on UserGoal.cmeGoals M2Mfield
                 logger.debug('cmeGoal: {0.pk}/{0}'.format(cmeGoal))
-                qset = cmeGoal.usercmegoals.filter(user=instance.user)
+                basegoal = cmeGoal.goal
+                qset = basegoal.usergoals.filter(user=instance.user) # using related_name on UserGoal.goal FK field
                 for ug in qset: # UserGoal qset
                     to_update.add(ug)
-            for tGoal in licenseGoal.traingoals.all():
-                # use related name on UserGoal.goal FK field
-                logger.debug('trainGoal: {0.pk}/{0}'.format(tGoal))
-                qset = tGoal.goal.usergoals.filter(user=instance.user)
+            for srcmeGoal in licenseGoal.srcmegoals.all():
+                logger.debug('srcmeGoal: {0.pk}/{0}'.format(srcmeGoal))
+                basegoal = srcmeGoal.goal
+                qset = basegoal.usergoals.filter(user=instance.user) # using related_name on UserGoal.goal FK field
                 for ug in qset: # UserGoal qset
                     to_update.add(ug)
+            # split ug to_update into individual vs composite
+            indiv, composite = [], []
             for ug in to_update:
+                if ug.is_composite_goal:
+                    composite.append(ug)
+                else:
+                    indiv.append(ug)
+            # recompute individual goals first before composite goals
+            for ug in indiv:
+                ug.recompute()
+            for ug in composite:
                 ug.recompute()
         return instance

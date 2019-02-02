@@ -40,8 +40,12 @@ class GoalTypeList(generics.ListAPIView):
     serializer_class = GoalTypeSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
+class LongPagination(PageNumberPagination):
+    page_size = 500
+
 class UserGoalList(generics.ListAPIView):
     serializer_class = UserGoalReadSerializer
+    pagination_class = LongPagination
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):

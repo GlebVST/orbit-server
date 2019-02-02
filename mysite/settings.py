@@ -430,3 +430,5 @@ UI_LINK_SUBSCRIPTION = '/subscription'
 UI_LINK_FEEDBACK = '/feedback'
 UI_LINK_LOGIN = '/login'
 UI_LINK_JOINTEAM = '/join-team'
+
+WELCOME_ARTICLE_URL = 'https://www.ncbi.nlm.nih.gov/pubmed/30459182'
