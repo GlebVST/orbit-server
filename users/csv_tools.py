@@ -301,6 +301,10 @@ class ProviderCsvImport(CsvImport):
                         )
                         num_dea_licenses += 1
                     self.print_out("Imported {} DEA licenses for user {}".format(num_state_licenses, d['Email']))
+                    if num_dea_licenses > 0:
+                        profile.hasDEA = True
+                        profile.save(update_fields=('hasDEA',))
+
 
                     # emit profile_saved signal
                     profile_saved.send(sender=profile.__class__, user_id=user.pk)
