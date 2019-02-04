@@ -1350,6 +1350,7 @@ class UserGoalManager(models.Manager):
         num_stale = self.rematchLicenseGoals(user)
         num_stale = self.rematchCmeGoals(user)
         num_stale = self.rematchSRCmeGoals(user)
+        profile = user.profile
         # Assign goals (create/update)
         usergoals = []
         usergoals.extend(self.assignLicenseGoals(profile))

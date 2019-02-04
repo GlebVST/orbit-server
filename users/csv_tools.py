@@ -267,13 +267,11 @@ class ProviderCsvImport(CsvImport):
                     # ProfileCmetags
                     profile.addOrActivateCmeTags()
 
-                    # emit profile_saved signal
-                    profile_saved.send(sender=profile.__class__, user_id=user.pk)
                     msg = u"Created User/Profile records: {FirstName} {LastName}, {Email}".format(**d)
                     self.print_out(msg)
 
                     num_state_licenses = 0
-                    for index, state in d['states']:
+                    for index, state in enumerate(d['states']):
                         expiryDate = None
                         dates = d['stateExpiryDates']
                         if index < len(dates):
@@ -289,7 +287,7 @@ class ProviderCsvImport(CsvImport):
                     self.print_out("Imported {} licenses for user {}".format(num_state_licenses, d['Email']))
 
                     num_dea_licenses = 0
-                    for index, state in d['deaStates']:
+                    for index, state in enumerate(d['deaStates']):
                         expiryDate = None
                         dates = d['deaExpiryDates']
                         if index < len(dates):
@@ -303,6 +301,9 @@ class ProviderCsvImport(CsvImport):
                         )
                         num_dea_licenses += 1
                     self.print_out("Imported {} DEA licenses for user {}".format(num_state_licenses, d['Email']))
+
+                    # emit profile_saved signal
+                    profile_saved.send(sender=profile.__class__, user_id=user.pk)
 
             if settings.ENV_TYPE == settings.ENV_PROD or test_ticket:
                 self.sendPasswordTicketEmails(org, auth0)
