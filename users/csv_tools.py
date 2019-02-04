@@ -344,7 +344,7 @@ class ProviderCsvImport(CsvImport):
             self.print_out(tickets_msg)
             ticket_url = auth0.change_password_ticket(profile.socialId, redirect_url)
 
-            sending_msg = u"Sending password-ticket email for User: {0}...".format(user)
+            sending_msg = u"Sending password-ticket email for User: {0}: {1}...".format(user, ticket_url)
             self.print_out(sending_msg)
 
             msg = sendPasswordTicketEmail(orgmember, ticket_url, send_message=False)
