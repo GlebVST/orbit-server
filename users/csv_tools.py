@@ -240,7 +240,7 @@ class ProviderCsvImport(CsvImport):
                     'email': d['Email'],
                     'degrees': degrees,
                     'password_ticket': False,
-                    'group': group.id
+                    'group': group.id if group else None
                 }
                 ser = OrgMemberFormSerializer(data=form_data)
                 ser.is_valid(raise_exception=True)
