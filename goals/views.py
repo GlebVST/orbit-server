@@ -78,9 +78,9 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         form_data = request.data.copy()
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
         in_serializer.is_valid(raise_exception=True)
-        self.perform_update(in_serializer)
-        instance = UserGoal.objects.get(pk=instance.pk)
-        out_serializer = UserGoalReadSerializer(instance)
+        userLicenseGoal = self.perform_update(in_serializer)
+        ##instance = UserGoal.objects.get(pk=instance.pk)
+        out_serializer = UserGoalReadSerializer(userLicenseGoal)
         return Response(out_serializer.data)
 
 

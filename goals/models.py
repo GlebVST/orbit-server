@@ -969,6 +969,31 @@ class UserGoalManager(models.Manager):
             userLicenseDict[m.goal.pk] = m.license
         return userLicenseDict
 
+    def renewLicenseGoal(self, oldGoal, newLicense):
+        """Archive old goal and create new user license goal
+        Args:
+            oldGoal: UserGoal instance for old license goal
+            newLicense: StateLicense instance
+        Returns: UserGoal instance
+        """
+        oldGoal.status = self.model.EXPIRED # archive it
+        oldGoal.save()
+        # create UserGoal with associated license
+        usergoal = self.model.objects.create(
+                user=oldGoal.user,
+                goal=oldGoal.goal,
+                state=oldGoal.state,
+                dueDate=newLicense.expireDate,
+                status=self.model.IN_PROGRESS,
+                license=newLicense
+            )
+        now = timezone.now()
+        status = usergoal.calcLicenseStatus(now)
+        if usergoal.status != status:
+            usergoal.status = status
+            usergoal.save(update_fields=('status',))
+        logger.info('Created UserGoal: {0}'.format(usergoal))
+        return usergoal
 
     def assignLicenseGoals(self, profile):
         """Assign License UserGoals and create any uninitialized statelicenses for user as needed
@@ -1176,6 +1201,55 @@ class UserGoalManager(models.Manager):
         userLicenseDict = self.makeUserLicenseDict(user)
         usergoals.extend(self.assignCmeGoals(profile, userLicenseDict))
         usergoals.extend(self.assignSRCmeGoals(profile, userLicenseDict))
+        return usergoals
+
+    def recomputeCreditGoalsForLicense(self, usergoal):
+        """This is called when a license is edited in-place. Recompute all dependent credit goals
+        Args:
+            usergoal: UserGoal instance whose goalType is LICENSE
+        """
+        user = usergoal.user
+        licenseGoal = usergoal.goal.licensegoal # LicenseGoal instance
+        to_update = set([])
+        logger.debug('Finding usergoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
+        for cmeGoal in licenseGoal.cmegoals.all():
+            logger.debug('cmeGoal: {0.pk}/{0}'.format(cmeGoal))
+            basegoal = cmeGoal.goal
+            qset = basegoal.usergoals.filter(user=user) # using related_name on UserGoal.goal FK field
+            for ug in qset: # UserGoal qset
+                to_update.add(ug)
+        for srcmeGoal in licenseGoal.srcmegoals.all():
+            logger.debug('srcmeGoal: {0.pk}/{0}'.format(srcmeGoal))
+            basegoal = srcmeGoal.goal
+            qset = basegoal.usergoals.filter(user=user) # using related_name on UserGoal.goal FK field
+            for ug in qset: # UserGoal qset
+                to_update.add(ug)
+        # split ug to_update into individual vs composite
+        indiv, composite = [], []
+        for ug in to_update:
+            if ug.is_composite_goal:
+                composite.append(ug)
+            else:
+                indiv.append(ug)
+        # recompute individual goals first before composite goals
+        for ug in indiv:
+            ug.recompute()
+        for ug in composite:
+            ug.recompute()
+
+
+    def updateCreditGoalsForRenewLicense(self, oldGoal, newGoal):
+        """This is called when a license goal is renewed. Its dependent
+        creditgoals (cme/srcme) are also renewed. Archive the current credit
+        goals dependent on old goal and create new cme/srcme goals for the new usergoal.
+        **
+        TODO: DO NOT RENEW ONE/OFF GOALS!!
+        **
+        Args:
+            oldGoal: old user license goal
+            newGoal: new user license goal
+        Returns: list of newly created usergoals
+        """
         return usergoals
 
     def rematchLicenseGoals(self, user):

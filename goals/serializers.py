@@ -246,14 +246,36 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
         """Update usergoal, and statelicense for this goal,
         and any user cmegoals that make use of the license expireDate
         """
+        user = instance.user
         license = instance.license
         licenseNumber = validated_data.get('licenseNumber')
         expireDate = validated_data.get('expireDate')
-        updateUserCmeGoals = False
+        createNewLicense = False
+        updateUserCreditGoals = False
         now = timezone.now()
+        # Decide if need to create a new license or edit in-place (e.g. correction)
+        if license.licenseNumber and license.expireDate and expireDate > license.expireDate:
+            tdiff = expireDate - license.expireDate
+            if tdiff.days >= 365:
+                createNewLicense = True # create new license instance
+        if createNewLicense:
+            newLicense = StateLicense.objects.create(
+                    user=user,
+                    state=license.state,
+                    licenseType=license.licenseType,
+                    licenseNumber=license.licenseNumber,
+                    expireDate=expireDate
+                )
+            newUserLicenseGoal = UserGoal.objects.renewLicenseGoal(instance, newLicense)
+            if 'documents' in validated_data:
+                docs = validated_data['documents']
+                newUserLicenseGoal.documents.set(docs)
+            ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(instance, newUserLicenseGoal)
+            return newUserLicenseGoal
+        # else
         if expireDate != license.expireDate:
-            updateUserCmeGoals = True
-        # update license and usergoal
+            updateUserCreditGoals = True
+        # update license and usergoal in-place
         license.licenseNumber = licenseNumber
         license.expireDate = expireDate
         license.save()
@@ -264,32 +286,6 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
         if 'documents' in validated_data:
             docs = validated_data['documents']
             instance.documents.set(docs)
-        if updateUserCmeGoals:
-            licenseGoal = instance.goal.licensegoal # LicenseGoal instance
-            to_update = set([])
-            logger.debug('Finding usergoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
-            for cmeGoal in licenseGoal.cmegoals.all():
-                logger.debug('cmeGoal: {0.pk}/{0}'.format(cmeGoal))
-                basegoal = cmeGoal.goal
-                qset = basegoal.usergoals.filter(user=instance.user) # using related_name on UserGoal.goal FK field
-                for ug in qset: # UserGoal qset
-                    to_update.add(ug)
-            for srcmeGoal in licenseGoal.srcmegoals.all():
-                logger.debug('srcmeGoal: {0.pk}/{0}'.format(srcmeGoal))
-                basegoal = srcmeGoal.goal
-                qset = basegoal.usergoals.filter(user=instance.user) # using related_name on UserGoal.goal FK field
-                for ug in qset: # UserGoal qset
-                    to_update.add(ug)
-            # split ug to_update into individual vs composite
-            indiv, composite = [], []
-            for ug in to_update:
-                if ug.is_composite_goal:
-                    composite.append(ug)
-                else:
-                    indiv.append(ug)
-            # recompute individual goals first before composite goals
-            for ug in indiv:
-                ug.recompute()
-            for ug in composite:
-                ug.recompute()
+        if updateUserCreditGoals:
+            UserGoal.objects.recomputeCreditGoalsForLicense(instance)
         return instance
