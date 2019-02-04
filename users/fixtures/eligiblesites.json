@@ -29,7 +29,7 @@
     "is_valid_expurl": true,
     "description": "Abstracts on PubMed are eligible. Pubmed is the world\u2019s repository for peer-reviewed scientific abstracts.",
     "needs_ad_block": false,
-    "page_title_suffix": "- PubMed - NCBI",
+    "page_title_suffix": "",
     "created": "2017-06-05T20:33:18.211Z",
     "modified": "2017-07-17T07:36:37.656Z",
     "specialties": [
