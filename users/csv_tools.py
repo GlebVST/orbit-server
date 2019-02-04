@@ -332,23 +332,21 @@ class ProviderCsvImport(CsvImport):
         redirect_url = 'https://{0}{1}'.format(settings.SERVER_HOSTNAME, settings.UI_LINK_LOGIN)
         user_tickets = []
         qset = OrgMember.objects.filter(organization=org, setPasswordEmailSent=False).order_by('id')
-        # generate change-password-tickets with auth0
-        for orgmember in qset:
-            user = orgmember.user
-            profile = user.profile
-            ticket_url = auth0.change_password_ticket(profile.socialId, redirect_url)
-            user_tickets.append((orgmember, ticket_url))
-        num_tickets = len(user_tickets)
-        tickets_msg = 'Generating {0} Auth0 password-ticket emails...please wait.'.format(num_tickets)
-        self.print_out(tickets_msg)
 
         # send out emails
         connection = mail.get_connection()
         connection.open()
-        for orgmember, ticket_url in user_tickets:
+        # generate change-password-tickets with auth0
+        for orgmember in qset:
             user = orgmember.user
+            profile = user.profile
+            tickets_msg = 'Generating Auth0 password-ticket for {}'.format(user.email)
+            self.print_out(tickets_msg)
+            ticket_url = auth0.change_password_ticket(profile.socialId, redirect_url)
+
             sending_msg = u"Sending password-ticket email for User: {0}...".format(user)
             self.print_out(sending_msg)
+
             msg = sendPasswordTicketEmail(orgmember, ticket_url, send_message=False)
             # send email and update flag if success
             num_sent = connection.send_messages([msg,])
@@ -358,7 +356,9 @@ class ProviderCsvImport(CsvImport):
             else:
                 error_msg = 'Send password-ticket email failed for {0.user}'.format(orgmember)
                 self.print_out(error_msg, True)
-            # small delay as we are not spammers
-            sleep(0.3)
+            # add delay as we are not spammers
+            # auth0 rate-limit API calls on a free tier to 2 requests per second
+            # https://auth0.com/docs/policies/rate-limits
+            sleep(0.5)
 
         connection.close()
