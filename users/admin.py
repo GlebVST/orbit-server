@@ -10,6 +10,13 @@ from mysite.admin import admin_site
 from common.ac_filters import UserFilter, StateFilter
 from common.dateutils import fmtLocalDatetime
 from .models import *
+from django.utils.html import format_html
+from django.core.urlresolvers import reverse
+from django.http import HttpResponseRedirect
+from django.conf.urls import url
+from django.contrib import messages
+from users.csv_tools import ProviderCsvImport
+from cStringIO import StringIO
 
 class AuthImpersonationForm(forms.ModelForm):
     class Meta:
@@ -83,9 +90,47 @@ class OrgAdmin(admin.ModelAdmin):
     ]
 
 class OrgFileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created')
+    list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created', 'orgfile_actions')
+    readonly_fields = ('orgfile_actions',)
     list_select_related = True
     ordering = ('-created',)
+
+    def get_urls(self):
+        urls = super(OrgFileAdmin, self).get_urls()
+        custom_urls = [
+            url(
+                r'^(?P<id>.+)/process/$',
+                self.admin_site.admin_view(self.orgfile_process),
+                name='orgfile-process',
+            ),
+        ]
+        return custom_urls + urls
+
+    def orgfile_actions(self, obj):
+        return format_html(
+            '<a class="button" href="{}">Run import</a>',
+            reverse('admin:orgfile-process', args=[obj.pk]),
+        )
+    orgfile_actions.short_description = 'Account Actions'
+    orgfile_actions.allow_tags = True
+
+    def orgfile_process(self,  request, id, *args, **kwargs):
+        orgfile = self.get_object(request, id)
+        org = orgfile.organization
+        src_file = orgfile.csvfile if orgfile.csvfile else orgfile.document
+        output = StringIO()
+        csv = ProviderCsvImport(stdout=output)
+        success = csv.processOrgFile(org.id, src_file)
+        if success:
+            self.message_user(request, 'Success')
+        else:
+            self.message_user(request, output.getvalue(), messages.WARNING)
+        url = reverse(
+            'admin:users_orgfile_change',
+            args=[orgfile.pk],
+            current_app=self.admin_site.name,
+        )
+        return HttpResponseRedirect(url)
 
 class OrgMemberAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'group', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'pending', 'removeDate')
