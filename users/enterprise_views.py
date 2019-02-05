@@ -280,17 +280,24 @@ class OrgMembersRemove(APIView):
     def post(self, request, *args, **kwargs):
         ids = request.data.get('ids', [])
         logInfo(logger, self.request, 'Remove OrgMembers: {}'.format(ids))
+        updates = []
         for id in ids:
             try:
                 member = OrgMember.objects.get(pk=id)
             except OrgMember.DoesNotExist:
-                logger.info("OrgMember with ID {0} do not exist".format(id))
+                logger.info("OrgMember with ID {0} not found".format(id))
             else:
                 member.removeDate = datetime.now()
                 member.save(update_fields=('removeDate',))
+                updates.append({
+                    "id": member.id,
+                    "removeDate": member.removeDate
+                })
+                # if wasn't enterprise user (like existing orbit user hasn't accepted org invite) -
+                # below method won't do anything
                 UserSubscription.objects.endEnterpriseSubscription(member.user)
 
-        context = {'success': True}
+        context = {'success': True, 'data':updates}
         return Response(context, status=status.HTTP_200_OK)
 
 class OrgMemberDetail(generics.RetrieveUpdateAPIView):
@@ -386,33 +393,66 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
 
-class EmailSetPassword(APIView):
+class OrgMembersEmailInvite(APIView):
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
     def post(self, request, *args, **kwargs):
-        memberid = self.kwargs.get('pk')
-        if memberid:
-            qset = OrgMember.objects.filter(pk=memberid)
-            if not qset.exists():
-                return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
-            orgmember = qset[0]
-            if orgmember.pending:
-                # member get into a pending state only when existing Orbit user get invited to organisation
-                # so for such users we send a join-team email again
-                try:
-                    sendJoinTeamEmail(orgmember.user, orgmember.organization, send_message=True)
-                except SMTPException, e:
-                    logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(orgmember))
-            elif not orgmember.user.profile.verified:
-                # unverified users with with non-pending state are thos recently invited and never actually joined Orbit
-                # so for such users we send a set-password email
-                apiConn = Auth0Api.getConnection(self.request)
-                OrgMember.objects.sendPasswordTicket(orgmember.user.profile.socialId, orgmember, apiConn)
+        ids = request.data.get('ids', [])
+        logInfo(logger, self.request, 'Repeat email invites for OrgMembers: {}'.format(ids))
+        for id in ids:
+            try:
+                member = OrgMember.objects.get(pk=id)
+            except OrgMember.DoesNotExist:
+                logger.info("OrgMember with ID {0} not found".format(id))
+            else:
+                if member.pending:
+                    # member get into a pending state only when existing Orbit user get invited to organisation
+                    # so for such users we send a join-team email again
+                    try:
+                        sendJoinTeamEmail(member.user, member.organization, send_message=True)
+                    except SMTPException, e:
+                        logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
+                elif not member.user.profile.verified:
+                    # unverified users with non-pending state are those recently invited and never actually joined Orbit
+                    # so for such users we send a set-password email
+                    apiConn = Auth0Api.getConnection(self.request)
+                    OrgMember.objects.sendPasswordTicket(member.user.profile.socialId, member, apiConn)
 
-            context = {'success': True}
-            return Response(context, status=status.HTTP_200_OK)
+        context = {'success': True}
+        return Response(context, status=status.HTTP_200_OK)
 
-        return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+class OrgMembersRestore(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def post(self, request, *args, **kwargs):
+        ids = request.data.get('ids', [])
+        logInfo(logger, self.request, 'Restore email invites for OrgMembers: {}'.format(ids))
+        updates = []
+        for id in ids:
+            try:
+                member = OrgMember.objects.get(pk=id)
+            except OrgMember.DoesNotExist:
+                logger.info("OrgMember with ID {0} not found".format(id))
+            else:
+                if member.removeDate:
+                    member.removeDate = None
+                    member.pending = True
+                    member.save(update_field=('pending', 'removeDate',))
+                    updates.append({
+                        "id": member.id,
+                        "pending": True,
+                        "removeDate": None
+                    })
+                    # since member was removed they should have been moved to a free trial subscription
+                    # so ask them to join organisation
+                    try:
+                        sendJoinTeamEmail(member.user, member.organization, send_message=True)
+                    except SMTPException, e:
+                        logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
+
+
+        context = {'success': True, 'data': updates}
+        return Response(context, status=status.HTTP_200_OK)
 
 
 class TeamStats(APIView):
