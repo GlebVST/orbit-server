@@ -262,3 +262,22 @@ class OrbitCmeOfferAggSerializer(serializers.ModelSerializer):
             'value'
         )
         read_only_fields = fields
+
+class OrgMemberAdminViewSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    group = serializers.StringRelatedField(read_only=True)
+    email = serializers.ReadOnlyField(source='user.email')
+    firstName = serializers.ReadOnlyField(source='user.profile.firstName')
+    lastName = serializers.ReadOnlyField(source='user.profile.lastName')
+
+    class Meta:
+        model = OrgMember
+        fields = (
+            'user',
+            'group',
+            'email',
+            'firstName',
+            'lastName',
+            'snapshot'
+        )
+        read_only_fields = fields

@@ -42,6 +42,9 @@ DUE_DAY_ERROR = u'dueDay must be a valid day for the selected month in range 1-3
 MARGINAL_COMPLIANT_CUTOFF_DAYS = 30
 SRCME_MARGINAL_COMPLIANT_CUTOFF_DAYS = 90
 ANY_TOPIC = u'Any Topic'
+LICENSES = 'licenses'
+CME_GAP = 'cme_gap'
+GOALS = 'goals'
 
 def makeDueDate(year, month, day, now, advance_if_past=True):
     """Create dueDate as (year,month,day) and advance to next year if dueDate is < now
@@ -1431,9 +1434,77 @@ class UserGoalManager(models.Manager):
             logger.info('handleRedeemOffer for: {0}'.format(ug))
         return num_ug # number of usergoals updated
 
+    def compute_userdata_for_admin_view(self, u, fkwargs, sl_qset, stateid=None):
+        """Args:
+            u: User instance
+            fkwargs: base dict of filter kwargs for filtering UserGoal
+                - valid: True,
+                - goal__goalType__in: credit goaltypes
+                - is_composite_goal: False
+            sl_qset: queryset of latest user StateLicenses
+            stateid: int/None (None for overall)
+        Returns: dict
+        """
+        if stateid:
+            statelicenses = [sl for sl in sl_qset if sl.state_id == stateid]
+        else:
+            statelicenses = list(sl_qset)
+        total_licenses = len(statelicenses)
+        # count expired vs expiring
+        now = timezone.now()
+        expiringCutoffDate = now + timedelta(days=self.model.EXPIRING_CUTOFF_DAYS)
+        expired = []
+        expiring = []
+        for sl in statelicenses:
+            if not sl.expireDate or sl.expireDate < now:
+                expired.append(sl)
+            elif sl.expireDate <= expiringCutoffDate:
+                expiring.append(sl)
+        # compute max cme gap for expired goals (over all entityTypes)
+        pastdue_cme_gap = 0
+        pastdue_num_goals = 0
+        fkw = fkwargs.copy()
+        fkw['status'] = UserGoal.PASTDUE
+        if stateid:
+            fkw['state'] = stateid
+        usergoals = u.usergoals \
+            .filter(**fkw) \
+            .order_by('-creditsDue')
+        if usergoals.exists():
+            pastdue_cme_gap = float(usergoals[0].creditsDue)
+            pastdue_num_goals = usergoals.count()
+        # compute max cme gap for expiring goals (over all entityTypes)
+        expiring_cme_gap = 0
+        expiring_num_goals = 0
+        fkw = fkwargs.copy()
+        fkw['dueDate__lte'] = expiringCutoffDate
+        if stateid:
+            fkw['state'] = stateid
+        usergoals = u.usergoals \
+            .filter(**fkw) \
+            .order_by('-creditsDue')
+        if usergoals.exists():
+            expiring_cme_gap = float(usergoals[0].creditsDue)
+            expiring_num_goals = usergoals.count()
+        # return dict for userdata
+        return {
+            'total': total_licenses,
+            'expired': {
+                LICENSES: len(expired),
+                GOALS: pastdue_num_goals,
+                CME_GAP: pastdue_cme_gap,
+            },
+            'expiring': {
+                LICENSES: len(expiring),
+                GOALS: expiring_num_goals,
+                CME_GAP: expiring_cme_gap,
+            },
+        }
+
 
 @python_2_unicode_compatible
 class UserGoal(models.Model):
+    EXPIRING_CUTOFF_DAYS = 90 # used in compute_userdata_for_admin_view for expiring goals
     MAX_DUEDATE_DIFF_DAYS = 30 # used in recompute method for combining cmegoals grouped by tag
     PASTDUE = 0
     IN_PROGRESS = 1
