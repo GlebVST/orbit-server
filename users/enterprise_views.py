@@ -141,7 +141,6 @@ class OrgMemberFilterBackend(BaseFilterBackend):
         # basic filter kwargs
         filter_kwargs = {
             'organization': org,
-            'removeDate__isnull': True,
         }
         if compliance is not None:
             filter_kwargs['compliance'] = compliance
@@ -174,11 +173,14 @@ class OrgMemberListPagination(PageNumberPagination):
     max_page_size = 1000
 
 class OrgMemberList(generics.ListCreateAPIView):
-    queryset = OrgMember.objects.filter(removeDate__isnull=True) # active only
+    queryset = OrgMember.objects.all()
     serializer_class = OrgMemberReadSerializer
     pagination_class = OrgMemberListPagination
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
-    filter_backends = (OrgMemberFilterBackend,)
+
+    def get_queryset(self):
+        orderByFields = ['user__profile__lastName', 'user__profile__firstName', 'created']
+        return OrgMember.objects.filter(organization=self.request.user.profile.organization).order_by(*orderByFields)
 
     def get_serializer_class(self):
         """Note: django-rest-swagger call this without a request object so must check for request attr"""
