@@ -288,6 +288,7 @@ class OrgMembersRemove(APIView):
             else:
                 member.removeDate = datetime.now()
                 member.save(update_fields=('removeDate',))
+                UserSubscription.objects.endEnterpriseSubscription(member.user)
 
         context = {'success': True}
         return Response(context, status=status.HTTP_200_OK)
