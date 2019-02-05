@@ -280,7 +280,7 @@ class OrgMembersRemove(APIView):
         logInfo(logger, self.request, 'Remove OrgMembers: {}'.format(ids))
         for id in ids:
             try:
-                member = OrgMember.objects.get(id)
+                member = OrgMember.objects.get(pk=id)
             except OrgMember.DoesNotExist:
                 logger.info("OrgMember with ID {0} do not exist".format(id))
             else:
