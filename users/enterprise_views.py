@@ -241,7 +241,7 @@ class OrgMemberList(generics.ListCreateAPIView):
                 elif instance.removeDate is not None:
                     logInfo(logger, self.request, 'User {0} is removed OrgMember {1.pk}. Set pending to True'.format(user, instance))
                     instance.pending = True
-                    instance.save(update_field=('pending',))
+                    instance.save(update_fields=('pending',))
                 else:
                     error_msg = 'The user {0} already belongs to the team.'.format(user)
                     logWarning(logger, self.request, error_msg)
@@ -437,7 +437,7 @@ class OrgMembersRestore(APIView):
                 if member.removeDate:
                     member.removeDate = None
                     member.pending = True
-                    member.save(update_field=('pending', 'removeDate',))
+                    member.save(update_fields=('pending', 'removeDate',))
                     updates.append({
                         "id": member.id,
                         "pending": True,
