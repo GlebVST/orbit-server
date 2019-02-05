@@ -50,7 +50,7 @@ class Auth0Backend(object):
                     else:
                         logger.warning('Invalid affiliateId: {0}'.format(affiliateId))
                 elif inviterId:
-                    qset = self.model.objects.filter(inviteId=inviterId)
+                    qset = Profile.objects.filter(inviteId=inviterId)
                     if qset.exists():
                         inviter = qset[0].user # inviter User
                         logger.info('User {0.email} was invited by {1.email}'.format(user, inviter))
