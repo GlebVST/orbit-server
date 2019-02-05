@@ -437,11 +437,16 @@ class OrgMembersRestore(APIView):
                 if member.removeDate:
                     member.removeDate = None
                     member.pending = True
+                    # todo
+                    # decide if need to reset the created timestamp as
+                    # this field will be used for "invited" date field on UI
+                    # member.created = datetime.now()
                     member.save(update_fields=('pending', 'removeDate',))
                     updates.append({
                         "id": member.id,
                         "pending": True,
-                        "removeDate": None
+                        "joined": False,
+                        "removeDate": None,
                     })
                     # since member was removed they should have been moved to a free trial subscription
                     # so ask them to join organisation
