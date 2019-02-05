@@ -46,14 +46,14 @@ class Auth0Backend(object):
                     qset = AffiliateDetail.objects.filter(affiliateId=affiliateId)
                     if qset.exists():
                         inviter = qset[0].affiliate # Affiliate instance
-                        logger.info('User {0.email} was converted by {1}'.format(user, affiliateId))
+                        logger.info('User {0} was converted by {1}'.format(email, affiliateId))
                     else:
                         logger.warning('Invalid affiliateId: {0}'.format(affiliateId))
                 elif inviterId:
                     qset = Profile.objects.filter(inviteId=inviterId)
                     if qset.exists():
                         inviter = qset[0].user # inviter User
-                        logger.info('User {0.email} was invited by {1.email}'.format(user, inviter))
+                        logger.info('User {0} was invited by {1.email}'.format(email, inviter))
                     else:
                         logger.warning('Invalid inviterId: {0}'.format(inviterId))
                 # Create User and Profile instance
