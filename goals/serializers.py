@@ -225,6 +225,53 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class UserGoalSummarySerializer(serializers.ModelSerializer):
+    user = serializers.IntegerField(source='user.id', read_only=True)
+    goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
+    state = serializers.PrimaryKeyRelatedField(read_only=True)
+    cmeTag = serializers.ReadOnlyField(source='cmeTag.name')
+    creditsLeft = serializers.SerializerMethodField()
+    creditTypes = serializers.SerializerMethodField()
+    license = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserGoal
+        fields = (
+            'id',
+            'user',
+            'goalType',
+            'state',
+            'dueDate',
+            'status',
+            'cmeTag',
+            'creditsLeft',
+            'creditTypes',
+            'license'
+        )
+
+    def get_creditsLeft(self, obj):
+        """returns full creditsDue"""
+        return roundCredits(float(obj.creditsDue))
+
+    def get_creditTypes(self, obj):
+        qset = obj.creditTypes.all()
+        return [NestedCreditTypeSerializer(m).data for m in qset]
+
+    def get_license(self, obj):
+        """Return state/licenseType or board info"""
+        license = obj.license
+        if license:
+            ltype = license.licenseType.name
+            if ltype == 'Medical Board':
+                return "{0.state.name} ({0.state.abbrev})".format(obj)
+            return '{0} {1.name} ({0.state.abbrev})'.format(ltype, obj.state)
+        if obj.state:
+            return "{0.state.name} ({0.state.abbrev})".format(obj)
+        # else: expect this is a Board/Hospital goal
+        return obj.goal.cmegoal.entityName
+
+
+
 class UserLicenseGoalUpdateSerializer(serializers.Serializer):
     licenseNumber = serializers.CharField(max_length=40)
     expireDate = serializers.DateTimeField()

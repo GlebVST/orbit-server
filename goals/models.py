@@ -702,7 +702,14 @@ class CmeGoal(models.Model):
         if not dueYear:
             dueYear = now.year
         basegoal = self.goal
-        if basegoal.isOneOff() or basegoal.isRecurAny():
+        if basegoal.isRecurAny():
+            return now
+        if basegoal.isOneOff():
+            if self.state:
+                if not userLicense or userLicense.isUnInitialized():
+                    return now
+                else:
+                    return userLicense.expireDate
             return now
         if basegoal.isRecurMMDD():
             dueDate = makeDueDate(dueYear, self.dueMonth, self.dueDay, now)
@@ -846,6 +853,8 @@ class SRCmeGoal(models.Model):
     )
     credits = models.DecimalField(max_digits=6, decimal_places=2,
             validators=[MinValueValidator(0.1)])
+    has_credit = models.BooleanField(default=True,
+            help_text='Set to False if this is a zero-credit goal requirement (but set credits field value to 1)')
     creditTypes = models.ManyToManyField(CreditType,
             blank=True,
             related_name='srcmegoals',

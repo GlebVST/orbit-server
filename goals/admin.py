@@ -184,11 +184,13 @@ class SRCmeBaseGoalAdmin(admin.ModelAdmin):
         super(SRCmeBaseGoalAdmin, self).save_model(request, obj, form, change)
 
     def getTag(self, obj):
-        return obj.srcmegoal.cmeTag if obj.srcmegoal.cmeTag else u'(Any)'
+        return obj.srcmegoal.cmeTag
     getTag.short_description = 'CME Tag'
 
     def getCredits(self, obj):
-        return obj.cmegoal.credits
+        if not obj.has_credit:
+            return 0
+        return obj.srcmegoal.credits
     getCredits.short_description = 'Credits'
 
     def getState(self, obj):

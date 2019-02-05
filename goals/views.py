@@ -43,6 +43,38 @@ class GoalTypeList(generics.ListAPIView):
 class LongPagination(PageNumberPagination):
     page_size = 500
 
+
+class UserGoalSummary(APIView):
+    pagination_class = LongPagination
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def get(self, request, *args, **kwargs):
+        try:
+            user = User.objects.get(pk=kwargs['userid'])
+        except User.DoesNotExist:
+            return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
+
+        stateid = request.query_params.get('state', '')
+        gts = GoalType.objects.filter(name__in=[GoalType.CME, GoalType.SRCME])
+        fkwargs = {
+            'valid': True,
+            'goal__goalType__in': gts,
+            'is_composite_goal': False,
+            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS, UserGoal.COMPLETED]
+        }
+        if stateid:
+            fkwargs['state_id'] = stateid
+        qset = user.usergoals \
+                .filter(**fkwargs) \
+                .select_related('goal__goalType', 'license__licenseType', 'cmeTag', 'state') \
+                .order_by('status', 'dueDate', 'license', '-creditsDue')
+        s = UserGoalSummarySerializer(qset, many=True)
+        context = {
+            'results': s.data
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
+
 class UserGoalList(generics.ListAPIView):
     serializer_class = UserGoalReadSerializer
     pagination_class = LongPagination
