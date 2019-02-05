@@ -269,6 +269,26 @@ class OrgMemberList(generics.ListCreateAPIView):
         out_serializer = OrgMemberReadSerializer(instance)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
+class OrgMembersRemove(APIView):
+    """This view sets `removeDate` field on all OrgMember instances matching passed ids array
+    Example JSON in the DELETE data:
+        {"ids": [1, 23, 94]}
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    def post(self, request, *args, **kwargs):
+        ids = request.data.get('ids', [])
+        logInfo(logger, self.request, 'Remove OrgMembers: {}'.format(ids))
+        for id in ids:
+            try:
+                member = OrgMember.objects.get(id)
+            except OrgMember.DoesNotExist:
+                logger.info("OrgMember with ID {0} do not exist".format(id))
+            else:
+                member.removeDate = datetime.now()
+                member.save(update_fields=('removeDate',))
+
+        context = {'success': True}
+        return Response(context, status=status.HTTP_200_OK)
 
 class OrgMemberDetail(generics.RetrieveUpdateAPIView):
     serializer_class = OrgMemberFormSerializer
