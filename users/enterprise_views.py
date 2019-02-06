@@ -564,19 +564,3 @@ class JoinTeam(APIView):
             'credits': pdata['credits']
         }
         return Response(context, status=status.HTTP_200_OK)
-
-class AdminViewAggStats(LogValidationErrorMixin, generics.ListAPIView):
-    serializer_class = OrgMemberAdminViewSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
-
-    def get_queryset(self):
-        """Returns data for the current non-pending orgmembers belonging
-        to request.users' org
-        """
-        return OrgMember.objects \
-                .select_related('group','user__profile') \
-                .filter(
-                    organization=self.request.user.profile.organization,
-                    removeDate__isnull=True,
-                    pending=False
-                ).order_by('id')
