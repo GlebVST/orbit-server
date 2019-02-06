@@ -28,6 +28,7 @@ for state in states:
 med_board_lt = LicenseType.objects.get(name='Medical Board')
 goaltype_cme = GoalType.objects.get(name=GoalType.CME)
 goaltype_srcme = GoalType.objects.get(name=GoalType.SRCME)
+FL_DO_LIVE_COURSE_TAG = 'All topics, live courses only (FL-DO-specific)'
 
 def getStateLicenseGoal(state):
     return LicenseGoal.objects.get(state=state, licenseType=med_board_lt)
@@ -112,9 +113,13 @@ def handle_dea_state_tag(df):
             logger.warning('Skip raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        tag, created = CmeTag.objects.get_or_create(name=tagname, description=tagname, srcme_only=srcme_only)
-        if created:
+        qs = CmeTag.objects.filter(name=tagname)
+        if qs.exists():
+            tag = qs[0]
+        else:
+            tag = CmeTag.objects.create(name=tagname, description=tagname, srcme_only=srcme_only)
             logger.info('Created {0} srcme_only: {0.srcme_only} for DEA in_state {1}'.format(tag, state))
+            print('Created {0} srcme_only: {0.srcme_only} for DEA in_state {1}'.format(tag, state))
         # add it to state.deaTags
         dat = StateDeatag.objects.get_or_create(state=state, tag=tag, dea_in_state=True)
     df2 = df[df.DEA_specific == 'any_state']
@@ -135,9 +140,13 @@ def handle_dea_state_tag(df):
             logger.warning('Skip raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        tag, created = CmeTag.objects.get_or_create(name=tagname, description=tagname, srcme_only=srcme_only)
-        if created:
+        qs = CmeTag.objects.filter(name=tagname)
+        if qs.exists():
+            tag = qs[0]
+        else:
+            tag = CmeTag.objects.create(name=tagname, description=tagname, srcme_only=srcme_only)
             logger.info('Created {0} srcme_only: {0.srcme_only} for DEA any_state {1}'.format(tag, state))
+            print('Created {0} srcme_only: {0.srcme_only} for DEA any_state {1}'.format(tag, state))
         # add it to state.deaTags
         dat = StateDeatag.objects.get_or_create(state=state, tag=tag, dea_in_state=False)
 
@@ -155,9 +164,13 @@ def handle_state_cme_tag(df):
             logger.warning('Skip raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        tag, created = CmeTag.objects.get_or_create(name=tagname, description=tagname, srcme_only=False)
-        if created:
+        qs = CmeTag.objects.filter(name=tagname)
+        if qs.exists():
+            tag = qs[0]
+        else:
+            tag = CmeTag.objects.create(name=tagname, description=tagname, srcme_only=False)
             logger.info('Created tag: {0} for state {1}'.format(tag, state))
+            print('Created tag: {0} for state {1}'.format(tag, state))
         # assign to state.cmeTags
         state.cmeTags.add(tag)
 
@@ -172,31 +185,41 @@ def handle_state_srcme_tag(df):
             logger.warning('Skip tag with comma in it: {0} for State {1}'.format(raw_tag, state))
             continue
         if raw_tag == 'general' or raw_tag == 'specialty':
-            logger.warning('Skip raw_tag: {0} for State {1}'.format(raw_tag, state))
+            logger.warning('Skip SRCME raw_tag: {0} for State {1}'.format(raw_tag, state))
+            print('Skip SRCME raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        tag, created = CmeTag.objects.get_or_create(name=tagname, description=tagname, srcme_only=True)
-        if created:
+        qs = CmeTag.objects.filter(name=tagname)
+        if qs.exists():
+            tag = qs[0]
+        else:
+            tag = CmeTag.objects.create(name=tagname, description=tagname, srcme_only=True)
             logger.info('Created srcme_only tag: {0} for state {1}'.format(tag, state))
+            print('Created srcme_only tag: {0} for state {1}'.format(tag, state))
         # assign to state.cmeTags
         state.cmeTags.add(tag)
 
 def handle_state_DO_tag(df):
     """state.doTags"""
-    df2 = df[(df.EntryType == 'self') & (df.DEA_specific.isnull()) & (~df.AOA_srcme_tag.isnull())]
+    df2 = df[(df.DEA_specific.isnull()) & (~df.AOA_srcme_tag.isnull())]
     for index, row in df2.iterrows():
         state = get_state(row['State'])
         raw_tag = row['AOA_srcme_tag']
-        if ',' in raw_tag:
+        print(raw_tag)
+        if ',' in raw_tag and raw_tag != FL_DO_LIVE_COURSE_TAG:
             logger.warning('Skip tag with comma in it: {0} for State {1}'.format(raw_tag, state))
             continue
         if raw_tag == 'general' or raw_tag == 'specialty':
             logger.warning('Skip raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        tag, created = CmeTag.objects.get_or_create(name=tagname, description=tagname, srcme_only=True)
-        if created:
+        qs = CmeTag.objects.filter(name=tagname)
+        if qs.exists():
+            tag = qs[0]
+        else:
+            tag = CmeTag.objects.create(name=tagname, description=tagname, srcme_only=True)
             logger.info('Created DO srcme_only tag: {0} for state {1}'.format(tag, state))
+            print('Created DO srcme_only tag: {0} for state {1}'.format(tag, state))
         # assign to state.doTags
         state.doTags.add(tag)
 
@@ -521,6 +544,89 @@ def handle_plain_tagged_srcme_goals(df):
         logger.info(msg)
         new_goals.append(cmegoal)
     return (existing_goals, new_goals)
+
+def handle_plain_aoa_srcme_goals(df):
+    """Handle AOA srcme goals that apply to all specialties
+    Returns: (existing, new) of SRCmeGoals
+    """
+    existing_goals = []
+    new_goals = []
+    df2 = df[(~df.AOA_srcme_tag.isnull()) & (df.Exclude_specialties.isnull()) & (df.Specialties.isnull())  & (~df.Credits.isnull()) & (~df.Interval.isnull())]
+    for index, row in df2.iterrows():
+        raw_tag = row['AOA_srcme_tag']
+        if raw_tag == 'general' or raw_tag == 'specialty':
+            continue # already handled these in other methods
+        state = get_state(row['State'])
+        if ',' in raw_tag and raw_tag != FL_DO_LIVE_COURSE_TAG:
+            logger.warning('Skip AOA_srcme_tag with comma in it: {0} for State {1}'.format(raw_tag, state))
+            continue
+        if row['Interval'] == 'once':
+            logger.info('One-off AOA srcme goal: {0} for State {1}'.format(raw_tag, state))
+            interval = 0
+        else:
+            interval = int(row['Interval'])
+        print(row['State'], row['Degree'], row['Interval'], row['AOA_srcme_tag'], row['Credits'], row['CreditTypes'])
+        credits = int(row['Credits'])
+        has_credit = True
+        if credits == 0:
+            # Map zero credits to 1 for credits field, and reset has_credit flag
+            has_credit = False
+            credits = 1
+        creditTypes = getCreditTypesFromRow(row)
+        degrees = getDegreesFromRow(row)
+        tagname = clean_tag(raw_tag)
+        tag = CmeTag.objects.get(name=tagname)
+        # Create SRCmeGoal with associated licenseGoal and tag
+        lg = getStateLicenseGoal(state)
+        fkwargs = {
+            'state': state,
+            'licenseGoal': lg,
+            'cmeTag': tag,
+            'credits': credits,
+            'goal__interval': interval,
+            'has_credit': has_credit,
+        }
+        do_create = True
+        # check if exist
+        qs = SRCmeGoal.objects.filter(**fkwargs).select_related('goal').order_by('pk')
+        for cmegoal in qs:
+            if isEqual(degrees, cmegoal.goal.degrees.all()) and isEqual(creditTypes, cmegoal.creditTypes.all()):
+                do_create = False
+                existing_goals.append(cmegoal)
+                break
+        if not do_create:
+            msg = " - exists: AOA SRCmeGoal {0.pk}|{0}|{0.cmeTag}|{0.credits} credits in {1}".format(cmegoal, cmegoal.formatCreditTypes())
+            print(msg)
+            logger.debug(msg)
+            continue
+        # create basegoal
+        bg_dueDateType = BaseGoal.RECUR_LICENSE_DATE if interval > 0 else BaseGoal.ONE_OFF
+        bg = BaseGoal.objects.create(
+            goalType=goaltype_srcme,
+            dueDateType=bg_dueDateType,
+            interval=interval,
+            notes=row['Description']
+        )
+        for deg in degrees:
+            bg.degrees.add(deg)
+        # create srcmegoal
+        cmegoal = SRCmeGoal.objects.create(
+            goal=bg,
+            state=state,
+            cmeTag=tag,
+            licenseGoal=lg,
+            credits=credits,
+            has_credit=has_credit
+        )
+        for m in creditTypes:
+            cmegoal.creditTypes.add(m)
+        msg = "Created AOA SRCmeGoal {0.pk}|{0}|{0.credits}|{1}".format(cmegoal, cmegoal.formatCreditTypes())
+        print(msg)
+        logger.info(msg)
+        new_goals.append(cmegoal)
+    return (existing_goals, new_goals)
+
+
 
 def handle_specialty_cme_goals(df):
     """Handle cme goals that apply to specifc specialties
