@@ -44,6 +44,9 @@ def clean_tag(name):
             v2 = v
         L2.append(v2)
     name2 = ' '.join(L2)
+    lcname = name2.lower()
+    if lcname.startswith('end-of-life'):
+        name2 = 'End-of-Life Care'
     return name2
 
 def get_state(val):
