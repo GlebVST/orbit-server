@@ -1478,6 +1478,8 @@ class UserGoalManager(models.Manager):
         expiring_num_goals = 0
         fkw = fkwargs.copy()
         fkw['dueDate__lte'] = expiringCutoffDate
+        fkw['dueDate__gt'] = now
+        fkw['status'] = UserGoal.IN_PROGRESS
         if stateid:
             fkw['state'] = stateid
         usergoals = u.usergoals \
