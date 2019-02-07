@@ -291,7 +291,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 if deg.abbrev == Degree.DO:
                     # delete DO tags
                     for state in curStates:
-                        for t in state.doTags:
+                        for t in state.doTags.all():
                             del_tags.add(t)
                 logger.info('User {0}: remove Degree: {1}'.format(user, deg))
         # now handle cmeTags
