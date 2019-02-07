@@ -7,6 +7,8 @@ import inspect
 import requests, json
 from django.conf import settings
 from .models import Profile, UserSubscription
+from users.models import UserSubscription, BrowserCme, UserCmeCredit, Customer 
+from django.db.models import Sum
 
 def getDataFromDb():
     """Fetches and combines data from Profile, UserSubscription models
@@ -16,6 +18,7 @@ def getDataFromDb():
     data= []
     for profile in profiles:
         user = profile.user
+
         orgName = ''
         if profile.organization:
             orgName = profile.organization.name
@@ -33,7 +36,11 @@ def getDataFromDb():
             billingFirstDate='',
             billingStartDate='',
             billingEndDate='',
+            creditsRedeemed=0,
+            creditsEarned=0,
             billingCycle=0,
+            planSpecialty='',
+            subscribed=0,
         )
         # Note: if user only signed up but never created a subscription, then user_subs is None
         user_subs = UserSubscription.objects.getLatestSubscription(user)
@@ -45,6 +52,33 @@ def getDataFromDb():
             d['billingFirstDate'] = str(user_subs.billingFirstDate.date())
             d['billingStartDate'] = str(user_subs.billingStartDate.date())
             d['billingEndDate'] = str(user_subs.billingEndDate.date())
+
+            # Credits redeemed
+            qs = BrowserCme.objects.select_related('entry').filter(
+                entry__user=user,
+                entry__activityDate__year=user_subs.billingStartDate.year,
+                entry__valid=True
+            ).aggregate(cme_total=Sum('credits'))
+            redeemedTotal = qs['cme_total']
+            if not redeemedTotal:
+                redeemedTotal = 0
+
+            # Credits earned (but not necessarily redeemed)
+            qs = BrowserCme.objects.select_related('entry').filter(
+                entry__user=user,
+                entry__valid=True
+            ).aggregate(cme_total=Sum('credits'))
+            creditsEarned = qs['cme_total']
+            if not creditsEarned:
+                creditsEarned = 0
+
+            plan = UserSubscription.objects.filter(user=user)
+
+            d['creditsRedeemed'] = redeemedTotal
+            d['creditsEarned'] = creditsEarned
+            d['planSpecialty'] = plan[0].plan.name
+            d['subscribed'] = 1
+
             if user_subs.billingCycle:
                 d['billingCycle'] = user_subs.billingCycle
         data.append(d)
@@ -288,6 +322,10 @@ class MailchimpApi(EspApiBackend):
         'SUBSCN_SDT': 'billingStartDate',
         'SUBSCN_EDT': 'billingEndDate',
         'SUBSCN_CYC': 'billingCycle',
+        'CRDT_REDEE': 'creditsRedeemed',
+        'CRDT_EARNE': 'creditsEarned',
+        'PLAN_SPECI': 'planSpecialty',
+        'SUBSCRIBED': 'subscribed',
     })
     '''
     SYNC_FIELD_MAP_ESP_TO_LOCAL = OrderedDict({
@@ -329,6 +367,10 @@ class MailchimpApi(EspApiBackend):
         'SUBSCN_SDT': {'type':'date'},
         'SUBSCN_EDT': {'type':'date'},
         'SUBSCN_CYC': {'type':'number'},
+        'CRDT_REDEE': {'type':'number'},
+        'CRDT_EARNE': {'type':'number'},
+        'PLAN_SPECI': {'type':'text'},
+        'SUBSCRIBED': {'type':'number'},
     }
 
     '''
