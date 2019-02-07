@@ -893,6 +893,7 @@ class Document(models.Model):
 class LicenseType(models.Model):
     TYPE_RN = 'RN'
     TYPE_DEA = 'DEA'
+    TYPE_MB = 'Medical Board'
     # fields
     name = models.CharField(max_length=30, unique=True)
     created = models.DateTimeField(auto_now_add=True)

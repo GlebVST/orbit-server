@@ -76,6 +76,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'compliance',
             'removeDate',
             'joined',
+            'snapshot',
             'created',
             'modified'
         )

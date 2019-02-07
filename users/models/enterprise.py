@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from smtplib import SMTPException
@@ -200,6 +201,7 @@ class OrgMember(models.Model):
     orgfiles = models.ManyToManyField(OrgFile, blank=True, related_name='orgmembers')
     pending = models.BooleanField(default=False,
             help_text='Set to True when invitation is sent to existing user to join team.')
+    snapshot = JSONField(default='', blank=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = OrgMemberManager()

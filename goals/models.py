@@ -42,6 +42,9 @@ DUE_DAY_ERROR = u'dueDay must be a valid day for the selected month in range 1-3
 MARGINAL_COMPLIANT_CUTOFF_DAYS = 30
 SRCME_MARGINAL_COMPLIANT_CUTOFF_DAYS = 90
 ANY_TOPIC = u'Any Topic'
+LICENSES = 'licenses'
+CME_GAP = 'cme_gap'
+GOALS = 'goals'
 
 def makeDueDate(year, month, day, now, advance_if_past=True):
     """Create dueDate as (year,month,day) and advance to next year if dueDate is < now
@@ -702,7 +705,14 @@ class CmeGoal(models.Model):
         if not dueYear:
             dueYear = now.year
         basegoal = self.goal
-        if basegoal.isOneOff() or basegoal.isRecurAny():
+        if basegoal.isRecurAny():
+            return now
+        if basegoal.isOneOff():
+            if self.state:
+                if not userLicense or userLicense.isUnInitialized():
+                    return now
+                else:
+                    return userLicense.expireDate
             return now
         if basegoal.isRecurMMDD():
             dueDate = makeDueDate(dueYear, self.dueMonth, self.dueDay, now)
@@ -846,6 +856,8 @@ class SRCmeGoal(models.Model):
     )
     credits = models.DecimalField(max_digits=6, decimal_places=2,
             validators=[MinValueValidator(0.1)])
+    has_credit = models.BooleanField(default=True,
+            help_text='Set to False if this is a zero-credit goal requirement (but set credits field value to 1)')
     creditTypes = models.ManyToManyField(CreditType,
             blank=True,
             related_name='srcmegoals',
@@ -969,6 +981,31 @@ class UserGoalManager(models.Manager):
             userLicenseDict[m.goal.pk] = m.license
         return userLicenseDict
 
+    def renewLicenseGoal(self, oldGoal, newLicense):
+        """Archive old goal and create new user license goal
+        Args:
+            oldGoal: UserGoal instance for old license goal
+            newLicense: StateLicense instance
+        Returns: UserGoal instance
+        """
+        oldGoal.status = self.model.EXPIRED # archive it
+        oldGoal.save()
+        # create UserGoal with associated license
+        usergoal = self.model.objects.create(
+                user=oldGoal.user,
+                goal=oldGoal.goal,
+                state=oldGoal.state,
+                dueDate=newLicense.expireDate,
+                status=self.model.IN_PROGRESS,
+                license=newLicense
+            )
+        now = timezone.now()
+        status = usergoal.calcLicenseStatus(now)
+        if usergoal.status != status:
+            usergoal.status = status
+            usergoal.save(update_fields=('status',))
+        logger.info('Created UserGoal: {0}'.format(usergoal))
+        return usergoal
 
     def assignLicenseGoals(self, profile):
         """Assign License UserGoals and create any uninitialized statelicenses for user as needed
@@ -1178,6 +1215,55 @@ class UserGoalManager(models.Manager):
         usergoals.extend(self.assignSRCmeGoals(profile, userLicenseDict))
         return usergoals
 
+    def recomputeCreditGoalsForLicense(self, usergoal):
+        """This is called when a license is edited in-place. Recompute all dependent credit goals
+        Args:
+            usergoal: UserGoal instance whose goalType is LICENSE
+        """
+        user = usergoal.user
+        licenseGoal = usergoal.goal.licensegoal # LicenseGoal instance
+        to_update = set([])
+        logger.debug('Finding usergoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
+        for cmeGoal in licenseGoal.cmegoals.all():
+            logger.debug('cmeGoal: {0.pk}/{0}'.format(cmeGoal))
+            basegoal = cmeGoal.goal
+            qset = basegoal.usergoals.filter(user=user) # using related_name on UserGoal.goal FK field
+            for ug in qset: # UserGoal qset
+                to_update.add(ug)
+        for srcmeGoal in licenseGoal.srcmegoals.all():
+            logger.debug('srcmeGoal: {0.pk}/{0}'.format(srcmeGoal))
+            basegoal = srcmeGoal.goal
+            qset = basegoal.usergoals.filter(user=user) # using related_name on UserGoal.goal FK field
+            for ug in qset: # UserGoal qset
+                to_update.add(ug)
+        # split ug to_update into individual vs composite
+        indiv, composite = [], []
+        for ug in to_update:
+            if ug.is_composite_goal:
+                composite.append(ug)
+            else:
+                indiv.append(ug)
+        # recompute individual goals first before composite goals
+        for ug in indiv:
+            ug.recompute()
+        for ug in composite:
+            ug.recompute()
+
+
+    def updateCreditGoalsForRenewLicense(self, oldGoal, newGoal):
+        """This is called when a license goal is renewed. Its dependent
+        creditgoals (cme/srcme) are also renewed. Archive the current credit
+        goals dependent on old goal and create new cme/srcme goals for the new usergoal.
+        **
+        TODO: DO NOT RENEW ONE/OFF GOALS!!
+        **
+        Args:
+            oldGoal: old user license goal
+            newGoal: new user license goal
+        Returns: list of newly created usergoals
+        """
+        return usergoals
+
     def rematchLicenseGoals(self, user):
         """Helper method for rematchGoals
         Returns: int - number of stale goals deleted
@@ -1276,6 +1362,7 @@ class UserGoalManager(models.Manager):
         num_stale = self.rematchLicenseGoals(user)
         num_stale = self.rematchCmeGoals(user)
         num_stale = self.rematchSRCmeGoals(user)
+        profile = user.profile
         # Assign goals (create/update)
         usergoals = []
         usergoals.extend(self.assignLicenseGoals(profile))
@@ -1347,9 +1434,79 @@ class UserGoalManager(models.Manager):
             logger.info('handleRedeemOffer for: {0}'.format(ug))
         return num_ug # number of usergoals updated
 
+    def compute_userdata_for_admin_view(self, u, fkwargs, sl_qset, stateid=None):
+        """Args:
+            u: User instance
+            fkwargs: base dict of filter kwargs for filtering UserGoal
+                - valid: True,
+                - goal__goalType__in: credit goaltypes
+                - is_composite_goal: False
+            sl_qset: queryset of latest user StateLicenses
+            stateid: int/None (None for overall)
+        Returns: dict
+        """
+        if stateid:
+            statelicenses = [sl for sl in sl_qset if sl.state_id == stateid]
+        else:
+            statelicenses = list(sl_qset)
+        total_licenses = len(statelicenses)
+        # count expired vs expiring
+        now = timezone.now()
+        expiringCutoffDate = now + timedelta(days=self.model.EXPIRING_CUTOFF_DAYS)
+        expired = []
+        expiring = []
+        for sl in statelicenses:
+            if not sl.expireDate or sl.expireDate < now:
+                expired.append(sl)
+            elif sl.expireDate <= expiringCutoffDate:
+                expiring.append(sl)
+        # compute max cme gap for expired goals (over all entityTypes)
+        pastdue_cme_gap = 0
+        pastdue_num_goals = 0
+        fkw = fkwargs.copy()
+        fkw['status'] = UserGoal.PASTDUE
+        if stateid:
+            fkw['state'] = stateid
+        usergoals = u.usergoals \
+            .filter(**fkw) \
+            .order_by('-creditsDue')
+        if usergoals.exists():
+            pastdue_cme_gap = float(usergoals[0].creditsDue)
+            pastdue_num_goals = usergoals.count()
+        # compute max cme gap for expiring goals (over all entityTypes)
+        expiring_cme_gap = 0
+        expiring_num_goals = 0
+        fkw = fkwargs.copy()
+        fkw['dueDate__lte'] = expiringCutoffDate
+        fkw['dueDate__gt'] = now
+        fkw['status'] = UserGoal.IN_PROGRESS
+        if stateid:
+            fkw['state'] = stateid
+        usergoals = u.usergoals \
+            .filter(**fkw) \
+            .order_by('-creditsDue')
+        if usergoals.exists():
+            expiring_cme_gap = float(usergoals[0].creditsDue)
+            expiring_num_goals = usergoals.count()
+        # return dict for userdata
+        return {
+            'total': total_licenses,
+            'expired': {
+                LICENSES: len(expired),
+                GOALS: pastdue_num_goals,
+                CME_GAP: pastdue_cme_gap,
+            },
+            'expiring': {
+                LICENSES: len(expiring),
+                GOALS: expiring_num_goals,
+                CME_GAP: expiring_cme_gap,
+            },
+        }
+
 
 @python_2_unicode_compatible
 class UserGoal(models.Model):
+    EXPIRING_CUTOFF_DAYS = 90 # used in compute_userdata_for_admin_view for expiring goals
     MAX_DUEDATE_DIFF_DAYS = 30 # used in recompute method for combining cmegoals grouped by tag
     PASTDUE = 0
     IN_PROGRESS = 1
