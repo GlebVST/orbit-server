@@ -305,6 +305,7 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
             tdiff = expireDate - license.expireDate
             if tdiff.days >= 365:
                 createNewLicense = True # create new license instance
+        createNewLicense = False # for now until have code in place for handling renew
         if createNewLicense:
             newLicense = StateLicense.objects.create(
                     user=user,
