@@ -1123,7 +1123,7 @@ class UserGoalManager(models.Manager):
                     creditsDueMonthly=0,
                     creditsEarned=0,
                 )
-            usergoal.creditTypes.set(goal.creditTypes.all())
+            usergoal.setCreditTypes(goal)
             logger.info('Created UserGoal: {0}'.format(usergoal))
             usergoal.recompute(userLicenseDict)
             usergoals.append(usergoal)
@@ -1635,6 +1635,22 @@ class UserGoal(models.Model):
             return 'Any'
         return s
 
+    def setCreditTypes(self, goal):
+        """Copy applicable creditTypes from goal to self based on user's
+        profile.degree.
+        Note: clear method should be executed first if this method is
+        called to update the creditTypes (e.g. by recompute).
+        """
+        profileDegrees = self.user.profile.degreeSet
+        qs = goal.creditTypes.all().prefetch_related('degrees')
+        for creditType in qs:
+            if creditType.degrees.exists():
+                deg_set = set([deg.pk for deg in creditType.degrees.all()])
+                if profileDegrees.intersection(deg_set):
+                    self.creditTypes.add(creditType) # applicable to user
+            else:
+                self.creditTypes.add(creditType) # universal creditType
+
     @cached_property
     def daysLeft(self, now=None):
         """Returns: int number of days left until dueDate
@@ -1888,7 +1904,8 @@ class UserGoal(models.Model):
         self.compliance = min([d['subCompliance'] for d in data])
         self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
         if dueGoal:
-            self.creditTypes.set(dueGoal.creditTypes.all())
+            self.creditTypes.clear()
+            self.setCreditTypes(dueGoal)
         logger.debug('recompute compositeCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
@@ -1946,7 +1963,8 @@ class UserGoal(models.Model):
         self.save()
         self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
         if dueGoal:
-            self.creditTypes.set(dueGoal.creditTypes.all())
+            self.creditTypes.clear()
+            self.setCreditTypes(dueGoal)
         logger.debug('recompute compositeSRCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
