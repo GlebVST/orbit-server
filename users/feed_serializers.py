@@ -36,7 +36,7 @@ class EntryTypeSerializer(serializers.ModelSerializer):
 class CreditTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreditType
-        fields = ('id', 'name', 'needs_tm')
+        fields = ('id', 'abbrev', 'name', 'needs_tm')
 
 class SponsorSerializer(serializers.ModelSerializer):
     class Meta:
