@@ -648,6 +648,13 @@ class CmeGoal(models.Model):
     def creditTypeSet(self):
         return set([m.pk for m in self.creditTypes.all()])
 
+    def getTag(self):
+        if self.cmeTag:
+            return self.cmeTag
+        if self.mapNullTagToSpecialty:
+            return u'(Specialty)'
+        return  u'(General)'
+
     def formatCreditTypes(self):
         """Returns string of comma separated CreditType abbrev values"""
         s = ','.join([m.abbrev for m in self.creditTypes.all()])
