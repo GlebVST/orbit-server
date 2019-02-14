@@ -82,6 +82,10 @@ class Board(models.Model):
     def __str__(self):
         return self.name
 
+class GoalTypeManager(models.Manager):
+    def getCreditGoalTypes(self):
+        return GoalType.objects.filter(name__in=[GoalType.CME, GoalType.SRCME])
+
 @python_2_unicode_compatible
 class GoalType(models.Model):
     CME = 'CME'
@@ -95,6 +99,7 @@ class GoalType(models.Model):
     description = models.CharField(max_length=100, blank=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = GoalTypeManager()
 
     def __str__(self):
         return self.name
@@ -1382,7 +1387,7 @@ class UserGoalManager(models.Manager):
     def handleRedeemOfferForUser(self, user, tags):
         """Calls handleRedeemOffer or recompute on eligible usergoals"""
         ama1CreditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
-        creditGoalTypes = GoalType.objects.filter(name__in=[GoalType.CME, GoalType.SRCME])
+        creditGoalTypes = GoalType.objects.getCreditGoalTypes()
         num_ug = 0
         Q_c = Q(creditTypes=None) | Q(creditTypes=ama1CreditType) # accepts AMA_PRA_1 or any
         goal_filter_kwargs = {
@@ -1419,7 +1424,7 @@ class UserGoalManager(models.Manager):
             tags: CmeTags list
         """
         num_ug = 0
-        creditGoalTypes = GoalType.objects.filter(name__in=[GoalType.CME, GoalType.SRCME])
+        creditGoalTypes = GoalType.objects.getCreditGoalTypes()
         Q_c = Q(creditTypes=None) | Q(creditTypes=creditType)
         goal_filter_kwargs = {
             'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS],

@@ -324,12 +324,13 @@ class BRCmeCreateSerializer(serializers.Serializer):
                 num_added = RecAllowedUrl.objects.updateRecsForUser(user, recTag)
                 logger.debug('Refill RecAllowedUrl for {0}/{1}'.format(user, recTag))
         tags = entry.tags.all()
-        for tag in tags:
-            # associate tag with AllowedUrl instance if not already in set
-            if tag.name != CMETAG_SACME:
-                aurl.cmeTags.add(tag) # add if not in set
         # update affected usergoals
         num_ug = UserGoal.objects.handleRedeemOfferForUser(user, tags)
+        if user.profile.isPhysician(): # exclude PA/etc since their tags might not be relevant
+            # associate tag with AllowedUrl instance if not already in set
+            for tag in tags:
+                if tag.name != CMETAG_SACME:
+                    aurl.cmeTags.add(tag) # add if not in set
         return instance
 
 # Serializer for Update BrowserCme entry

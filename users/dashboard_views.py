@@ -110,9 +110,8 @@ class CmeAggregateStats(APIView):
             logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         user = request.user
-        user_tags = user.profile.cmeTags.all()
+        user_tags = user.profile.getActiveCmetags()
         satag = CmeTag.objects.get(name=CMETAG_SACME)
-        story_total = Entry.objects.sumStoryCme(user, startdt, enddt)
         stats = {
             ENTRYTYPE_BRCME: {
                 'total': Entry.objects.sumBrowserCme(user, startdt, enddt),
@@ -124,15 +123,16 @@ class CmeAggregateStats(APIView):
                 'Untagged': Entry.objects.sumSRCme(user, startdt, enddt, untaggedOnly=True),
                 satag.name: Entry.objects.sumSRCme(user, startdt, enddt, satag)
             },
+            # not used/obsolete
             ENTRYTYPE_STORY_CME: {
-                'total': story_total,
-                satag.name: story_total
+                'total': 0,
+                satag.name: 0
             }
         }
         for tag in user_tags:
             stats[ENTRYTYPE_BRCME][tag.name] = Entry.objects.sumBrowserCme(user, startdt, enddt, tag)
             stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(user, startdt, enddt, tag)
-            stats[ENTRYTYPE_STORY_CME][tag.name] = 0 # for mvp storycme are only tagged with SA-CME
+            stats[ENTRYTYPE_STORY_CME][tag.name] = 0
         return self.serialize_and_render(stats)
 
 #
