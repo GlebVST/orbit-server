@@ -741,17 +741,15 @@ class CmeGoal(models.Model):
             return dueDate
         return UNKNOWN_DATE
 
-    def computeCreditsEarnedOverInterval(self, user, endDate, cmeTag):
+    def computeCreditsEarnedOverInterval(self, user, startDate, endDate, cmeTag):
         """Compute credits earned for user, tag, basegoal.interval, and self.creditTypes
         Args:
             user: User instance
+            startDate: datetime
             endDate: datetime
             cmeTag: CmeTag or None to count all credits
         Returns: decimal - total credits earned
         """
-        basegoal = self.goal
-        yrs = basegoal.interval if basegoal.interval else 100
-        startDate = endDate - timedelta(days=365*float(yrs))
         brcme_credits = 0; srcme_credits = 0
         cset = self.creditTypeSet
         include_brcme = False
@@ -960,17 +958,15 @@ class SRCmeGoal(models.Model):
             return dueDate
         return UNKNOWN_DATE
 
-    def computeCreditsEarnedOverInterval(self, user, endDate, cmeTag):
+    def computeCreditsEarnedOverInterval(self, user, startDate, endDate, cmeTag):
         """Compute srcme credits earned for user, tag, basegoal.interval, and self.creditTypes
         Args:
             user: User instance
+            startDate: datetime
             endDate: datetime
             cmeTag: CmeTag
         Returns: decimal - total credits earned
         """
-        basegoal = self.goal
-        yrs = basegoal.interval if basegoal.interval else 100
-        startDate = endDate - timedelta(days=365*float(yrs))
         # Count srcme credits that satisfy self.creditTypes
         cset = self.creditTypeSet
         if not cset:
@@ -1686,6 +1682,12 @@ class UserGoal(models.Model):
                 progress = 100.0*(totalDays - self.daysLeft)/totalDays
         return int(progress)
 
+    def computeStartDateFromDue(self, dueDate):
+        """Compute startDate as dueDate - basegoal.interval years"""
+        basegoal = self.goal
+        yrs = basegoal.interval if basegoal.interval else 100
+        return endDate - timedelta(days=365*float(yrs))
+
     def calcLicenseStatus(self, now):
         """Returns status based on now, expireDate, and daysBeforeDue"""
         expireDate = self.license.expireDate
@@ -1740,13 +1742,20 @@ class UserGoal(models.Model):
             except KeyError:
                 logger.exception("No userLicense found for usergoal {0}".format(self))
                 return
+        credits = goal.credits
         # TODO: add NEW status if status is New or RECUR_ANY then
         # dueYear = now.year, else preserve existing dueYear
         dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
-        credits = goal.credits
+        startDate = self.computeStartDateFromDue(dueDate)
         # compute creditsEarned for self.tag over goal interval
-        creditsEarned = goal.computeCreditsEarnedOverInterval(self.user, now, self.cmeTag)
-        creditsLeft = float(credits) - float(creditsEarned)
+        if startDate <= now:
+            # let endDate of interval = now so that current credits count toward a past goal (per instruction of Ram)
+            creditsEarned = goal.computeCreditsEarnedOverInterval(self.user, startDate, now, self.cmeTag)
+            creditsLeft = float(credits) - float(creditsEarned)
+        else:
+            # date range of goal is in future (status=COMPLETED below)
+            creditsEarned = 0
+            creditsLeft = 0
         daysLeft = 0
         if creditsLeft <= 0:
             creditsDue = 0
@@ -1800,14 +1809,21 @@ class UserGoal(models.Model):
             except KeyError:
                 logger.exception("No userLicense found for usergoal {0}".format(self))
                 return
+        # this handles splitting credits among specialties if needed
+        credits = goal.computeCredits(numProfileSpecs)
         # TODO: add NEW status if status is New or RECUR_ANY then
         # dueYear = now.year, else preserve existing dueYear
         dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
-        # this handles splitting credits among specialties if needed
-        credits = goal.computeCredits(numProfileSpecs)
+        startDate = self.computeStartDateFromDue(dueDate)
         # compute creditsEarned for self.tag over goal interval
-        creditsEarned = goal.computeCreditsEarnedOverInterval(self.user, now, self.cmeTag)
-        creditsLeft = float(credits) - float(creditsEarned)
+        if startDate <= now:
+            # let endDate of interval = now so that current credits count toward a past goal (per instruction of Ram)
+            creditsEarned = goal.computeCreditsEarnedOverInterval(self.user, startDate, now, self.cmeTag)
+            creditsLeft = float(credits) - float(creditsEarned)
+        else:
+            # date range of goal is in future (status=COMPLETED below)
+            creditsEarned = 0
+            creditsLeft = 0
         daysLeft = 0
         if creditsLeft <= 0:
             creditsDue = 0
