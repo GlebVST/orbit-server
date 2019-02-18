@@ -212,6 +212,8 @@ class ProviderCsvImport(CsvImport):
                     self.throwValueError('Degree', pos, role)
                 d['degree'] = degreeDict[role]
 
+                d['Email'] = d['Email'].stirp(' .')
+
                 # make emails fake in test mode
                 if fake_email:
                     d['Email'] = "{0}@orbitcme.com".format(d['Email'].replace('@','.'))
@@ -296,7 +298,7 @@ class ProviderCsvImport(CsvImport):
                         profile.birthDate = d['Birthdate']
                     profile.country = country_usa
                     if d['AltEmail']:
-                        profile.contactEmail = d['AltEmail']
+                        profile.contactEmail = d['AltEmail'].strip(' .')
                     profile.save()
                     for state in d['states']:
                         profile.states.add(state)
