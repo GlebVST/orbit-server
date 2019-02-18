@@ -129,9 +129,14 @@ class CmeAggregateStats(APIView):
                 satag.name: 0
             }
         }
-        for tag in user_tags:
-            stats[ENTRYTYPE_BRCME][tag.name] = Entry.objects.sumBrowserCme(user, startdt, enddt, tag)
-            stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(user, startdt, enddt, tag)
+        for pct in user_tags: # ProfileCmetag queryset
+            tag = pct.tag
+            if tag.srcme_only:
+                stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(user, startdt, enddt, tag)
+                stats[ENTRYTYPE_BRCME][tag.name] = 0
+            else:
+                stats[ENTRYTYPE_BRCME][tag.name] = Entry.objects.sumBrowserCme(user, startdt, enddt, tag)
+                stats[ENTRYTYPE_SRCME][tag.name] = Entry.objects.sumSRCme(user, startdt, enddt, tag)
             stats[ENTRYTYPE_STORY_CME][tag.name] = 0
         return self.serialize_and_render(stats)
 

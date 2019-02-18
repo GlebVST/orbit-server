@@ -1,6 +1,6 @@
 """Autocomplete views: used by autocomplete widget in the admin interface"""
 from dal import autocomplete
-from .models import User, State, Hospital
+from .models import User, CmeTag, State, Hospital
 
 class UserEmailAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
