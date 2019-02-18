@@ -1690,7 +1690,7 @@ class UserGoal(models.Model):
         """Compute startDate as dueDate - basegoal.interval years"""
         basegoal = self.goal
         yrs = basegoal.interval if basegoal.interval else 100
-        return endDate - timedelta(days=365*float(yrs))
+        return dueDate - timedelta(days=365*float(yrs))
 
     def calcLicenseStatus(self, now):
         """Returns status based on now, expireDate, and daysBeforeDue"""
