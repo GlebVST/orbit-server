@@ -658,7 +658,6 @@ def load_ca_fluoroscopy_goal():
         'credits': credits,
         'goal__interval': interval
     }
-    # check if exist
     qs = CmeGoal.objects.filter(**fkwargs).select_related('goal').order_by('pk')
     if qs.exists():
         return qs[0]
