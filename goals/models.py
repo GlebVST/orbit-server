@@ -231,8 +231,8 @@ class BaseGoal(models.Model):
         if not self.subspecialties.exists():
             # matches all subspecialties
             return True
-        # else
-        subspecs = set([m.pk for m in self.subspecialties.all().only('pk')])
+        # filter goal.subspecs by profile specialties, and check match on this filtered set with profile.subspecialtySet
+        subspecs = set([m.pk for m in self.subspecialties.filter(specialty_id__in=profile.specialtySet).only('pk')])
         if subspecs.isdisjoint(profile.subspecialtySet):
             return False
         return True
