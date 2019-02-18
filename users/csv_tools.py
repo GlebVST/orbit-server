@@ -212,7 +212,7 @@ class ProviderCsvImport(CsvImport):
                     self.throwValueError('Degree', pos, role)
                 d['degree'] = degreeDict[role]
 
-                d['Email'] = d['Email'].stirp(' .')
+                d['Email'] = d['Email'].strip(' .')
 
                 # make emails fake in test mode
                 if fake_email:
