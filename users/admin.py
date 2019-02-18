@@ -159,9 +159,12 @@ class StateAdmin(admin.ModelAdmin):
         return qs.prefetch_related('cmeTags', 'deaTags')
 
 
+class ResidencyProgramAdmin(admin.ModelAdmin):
+    list_display = ('id','name',)
+
 class HospitalAdmin(admin.ModelAdmin):
-    list_display = ('id','state','display_name','city','hasResidencyProgram')
-    list_filter = ('hasResidencyProgram', StateFilter)
+    list_display = ('id','state','display_name','city')
+    list_filter = (StateFilter,)
     list_select_related = ('state',)
 
     class Media:
@@ -607,6 +610,7 @@ admin_site.register(OrgFile, OrgFileAdmin)
 admin_site.register(OrgMember, OrgMemberAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
+admin_site.register(ResidencyProgram, ResidencyProgramAdmin)
 admin_site.register(Sponsor, SponsorAdmin)
 admin_site.register(State, StateAdmin)
 admin_site.register(StateLicense, StateLicenseAdmin)

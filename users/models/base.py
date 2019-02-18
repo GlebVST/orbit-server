@@ -230,13 +230,6 @@ class HospitalManager(models.Manager):
             qset = qs_all.filter(search=search_term)
         return qset.order_by('name','city')
 
-class ResidencyProgramManager(models.Manager):
-    def get_queryset(self):
-        return super(ResidencyProgramManager, self).get_queryset().filter(hasResidencyProgram=True)
-
-    def search_filter(self, search_term):
-        base_qs = self.model.residency_objects.all()
-        return self.model.objects.search_filter(search_term, base_qs)
 
 @python_2_unicode_compatible
 class Hospital(models.Model):
@@ -277,7 +270,6 @@ class Hospital(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = HospitalManager() # default manager
-    residency_objects = ResidencyProgramManager()
 
     def __str__(self):
         return self.display_name
@@ -289,6 +281,31 @@ class Hospital(models.Model):
         ordering = ['name',]
         unique_together = ('state','city','name')
 
+class ResidencyProgramManager(models.Manager):
+    def search_filter(self, search_term, base_qs=None):
+        """Returns a queryset that filters for the given search_term
+        """
+        if not base_qs:
+            base_qs = self.model.objects.all()
+        qs1 = base_qs.filter(name__istartswith=s)
+        qs2 = base_qs.filter(name__icontains=s)
+        qs = qs1
+        if not qs.exists():
+            qs = qs2
+        return qs.order_by('name')
+
+@python_2_unicode_compatible
+class ResidencyProgram(models.Model):
+    name = models.CharField(max_length=120, unique=True, db_index=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = ResidencyProgramManager()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name',]
 
 class DegreeManager(models.Manager):
     def insertDegreeAfter(self, from_deg, abbrev, name):
@@ -493,6 +510,14 @@ class Profile(models.Model):
         db_index=True,
         null=True,
         blank=True,
+        related_name='hresidencies',
+        help_text='Residency Program from Hospital [old]'
+    )
+    residency_program = models.ForeignKey(ResidencyProgram,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
         related_name='residencies',
         help_text='Residency Program'
     )
@@ -640,7 +665,7 @@ class Profile(models.Model):
             if self.deaStates.exists():
                 filled += 1
         # single-value fields
-        keys = ('country','birthDate','affiliationText','interestText','npiNumber','residency', 'residencyEndDate')
+        keys = ('country','birthDate','affiliationText','interestText','npiNumber','residency_program', 'residencyEndDate')
         total += len(keys)
         for key in keys:
             if getattr(self, key): # count truthy values

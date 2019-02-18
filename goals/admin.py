@@ -195,7 +195,7 @@ class SRCmeBaseGoalAdmin(admin.ModelAdmin):
     getTag.short_description = 'CmeTag'
 
     def getCredits(self, obj):
-        if not obj.has_credit:
+        if not obj.srcmegoal.has_credit:
             return 0
         return obj.srcmegoal.credits
     getCredits.short_description = 'Credits'
