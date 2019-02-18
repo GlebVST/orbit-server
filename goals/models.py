@@ -233,6 +233,10 @@ class BaseGoal(models.Model):
             return True
         # filter goal.subspecs by profile specialties, and check match on this filtered set with profile.subspecialtySet
         subspecs = set([m.pk for m in self.subspecialties.filter(specialty_id__in=profile.specialtySet).only('pk')])
+        if not subspecs:
+            # if filtered set is empty, this goal does not care about profile's subspecialtySet
+            return True
+        # else there must be an intersection for it to match
         if subspecs.isdisjoint(profile.subspecialtySet):
             return False
         return True

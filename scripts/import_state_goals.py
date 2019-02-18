@@ -72,8 +72,8 @@ def handle_subspecialty(df):
     pc_name = 'Primary Care' # for Internal Med, EM
     uc_name = 'Urgent Care'
     uc_specs = ('Pediatrics','Radiology','Family Medicine','Emergency Medicine','Internal Medicine')
-    sa_name = 'Sexual Assault'
-    sa_specs = ('Emergency Medicine', 'Internal Medicine', 'Family Medicine')
+    ##sa_name = 'Sexual Assault'  # Not doing this one
+    ##sa_specs = ('Emergency Medicine', 'Internal Medicine', 'Family Medicine')
     fp_name = 'Family Planning'
     fp_specs = ('Obstetrics and Gynecology',)
     ems_name = 'EMS Medical Director'
@@ -94,10 +94,6 @@ def handle_subspecialty(df):
                 logger.info('Created {0} SubSpecialty {1}'.format(ps, subspec))
         if ps.name in uc_specs:
             subspec, created = SubSpecialty.objects.get_or_create(specialty=ps, name=uc_name)
-            if created:
-                logger.info('Created {0} SubSpecialty {1}'.format(ps, subspec))
-        if ps.name in sa_specs:
-            subspec, created = SubSpecialty.objects.get_or_create(specialty=ps, name=sa_name)
             if created:
                 logger.info('Created {0} SubSpecialty {1}'.format(ps, subspec))
         if ps.name in fp_specs:
@@ -776,6 +772,7 @@ def load_ia_endoflife_cmegoal(df):
         ]
     interval = 5
     credits = 2
+    # I believe we want these to match *regardless* of SubSpecialty
     specialties = [
             specialtyDict['Internal Medicine'],
             specialtyDict['Emergency Medicine'],
@@ -783,13 +780,14 @@ def load_ia_endoflife_cmegoal(df):
             specialtyDict['Neurology'],
             specialtyDict['Psychiatry'],
         ]
-    subspecialties = [
-            subspecialtyDict[('Internal Medicine', 'Pain Management')],
-            subspecialtyDict[('Emergency Medicine', 'Pain Management')],
-            subspecialtyDict[('Family Medicine', 'Pain Management')],
-            subspecialtyDict[('Neurology', 'Pain Management')],
-            subspecialtyDict[('Psychiatry', 'Pain Management')],
-        ]
+    spids = set([ps.pk for ps in specialties])
+    # so here we want all specs NOT in the above for /pain management
+    subspecialties = []
+    pm_subspecs = SubSpecialty.objects.select_related('specialty').filter(name='Pain Management')
+    for subspec in pm_subspecs:
+        ps = subspec.specialty
+        if ps.pk not in spids:
+            subspecialties.append(subspecialtyDict[(ps.name, subspec.name)])
     lg = getStateLicenseGoal(state)
     # check if exist
     fkwargs = {
