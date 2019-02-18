@@ -108,7 +108,7 @@ class OrgFileAdmin(admin.ModelAdmin):
 
     def orgfile_actions(self, obj):
         return format_html(
-            '<a class="button" href="{}">Run import</a>',
+            '<a class="button" href="{}">Validate File</a>',
             reverse('admin:orgfile-process', args=[obj.pk]),
         )
     orgfile_actions.short_description = 'Account Actions'
@@ -120,7 +120,7 @@ class OrgFileAdmin(admin.ModelAdmin):
         src_file = orgfile.csvfile if orgfile.csvfile else orgfile.document
         output = StringIO()
         csv = ProviderCsvImport(stdout=output)
-        success = csv.processOrgFile(org_id=org.id, src_file=src_file)
+        success = csv.processOrgFile(org_id=org.id, src_file=src_file, dry_run=True)
         if success:
             self.message_user(request, 'Success')
         else:

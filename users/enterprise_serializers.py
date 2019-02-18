@@ -164,6 +164,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
         # 6. Assign extra groups
         if is_admin:
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
+            user.groups.remove(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
         # 7. Create change-password ticket
         if password_ticket:
             m = OrgMember.objects.sendPasswordTicket(socialId, m, apiConn)
