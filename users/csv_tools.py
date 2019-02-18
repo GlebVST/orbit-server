@@ -28,6 +28,7 @@ from users.models import (
     LicenseType,
     StateLicense,
     SubscriptionPlan,
+    ResidencyProgram,
 )
 logger = logging.getLogger('mgmt.csv')
 
@@ -106,6 +107,7 @@ class ProviderCsvImport(CsvImport):
         ('NPI Number', 'NPINumber'),
         ("Birthdate (MM/DD/YY)", 'Birthdate'),
         ('Email', 'Email'),
+        ('Alternate Email', 'AltEmail'),
         ('Practice Divistion', 'Group'),
         ("Degree", "Role"),
         ("Residency Training Program", 'ResidencyTraining'),
@@ -114,7 +116,6 @@ class ProviderCsvImport(CsvImport):
         ("State License Expiry Dates", 'StateLicenseExpiryDates'),
         ("DEA Certificate States", 'DEAStates'),
         ("DEA Certificate Expiry Dates", 'DEAExpiry'),
-        ("ABMS Active Board Certifications", 'ActiveCoarcCertifications'),
         ("Specialty", 'Specialty'),
         ("Subspecialty scope of practice", 'SubSpecialty'),
     )
@@ -158,6 +159,8 @@ class ProviderCsvImport(CsvImport):
         groupsDict = {g.name:g for g in qset}
         qset = LicenseType.objects.all()
         licenseTypesDict = {g.name:g for g in qset}
+        qset = ResidencyProgram.objects.all()
+        residencyProgramsDict = {g.name:g for g in qset}
 
         try:
             f = StringIO(src_file.read())
@@ -194,6 +197,8 @@ class ProviderCsvImport(CsvImport):
                 d['stateExpiryDates'] = self.parseMultiDateField(d, 'StateLicenseExpiryDates', pos) # 0+ Date instances
                 d['deaStates'] = self.parseMultiDictField(d, 'DEAStates', stateDict, pos) # 0+ State instances
                 d['deaExpiryDates'] = self.parseMultiDateField(d, 'DEAExpiry', pos) # 0+ Date instances
+                d['residencyPrograms'] = self.parseMultiDictField(d, 'ResidencyTraining', residencyProgramsDict, pos) # 0+ ResidencyProgram instances
+                d['residencyProgramEndDates'] = self.parseMultiDateField(d, 'ResidencyTrainingDate', pos) # 0+ Date instances
                 pos += 1
             # filter out existing users
             fdata = []
@@ -255,6 +260,8 @@ class ProviderCsvImport(CsvImport):
                     if d['Birthdate']:
                         profile.birthDate = d['Birthdate']
                     profile.country = country_usa
+                    if d['AltEmail']:
+                        profile.contactEmail = d['AltEmail']
                     profile.save()
                     for state in d['states']:
                         profile.states.add(state)
@@ -266,6 +273,12 @@ class ProviderCsvImport(CsvImport):
                         profile.subspecialties.add(ps)
                     # ProfileCmetags
                     profile.addOrActivateCmeTags()
+
+                    # just using a first residency program for now
+                    if d['residencyPrograms']:
+                        profile.residency_program_id = d['residencyPrograms'][0].id
+                    if d['residencyProgramEndDates']:
+                        profile.residencyEndDate = d['residencyProgramEndDates'][0].id
 
                     msg = u"Created User/Profile records: {FirstName} {LastName}, {Email}".format(**d)
                     self.print_out(msg)

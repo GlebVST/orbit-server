@@ -25,4 +25,5 @@ PGPASSWORD=
 ```
 
 2. Put input providers file as `src-providers.xlsx` in this folder
-3. Run `./convert.sh` which should produce `out-providers.csv` on success
+3. Run a necessary Rad Partners mapping tables import as `/.rp_mapping.sh`
+4. Run `./convert.sh` which should produce `out-providers.csv` on success
