@@ -156,7 +156,7 @@ class OrgMemberManager(models.Manager):
         UI_LOGIN_URL = 'https://{0}{1}'.format(hostname, settings.UI_LINK_LOGIN)
         ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
         # TODO remove this dangerous ticket exposure when we are sure this works and no need to try out users
-        logger.debug('ticket_url for {0}={1}'.format(member.user.email, ticket_url))
+        logger.info('sending ticket_url for {0}={1}'.format(member.user.email, ticket_url))
         try:
             delivered = sendPasswordTicketEmail(member, ticket_url)
             if delivered:
