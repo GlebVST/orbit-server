@@ -313,7 +313,7 @@ class ProviderCsvImport(CsvImport):
                     if d['residencyPrograms']:
                         profile.residency_program_id = d['residencyPrograms'][0].id
                     if d['residencyProgramEndDates']:
-                        profile.residencyEndDate = d['residencyProgramEndDates'][0].id
+                        profile.residencyEndDate = d['residencyProgramEndDates'][0]
 
                     msg = u"Created User/Profile records: {FirstName} {LastName}, {Email}".format(**d)
                     self.print_out(msg)
