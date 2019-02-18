@@ -48,7 +48,7 @@ class CsvImport():
         self.multi_value_delimiter = multi_value_delimiter
         self.stdout = stdout
 
-    def parseMultiDictField(self, model, fieldName, dataDict, index = 0):
+    def parseMultiDictField(self, model, fieldName, dataDict, index = 0, uppercase = True):
         """Parse fieldName from the given row and return list of values
         Args:
         Returns: list. Empty list is valid.
@@ -60,7 +60,11 @@ class CsvImport():
         else:
             values = [model[fieldName], ]
         for v in values:
-            tv = v.strip().upper() # transform value before compare to dataDict
+            # transform value before compare to dataDict
+            tv = v.strip()
+            if uppercase:
+                tv=tv.upper()
+
             if not tv: # can be empty, move on
                 continue
             if tv not in dataDict:
@@ -201,7 +205,7 @@ class ProviderCsvImport(CsvImport):
                 d['stateExpiryDates'] = self.parseMultiDateField(d, 'StateLicenseExpiryDates', pos) # 0+ Date instances
                 d['deaStates'] = self.parseMultiDictField(d, 'DEAStates', stateDict, pos) # 0+ State instances
                 d['deaExpiryDates'] = self.parseMultiDateField(d, 'DEAExpiry', pos) # 0+ Date instances
-                d['residencyPrograms'] = self.parseMultiDictField(d, 'ResidencyTraining', residencyProgramsDict, pos) # 0+ ResidencyProgram instances
+                d['residencyPrograms'] = self.parseMultiDictField(d, 'ResidencyTraining', residencyProgramsDict, pos, False) # 0+ ResidencyProgram instances
                 d['residencyProgramEndDates'] = self.parseMultiDateField(d, 'ResidencyTrainingDate', pos) # 0+ Date instances
                 pos += 1
             # filter out existing users

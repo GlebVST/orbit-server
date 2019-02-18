@@ -2077,5 +2077,77 @@
     "created": "2019-02-18T01:37:56.883Z",
     "modified": "2019-02-18T01:37:56.883Z"
   }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 232,
+  "fields": {
+    "name": "Grandview Hospital & Medical Center",
+    "created": "2019-02-18T10:35:11.149Z",
+    "modified": "2019-02-18T10:35:11.149Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 233,
+  "fields": {
+    "name": "Martin Luther King Jr./Drew Medical Center",
+    "created": "2019-02-18T10:35:51.558Z",
+    "modified": "2019-02-18T10:46:17.621Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 234,
+  "fields": {
+    "name": "Saint Thomas Hospital Medical Center",
+    "created": "2019-02-18T10:36:05.402Z",
+    "modified": "2019-02-18T10:36:05.402Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 235,
+  "fields": {
+    "name": "Memorial University of Newfoundland",
+    "created": "2019-02-18T10:36:12.798Z",
+    "modified": "2019-02-18T10:36:12.798Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 236,
+  "fields": {
+    "name": "Hebrew University Hadassah Medical School",
+    "created": "2019-02-18T10:36:19.308Z",
+    "modified": "2019-02-18T10:36:19.308Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 237,
+  "fields": {
+    "name": "Michael Reese Hospital",
+    "created": "2019-02-18T10:36:37.777Z",
+    "modified": "2019-02-18T10:36:37.777Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 238,
+  "fields": {
+    "name": "Osmania University Hospital",
+    "created": "2019-02-18T10:36:45.588Z",
+    "modified": "2019-02-18T10:36:45.588Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 239,
+  "fields": {
+    "name": "St. Petersburg State Pavlov Medical University",
+    "created": "2019-02-18T10:37:03.026Z",
+    "modified": "2019-02-18T10:37:03.026Z"
+  }
 }
 ]
