@@ -13,7 +13,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
-
+from django.db import transaction
 logger = logging.getLogger('gen.models')
 
 #
@@ -287,8 +287,8 @@ class ResidencyProgramManager(models.Manager):
         """
         if not base_qs:
             base_qs = self.model.objects.all()
-        qs1 = base_qs.filter(name__istartswith=s)
-        qs2 = base_qs.filter(name__icontains=s)
+        qs1 = base_qs.filter(name__istartswith=search_term)
+        qs2 = base_qs.filter(name__icontains=search_term)
         qs = qs1
         if not qs.exists():
             qs = qs2
