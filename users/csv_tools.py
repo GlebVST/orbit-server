@@ -91,8 +91,31 @@ class CsvImport():
             try: 
                 output.append(dparse(tv))
             except ValueError, e:
-                error_msg = "Invalid {0}: {1}".format(fieldName, v)
+                error_msg = "Invalid {0} at row {1}: {2}".format(fieldName, index, v)
                 raise ValueError(error_msg)
+        return output
+
+    def parseMultiStringField(self, model, fieldName, uppercase = True):
+        """Parse fieldName from the given row and return list of strings
+        Args:
+        Returns: list. Empty list is valid.
+        """
+        output = []
+        if self.multi_value_delimiter in model[fieldName]:
+            values = model[fieldName].split(self.multi_value_delimiter)
+        else:
+            values = [model[fieldName], ]
+        for v in values:
+            # clear value
+            tv = v.strip()
+
+            if not tv: # can be empty, move on
+                continue
+            if uppercase:
+                tv=tv.upper()
+
+            output.append(tv)
+
         return output
     
     def print_out(self, msg, is_error = False):
@@ -117,8 +140,10 @@ class ProviderCsvImport(CsvImport):
         ("Residency Training Program", 'ResidencyTraining'),
         ("Residency Graduation Date", 'ResidencyTrainingDate'),
         ("State Licenses", 'States'),
+        ("State License Numbers", 'StateLicenseNumbers'),
         ("State License Expiry Dates", 'StateLicenseExpiryDates'),
         ("DEA Certificate States", 'DEAStates'),
+        ("DEA Certificate Numbers", 'DEANumbers'),
         ("DEA Certificate Expiry Dates", 'DEAExpiry'),
         ("Specialty", 'Specialty'),
         ("Subspecialty scope of practice", 'SubSpecialty'),
@@ -202,8 +227,10 @@ class ProviderCsvImport(CsvImport):
                 d['specialties'] = self.parseMultiDictField(d, 'Specialty', psDict, pos) # 0+ PracticeSpecialty instances
                 d['subspecialties'] = self.parseMultiDictField(d, 'SubSpecialty', subSpecDict, pos) # 0+ SubSpecialty instances
                 d['states'] = self.parseMultiDictField(d, 'States', stateDict, pos) # 0+ State instances
+                d['stateLicenseNumbers'] = self.parseMultiStringField(d, 'StateLicenseNumbers') # 0+ String instances
                 d['stateExpiryDates'] = self.parseMultiDateField(d, 'StateLicenseExpiryDates', pos) # 0+ Date instances
                 d['deaStates'] = self.parseMultiDictField(d, 'DEAStates', stateDict, pos) # 0+ State instances
+                d['deaNumbers'] = self.parseMultiStringField(d, 'DEANumbers') # 0+ String instances
                 d['deaExpiryDates'] = self.parseMultiDateField(d, 'DEAExpiry', pos) # 0+ Date instances
                 d['residencyPrograms'] = self.parseMultiDictField(d, 'ResidencyTraining', residencyProgramsDict, pos, False) # 0+ ResidencyProgram instances
                 d['residencyProgramEndDates'] = self.parseMultiDateField(d, 'ResidencyTrainingDate', pos) # 0+ Date instances
@@ -294,14 +321,18 @@ class ProviderCsvImport(CsvImport):
                     num_state_licenses = 0
                     for index, state in enumerate(d['states']):
                         expiryDate = None
+                        licenseNumber = None
                         dates = d['stateExpiryDates']
+                        numbers = d['stateLicenseNumbers']
                         if index < len(dates):
                             expiryDate = dates[index]
+                            licenseNumber = numbers[index]
 
                         StateLicense.objects.create(
                             user=user,
                             state=state,
                             licenseType=licenseTypesDict[LicenseType.TYPE_MB],
+                            licenseNumber=licenseNumber,
                             expireDate=expiryDate
                         )
                         num_state_licenses += 1
@@ -310,14 +341,18 @@ class ProviderCsvImport(CsvImport):
                     num_dea_licenses = 0
                     for index, state in enumerate(d['deaStates']):
                         expiryDate = None
+                        deaNumber = None
                         dates = d['deaExpiryDates']
+                        numbers = d['deaNumbers']
                         if index < len(dates):
                             expiryDate = dates[index]
+                            deaNumber = numbers[index]
 
                         StateLicense.objects.create(
                             user=user,
                             state=state,
                             licenseType=licenseTypesDict[LicenseType.TYPE_DEA],
+                            licenseNumber=deaNumber,
                             expireDate=expiryDate
                         )
                         num_dea_licenses += 1
