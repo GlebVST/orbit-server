@@ -366,6 +366,7 @@ class ProviderCsvImport(CsvImport):
             ticket_url = auth0.change_password_ticket(profile.socialId, redirect_url)
 
             sending_msg = u"Sending password-ticket email for User: {0}: {1}...".format(user, ticket_url)
+            # TODO remove this dangerous ticket exposure when we are sure this works and no need to try out users
             self.print_out(sending_msg)
 
             msg = sendPasswordTicketEmail(orgmember, ticket_url, send_message=False)
