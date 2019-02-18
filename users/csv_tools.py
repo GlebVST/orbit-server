@@ -323,7 +323,7 @@ class ProviderCsvImport(CsvImport):
                     num_state_licenses = 0
                     for index, state in enumerate(d['states']):
                         expiryDate = None
-                        licenseNumber = None
+                        licenseNumber = ''
                         dates = d['stateExpiryDates']
                         numbers = d['stateLicenseNumbers']
                         if index < len(dates):
@@ -343,7 +343,7 @@ class ProviderCsvImport(CsvImport):
                     num_dea_licenses = 0
                     for index, state in enumerate(d['deaStates']):
                         expiryDate = None
-                        deaNumber = None
+                        deaNumber = ''
                         dates = d['deaExpiryDates']
                         numbers = d['deaNumbers']
                         if index < len(dates):
