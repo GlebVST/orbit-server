@@ -80,7 +80,7 @@ def load_ia_adultabuse_srcmegoal():
     ('IA', 'internal medicine/primary care, emergency medicine/primary care', 'adult abuse (IA-specific)', '5', 2.0, 'any')
     Returns: SRCmeGoal
     """
-    tag = CmeTag.objects.get(name__iexact='Child Abuse (IA-specific)')
+    tag = CmeTag.objects.get(name__iexact='Adult Abuse (IA-specific)')
     state = statesDict['IA']
     degrees = [degreeDict['MD'], degreeDict['DO']]
     creditTypes = [] # any
@@ -426,4 +426,9 @@ def load_tx_emsdir_srcmegoal():
     logger.info(msg)
     return cmegoal
 
+
+#
+# Exclude_specialty goals
+# df2 = df[(~df.Exclude_specialties.isnull())]
+#
 
