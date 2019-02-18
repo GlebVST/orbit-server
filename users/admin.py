@@ -120,7 +120,7 @@ class OrgFileAdmin(admin.ModelAdmin):
         src_file = orgfile.csvfile if orgfile.csvfile else orgfile.document
         output = StringIO()
         csv = ProviderCsvImport(stdout=output)
-        success = csv.processOrgFile(org.id, src_file)
+        success = csv.processOrgFile(org_id=org.id, src_file=src_file)
         if success:
             self.message_user(request, 'Success')
         else:

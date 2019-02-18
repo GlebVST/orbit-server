@@ -126,7 +126,7 @@ class ProviderCsvImport(CsvImport):
         error_msg = "Invalid {0} at row {1}: {2}".format(fieldName, row, value)
         raise ValueError(error_msg)
     
-    def processOrgFile(self, org_id, src_file, dry_run = False, test_ticket = False):
+    def processOrgFile(self, org_id, src_file, dry_run = False, fake_email = False, send_ticket = False):
         num_existing = 0
         created = [] # list of OrgMembers
         try:
@@ -182,6 +182,10 @@ class ProviderCsvImport(CsvImport):
                 if role not in degreeDict:
                     self.throwValueError('Degree', pos, role)
                 d['degree'] = degreeDict[role]
+
+                # make emails fake in test mode
+                if fake_email:
+                    d['Email'] = "{0}@orbitcme.com".format(d['Email'].replace('@','.'))
 
                 # birthdate (optional)
                 if d['Birthdate']:
@@ -322,7 +326,7 @@ class ProviderCsvImport(CsvImport):
                     # emit profile_saved signal
                     profile_saved.send(sender=profile.__class__, user_id=user.pk)
 
-            if settings.ENV_TYPE == settings.ENV_PROD or test_ticket:
+            if send_ticket:
                 self.sendPasswordTicketEmails(org, auth0)
 
             # final reporting
