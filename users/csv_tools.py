@@ -316,9 +316,9 @@ class ProviderCsvImport(CsvImport):
                     profile.addOrActivateCmeTags()
 
                     # just using a first residency program for now
-                    if d['residencyPrograms']:
+                    if d['residencyPrograms'] and d['residencyPrograms'][0]:
                         profile.residency_program_id = d['residencyPrograms'][0].id
-                    if d['residencyProgramEndDates']:
+                    if d['residencyProgramEndDates'] and d['residencyProgramEndDates'][0]:
                         profile.residencyEndDate = d['residencyProgramEndDates'][0]
 
                     msg = u"Created User/Profile records: {FirstName} {LastName}, {Email}".format(**d)
