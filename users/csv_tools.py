@@ -66,7 +66,7 @@ class CsvImport():
                 tv=tv.upper()
 
             if not tv: # can be empty, move on
-                continue
+                output.append(None)
             if tv not in dataDict:
                 error_msg = "Invalid {0} at row {1}: {2}".format(fieldName, index, v)
                 raise ValueError(error_msg)
@@ -87,7 +87,7 @@ class CsvImport():
         for v in values:
             tv = v.strip().upper() # clear value before converting to date
             if not tv: # can be empty, move on
-                continue
+                output.append(None)
             try: 
                 output.append(dparse(tv))
             except ValueError, e:
@@ -108,12 +108,9 @@ class CsvImport():
         for v in values:
             # clear value
             tv = v.strip()
-
-            if not tv: # can be empty, move on
-                continue
             if uppercase:
                 tv=tv.upper()
-
+            # can be empty, move on
             output.append(tv)
 
         return output
@@ -227,6 +224,7 @@ class ProviderCsvImport(CsvImport):
 
                 # Multi-value fields
                 d['specialties'] = self.parseMultiDictField(d, 'Specialty', psDict, pos) # 0+ PracticeSpecialty instances
+                # TODO test that subspecialties fall into intersection of all found specialties
                 d['subspecialties'] = self.parseMultiDictField(d, 'SubSpecialty', subSpecDict, pos) # 0+ SubSpecialty instances
                 d['states'] = self.parseMultiDictField(d, 'States', stateDict, pos) # 0+ State instances
                 d['stateLicenseNumbers'] = self.parseMultiStringField(d, 'StateLicenseNumbers') # 0+ String instances
@@ -301,13 +299,17 @@ class ProviderCsvImport(CsvImport):
                         profile.contactEmail = d['AltEmail'].strip(' .')
                     profile.save()
                     for state in d['states']:
-                        profile.states.add(state)
+                        if state:
+                            profile.states.add(state)
                     for state in d['deaStates']:
-                        profile.deaStates.add(state)
+                        if state:
+                            profile.deaStates.add(state)
                     for ps in d['specialties']:
-                        profile.specialties.add(ps)
+                        if ps:
+                            profile.specialties.add(ps)
                     for ps in d['subspecialties']:
-                        profile.subspecialties.add(ps)
+                        if ps:
+                            profile.subspecialties.add(ps)
                     # ProfileCmetags
                     profile.addOrActivateCmeTags()
 
@@ -328,6 +330,7 @@ class ProviderCsvImport(CsvImport):
                         numbers = d['stateLicenseNumbers']
                         if index < len(dates):
                             expiryDate = dates[index]
+                        if index < len(numbers):
                             licenseNumber = numbers[index]
 
                         StateLicense.objects.create(
@@ -348,6 +351,7 @@ class ProviderCsvImport(CsvImport):
                         numbers = d['deaNumbers']
                         if index < len(dates):
                             expiryDate = dates[index]
+                        if index < len(numbers):
                             deaNumber = numbers[index]
 
                         StateLicense.objects.create(
@@ -358,7 +362,7 @@ class ProviderCsvImport(CsvImport):
                             expireDate=expiryDate
                         )
                         num_dea_licenses += 1
-                    self.print_out("Imported {} DEA licenses for user {}".format(num_state_licenses, d['Email']))
+                    self.print_out("Imported {} DEA licenses for user {}".format(num_dea_licenses, d['Email']))
                     if num_dea_licenses > 0:
                         profile.hasDEA = True
                         profile.save(update_fields=('hasDEA',))

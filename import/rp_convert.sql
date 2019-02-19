@@ -5,8 +5,8 @@ select p."First Name", p."Last Name", p."NPI Number", p."Birth Date", p."Email A
   dg.dea_states as "DEA Certificate States", dg.state_dea_numbers as "DEA Certificate Numbers", dg.state_dea_expiration_dates as "DEA Certificate Expiry Dates",
   coalesce(bg.specialty, 'Radiology') as "Specialty", sg.services as "Subspecialty scope of practice"
 from (select p.full_name, trim(p.first_name) as "First Name", trim(p.last_name) as "Last Name", trim(p.npi_number) as "NPI Number",
-                          p.birth_date as "Birth Date", coalesce(p.email_address, p.alternate_email) as "Email Address",
-                          case when p.email_address is not null and p.alternate_email is not null and p.alternate_email != p.email_address then p.alternate_email else null end as "Alternate Email",
+                          p.birth_date as "Birth Date", trim(coalesce(p.email_address, p.alternate_email)) as "Email Address",
+                          case when p.email_address is not null and p.alternate_email is not null and p.alternate_email != p.email_address then trim(p.alternate_email) else null end as "Alternate Email",
                           replace(trim(replace(p.rp_team, '\r\n', '')), 'Matrix;RP Houston','RP Houston') as "Practice Division", trim(replace(p.degree, ', PhD', '')) as "Degree"
       from _tmp_src_providers p
       where p.full_name is not null
@@ -42,6 +42,7 @@ from (select p.full_name, trim(p.first_name) as "First Name", trim(p.last_name) 
                            select p.full_name, p.state_dea_certificates, p.dea_number, p.state_dea_expiration_date , p.state_type
                            from _tmp_src_providers p
                            WHERE p.full_name is not NULL and p.state_type = '1' and trim(p.state_dea_certificates) not in ('')
+                                 and ((p.state_dea_expiration_date is not null and p.state_dea_expiration_date != '' and date_part('day', now() - to_date(p.state_dea_expiration_date, 'MM/DD/YYYY')) < 365) or p.state_dea_expiration_date is null or p.state_dea_expiration_date = '')
                            GROUP BY 1,2,3,4,5
                            ORDER BY 1 asc, (case when p.state_dea_expiration_date != '' then to_date(p.state_dea_expiration_date, 'MM/DD/YYYY') else null end) desc
                          ) l
