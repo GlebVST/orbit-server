@@ -47,6 +47,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
     degree = serializers.SerializerMethodField()
     joined = serializers.SerializerMethodField()
     groupName = serializers.SerializerMethodField()
+    setPasswordEmailSent = serializers.ReadOnlyField()
 
     def get_degree(self, obj):
         return obj.user.profile.formatDegrees()
@@ -77,6 +78,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'removeDate',
             'joined',
             'snapshot',
+            'setPasswordEmailSent',
             'created',
             'modified'
         )
