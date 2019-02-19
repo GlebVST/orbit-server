@@ -284,7 +284,7 @@ def handle_plain_general_cme_goals(df):
         state = get_state(row['State'])
         raw_tag = row['Tag']
         interval = int(row['Interval'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         creditTypes = getCreditTypesFromRow(row)
         degrees = getDegreesFromRow(row)
         # Create CmeGoal with associated licenseGoal and tag=null
@@ -346,7 +346,7 @@ def handle_plain_mapnulltospec_cme_goals(df):
         state = get_state(row['State'])
         raw_tag = row['Tag']
         interval = int(row['Interval'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         creditTypes = getCreditTypesFromRow(row)
         degrees = getDegreesFromRow(row)
         # Create CmeGoal with associated licenseGoal and tag=null
@@ -421,7 +421,7 @@ def handle_plain_tagged_cme_goals(df):
         else:
             interval = int(row['Interval'])
         print(row['State'], row['Degree'], row['Interval'], row['Tag'], row['Credits'], row['CreditTypes'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         creditTypes = getCreditTypesFromRow(row)
         degrees = getDegreesFromRow(row)
         tagname = clean_tag(raw_tag)
@@ -497,7 +497,7 @@ def handle_plain_tagged_srcme_goals(df):
         else:
             interval = int(row['Interval'])
         print(row['State'], row['Degree'], row['Interval'], row['Srcme_tag'], row['Credits'], row['CreditTypes'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         has_credit = True
         if credits == 0:
             # Map zero credits to 1 for credits field, and reset has_credit flag
@@ -578,7 +578,7 @@ def handle_plain_aoa_srcme_goals(df):
         else:
             interval = int(row['Interval'])
         print(row['State'], row['Degree'], row['Interval'], row['AOA_srcme_tag'], row['Credits'], row['CreditTypes'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         has_credit = True
         if credits == 0:
             # Map zero credits to 1 for credits field, and reset has_credit flag

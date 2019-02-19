@@ -1630,8 +1630,13 @@ class UserGoal(models.Model):
             return basegoal.licensegoal.title
         return ''
 
-    def __str__(self):
-        return '{0.pk}|{0.user}|{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.is_composite_goal}'.format(self)
+    @cached_property
+    def stateOrComposite(self):
+        if self.state:
+            return self.state
+        if self.is_composite_goal:
+            return u'Composite'
+        return ''
 
     def formatCreditTypes(self):
         """Returns string of comma separated CreditType abbrev values"""
@@ -1639,6 +1644,13 @@ class UserGoal(models.Model):
         if not s:
             return 'Any'
         return s
+
+    def __str__(self):
+        gtype = self.goal.goalType.name
+        if gtype == GoalType.CME or gtype == GoalType.SRCME:
+            return '{0.goal.goalType}|{0.stateOrComposite}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.creditsDue} in {1}'.format(self, self.formatCreditTypes())
+        # license usergoal
+        return '{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}'.format(self)
 
     def setCreditTypes(self, goal):
         """Copy applicable creditTypes from goal to self based on user's

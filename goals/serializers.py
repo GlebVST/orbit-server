@@ -190,7 +190,10 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
         return obj.progress
 
     def get_title(self, obj):
-        return obj.title
+        gtype = obj.goal.goalType.name
+        if gtype != GoalType.CME or obj.cmeTag:
+            return obj.title
+        return obj.title + ' in ' + obj.formatCreditTypes()
 
     def get_extra(self, obj):
         gtype = obj.goal.goalType.name
