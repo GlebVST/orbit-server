@@ -46,7 +46,7 @@ class Command(BaseCommand):
                 complianceDict[m.compliance] += 1
                 total_goals += 1
             # recompute composite cmegoals (AFTER individuals have been recomputed)
-            qset = user.usergoals.select_related('goal').filter(goal__goalType=cmeGoalType, is_composite_goal=True).prefetch_related('cmeGoals').order_by('pk')
+            qset = user.usergoals.select_related('goal').filter(goal__goalType=cmeGoalType, is_composite_goal=True).prefetch_related('constituentGoals').order_by('pk')
             for m in qset:
                 m.recompute(userLicenseDict, numProfileSpecs)
                 complianceDict[m.compliance] += 1
@@ -58,7 +58,7 @@ class Command(BaseCommand):
                 complianceDict[m.compliance] += 1
                 total_goals += 1
             # recompute composite srcmegoals (AFTER individuals have been recomputed)
-            qset = user.usergoals.select_related('goal').filter(goal__goalType=srcmeGoalType, is_composite_goal=True).prefetch_related('srcmeGoals').order_by('pk')
+            qset = user.usergoals.select_related('goal').filter(goal__goalType=srcmeGoalType, is_composite_goal=True).prefetch_related('constituentGoals').order_by('pk')
             for m in qset:
                 m.recompute(userLicenseDict, numProfileSpecs)
                 complianceDict[m.compliance] += 1
