@@ -226,8 +226,11 @@ class ProviderCsvImport(CsvImport):
 
                 # Multi-value fields
                 d['specialties'] = self.parseMultiDictField(d, 'Specialty', psDict, pos) # 0+ PracticeSpecialty instances
-                # TODO test that subspecialties fall into intersection of all found specialties
-                d['subspecialties'] = self.parseMultiDictField(d, 'SubSpecialty', subSpecDict, pos) # 0+ SubSpecialty instances
+                # test that subspecialties fall into intersection of all found specialties
+                matchingSubspecs = dict()
+                for ps in d['specialties']:
+                    matchingSubspecs.update({m.name.upper():m for m in ps.subspecialties.all()})
+                d['subspecialties'] = self.parseMultiDictField(d, 'SubSpecialty', matchingSubspecs, pos) # 0+ SubSpecialty instances
                 d['states'] = self.parseMultiDictField(d, 'States', stateDict, pos) # 0+ State instances
                 d['stateLicenseNumbers'] = self.parseMultiStringField(d, 'StateLicenseNumbers') # 0+ String instances
                 d['stateExpiryDates'] = self.parseMultiDateField(d, 'StateLicenseExpiryDates', pos) # 0+ Date instances
