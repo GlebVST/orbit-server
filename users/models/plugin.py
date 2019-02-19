@@ -1,8 +1,11 @@
 """Models managed by the plugin_server project"""
 from __future__ import unicode_literals
 import logging
+from datetime import timedelta
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
+from django.db.models import Q, Subquery
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.contrib.postgres.fields import JSONField
@@ -16,8 +19,15 @@ from .base import (
     Organization
 )
 from .feed import Sponsor
+from decimal import Decimal
+from datetime import date, datetime, timedelta
+from django.utils import timezone
+from django.db import transaction
+import pytz
+
 logger = logging.getLogger('gen.models')
 
+OFFER_LOOKBACK_DAYS = 365
 
 @python_2_unicode_compatible
 class AllowedHost(models.Model):
@@ -211,23 +221,45 @@ class WhitelistRequest(models.Model):
     def __str__(self):
         return '{0}-{1}'.format(self.user, self.req_url.url)
 
+class OrbitCmeOfferManager(models.Manager):
+    def makeOffer(self, aurl, user, activityDate, expireDate):
+        esite = aurl.eligible_site
+        specnames = [p.name for p in esite.specialties.all()]
+        #print(specnames)
+        spectags = CmeTag.objects.filter(name__in=specnames)
+        with transaction.atomic():
+            offer = OrbitCmeOffer.objects.create(
+                user=user,
+                eligible_site=esite,
+                url=aurl,
+                activityDate=activityDate,
+                expireDate=expireDate,
+                suggestedDescr=aurl.page_title,
+                credits=Decimal('0.5'),
+                sponsor_id=1
+            )
+            offer.tags.set(list(spectags))
+        return offer
 
-# User recommendations for AllowedUrls by tag
-@python_2_unicode_compatible
-class RecAllowedUrl(models.Model):
-    id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recaurls')
-    url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='recaurls')
-    cmeTag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='recaurls')
+    def makeDebugOffer(self, aurl, user):
+        now = timezone.now()
+        activityDate = now + timedelta(seconds=20)
+        expireDate = datetime(now.year, now.month+1, 1, tzinfo=pytz.utc)
+        return self.makeOffer(aurl, user, activityDate, expireDate)
 
-    class Meta:
-        managed = False
-        db_table = 'trackers_recallowedurl'
-        unique_together = ('user','url','cmeTag')
-
-    def __str__(self):
-        return '{0.user}|{0.cmeTag}|{0.url}'.format(self)
-
+    def makeWelcomeOffer(self, user):
+        aurl = None
+        # Need to be sure that welcome article exists in this db instance
+        qset = AllowedUrl.objects.filter(url=settings.WELCOME_ARTICLE_URL)
+        if qset.exists():
+            aurl = qset[0]
+        if not aurl:
+            logger.warn("No Welcome article listed in allowed urls!")
+            return None
+        now = timezone.now()
+        activityDate = now - timedelta(seconds=10)
+        expireDate = datetime(now.year+1, 1, 1, tzinfo=pytz.utc)
+        return self.makeOffer(aurl, user, activityDate, expireDate)
 
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.
@@ -267,6 +299,7 @@ class OrbitCmeOffer(models.Model):
     )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = OrbitCmeOfferManager()
 
     class Meta:
         managed = False
@@ -317,3 +350,99 @@ class OrbitCmeOfferAgg(models.Model):
 
     def __str__(self):
         return "{0.day}".format(self)
+
+
+# User recommendations for AllowedUrls by tag
+class RecAllowedUrlManager(models.Manager):
+    def updateRecsForUser(self, user, tag):
+        """Maintain a list of upto MAX_RECS_PER_USERTAG recommended aurls for the given user and tag
+        Args:
+            user: User instance
+            tag: CmeTag instance
+        Returns: int - number of recs created
+        """
+        num_recs = self.model.MAX_RECS_PER_USERTAG - user.recaurls.filter(cmeTag=tag).count()
+        if num_recs <= 0:
+            return 0
+        num_created = 0
+        # exclude_offers: of the given tag redeemed by user since OFFER_LOOKBACK_DAYS. This is used as a subquery below
+        now = timezone.now()
+        startdate = now - timedelta(days=OFFER_LOOKBACK_DAYS)
+        filter_kwargs = dict(
+            user=user,
+            redeemed=True,
+            valid=True,
+            activityDate__gte=startdate,
+            tags=tag
+        )
+        Q_offer_setid = Q(url__set_id='')
+        # redeemed offers whose aurl.set_id is blank
+        offers_blank_setid = OrbitCmeOffer.objects.select_related('url').filter(Q_offer_setid, **filter_kwargs)
+        # redeemed offers whose aurl.set_id is not blank (e.g. abs/pdf versions of the same article have the same set_id)
+        offers_setid = OrbitCmeOffer.objects.select_related('url').filter(~Q_offer_setid, **filter_kwargs)
+        aurl_kwargs = dict(
+            valid=True,
+            cmeTags=tag,
+            host__has_paywall=False, # omit paywalled articles since not all users have access to them
+            host__main_host__isnull=True, # omit proxy hosts
+        )
+        Q_setid = Q(set_id='')
+        # This query gets distinct AllowedUrls with blank set_id for the given tag and excludes
+        # any urls with the same pk as those contained in offers_blank_setid
+        aurls_blank_setid = AllowedUrl.objects \
+                .select_related('host') \
+                .filter(Q_setid, **aurl_kwargs) \
+                .exclude(pk__in=Subquery(offers_blank_setid.values('pk'))) \
+                .order_by('-created')
+        # This query gets distinct AllowedUrls with non-blank set_id for the given tag and excludes
+        # any urls with the same set_id as those contained in exclude_offers
+        aurls_setid = AllowedUrl.objects \
+                .select_related('host') \
+                .filter(~Q_setid, **aurl_kwargs) \
+                .exclude(set_id__in=Subquery(offers_setid.values('url__set_id').distinct())) \
+                .order_by('-created')
+        # evaluate aurls_blank_setid first
+        for aurl in aurls_blank_setid:
+            m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
+            if created:
+                #print('blank set_id recaurl {0}'.format(m))
+                num_created += 1
+                if num_created >= num_recs:
+                    break
+        if num_created >= num_recs:
+            return num_created
+        #print('Num aurl blank set_id: {0}'.format(num_created))
+        # evalute aurls_setid if still need more recs
+        for aurl in aurls_setid:
+            if aurl.set_id:
+                # check if user already has a rec with this set_id
+                qs = user.recaurls.select_related('url').filter(url__set_id=aurl.set_id)
+                if qs.exists():
+                    continue
+            m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
+            if created:
+                #print('set_id recaurl {0}'.format(m))
+                num_created += 1
+                if num_created >= num_recs:
+                    break
+        return num_created
+
+@python_2_unicode_compatible
+class RecAllowedUrl(models.Model):
+    MAX_RECS_PER_USERTAG = 20
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recaurls')
+    url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='recaurls')
+    cmeTag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='recaurls')
+    offer = models.ForeignKey(OrbitCmeOffer, on_delete=models.CASCADE, null=True, blank=True, related_name='recaurls')
+    objects = RecAllowedUrlManager()
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_recallowedurl'
+        unique_together = ('user','url','cmeTag')
+
+    def __str__(self):
+        return '{0.user}|{0.cmeTag}|{0.url}'.format(self)
+
+

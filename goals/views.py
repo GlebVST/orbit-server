@@ -40,13 +40,49 @@ class GoalTypeList(generics.ListAPIView):
     serializer_class = GoalTypeSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
+class LongPagination(PageNumberPagination):
+    page_size = 500
+
+
+class UserGoalSummary(APIView):
+    pagination_class = LongPagination
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def get(self, request, *args, **kwargs):
+        try:
+            user = User.objects.get(pk=kwargs['userid'])
+        except User.DoesNotExist:
+            return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
+
+        stateid = request.query_params.get('state', '')
+        gts = GoalType.objects.filter(name__in=[GoalType.CME, GoalType.SRCME])
+        fkwargs = {
+            'valid': True,
+            'goal__goalType__in': gts,
+            'is_composite_goal': False,
+            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS, UserGoal.COMPLETED]
+        }
+        if stateid:
+            fkwargs['state_id'] = stateid
+        qset = user.usergoals \
+                .filter(**fkwargs) \
+                .select_related('goal__goalType', 'license__licenseType', 'cmeTag', 'state') \
+                .order_by('status', 'dueDate', 'license', '-creditsDue')
+        s = UserGoalSummarySerializer(qset, many=True)
+        context = {
+            'results': s.data
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
+
 class UserGoalList(generics.ListAPIView):
     serializer_class = UserGoalReadSerializer
+    pagination_class = LongPagination
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         user = self.request.user
-        qs = UserGoal.objects.filter(user=user, valid=True).select_related('goal__goalType','license')
+        qs = UserGoal.objects.filter(user=user, valid=True).select_related('goal__goalType', 'license', 'cmeTag')
         qs1 = qs.filter(status__in=[UserGoal.PASTDUE, UserGoal.IN_PROGRESS]).order_by('status', 'goal__goalType__sort_order', 'dueDate', '-modified')
         qs2 = qs.filter(status=UserGoal.COMPLETED).order_by('-modified')
         return list(qs1) + list(qs2)
@@ -74,37 +110,9 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         form_data = request.data.copy()
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
         in_serializer.is_valid(raise_exception=True)
-        self.perform_update(in_serializer)
-        instance = UserGoal.objects.get(pk=instance.pk)
-        out_serializer = UserGoalReadSerializer(instance)
-        return Response(out_serializer.data)
-
-class UpdateUserTrainingGoal(LogValidationErrorMixin, generics.UpdateAPIView):
-    """
-    Update User Training goal
-    """
-    serializer_class = UserTrainingGoalUpdateSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
-
-    def get_queryset(self):
-        return UserGoal.objects.select_related('goal', 'license')
-
-    def perform_update(self, serializer, format=None):
-        user = self.request.user
-        with transaction.atomic():
-            instance = serializer.save(user=user)
-        return instance
-
-    def update(self, request, *args, **kwargs):
-        """Override method to handle custom input/output data structures"""
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object() # uses get_queryset to retrieve the instance
-        form_data = request.data.copy()
-        in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
-        in_serializer.is_valid(raise_exception=True)
-        self.perform_update(in_serializer)
-        instance = UserGoal.objects.get(pk=instance.pk)
-        out_serializer = UserGoalReadSerializer(instance)
+        userLicenseGoal = self.perform_update(in_serializer)
+        ##instance = UserGoal.objects.get(pk=instance.pk)
+        out_serializer = UserGoalReadSerializer(userLicenseGoal)
         return Response(out_serializer.data)
 
 
@@ -120,15 +128,20 @@ class GoalRecsList(APIView):
             return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
         else:
             if goalType.name == GoalType.CME:
-                qset = user.recaurls.select_related('url__eligible_site').filter(cmeTag=usergoal.cmeTag)[:3]
-                s = RecAllowedUrlReadSerializer(qset, many=True)
-                context = {
-                    'results': s.data
-                }
+                if not usergoal.cmeTag:
+                    # no article recs for any Tag cmegoal
+                    results = []
+                qset = user.recaurls \
+                    .select_related('offer', 'url__eligible_site') \
+                    .filter(cmeTag=usergoal.cmeTag) \
+                    .order_by('offer','id')
+                s = RecAllowedUrlReadSerializer(qset[:3], many=True)
+                results = s.data
             else:
                 qset = usergoal.goal.recommendations.all().order_by('-created')[:3]
                 s = GoalRecReadSerializer(qset, many=True)
-                context = {
-                    'results': s.data
-                }
-            return Response(context, status=status.HTTP_200_OK)
+                results = s.data
+            context = {
+                'results': results
+            }
+        return Response(context, status=status.HTTP_200_OK)

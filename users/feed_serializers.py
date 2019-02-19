@@ -1,4 +1,5 @@
 import logging
+from django.db.models import Q
 from rest_framework import serializers
 from .models import (
     ENTRYTYPE_BRCME,
@@ -18,7 +19,8 @@ from .models import (
     Story,
     StoryCme,
     Notification,
-    UserCmeCredit
+    UserCmeCredit,
+    RecAllowedUrl
 )
 from .serializers import DocumentReadSerializer
 
@@ -34,7 +36,7 @@ class EntryTypeSerializer(serializers.ModelSerializer):
 class CreditTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreditType
-        fields = ('id', 'name', 'needs_tm')
+        fields = ('id', 'abbrev', 'name', 'needs_tm')
 
 class SponsorSerializer(serializers.ModelSerializer):
     class Meta:
@@ -244,15 +246,17 @@ class BRCmeCreateSerializer(serializers.Serializer):
         Note: this expects the following keys in validated_data:
             user: User instance
         """
+        from goals.models import UserGoal
+
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
-        creditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
+        ama1CreditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
         offer = validated_data['offerId']
         user=validated_data.get('user')
         # take care of user's CME credit limit
         userCredits = UserCmeCredit.objects.get(user=user)
         if not userCredits.enough(offer.credits):
             logger.info('Can\'t add Orbit CME entry of {0.credits} cr. - user {1.id} reached credit limit ({2.plan_credits}|{2.boost_credits})'.format(offer, user, userCredits))
-            # normally user's won't see this message as UI should prevent from redeeming CME's when credit limit reached
+            # normally user won't see this message as UI should prevent from redeeming CME's when credit limit reached
             raise serializers.ValidationError({'message': "Can't add more Orbit CME - credit limit reached"}, code='invalid')
         else:
             userCredits.deduct(offer.credits)
@@ -283,7 +287,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             sponsor=offer.sponsor,
             activityDate=offer.activityDate,
             description=validated_data.get('description'),
-            creditType=creditType,
+            creditType=ama1CreditType,
             user=user
         )
         # associate tags with saved entry
@@ -309,18 +313,24 @@ class BRCmeCreateSerializer(serializers.Serializer):
         offer.redeemed = True
         offer.save()
         # remove url from recommended aurls for user if exist
-        qset = user.recaurls.filter(url=aurl)
-        if qset.exists():
-            qset.delete()
-        # update usergoals
-        for tag in entry.tags.all():
-            qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-            if qs.exists():
-                ug = qs[0]
-                ug.handleRedeemOffer()
+        if user.recaurls.exists():
+            qset = user.recaurls.filter(url=aurl)
+            if qset.exists():
+                recTag = qset[0].cmeTag
+                qset.delete()
+            # if no more recs for this tag, then refill
+            qs = user.recaurls.filter(cmeTag=recTag)
+            if not qs.exists():
+                num_added = RecAllowedUrl.objects.updateRecsForUser(user, recTag)
+                logger.debug('Refill RecAllowedUrl for {0}/{1}'.format(user, recTag))
+        tags = entry.tags.all()
+        # update affected usergoals
+        num_ug = UserGoal.objects.handleRedeemOfferForUser(user, tags)
+        if user.profile.isPhysician(): # exclude PA/etc since their tags might not be relevant
             # associate tag with AllowedUrl instance if not already in set
-            if tag.name != CMETAG_SACME:
-                aurl.cmeTags.add(tag) # add if not in set
+            for tag in tags:
+                if tag.name != CMETAG_SACME:
+                    aurl.cmeTags.add(tag) # add if not in set
         return instance
 
 # Serializer for Update BrowserCme entry
@@ -353,6 +363,7 @@ class BRCmeUpdateSerializer(serializers.Serializer):
         )
 
     def update(self, instance, validated_data):
+        from goals.models import UserGoal
         entry = instance.entry
         user = entry.user
         entry.description = validated_data.get('description', entry.description)
@@ -368,16 +379,12 @@ class BRCmeUpdateSerializer(serializers.Serializer):
                 entry.tags.set(vtags)
             else:
                 entry.tags.set([])
-            for tag in newlyAdded:
-                qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-                if qs.exists():
-                    ug = qs[0]
-                    ug.handleRedeemOffer()
-            for tag in delTags:
-                qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-                if qs.exists():
-                    ug = qs[0]
-                    ug.recompute() # just recompute
+            # recompute affected usergoals for newlyAdded tags
+            # for delTags: a complete goal may revert back to in_progress
+            # but this will be handled by the recompute cron
+            if newlyAdded:
+                num_ug = UserGoal.objects.handleRedeemOfferForUser(user, newlyAdded)
+        # update brcme instance
         instance.competence = validated_data.get('competence', instance.competence)
         instance.performance = validated_data.get('performance', instance.performance)
         instance.commercialBias = validated_data.get('commercialBias', instance.commercialBias)
@@ -433,9 +440,13 @@ class SRCmeFormSerializer(serializers.Serializer):
         method, which then appear in validated_data:
             user: User instance
         """
+        from goals.models import UserGoal
         etype = EntryType.objects.get(name=ENTRYTYPE_SRCME)
         user = validated_data['user']
         creditType = validated_data['creditType']
+        credits = validated_data.get('credits', 1)
+        if credits < 1:
+            credits = 1
         entry = Entry(
             entryType=etype,
             activityDate=validated_data.get('activityDate'),
@@ -455,19 +466,14 @@ class SRCmeFormSerializer(serializers.Serializer):
         # Using parent entry, create SRCme instance
         instance = SRCme.objects.create(
             entry=entry,
-            credits=validated_data.get('credits')
+            credits=credits
         )
-        # recompute usergoals
-        for tag in entry.tags.all():
-            qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-            if qs.exists():
-                ug = qs[0]
-                logger.info('srcme: recompute UserGoal {0} for tag: {0.cmeTag}'.format(ug))
-                ug.recompute()
+        # recompute affected usergoals
+        num_ug = UserGoal.objects.handleSRCmeForUser(user, creditType, tags)
         return instance
 
     def update(self, instance, validated_data):
-        #entry = Entry.objects.get(pk=instance.pk)
+        from goals.models import UserGoal
         entry = instance.entry
         user = entry.user
         entry.activityDate = validated_data.get('activityDate', entry.activityDate)
@@ -486,11 +492,9 @@ class SRCmeFormSerializer(serializers.Serializer):
                 entry.tags.set(vtags)
             else:
                 entry.tags.set([])
-            for tag in updTags:
-                qs = user.usergoals.select_related('goal').filter(cmeTag=tag)
-                if qs.exists():
-                    ug = qs[0]
-                    ug.recompute()
+            # recompute affected usergoals for newlyAdded tags
+            if newlyAdded:
+                num_ug = UserGoal.objects.handleSRCmeForUser(user, entry.creditType, newlyAdded)
         if 'documents' in validated_data:
             currentDocs = entry.documents.all()
             current_doc_ids = set([m.pk for m in currentDocs])
@@ -510,7 +514,10 @@ class SRCmeFormSerializer(serializers.Serializer):
                 m.delete()
             # update entry.documents
             entry.documents.set(doc_ids)
-        instance.credits = validated_data.get('credits', instance.credits)
+        credits = validated_data.get('credits', instance.credits)
+        if credits < 1:
+            credits = 1
+        instance.credits = credits
         instance.save()
         return instance
 

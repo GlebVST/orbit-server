@@ -13,7 +13,7 @@ from django.db import transaction
 from django.forms.models import model_to_dict
 from django.template.loader import get_template
 from django.utils import timezone
-
+from time import sleep
 from rest_framework import generics, exceptions, permissions, status, serializers
 from rest_framework.filters import BaseFilterBackend
 from rest_framework.pagination import PageNumberPagination
@@ -46,6 +46,30 @@ class LogValidationErrorMixin(object):
         return response
 
 
+# OrgGroup (Enterprise Practice Divisions)
+class OrgGroupList(LogValidationErrorMixin, generics.ListCreateAPIView):
+    serializer_class = OrgGroupSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        """Return only the groups belonging to the same Org as the request.user"""
+        return OrgGroup.objects.filter(organization=self.request.user.profile.organization).order_by('name')
+
+    def perform_create(self, serializer):
+        req_user = self.request.user # OrgMember user with is_admin=True
+        org = req_user.profile.organization
+        if not org:
+            error_msg = 'Admin user is not assigned to any organization.'
+            raise serializers.ValidationError({'name': error_msg}, code='invalid')
+            return
+        instance = serializer.save(organization=org)
+        return instance
+
+class OrgGroupDetail(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    queryset = OrgGroup.objects.all()
+    serializer_class = OrgGroupSerializer
+
 class OrgMemberFilterBackend(BaseFilterBackend):
     def get_schema_fields(self, view):
         return [
@@ -69,6 +93,13 @@ class OrgMemberFilterBackend(BaseFilterBackend):
                 required=False,
                 type='string',
                 description='Filter by verified: 0 or 1'
+                ),
+            coreapi.Field(
+                name='group',
+                location='query',
+                required=False,
+                type='string',
+                description='Filter by groupId'
                 ),
             coreapi.Field(
                 name='o',
@@ -102,16 +133,21 @@ class OrgMemberFilterBackend(BaseFilterBackend):
             verified = bool(int(q_verified))
         except ValueError:
             verified = None
+        q_group = request.query_params.get('group', '').strip()
+        try:
+            groupId = int(q_group)
+        except ValueError:
+            groupId = None
         # basic filter kwargs
         filter_kwargs = {
             'organization': org,
-            'removeDate__isnull': True,
-            'pending': False
         }
         if compliance is not None:
             filter_kwargs['compliance'] = compliance
         if verified is not None:
             filter_kwargs['user__profile__verified'] = verified
+        if groupId is not None:
+            filter_kwargs['group'] = groupId
         o = request.query_params.get('o', 'lastname').strip()
         otype = request.query_params.get('otype', 'a').strip() # sort primary field by ASC/DESC
         # set orderByFields from o
@@ -137,11 +173,14 @@ class OrgMemberListPagination(PageNumberPagination):
     max_page_size = 1000
 
 class OrgMemberList(generics.ListCreateAPIView):
-    queryset = OrgMember.objects.filter(removeDate__isnull=True) # active only
+    queryset = OrgMember.objects.all()
     serializer_class = OrgMemberReadSerializer
     pagination_class = OrgMemberListPagination
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
-    filter_backends = (OrgMemberFilterBackend,)
+
+    def get_queryset(self):
+        orderByFields = ['user__profile__lastName', 'user__profile__firstName', 'created']
+        return OrgMember.objects.filter(organization=self.request.user.profile.organization).order_by(*orderByFields)
 
     def get_serializer_class(self):
         """Note: django-rest-swagger call this without a request object so must check for request attr"""
@@ -170,6 +209,21 @@ class OrgMemberList(generics.ListCreateAPIView):
             error_msg = "Failed to find SubscriptionPlan for Organization of admin user: {0.name}".format(org)
             raise serializers.ValidationError({'email': error_msg}, code='invalid')
             return
+        # check group
+        groupid = self.request.data.get('group', None)
+        if groupid:
+            # verify that group.org = req_user's org
+            try:
+                orggroup = OrgGroup.objects.get(pk=groupid)
+            except OrgGroup.DoesNotExist:
+                error_msg = 'Invalid group id - does not exist.'
+                raise serializers.ValidationError({'group': error_msg}, code='invalid')
+                return
+            else:
+                if orggroup.organization != org:
+                    error_msg = 'Invalid group id for this org.'
+                    raise serializers.ValidationError({'group': error_msg}, code='invalid')
+                    return
         # check email
         email = self.request.data.get('email', '')
         if not email:
@@ -187,7 +241,7 @@ class OrgMemberList(generics.ListCreateAPIView):
                 elif instance.removeDate is not None:
                     logInfo(logger, self.request, 'User {0} is removed OrgMember {1.pk}. Set pending to True'.format(user, instance))
                     instance.pending = True
-                    instance.save(update_field=('pending',))
+                    instance.save(update_fields=('pending',))
                 else:
                     error_msg = 'The user {0} already belongs to the team.'.format(user)
                     logWarning(logger, self.request, error_msg)
@@ -217,6 +271,34 @@ class OrgMemberList(generics.ListCreateAPIView):
         out_serializer = OrgMemberReadSerializer(instance)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
+class OrgMembersRemove(APIView):
+    """This view sets `removeDate` field on all OrgMember instances matching passed ids array
+    Example JSON in the DELETE data:
+        {"ids": [1, 23, 94]}
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    def post(self, request, *args, **kwargs):
+        ids = request.data.get('ids', [])
+        logInfo(logger, self.request, 'Remove OrgMembers: {}'.format(ids))
+        updates = []
+        for id in ids:
+            try:
+                member = OrgMember.objects.get(pk=id)
+            except OrgMember.DoesNotExist:
+                logger.info("OrgMember with ID {0} not found".format(id))
+            else:
+                member.removeDate = datetime.now()
+                member.save(update_fields=('removeDate',))
+                updates.append({
+                    "id": member.id,
+                    "removeDate": member.removeDate
+                })
+                # if wasn't enterprise user (like existing orbit user hasn't accepted org invite) -
+                # below method won't do anything
+                UserSubscription.objects.endEnterpriseSubscription(member.user)
+
+        context = {'success': True, 'data':updates}
+        return Response(context, status=status.HTTP_200_OK)
 
 class OrgMemberDetail(generics.RetrieveUpdateAPIView):
     serializer_class = OrgMemberFormSerializer
@@ -311,33 +393,75 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
 
-class EmailSetPassword(APIView):
+class OrgMembersEmailInvite(APIView):
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
     def post(self, request, *args, **kwargs):
-        memberid = self.kwargs.get('pk')
-        if memberid:
-            qset = OrgMember.objects.filter(pk=memberid)
-            if not qset.exists():
-                return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
-            orgmember = qset[0]
-            if orgmember.pending:
-                # member get into a pending state only when existing Orbit user get invited to organisation
-                # so for such users we send a join-team email again
-                try:
-                    sendJoinTeamEmail(orgmember.user, orgmember.organization, send_message=True)
-                except SMTPException, e:
-                    logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(orgmember))
-            elif not orgmember.user.profile.verified:
-                # unverified users with with non-pending state are thos recently invited and never actually joined Orbit
-                # so for such users we send a set-password email
-                apiConn = Auth0Api.getConnection(self.request)
-                OrgMember.objects.sendPasswordTicket(orgmember.user.profile.socialId, orgmember, apiConn)
+        ids = request.data.get('ids', [])
+        logInfo(logger, self.request, 'Repeat email invites for OrgMembers: {}'.format(ids))
+        for id in ids:
+            try:
+                member = OrgMember.objects.get(pk=id)
+            except OrgMember.DoesNotExist:
+                logger.info("OrgMember with ID {0} not found".format(id))
+            else:
+                if member.pending:
+                    # member get into a pending state only when existing Orbit user get invited to organisation
+                    # so for such users we send a join-team email again
+                    try:
+                        sendJoinTeamEmail(member.user, member.organization, send_message=True)
+                        # add small delay here to prevent potential spamming alerts?
+                        sleep(0.2)
+                    except SMTPException, e:
+                        logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
+                elif not member.user.profile.verified:
+                    # unverified users with non-pending state are those recently invited and never actually joined Orbit
+                    # so for such users we send a set-password email
+                    apiConn = Auth0Api.getConnection(self.request)
+                    OrgMember.objects.sendPasswordTicket(member.user.profile.socialId, member, apiConn)
+                    # auth0 rate-limit API calls on a free tier to 2 requests per second
+                    # https://auth0.com/docs/policies/rate-limits
+                    sleep(0.5)
+        context = {'success': True}
+        return Response(context, status=status.HTTP_200_OK)
 
-            context = {'success': True}
-            return Response(context, status=status.HTTP_200_OK)
+class OrgMembersRestore(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
-        return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+    def post(self, request, *args, **kwargs):
+        ids = request.data.get('ids', [])
+        logInfo(logger, self.request, 'Restore email invites for OrgMembers: {}'.format(ids))
+        updates = []
+        for id in ids:
+            try:
+                member = OrgMember.objects.get(pk=id)
+            except OrgMember.DoesNotExist:
+                logger.info("OrgMember with ID {0} not found".format(id))
+            else:
+                if member.removeDate:
+                    member.removeDate = None
+                    member.pending = True
+                    # todo
+                    # decide if need to reset the created timestamp as
+                    # this field will be used for "invited" date field on UI
+                    # member.created = datetime.now()
+                    member.save(update_fields=('pending', 'removeDate',))
+                    updates.append({
+                        "id": member.id,
+                        "pending": True,
+                        "joined": False,
+                        "removeDate": None,
+                    })
+                    # since member was removed they should have been moved to a free trial subscription
+                    # so ask them to join organisation
+                    try:
+                        sendJoinTeamEmail(member.user, member.organization, send_message=True)
+                    except SMTPException, e:
+                        logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
+
+
+        context = {'success': True, 'data': updates}
+        return Response(context, status=status.HTTP_200_OK)
 
 
 class TeamStats(APIView):

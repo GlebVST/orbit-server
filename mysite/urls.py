@@ -54,6 +54,7 @@ bt_patterns = [
 
 ac_patterns = [
     url(r'^useremail-autocomplete/$', ac_views.UserEmailAutocomplete.as_view(), name='useremail-autocomplete'),
+    url(r'^cmetag-autocomplete/$', ac_views.CmeTagAutocomplete.as_view(), name='cmetag-autocomplete'),
     url(r'^statename-autocomplete/$', ac_views.StateNameAutocomplete.as_view(), name='statename-autocomplete'),
     url(r'^hospital-autocomplete/$', ac_views.HospitalAutocomplete.as_view(), name='hospital-autocomplete'),
     url(r'^licensegoal-autocomplete/$', goal_ac_views.LicenseGoalAutocomplete.as_view(), name='licensegoal-autocomplete'),
@@ -137,13 +138,17 @@ api_patterns = [
     url(r'^goaltypes/?$', goal_views.GoalTypeList.as_view()),
     url(r'^goals/?$', goal_views.UserGoalList.as_view()),
     url(r'^goals/license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view()),
-    url(r'^goals/training/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserTrainingGoal.as_view()),
+    url(r'^goals/user-summary/(?P<userid>[0-9]+)/?$', goal_views.UserGoalSummary.as_view()),
     url(r'^goals/recs/(?P<pk>[0-9]+)/?$', goal_views.GoalRecsList.as_view()),
 
     # enterprise admin
+    url(r'^enterprise/orggroups/?$', enterprise_views.OrgGroupList.as_view()),
+    url(r'^enterprise/orggroups/(?P<pk>[0-9]+)/?$', enterprise_views.OrgGroupDetail.as_view()),
     url(r'^enterprise/orgmembers/?$', enterprise_views.OrgMemberList.as_view()),
     url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberDetail.as_view()),
-    url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/email-set-password/?$', enterprise_views.EmailSetPassword.as_view()),
+    url(r'^enterprise/orgmembers-remove/?$', enterprise_views.OrgMembersRemove.as_view()),
+    url(r'^enterprise/orgmembers-email-invite/?$', enterprise_views.OrgMembersEmailInvite.as_view()),
+    url(r'^enterprise/orgmembers-restore/?$', enterprise_views.OrgMembersRestore.as_view()),
     url(r'^enterprise/upload-roster/?$', enterprise_views.UploadRoster.as_view()),
     url(r'^enterprise/team-stats/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.TeamStats.as_view()),
     url(r'^enterprise/join-team/?$', enterprise_views.JoinTeam.as_view()),

@@ -41,6 +41,12 @@ class Command(BaseCommand):
         except SubscriptionPlan.DoesNotExist:
             self.stderr.write('Invalid SubscriptionPlan planId: please check SubscriptionPlan.planId field for valid values.')
             return
+        else:
+            # validation check: plan.org must match provided org
+            if plan.organization != org:
+                self.stderr.write('Validation Error: Provided org {0.name} does not match the org assigned to planId: {1.organization}'.format(org, plan))
+                return
+
         # check email
         email = options['email']
         qset = User.objects.filter(email__iexact=email)
@@ -50,14 +56,15 @@ class Command(BaseCommand):
             return
         degree = Degree.objects.get(abbrev='Other')
         api = Auth0Api()
-        password_ticket = settings.ENV_TYPE == settings.ENV_PROD
+        # password_ticket = settings.ENV_TYPE == settings.ENV_PROD
         form_data = {
             'firstName': options['firstname'],
             'lastName': options['lastname'],
             'email': email,
             'degrees': [degree.pk,],
-            'password_ticket': password_ticket,
-            'is_admin': True
+            # 'password_ticket': password_ticket,
+            'is_admin': True,
+            'group': None
         }
         ser = OrgMemberFormSerializer(data=form_data)
         ser.is_valid(raise_exception=True)

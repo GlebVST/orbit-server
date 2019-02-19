@@ -7,27 +7,22 @@ from users.models import User, Profile
 from goals.models import GoalType, UserGoal
 
 logger = logging.getLogger('mgmt.goals')
-CUTOFF = 30
 
 class Command(BaseCommand):
     help = "Recompute all UserGoals to update their status."
 
     def handle(self, *args, **options):
         licenseGoalType = GoalType.objects.get(name=GoalType.LICENSE)
-        trainingGoalType = GoalType.objects.get(name=GoalType.TRAINING)
         cmeGoalType = GoalType.objects.get(name=GoalType.CME)
+        srcmeGoalType = GoalType.objects.get(name=GoalType.SRCME)
         # get distinct users
         users = UserGoal.objects.all().values_list('user', flat=True).distinct().order_by('user')
-        profiles = Profile.objects.filter(user_id__in=users).prefetch_related(
-                'degrees',
-                'specialties',
-                'states',
-                'subspecialties').order_by('user_id')
+        profiles = Profile.objects.filter(user_id__in=users).order_by('user_id')
         now = timezone.now()
         for profile in profiles:
             user = profile.user
             self.stdout.write('Process user {0}'.format(user))
-            numProfileSpecs = profile.specialties.count()
+            numProfileSpecs = len(profile.specialtySet)
             userLicenseDict = dict()
             total_goals = 0
             complianceDict = {
@@ -44,19 +39,32 @@ class Command(BaseCommand):
                 m.recompute()
                 complianceDict[m.compliance] += 1
                 total_goals += 1
-            # recompute user training goals.
-            qset = user.usergoals.select_related('goal').filter(goal__goalType=trainingGoalType)
+            # recompute individual cmegoals
+            qset = user.usergoals.select_related('goal').filter(goal__goalType=cmeGoalType, is_composite_goal=False).order_by('pk')
             for m in qset:
                 m.recompute(userLicenseDict, numProfileSpecs)
                 complianceDict[m.compliance] += 1
                 total_goals += 1
-            # recompute user cmegoals
-            qset = user.usergoals.select_related('goal').filter(goal__goalType=cmeGoalType).prefetch_related('cmeGoals').order_by('pk')
+            # recompute composite cmegoals (AFTER individuals have been recomputed)
+            qset = user.usergoals.select_related('goal').filter(goal__goalType=cmeGoalType, is_composite_goal=True).prefetch_related('cmeGoals').order_by('pk')
             for m in qset:
                 m.recompute(userLicenseDict, numProfileSpecs)
                 complianceDict[m.compliance] += 1
                 total_goals += 1
-            # compute aggregate compliance for this user
+            # recompute individual srcmegoals
+            qset = user.usergoals.select_related('goal').filter(goal__goalType=srcmeGoalType, is_composite_goal=False).order_by('pk')
+            for m in qset:
+                m.recompute(userLicenseDict, numProfileSpecs)
+                complianceDict[m.compliance] += 1
+                total_goals += 1
+            # recompute composite srcmegoals (AFTER individuals have been recomputed)
+            qset = user.usergoals.select_related('goal').filter(goal__goalType=srcmeGoalType, is_composite_goal=True).prefetch_related('srcmeGoals').order_by('pk')
+            for m in qset:
+                m.recompute(userLicenseDict, numProfileSpecs)
+                complianceDict[m.compliance] += 1
+                total_goals += 1
+            #
+            # finally compute aggregate compliance for this user
             for level in UserGoal.COMPLIANCE_LEVELS:
                 if complianceDict[level]:
                     compliance = level

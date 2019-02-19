@@ -1,0 +1,62 @@
+[
+{
+  "model": "goals.board",
+  "pk": 1,
+  "fields": {
+    "name": "American Board of Radiology",
+    "description": "",
+    "created": "2018-08-07T08:00:31.583Z",
+    "modified": "2018-08-07T08:00:31.583Z"
+  }
+},
+{
+  "model": "goals.board",
+  "pk": 2,
+  "fields": {
+    "name": "MQSA/FDA Breast Imaging",
+    "description": "",
+    "created": "2018-08-11T00:49:11.408Z",
+    "modified": "2018-08-11T00:49:11.408Z"
+  }
+},
+{
+  "model": "goals.board",
+  "pk": 3,
+  "fields": {
+    "name": "American Board of Emergency Medicine",
+    "description": "",
+    "created": "2018-08-11T01:01:39.822Z",
+    "modified": "2018-08-11T01:01:39.822Z"
+  }
+},
+{
+  "model": "goals.board",
+  "pk": 4,
+  "fields": {
+    "name": "American Board of Allergy and Immunology",
+    "description": "",
+    "created": "2018-08-11T01:05:06.350Z",
+    "modified": "2018-08-11T01:05:06.350Z"
+  }
+},
+{
+  "model": "goals.board",
+  "pk": 5,
+  "fields": {
+    "name": "American Board of Nuclear Medicine",
+    "description": "",
+    "created": "2019-02-13T21:21:58.521Z",
+    "modified": "2019-02-14T06:18:15.055Z"
+  }
+},
+{
+  "model": "goals.board",
+  "pk": 6,
+  "fields": {
+    "name": "American Osteopathic Board of Radiology",
+    "description": "",
+    "created": "2019-02-18T17:32:42.801Z",
+    "modified": "2019-02-18T17:32:42.801Z"
+  }
+}
+]

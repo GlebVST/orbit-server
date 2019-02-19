@@ -1,0 +1,2153 @@
+[
+{
+  "model": "users.residencyprogram",
+  "pk": 1,
+  "fields": {
+    "name": "Advocate Health Care (Advocate Illinois Masonic Medical Center) Program",
+    "created": "2019-02-18T01:37:06.300Z",
+    "modified": "2019-02-18T01:37:06.300Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 2,
+  "fields": {
+    "name": "Albany Medical Center Program",
+    "created": "2019-02-18T01:37:06.534Z",
+    "modified": "2019-02-18T01:37:06.534Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 3,
+  "fields": {
+    "name": "Albert Einstein Healthcare Network (East Norriton) Program",
+    "created": "2019-02-18T01:37:07.114Z",
+    "modified": "2019-02-18T01:37:07.114Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 4,
+  "fields": {
+    "name": "Albert Einstein Healthcare Network Program",
+    "created": "2019-02-18T01:37:07.341Z",
+    "modified": "2019-02-18T01:37:07.342Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 5,
+  "fields": {
+    "name": "Allegheny Health Network Medical Education Consortium (AGH) Program",
+    "created": "2019-02-18T01:37:07.553Z",
+    "modified": "2019-02-18T01:37:07.553Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 6,
+  "fields": {
+    "name": "Arnot Ogden Medical Center Program",
+    "created": "2019-02-18T01:37:07.764Z",
+    "modified": "2019-02-18T01:37:07.764Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 7,
+  "fields": {
+    "name": "Ascension Providence/MSUCHM Program",
+    "created": "2019-02-18T01:37:07.970Z",
+    "modified": "2019-02-18T01:37:07.970Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 8,
+  "fields": {
+    "name": "Atlantic Health (Morristown) Program",
+    "created": "2019-02-18T01:37:08.176Z",
+    "modified": "2019-02-18T01:37:08.176Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 9,
+  "fields": {
+    "name": "Aultman Hospital/Mercy/NEOMED Program",
+    "created": "2019-02-18T01:37:08.381Z",
+    "modified": "2019-02-18T01:37:08.381Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 10,
+  "fields": {
+    "name": "Aurora Health Care Program",
+    "created": "2019-02-18T01:37:08.592Z",
+    "modified": "2019-02-18T01:37:08.592Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 11,
+  "fields": {
+    "name": "Aventura Hospital and Medical Center Program",
+    "created": "2019-02-18T01:37:08.799Z",
+    "modified": "2019-02-18T01:37:08.799Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 12,
+  "fields": {
+    "name": "Baptist Memorial Medical Education Program",
+    "created": "2019-02-18T01:37:09.009Z",
+    "modified": "2019-02-18T01:37:09.009Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 13,
+  "fields": {
+    "name": "Baylor College of Medicine Program",
+    "created": "2019-02-18T01:37:09.222Z",
+    "modified": "2019-02-18T01:37:09.222Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 14,
+  "fields": {
+    "name": "Beaumont Health (Dearborn) Program",
+    "created": "2019-02-18T01:37:09.441Z",
+    "modified": "2019-02-18T01:37:09.441Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 15,
+  "fields": {
+    "name": "Beaumont Health (Farmington Hills) Program",
+    "created": "2019-02-18T01:37:09.650Z",
+    "modified": "2019-02-18T01:37:09.650Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 16,
+  "fields": {
+    "name": "Beaumont Health (Royal Oak) Program",
+    "created": "2019-02-18T01:37:09.886Z",
+    "modified": "2019-02-18T01:37:09.886Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 17,
+  "fields": {
+    "name": "Beth Israel Deaconess Medical Center Program",
+    "created": "2019-02-18T01:37:10.090Z",
+    "modified": "2019-02-18T01:37:10.090Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 18,
+  "fields": {
+    "name": "Boston University Medical Center Program",
+    "created": "2019-02-18T01:37:10.296Z",
+    "modified": "2019-02-18T01:37:10.296Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 19,
+  "fields": {
+    "name": "Bridgeport Hospital/Yale University Program",
+    "created": "2019-02-18T01:37:10.516Z",
+    "modified": "2019-02-18T01:37:10.516Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 20,
+  "fields": {
+    "name": "Brigham and Women's Hospital/Harvard Medical School Program",
+    "created": "2019-02-18T01:37:10.731Z",
+    "modified": "2019-02-18T01:37:10.731Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 21,
+  "fields": {
+    "name": "BronxCare Health System Program",
+    "created": "2019-02-18T01:37:10.972Z",
+    "modified": "2019-02-18T01:37:10.972Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 22,
+  "fields": {
+    "name": "Brookwood Baptist Health Program",
+    "created": "2019-02-18T01:37:11.189Z",
+    "modified": "2019-02-18T01:37:11.189Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 23,
+  "fields": {
+    "name": "Brown University Program",
+    "created": "2019-02-18T01:37:11.518Z",
+    "modified": "2019-02-18T01:37:11.518Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 24,
+  "fields": {
+    "name": "Case Western Reserve University (MetroHealth) Program",
+    "created": "2019-02-18T01:37:11.724Z",
+    "modified": "2019-02-18T01:37:11.724Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 25,
+  "fields": {
+    "name": "Case Western Reserve University/University Hospitals Cleveland Medical Center Program",
+    "created": "2019-02-18T01:37:11.928Z",
+    "modified": "2019-02-18T01:37:11.928Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 26,
+  "fields": {
+    "name": "Cedars-Sinai Medical Center Program",
+    "created": "2019-02-18T01:37:12.134Z",
+    "modified": "2019-02-18T01:37:12.134Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 27,
+  "fields": {
+    "name": "Charles R Drew University Program",
+    "created": "2019-02-18T01:37:12.388Z",
+    "modified": "2019-02-18T01:37:12.388Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 28,
+  "fields": {
+    "name": "Christiana Care Health Services Program",
+    "created": "2019-02-18T01:37:12.590Z",
+    "modified": "2019-02-18T01:37:12.590Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 29,
+  "fields": {
+    "name": "Cleveland Clinic Foundation Program",
+    "created": "2019-02-18T01:37:12.794Z",
+    "modified": "2019-02-18T01:37:12.794Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 30,
+  "fields": {
+    "name": "Cook County Health and Hospitals System Program",
+    "created": "2019-02-18T01:37:13.030Z",
+    "modified": "2019-02-18T01:37:13.030Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 31,
+  "fields": {
+    "name": "Cooper Medical School of Rowan University/Cooper University Hospital Program",
+    "created": "2019-02-18T01:37:13.236Z",
+    "modified": "2019-02-18T01:37:13.236Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 32,
+  "fields": {
+    "name": "Creighton University School of Medicine (Omaha) Program",
+    "created": "2019-02-18T01:37:13.447Z",
+    "modified": "2019-02-18T01:37:13.447Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 33,
+  "fields": {
+    "name": "Creighton University School of Medicine/Maricopa Medical Center (Phoenix) Program",
+    "created": "2019-02-18T01:37:13.656Z",
+    "modified": "2019-02-18T01:37:13.656Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 34,
+  "fields": {
+    "name": "Creighton University School of Medicine/St Joseph's Medical Center (Phoenix) Program",
+    "created": "2019-02-18T01:37:13.870Z",
+    "modified": "2019-02-18T01:37:13.870Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 35,
+  "fields": {
+    "name": "David Grant Medical Center Program",
+    "created": "2019-02-18T01:37:14.074Z",
+    "modified": "2019-02-18T01:37:14.074Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 36,
+  "fields": {
+    "name": "Detroit Medical Center/Wayne State University Program",
+    "created": "2019-02-18T01:37:14.302Z",
+    "modified": "2019-02-18T01:37:14.302Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 37,
+  "fields": {
+    "name": "Doctors Hospital/OhioHealth Program",
+    "created": "2019-02-18T01:37:14.514Z",
+    "modified": "2019-02-18T01:37:14.514Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 38,
+  "fields": {
+    "name": "Drexel University College of Medicine/Hahnemann University Hospital Program",
+    "created": "2019-02-18T01:37:14.726Z",
+    "modified": "2019-02-18T01:37:14.726Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 39,
+  "fields": {
+    "name": "Duke University Hospital Program",
+    "created": "2019-02-18T01:37:14.949Z",
+    "modified": "2019-02-18T01:37:14.949Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 40,
+  "fields": {
+    "name": "Eastern Virginia Medical School Program",
+    "created": "2019-02-18T01:37:15.157Z",
+    "modified": "2019-02-18T01:37:15.157Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 41,
+  "fields": {
+    "name": "Emory University School of Medicine Program",
+    "created": "2019-02-18T01:37:15.360Z",
+    "modified": "2019-02-18T01:37:15.360Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 42,
+  "fields": {
+    "name": "Florida Hospital Medical Center Program",
+    "created": "2019-02-18T01:37:15.590Z",
+    "modified": "2019-02-18T01:37:15.590Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 43,
+  "fields": {
+    "name": "Franciscan Health Olympia Fields Program",
+    "created": "2019-02-18T01:37:15.802Z",
+    "modified": "2019-02-18T01:37:15.802Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 44,
+  "fields": {
+    "name": "Geisinger Health System Program",
+    "created": "2019-02-18T01:37:16.024Z",
+    "modified": "2019-02-18T01:37:16.024Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 45,
+  "fields": {
+    "name": "George Washington University Program",
+    "created": "2019-02-18T01:37:16.258Z",
+    "modified": "2019-02-18T01:37:16.258Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 46,
+  "fields": {
+    "name": "Hackensack Medical Center Program",
+    "created": "2019-02-18T01:37:16.478Z",
+    "modified": "2019-02-18T01:37:16.478Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 47,
+  "fields": {
+    "name": "Harlem Hospital Center Program",
+    "created": "2019-02-18T01:37:16.705Z",
+    "modified": "2019-02-18T01:37:16.705Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 48,
+  "fields": {
+    "name": "Hartford Hospital Program",
+    "created": "2019-02-18T01:37:16.927Z",
+    "modified": "2019-02-18T01:37:16.927Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 49,
+  "fields": {
+    "name": "Henry Ford Hospital/Wayne State University Program",
+    "created": "2019-02-18T01:37:17.134Z",
+    "modified": "2019-02-18T01:37:17.134Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 50,
+  "fields": {
+    "name": "Hospital of St Raphael Program",
+    "created": "2019-02-18T01:37:17.337Z",
+    "modified": "2019-02-18T01:37:17.337Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 51,
+  "fields": {
+    "name": "Howard University Program",
+    "created": "2019-02-18T01:37:17.554Z",
+    "modified": "2019-02-18T01:37:17.554Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 52,
+  "fields": {
+    "name": "Icahn School of Medicine at Mount Sinai (Beth Israel) Program",
+    "created": "2019-02-18T01:37:17.759Z",
+    "modified": "2019-02-18T01:37:17.759Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 53,
+  "fields": {
+    "name": "Icahn School of Medicine at Mount Sinai (West) Program",
+    "created": "2019-02-18T01:37:17.971Z",
+    "modified": "2019-02-18T01:37:17.971Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 54,
+  "fields": {
+    "name": "Icahn School of Medicine at Mount Sinai Program",
+    "created": "2019-02-18T01:37:18.195Z",
+    "modified": "2019-02-18T01:37:18.195Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 55,
+  "fields": {
+    "name": "Indiana University School of Medicine (Methodist) Program",
+    "created": "2019-02-18T01:37:18.404Z",
+    "modified": "2019-02-18T01:37:18.404Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 56,
+  "fields": {
+    "name": "Indiana University School of Medicine Program",
+    "created": "2019-02-18T01:37:18.612Z",
+    "modified": "2019-02-18T01:37:18.612Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 57,
+  "fields": {
+    "name": "Integris Health Program",
+    "created": "2019-02-18T01:37:18.832Z",
+    "modified": "2019-02-18T01:37:18.833Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 58,
+  "fields": {
+    "name": "Jackson Memorial Hospital/Jackson Health System Program",
+    "created": "2019-02-18T01:37:19.041Z",
+    "modified": "2019-02-18T01:37:19.041Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 59,
+  "fields": {
+    "name": "Jacobi Medical Center/Albert Einstein College of Medicine Program",
+    "created": "2019-02-18T01:37:19.251Z",
+    "modified": "2019-02-18T01:37:19.251Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 60,
+  "fields": {
+    "name": "Johns Hopkins University Program",
+    "created": "2019-02-18T01:37:19.495Z",
+    "modified": "2019-02-18T01:37:19.495Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 61,
+  "fields": {
+    "name": "Kaiser Permanente Southern California (Los Angeles) Program",
+    "created": "2019-02-18T01:37:19.728Z",
+    "modified": "2019-02-18T01:37:19.728Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 62,
+  "fields": {
+    "name": "Kettering Health Network Program",
+    "created": "2019-02-18T01:37:19.933Z",
+    "modified": "2019-02-18T01:37:19.933Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 63,
+  "fields": {
+    "name": "Lahey Clinic Program",
+    "created": "2019-02-18T01:37:20.139Z",
+    "modified": "2019-02-18T01:37:20.139Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 64,
+  "fields": {
+    "name": "Larkin Community Hospital Program",
+    "created": "2019-02-18T01:37:20.342Z",
+    "modified": "2019-02-18T01:37:20.342Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 65,
+  "fields": {
+    "name": "Loma Linda University Health Education Consortium Program",
+    "created": "2019-02-18T01:37:20.559Z",
+    "modified": "2019-02-18T01:37:20.559Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 66,
+  "fields": {
+    "name": "Los Angeles County-Harbor-UCLA Medical Center Program",
+    "created": "2019-02-18T01:37:20.773Z",
+    "modified": "2019-02-18T01:37:20.773Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 67,
+  "fields": {
+    "name": "Louisiana State University (Shreveport) Program",
+    "created": "2019-02-18T01:37:20.988Z",
+    "modified": "2019-02-18T01:37:20.988Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 68,
+  "fields": {
+    "name": "Louisiana State University Program",
+    "created": "2019-02-18T01:37:21.195Z",
+    "modified": "2019-02-18T01:37:21.195Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 69,
+  "fields": {
+    "name": "Loyola University Medical Center Program",
+    "created": "2019-02-18T01:37:21.399Z",
+    "modified": "2019-02-18T01:37:21.399Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 70,
+  "fields": {
+    "name": "Madigan Army Medical Center Program",
+    "created": "2019-02-18T01:37:21.608Z",
+    "modified": "2019-02-18T01:37:21.608Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 71,
+  "fields": {
+    "name": "Maimonides Medical Center Program",
+    "created": "2019-02-18T01:37:21.814Z",
+    "modified": "2019-02-18T01:37:21.814Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 72,
+  "fields": {
+    "name": "Main Line Health System/Bryn Mawr Hospital Program",
+    "created": "2019-02-18T01:37:22.035Z",
+    "modified": "2019-02-18T01:37:22.035Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 73,
+  "fields": {
+    "name": "Maine Medical Center Program",
+    "created": "2019-02-18T01:37:22.248Z",
+    "modified": "2019-02-18T01:37:22.248Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 74,
+  "fields": {
+    "name": "Mary Hitchcock Memorial Hospital/Dartmouth-Hitchcock Program",
+    "created": "2019-02-18T01:37:22.452Z",
+    "modified": "2019-02-18T01:37:22.452Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 75,
+  "fields": {
+    "name": "Massachusetts General Hospital/Harvard Medical School Program",
+    "created": "2019-02-18T01:37:22.664Z",
+    "modified": "2019-02-18T01:37:22.664Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 76,
+  "fields": {
+    "name": "Mayo Clinic College of Medicine and Science (Arizona) Program",
+    "created": "2019-02-18T01:37:22.886Z",
+    "modified": "2019-02-18T01:37:22.887Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 77,
+  "fields": {
+    "name": "Mayo Clinic College of Medicine and Science (Jacksonville) Program",
+    "created": "2019-02-18T01:37:23.094Z",
+    "modified": "2019-02-18T01:37:23.094Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 78,
+  "fields": {
+    "name": "Mayo Clinic College of Medicine and Science (Rochester) Program",
+    "created": "2019-02-18T01:37:23.316Z",
+    "modified": "2019-02-18T01:37:23.316Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 79,
+  "fields": {
+    "name": "McGaw Medical Center of Northwestern University Program",
+    "created": "2019-02-18T01:37:23.521Z",
+    "modified": "2019-02-18T01:37:23.521Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 80,
+  "fields": {
+    "name": "McLaren Health Care/Oakland/MSU Program",
+    "created": "2019-02-18T01:37:23.733Z",
+    "modified": "2019-02-18T01:37:23.733Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 81,
+  "fields": {
+    "name": "Medical College of Georgia Program",
+    "created": "2019-02-18T01:37:23.961Z",
+    "modified": "2019-02-18T01:37:23.961Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 82,
+  "fields": {
+    "name": "Medical College of Wisconsin Affiliated Hospitals (St Joseph's) Program",
+    "created": "2019-02-18T01:37:24.168Z",
+    "modified": "2019-02-18T01:37:24.168Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 83,
+  "fields": {
+    "name": "Medical College of Wisconsin Affiliated Hospitals Program",
+    "created": "2019-02-18T01:37:24.392Z",
+    "modified": "2019-02-18T01:37:24.392Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 84,
+  "fields": {
+    "name": "Medical University of South Carolina Program",
+    "created": "2019-02-18T01:37:24.615Z",
+    "modified": "2019-02-18T01:37:24.615Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 85,
+  "fields": {
+    "name": "MedStar Health/Georgetown University Hospital Program",
+    "created": "2019-02-18T01:37:24.830Z",
+    "modified": "2019-02-18T01:37:24.830Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 86,
+  "fields": {
+    "name": "Memorial Health-University Medical Center/Mercer University School of Medicine (Savannah) Program",
+    "created": "2019-02-18T01:37:25.040Z",
+    "modified": "2019-02-18T01:37:25.040Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 87,
+  "fields": {
+    "name": "Mercy Catholic Medical Center Program",
+    "created": "2019-02-18T01:37:25.249Z",
+    "modified": "2019-02-18T01:37:25.249Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 88,
+  "fields": {
+    "name": "Methodist Hospital (Houston) Program",
+    "created": "2019-02-18T01:37:25.471Z",
+    "modified": "2019-02-18T01:37:25.471Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 89,
+  "fields": {
+    "name": "Michigan State University (Flint) Program",
+    "created": "2019-02-18T01:37:25.713Z",
+    "modified": "2019-02-18T01:37:25.713Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 90,
+  "fields": {
+    "name": "Monmouth Medical Center Program",
+    "created": "2019-02-18T01:37:25.920Z",
+    "modified": "2019-02-18T01:37:25.920Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 91,
+  "fields": {
+    "name": "Montefiore Medical Center/Albert Einstein College of Medicine Program",
+    "created": "2019-02-18T01:37:26.190Z",
+    "modified": "2019-02-18T01:37:26.190Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 92,
+  "fields": {
+    "name": "Mount Auburn Hospital Program",
+    "created": "2019-02-18T01:37:26.417Z",
+    "modified": "2019-02-18T01:37:26.417Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 93,
+  "fields": {
+    "name": "Mount Sinai Medical Center of Cleveland Program",
+    "created": "2019-02-18T01:37:26.639Z",
+    "modified": "2019-02-18T01:37:26.639Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 94,
+  "fields": {
+    "name": "Mount Sinai Medical Center of Florida Program",
+    "created": "2019-02-18T01:37:26.844Z",
+    "modified": "2019-02-18T01:37:26.844Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 95,
+  "fields": {
+    "name": "Nassau University Medical Center Program",
+    "created": "2019-02-18T01:37:27.086Z",
+    "modified": "2019-02-18T01:37:27.086Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 96,
+  "fields": {
+    "name": "National Capital Consortium Program",
+    "created": "2019-02-18T01:37:27.304Z",
+    "modified": "2019-02-18T01:37:27.304Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 97,
+  "fields": {
+    "name": "Naval Medical Center (Portsmouth) Program",
+    "created": "2019-02-18T01:37:27.522Z",
+    "modified": "2019-02-18T01:37:27.522Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 98,
+  "fields": {
+    "name": "Naval Medical Center (San Diego) Program",
+    "created": "2019-02-18T01:37:27.787Z",
+    "modified": "2019-02-18T01:37:27.787Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 99,
+  "fields": {
+    "name": "New York Medical College at St Vincent's Hospital and Medical Center of New York Program",
+    "created": "2019-02-18T01:37:27.999Z",
+    "modified": "2019-02-18T01:37:27.999Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 100,
+  "fields": {
+    "name": "New York Presbyterian Hospital (Columbia Campus) Program",
+    "created": "2019-02-18T01:37:28.209Z",
+    "modified": "2019-02-18T01:37:28.209Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 101,
+  "fields": {
+    "name": "New York Presbyterian Hospital (Cornell Campus) Program",
+    "created": "2019-02-18T01:37:28.416Z",
+    "modified": "2019-02-18T01:37:28.416Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 102,
+  "fields": {
+    "name": "New York University School of Medicine Program",
+    "created": "2019-02-18T01:37:28.623Z",
+    "modified": "2019-02-18T01:37:28.623Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 103,
+  "fields": {
+    "name": "New York-Presbyterian Brooklyn Methodist Hospital Program",
+    "created": "2019-02-18T01:37:28.829Z",
+    "modified": "2019-02-18T01:37:28.829Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 104,
+  "fields": {
+    "name": "Newark Beth Israel Medical Center Program",
+    "created": "2019-02-18T01:37:29.059Z",
+    "modified": "2019-02-18T01:37:29.059Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 105,
+  "fields": {
+    "name": "Norwalk Hospital Program",
+    "created": "2019-02-18T01:37:29.271Z",
+    "modified": "2019-02-18T01:37:29.271Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 106,
+  "fields": {
+    "name": "NYU Winthrop Hospital Program",
+    "created": "2019-02-18T01:37:29.484Z",
+    "modified": "2019-02-18T01:37:29.484Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 107,
+  "fields": {
+    "name": "Ochsner Clinic Foundation Program",
+    "created": "2019-02-18T01:37:29.741Z",
+    "modified": "2019-02-18T01:37:29.741Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 108,
+  "fields": {
+    "name": "Ohio State University Hospital Program",
+    "created": "2019-02-18T01:37:29.958Z",
+    "modified": "2019-02-18T01:37:29.958Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 109,
+  "fields": {
+    "name": "Oklahoma State University Center for Health Sciences Program",
+    "created": "2019-02-18T01:37:30.176Z",
+    "modified": "2019-02-18T01:37:30.176Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 110,
+  "fields": {
+    "name": "OPTI West/Hemet Valley Medical Center Program",
+    "created": "2019-02-18T01:37:30.387Z",
+    "modified": "2019-02-18T01:37:30.387Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 111,
+  "fields": {
+    "name": "Oregon Health & Science University Program",
+    "created": "2019-02-18T01:37:30.595Z",
+    "modified": "2019-02-18T01:37:30.595Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 112,
+  "fields": {
+    "name": "Overlook Hospital Program",
+    "created": "2019-02-18T01:37:30.803Z",
+    "modified": "2019-02-18T01:37:30.803Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 113,
+  "fields": {
+    "name": "Penn State Milton S Hershey Medical Center Program",
+    "created": "2019-02-18T01:37:31.019Z",
+    "modified": "2019-02-18T01:37:31.019Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 114,
+  "fields": {
+    "name": "Pennsylvania Hospital of the University of Pennsylvania Health System Program",
+    "created": "2019-02-18T01:37:31.537Z",
+    "modified": "2019-02-18T01:37:31.537Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 115,
+  "fields": {
+    "name": "Presence Saint Francis Hospital Program",
+    "created": "2019-02-18T01:37:31.761Z",
+    "modified": "2019-02-18T01:37:31.762Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 116,
+  "fields": {
+    "name": "Providence Sacred Heart Medical Center (Spokane) Program",
+    "created": "2019-02-18T01:37:31.976Z",
+    "modified": "2019-02-18T01:37:31.976Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 117,
+  "fields": {
+    "name": "Reading Hospital Program",
+    "created": "2019-02-18T01:37:32.182Z",
+    "modified": "2019-02-18T01:37:32.182Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 118,
+  "fields": {
+    "name": "Richmond University Medical Center Program",
+    "created": "2019-02-18T01:37:32.439Z",
+    "modified": "2019-02-18T01:37:32.439Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 119,
+  "fields": {
+    "name": "Rochester General Hospital Program",
+    "created": "2019-02-18T01:37:32.651Z",
+    "modified": "2019-02-18T01:37:32.651Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 120,
+  "fields": {
+    "name": "Rush University Medical Center Program",
+    "created": "2019-02-18T01:37:32.917Z",
+    "modified": "2019-02-18T01:37:32.917Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 121,
+  "fields": {
+    "name": "Rutgers New Jersey Medical School Program",
+    "created": "2019-02-18T01:37:33.130Z",
+    "modified": "2019-02-18T01:37:33.130Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 122,
+  "fields": {
+    "name": "Rutgers Robert Wood Johnson Medical School Program",
+    "created": "2019-02-18T01:37:33.350Z",
+    "modified": "2019-02-18T01:37:33.350Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 123,
+  "fields": {
+    "name": "San Antonio Uniformed Services Health Education Consortium Program",
+    "created": "2019-02-18T01:37:33.568Z",
+    "modified": "2019-02-18T01:37:33.568Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 124,
+  "fields": {
+    "name": "Santa Barbara Cottage Hospital Program",
+    "created": "2019-02-18T01:37:33.819Z",
+    "modified": "2019-02-18T01:37:33.819Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 125,
+  "fields": {
+    "name": "Santa Clara Valley Medical Center Program",
+    "created": "2019-02-18T01:37:34.031Z",
+    "modified": "2019-02-18T01:37:34.031Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 126,
+  "fields": {
+    "name": "Sidney Kimmel Medical College at Thomas Jefferson University/TJUH Program",
+    "created": "2019-02-18T01:37:34.263Z",
+    "modified": "2019-02-18T01:37:34.263Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 127,
+  "fields": {
+    "name": "Southern Illinois University Program",
+    "created": "2019-02-18T01:37:34.503Z",
+    "modified": "2019-02-18T01:37:34.503Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 128,
+  "fields": {
+    "name": "Spectrum Health/Michigan State University Program",
+    "created": "2019-02-18T01:37:34.710Z",
+    "modified": "2019-02-18T01:37:34.710Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 129,
+  "fields": {
+    "name": "St Barnabas Medical Center Program",
+    "created": "2019-02-18T01:37:34.912Z",
+    "modified": "2019-02-18T01:37:34.912Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 130,
+  "fields": {
+    "name": "St Elizabeth Youngstown Hospital/NEOUCOM Program",
+    "created": "2019-02-18T01:37:35.116Z",
+    "modified": "2019-02-18T01:37:35.116Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 131,
+  "fields": {
+    "name": "St Francis Medical Center Program",
+    "created": "2019-02-18T01:37:35.325Z",
+    "modified": "2019-02-18T01:37:35.326Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 132,
+  "fields": {
+    "name": "St Joseph Mercy-Oakland Program",
+    "created": "2019-02-18T01:37:35.537Z",
+    "modified": "2019-02-18T01:37:35.537Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 133,
+  "fields": {
+    "name": "St Louis University School of Medicine Program",
+    "created": "2019-02-18T01:37:35.766Z",
+    "modified": "2019-02-18T01:37:35.766Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 134,
+  "fields": {
+    "name": "St Vincent Hospital Program",
+    "created": "2019-02-18T01:37:35.976Z",
+    "modified": "2019-02-18T01:37:35.976Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 135,
+  "fields": {
+    "name": "St Vincent's Medical Center Program",
+    "created": "2019-02-18T01:37:36.215Z",
+    "modified": "2019-02-18T01:37:36.215Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 136,
+  "fields": {
+    "name": "Stanford Health Care-Sponsored Stanford University Program",
+    "created": "2019-02-18T01:37:36.421Z",
+    "modified": "2019-02-18T01:37:36.421Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 137,
+  "fields": {
+    "name": "Stony Brook Medicine/Mather Hospital Program",
+    "created": "2019-02-18T01:37:36.627Z",
+    "modified": "2019-02-18T01:37:36.627Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 138,
+  "fields": {
+    "name": "Stony Brook Medicine/University Hospital Program",
+    "created": "2019-02-18T01:37:36.859Z",
+    "modified": "2019-02-18T01:37:36.859Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 139,
+  "fields": {
+    "name": "SUNY Health Science Center at Brooklyn Program",
+    "created": "2019-02-18T01:37:37.099Z",
+    "modified": "2019-02-18T01:37:37.099Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 140,
+  "fields": {
+    "name": "SUNY Health Science Center at Brooklyn/Long Island College Hospital Program",
+    "created": "2019-02-18T01:37:37.310Z",
+    "modified": "2019-02-18T01:37:37.310Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 141,
+  "fields": {
+    "name": "SUNY Upstate Medical University Program",
+    "created": "2019-02-18T01:37:37.525Z",
+    "modified": "2019-02-18T01:37:37.525Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 142,
+  "fields": {
+    "name": "Temple University Hospital Program",
+    "created": "2019-02-18T01:37:37.731Z",
+    "modified": "2019-02-18T01:37:37.731Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 143,
+  "fields": {
+    "name": "Texas A&M College of Medicine-Scott and White Medical Center (Temple) Program",
+    "created": "2019-02-18T01:37:37.942Z",
+    "modified": "2019-02-18T01:37:37.942Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 144,
+  "fields": {
+    "name": "Texas Tech University Health Sciences Center-PLFSOM Program",
+    "created": "2019-02-18T01:37:38.174Z",
+    "modified": "2019-02-18T01:37:38.174Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 145,
+  "fields": {
+    "name": "Tripler Army Medical Center Program",
+    "created": "2019-02-18T01:37:38.385Z",
+    "modified": "2019-02-18T01:37:38.385Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 146,
+  "fields": {
+    "name": "Tufts Medical Center Program",
+    "created": "2019-02-18T01:37:38.590Z",
+    "modified": "2019-02-18T01:37:38.590Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 147,
+  "fields": {
+    "name": "Tulane University Program",
+    "created": "2019-02-18T01:37:38.812Z",
+    "modified": "2019-02-18T01:37:38.812Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 148,
+  "fields": {
+    "name": "UCLA David Geffen School of Medicine/UCLA Medical Center Program",
+    "created": "2019-02-18T01:37:39.020Z",
+    "modified": "2019-02-18T01:37:39.020Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 149,
+  "fields": {
+    "name": "UMMS-Baystate Program",
+    "created": "2019-02-18T01:37:39.225Z",
+    "modified": "2019-02-18T01:37:39.225Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 150,
+  "fields": {
+    "name": "University at Buffalo Program",
+    "created": "2019-02-18T01:37:39.432Z",
+    "modified": "2019-02-18T01:37:39.432Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 151,
+  "fields": {
+    "name": "University of Alabama Medical Center Program",
+    "created": "2019-02-18T01:37:39.645Z",
+    "modified": "2019-02-18T01:37:39.645Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 152,
+  "fields": {
+    "name": "University of Arizona College of Medicine at South Campus Program",
+    "created": "2019-02-18T01:37:39.850Z",
+    "modified": "2019-02-18T01:37:39.850Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 153,
+  "fields": {
+    "name": "University of Arizona College of Medicine-Tucson Program",
+    "created": "2019-02-18T01:37:40.060Z",
+    "modified": "2019-02-18T01:37:40.060Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 154,
+  "fields": {
+    "name": "University of Arkansas for Medical Sciences Program",
+    "created": "2019-02-18T01:37:40.268Z",
+    "modified": "2019-02-18T01:37:40.268Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 155,
+  "fields": {
+    "name": "University of California (Irvine) Program",
+    "created": "2019-02-18T01:37:40.475Z",
+    "modified": "2019-02-18T01:37:40.475Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 156,
+  "fields": {
+    "name": "University of California (San Diego) Medical Center Program",
+    "created": "2019-02-18T01:37:40.682Z",
+    "modified": "2019-02-18T01:37:40.682Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 157,
+  "fields": {
+    "name": "University of California (San Francisco) Program",
+    "created": "2019-02-18T01:37:40.904Z",
+    "modified": "2019-02-18T01:37:40.904Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 158,
+  "fields": {
+    "name": "University of California (San Francisco)/Fresno Program",
+    "created": "2019-02-18T01:37:41.110Z",
+    "modified": "2019-02-18T01:37:41.110Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 159,
+  "fields": {
+    "name": "University of California Davis Health Program",
+    "created": "2019-02-18T01:37:41.351Z",
+    "modified": "2019-02-18T01:37:41.351Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 160,
+  "fields": {
+    "name": "University of Chicago Program",
+    "created": "2019-02-18T01:37:41.558Z",
+    "modified": "2019-02-18T01:37:41.558Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 161,
+  "fields": {
+    "name": "University of Cincinnati Medical Center/College of Medicine Program",
+    "created": "2019-02-18T01:37:41.769Z",
+    "modified": "2019-02-18T01:37:41.769Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 162,
+  "fields": {
+    "name": "University of Colorado Program",
+    "created": "2019-02-18T01:37:41.979Z",
+    "modified": "2019-02-18T01:37:41.979Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 163,
+  "fields": {
+    "name": "University of Connecticut Program",
+    "created": "2019-02-18T01:37:42.183Z",
+    "modified": "2019-02-18T01:37:42.183Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 164,
+  "fields": {
+    "name": "University of Florida College of Medicine Jacksonville Program",
+    "created": "2019-02-18T01:37:42.390Z",
+    "modified": "2019-02-18T01:37:42.390Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 165,
+  "fields": {
+    "name": "University of Florida Program",
+    "created": "2019-02-18T01:37:42.599Z",
+    "modified": "2019-02-18T01:37:42.599Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 166,
+  "fields": {
+    "name": "University of Illinois College of Medicine at Chicago Program",
+    "created": "2019-02-18T01:37:42.805Z",
+    "modified": "2019-02-18T01:37:42.805Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 167,
+  "fields": {
+    "name": "University of Illinois College of Medicine at Chicago/Michael Reese Hospital Program",
+    "created": "2019-02-18T01:37:43.008Z",
+    "modified": "2019-02-18T01:37:43.008Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 168,
+  "fields": {
+    "name": "University of Illinois College of Medicine at Peoria Program",
+    "created": "2019-02-18T01:37:43.217Z",
+    "modified": "2019-02-18T01:37:43.217Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 169,
+  "fields": {
+    "name": "University of Iowa Hospitals and Clinics Program",
+    "created": "2019-02-18T01:37:43.430Z",
+    "modified": "2019-02-18T01:37:43.430Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 170,
+  "fields": {
+    "name": "University of Kansas (Wichita) Program",
+    "created": "2019-02-18T01:37:43.639Z",
+    "modified": "2019-02-18T01:37:43.639Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 171,
+  "fields": {
+    "name": "University of Kansas School of Medicine Program",
+    "created": "2019-02-18T01:37:43.843Z",
+    "modified": "2019-02-18T01:37:43.843Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 172,
+  "fields": {
+    "name": "University of Kentucky College of Medicine Program",
+    "created": "2019-02-18T01:37:44.054Z",
+    "modified": "2019-02-18T01:37:44.054Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 173,
+  "fields": {
+    "name": "University of Louisville School of Medicine Program",
+    "created": "2019-02-18T01:37:44.258Z",
+    "modified": "2019-02-18T01:37:44.258Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 174,
+  "fields": {
+    "name": "University of Maryland Program",
+    "created": "2019-02-18T01:37:44.474Z",
+    "modified": "2019-02-18T01:37:44.474Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 175,
+  "fields": {
+    "name": "University of Massachusetts Program",
+    "created": "2019-02-18T01:37:44.683Z",
+    "modified": "2019-02-18T01:37:44.683Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 176,
+  "fields": {
+    "name": "University of Michigan Health System Program",
+    "created": "2019-02-18T01:37:44.888Z",
+    "modified": "2019-02-18T01:37:44.888Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 177,
+  "fields": {
+    "name": "University of Minnesota Program",
+    "created": "2019-02-18T01:37:45.113Z",
+    "modified": "2019-02-18T01:37:45.113Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 178,
+  "fields": {
+    "name": "University of Mississippi Medical Center Program",
+    "created": "2019-02-18T01:37:45.317Z",
+    "modified": "2019-02-18T01:37:45.317Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 179,
+  "fields": {
+    "name": "University of Missouri-Columbia Program",
+    "created": "2019-02-18T01:37:45.590Z",
+    "modified": "2019-02-18T01:37:45.590Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 180,
+  "fields": {
+    "name": "University of Missouri-Kansas City School of Medicine Program",
+    "created": "2019-02-18T01:37:45.803Z",
+    "modified": "2019-02-18T01:37:45.803Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 181,
+  "fields": {
+    "name": "University of Nebraska Medical Center College of Medicine Program",
+    "created": "2019-02-18T01:37:46.008Z",
+    "modified": "2019-02-18T01:37:46.008Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 182,
+  "fields": {
+    "name": "University of New Mexico School of Medicine Program",
+    "created": "2019-02-18T01:37:46.245Z",
+    "modified": "2019-02-18T01:37:46.245Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 183,
+  "fields": {
+    "name": "University of North Carolina Hospitals Program",
+    "created": "2019-02-18T01:37:46.466Z",
+    "modified": "2019-02-18T01:37:46.466Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 184,
+  "fields": {
+    "name": "University of Oklahoma Health Sciences Center Program",
+    "created": "2019-02-18T01:37:46.673Z",
+    "modified": "2019-02-18T01:37:46.673Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 185,
+  "fields": {
+    "name": "University of Pennsylvania Health System Program",
+    "created": "2019-02-18T01:37:46.879Z",
+    "modified": "2019-02-18T01:37:46.879Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 186,
+  "fields": {
+    "name": "University of Pittsburgh Medical Center Medical Education (Mercy) Program",
+    "created": "2019-02-18T01:37:47.088Z",
+    "modified": "2019-02-18T01:37:47.088Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 187,
+  "fields": {
+    "name": "University of Puerto Rico Program",
+    "created": "2019-02-18T01:37:47.293Z",
+    "modified": "2019-02-18T01:37:47.293Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 188,
+  "fields": {
+    "name": "University of Rochester Program",
+    "created": "2019-02-18T01:37:47.496Z",
+    "modified": "2019-02-18T01:37:47.496Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 189,
+  "fields": {
+    "name": "University of South Alabama Program",
+    "created": "2019-02-18T01:37:47.708Z",
+    "modified": "2019-02-18T01:37:47.708Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 190,
+  "fields": {
+    "name": "University of South Florida Morsani Program",
+    "created": "2019-02-18T01:37:47.917Z",
+    "modified": "2019-02-18T01:37:47.917Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 191,
+  "fields": {
+    "name": "University of Southern California/LAC+USC Medical Center Program",
+    "created": "2019-02-18T01:37:48.125Z",
+    "modified": "2019-02-18T01:37:48.125Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 192,
+  "fields": {
+    "name": "University of Tennessee Medical Center at Knoxville Program",
+    "created": "2019-02-18T01:37:48.331Z",
+    "modified": "2019-02-18T01:37:48.331Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 193,
+  "fields": {
+    "name": "University of Tennessee Program",
+    "created": "2019-02-18T01:37:48.535Z",
+    "modified": "2019-02-18T01:37:48.535Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 194,
+  "fields": {
+    "name": "University of Tennessee/Methodist Healthcare Program",
+    "created": "2019-02-18T01:37:48.741Z",
+    "modified": "2019-02-18T01:37:48.741Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 195,
+  "fields": {
+    "name": "University of Texas Health Science Center at Houston Program",
+    "created": "2019-02-18T01:37:48.959Z",
+    "modified": "2019-02-18T01:37:48.959Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 196,
+  "fields": {
+    "name": "University of Texas Health Science Center San Antonio Joe and Teresa Lozano Long School of Medicine Program",
+    "created": "2019-02-18T01:37:49.170Z",
+    "modified": "2019-02-18T01:37:49.170Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 197,
+  "fields": {
+    "name": "University of Texas Medical Branch Hospitals Program",
+    "created": "2019-02-18T01:37:49.376Z",
+    "modified": "2019-02-18T01:37:49.376Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 198,
+  "fields": {
+    "name": "University of Texas Southwestern Medical School Program",
+    "created": "2019-02-18T01:37:49.590Z",
+    "modified": "2019-02-18T01:37:49.590Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 199,
+  "fields": {
+    "name": "University of Toledo Program",
+    "created": "2019-02-18T01:37:49.800Z",
+    "modified": "2019-02-18T01:37:49.800Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 200,
+  "fields": {
+    "name": "University of Utah Health Program",
+    "created": "2019-02-18T01:37:50.006Z",
+    "modified": "2019-02-18T01:37:50.007Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 201,
+  "fields": {
+    "name": "University of Vermont Medical Center Program",
+    "created": "2019-02-18T01:37:50.254Z",
+    "modified": "2019-02-18T01:37:50.254Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 202,
+  "fields": {
+    "name": "University of Virginia Medical Center Program",
+    "created": "2019-02-18T01:37:50.486Z",
+    "modified": "2019-02-18T01:37:50.486Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 203,
+  "fields": {
+    "name": "University of Washington Program",
+    "created": "2019-02-18T01:37:50.693Z",
+    "modified": "2019-02-18T01:37:50.693Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 204,
+  "fields": {
+    "name": "University of Wisconsin Hospitals and Clinics Program",
+    "created": "2019-02-18T01:37:50.900Z",
+    "modified": "2019-02-18T01:37:50.900Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 205,
+  "fields": {
+    "name": "UPMC Medical Education Program",
+    "created": "2019-02-18T01:37:51.104Z",
+    "modified": "2019-02-18T01:37:51.104Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 206,
+  "fields": {
+    "name": "Vanderbilt University Medical Center Program",
+    "created": "2019-02-18T01:37:51.594Z",
+    "modified": "2019-02-18T01:37:51.594Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 207,
+  "fields": {
+    "name": "Virginia Commonwealth University Health System Program",
+    "created": "2019-02-18T01:37:51.797Z",
+    "modified": "2019-02-18T01:37:51.797Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 208,
+  "fields": {
+    "name": "Virginia Mason Medical Center Program",
+    "created": "2019-02-18T01:37:52.024Z",
+    "modified": "2019-02-18T01:37:52.024Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 209,
+  "fields": {
+    "name": "Wake Forest University School of Medicine Program",
+    "created": "2019-02-18T01:37:52.233Z",
+    "modified": "2019-02-18T01:37:52.233Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 210,
+  "fields": {
+    "name": "Washington University/B-JH/SLCH Consortium Program",
+    "created": "2019-02-18T01:37:52.456Z",
+    "modified": "2019-02-18T01:37:52.456Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 211,
+  "fields": {
+    "name": "West Virginia University Program",
+    "created": "2019-02-18T01:37:52.668Z",
+    "modified": "2019-02-18T01:37:52.668Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 212,
+  "fields": {
+    "name": "Westchester Medical Center Program",
+    "created": "2019-02-18T01:37:52.874Z",
+    "modified": "2019-02-18T01:37:52.874Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 213,
+  "fields": {
+    "name": "Yale-New Haven Medical Center Program",
+    "created": "2019-02-18T01:37:53.078Z",
+    "modified": "2019-02-18T01:37:53.078Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 214,
+  "fields": {
+    "name": "Zucker School of Medicine at Hofstra/Northwell at Lenox Hill Hospital Program",
+    "created": "2019-02-18T01:37:53.287Z",
+    "modified": "2019-02-18T01:37:53.287Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 215,
+  "fields": {
+    "name": "Zucker School of Medicine at Hofstra/Northwell at Staten Island University Hospital Program",
+    "created": "2019-02-18T01:37:53.511Z",
+    "modified": "2019-02-18T01:37:53.511Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 216,
+  "fields": {
+    "name": "Zucker School of Medicine at Hofstra/Northwell Program",
+    "created": "2019-02-18T01:37:53.725Z",
+    "modified": "2019-02-18T01:37:53.725Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 217,
+  "fields": {
+    "name": "Akron City Hospital",
+    "created": "2019-02-18T01:37:53.936Z",
+    "modified": "2019-02-18T01:37:53.936Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 218,
+  "fields": {
+    "name": "All India Institute of Medical Sciences New Delhi",
+    "created": "2019-02-18T01:37:54.157Z",
+    "modified": "2019-02-18T01:37:54.157Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 219,
+  "fields": {
+    "name": "Barnsley Hall Hospital",
+    "created": "2019-02-18T01:37:54.361Z",
+    "modified": "2019-02-18T01:37:54.361Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 220,
+  "fields": {
+    "name": "Beth Israel Medical Center",
+    "created": "2019-02-18T01:37:54.564Z",
+    "modified": "2019-02-18T01:37:54.564Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 221,
+  "fields": {
+    "name": "Canton Integrated Diagnostic Radiology Program",
+    "created": "2019-02-18T01:37:54.805Z",
+    "modified": "2019-02-18T01:37:54.805Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 222,
+  "fields": {
+    "name": "Chicago College of Osteopathic Medicine",
+    "created": "2019-02-18T01:37:55.012Z",
+    "modified": "2019-02-18T01:37:55.012Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 223,
+  "fields": {
+    "name": "Clatten Bridge Hospital",
+    "created": "2019-02-18T01:37:55.218Z",
+    "modified": "2019-02-18T01:37:55.218Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 224,
+  "fields": {
+    "name": "Conemaugh Valley Memorial Hospital",
+    "created": "2019-02-18T01:37:55.422Z",
+    "modified": "2019-02-18T01:37:55.422Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 225,
+  "fields": {
+    "name": "GRMERC/MSU Radiology Residency Program",
+    "created": "2019-02-18T01:37:55.633Z",
+    "modified": "2019-02-18T01:37:55.633Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 226,
+  "fields": {
+    "name": "Kennedy Health System & Our Lady of Lourdes",
+    "created": "2019-02-18T01:37:55.837Z",
+    "modified": "2019-02-18T01:37:55.837Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 227,
+  "fields": {
+    "name": "Northeastern Ohio Universities College of Medicine",
+    "created": "2019-02-18T01:37:56.048Z",
+    "modified": "2019-02-18T01:37:56.048Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 228,
+  "fields": {
+    "name": "Rush Presbyterian St Luke's Medical Center",
+    "created": "2019-02-18T01:37:56.257Z",
+    "modified": "2019-02-18T01:37:56.257Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 229,
+  "fields": {
+    "name": "St. Luke's Hospital of Kansas City",
+    "created": "2019-02-18T01:37:56.461Z",
+    "modified": "2019-02-18T01:37:56.461Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 230,
+  "fields": {
+    "name": "University of Health Sciences- Chicago Medical School",
+    "created": "2019-02-18T01:37:56.679Z",
+    "modified": "2019-02-18T01:37:56.679Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 231,
+  "fields": {
+    "name": "Univ Hosp of Brooklyn-SUNY Ctr",
+    "created": "2019-02-18T01:37:56.883Z",
+    "modified": "2019-02-18T01:37:56.883Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 232,
+  "fields": {
+    "name": "Grandview Hospital & Medical Center",
+    "created": "2019-02-18T10:35:11.149Z",
+    "modified": "2019-02-18T10:35:11.149Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 233,
+  "fields": {
+    "name": "Martin Luther King Jr./Drew Medical Center",
+    "created": "2019-02-18T10:35:51.558Z",
+    "modified": "2019-02-18T10:46:17.621Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 234,
+  "fields": {
+    "name": "Saint Thomas Hospital Medical Center",
+    "created": "2019-02-18T10:36:05.402Z",
+    "modified": "2019-02-18T10:36:05.402Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 235,
+  "fields": {
+    "name": "Memorial University of Newfoundland",
+    "created": "2019-02-18T10:36:12.798Z",
+    "modified": "2019-02-18T10:36:12.798Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 236,
+  "fields": {
+    "name": "Hebrew University Hadassah Medical School",
+    "created": "2019-02-18T10:36:19.308Z",
+    "modified": "2019-02-18T10:36:19.308Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 237,
+  "fields": {
+    "name": "Michael Reese Hospital",
+    "created": "2019-02-18T10:36:37.777Z",
+    "modified": "2019-02-18T10:36:37.777Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 238,
+  "fields": {
+    "name": "Osmania University Hospital",
+    "created": "2019-02-18T10:36:45.588Z",
+    "modified": "2019-02-18T10:36:45.588Z"
+  }
+},
+{
+  "model": "users.residencyprogram",
+  "pk": 239,
+  "fields": {
+    "name": "St. Petersburg State Pavlov Medical University",
+    "created": "2019-02-18T10:37:03.026Z",
+    "modified": "2019-02-18T10:37:03.026Z"
+  }
+}
+]

@@ -10,6 +10,13 @@ from mysite.admin import admin_site
 from common.ac_filters import UserFilter, StateFilter
 from common.dateutils import fmtLocalDatetime
 from .models import *
+from django.utils.html import format_html
+from django.core.urlresolvers import reverse
+from django.http import HttpResponseRedirect
+from django.conf.urls import url
+from django.contrib import messages
+from users.csv_tools import ProviderCsvImport
+from cStringIO import StringIO
 
 class AuthImpersonationForm(forms.ModelForm):
     class Meta:
@@ -71,18 +78,62 @@ class OrgForm(forms.ModelForm):
         m.save()
         return m
 
+class OrgGroupInline(admin.TabularInline):
+    model = OrgGroup
+
 class OrgAdmin(admin.ModelAdmin):
     list_display = ('id', 'joinCode', 'code', 'name', 'credits', 'creditStartDate')
     form = OrgForm
     ordering = ('joinCode',)
+    inlines = [
+        OrgGroupInline,
+    ]
 
 class OrgFileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created')
+    list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created', 'orgfile_actions')
+    readonly_fields = ('orgfile_actions',)
     list_select_related = True
     ordering = ('-created',)
 
+    def get_urls(self):
+        urls = super(OrgFileAdmin, self).get_urls()
+        custom_urls = [
+            url(
+                r'^(?P<id>.+)/process/$',
+                self.admin_site.admin_view(self.orgfile_process),
+                name='orgfile-process',
+            ),
+        ]
+        return custom_urls + urls
+
+    def orgfile_actions(self, obj):
+        return format_html(
+            '<a class="button" href="{}">Validate File</a>',
+            reverse('admin:orgfile-process', args=[obj.pk]),
+        )
+    orgfile_actions.short_description = 'Account Actions'
+    orgfile_actions.allow_tags = True
+
+    def orgfile_process(self,  request, id, *args, **kwargs):
+        orgfile = self.get_object(request, id)
+        org = orgfile.organization
+        src_file = orgfile.csvfile if orgfile.csvfile else orgfile.document
+        output = StringIO()
+        csv = ProviderCsvImport(stdout=output)
+        success = csv.processOrgFile(org_id=org.id, src_file=src_file, dry_run=True)
+        if success:
+            self.message_user(request, 'Success')
+        else:
+            self.message_user(request, output.getvalue(), messages.WARNING)
+        url = reverse(
+            'admin:users_orgfile_change',
+            args=[orgfile.pk],
+            current_app=self.admin_site.name,
+        )
+        return HttpResponseRedirect(url)
+
 class OrgMemberAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'pending', 'removeDate')
+    list_display = ('id', 'organization', 'group', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'pending', 'removeDate')
     list_select_related = True
     list_filter = ('is_admin', 'pending', 'setPasswordEmailSent', 'organization', UserFilter)
     raw_id_fields = ('orgfiles',)
@@ -92,25 +143,28 @@ class OrgMemberAdmin(admin.ModelAdmin):
         pass
 
 class CmeTagAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'priority', 'description', 'srcme_only', 'notes')
+    list_display = ('id', 'priority', 'name', 'description', 'srcme_only', 'instructions')
     list_filter = ('srcme_only',)
 
 class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
 
 class StateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'country', 'name', 'abbrev', 'rnCertValid', 'formatTags')
+    list_display = ('id', 'country', 'name', 'abbrev', 'rnCertValid', 'formatTags', 'formatDEATags', 'formatDOTags')
     list_filter = ('rnCertValid',)
-    filter_horizontal = ('cmeTags',)
+    filter_horizontal = ('cmeTags', 'deaTags', 'doTags')
 
     def get_queryset(self, request):
         qs = super(StateAdmin, self).get_queryset(request)
-        return qs.prefetch_related('cmeTags')
+        return qs.prefetch_related('cmeTags', 'deaTags')
 
+
+class ResidencyProgramAdmin(admin.ModelAdmin):
+    list_display = ('id','name',)
 
 class HospitalAdmin(admin.ModelAdmin):
-    list_display = ('id','state','display_name','city','hasResidencyProgram')
-    list_filter = ('hasResidencyProgram', StateFilter)
+    list_display = ('id','state','display_name','city')
+    list_filter = (StateFilter,)
     list_select_related = ('state',)
 
     class Media:
@@ -179,7 +233,7 @@ class SponsorAdmin(admin.ModelAdmin):
 
 
 class CreditTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'auditname', 'sort_order', 'formatDegrees')
+    list_display = ('abbrev', 'name', 'auditname', 'sort_order', 'formatDegrees')
     filter_horizontal = ('degrees',)
 
     def get_queryset(self, request):
@@ -336,10 +390,9 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'display_name',
         'price',
         'monthlyPrice',
-        'discountPrice',
-        'discountMonthlyPrice',
         'organization',
         'maxCmeYear',
+        'billingCycleMonths',
         'maxCmeMonth'
     )
     list_select_related = True
@@ -445,6 +498,7 @@ class AllowedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'eligible_site', 'url', 'valid', 'set_id', 'modified')
     list_select_related = ('host', 'eligible_site')
     list_filter = ('valid','host',)
+    filter_horizontal = ('cmeTags',)
     ordering = ('-modified',)
 
 class RejectedUrlAdmin(admin.ModelAdmin):
@@ -500,10 +554,13 @@ class ActivityLogAdmin(admin.ModelAdmin):
         return str(obj.activity_set.url)
 
 class RecAllowedUrlAdmin(admin.ModelAdmin):
-    list_display = ('id','user','cmeTag','url')
-    raw_id_fields = ('url',)
+    list_display = ('id','user','cmeTag','url', 'offerid')
+    raw_id_fields = ('url', 'offer')
     list_filter = (UserFilter, 'cmeTag')
     ordering = ('cmeTag','user')
+
+    def offerid(self, obj):
+        return obj.offer.pk if obj.offer else None
 
     class Media:
         pass
@@ -553,6 +610,7 @@ admin_site.register(OrgFile, OrgFileAdmin)
 admin_site.register(OrgMember, OrgMemberAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
+admin_site.register(ResidencyProgram, ResidencyProgramAdmin)
 admin_site.register(Sponsor, SponsorAdmin)
 admin_site.register(State, StateAdmin)
 admin_site.register(StateLicense, StateLicenseAdmin)

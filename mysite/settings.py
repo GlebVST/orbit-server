@@ -140,6 +140,13 @@ AUTH0_SECRET = get_environment_variable('ORBIT_AUTH0_SECRET')
 AUTH0_MGMT_CLIENTID = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENTID')
 AUTH0_MGMT_SECRET = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENT_SECRET')
 
+# MailChimp
+ORBIT_MAILCHIMP_USERNAME = get_environment_variable('ORBIT_MAILCHIMP_USERNAME')
+ORBIT_MAILCHIMP_API_KEY = get_environment_variable('ORBIT_MAILCHIMP_API_KEY')
+ORBIT_EMAIL_SYNC_LIST_NAME = get_environment_variable('ORBIT_MAILCHIMP_SUBSCRIBERS_LIST')
+
+DEFAULT_ESP = "Mailchimp"
+
 AUTHENTICATION_BACKENDS = (
     'users.auth_backends.ImpersonateBackend',
     'users.auth_backends.Auth0Backend',
@@ -423,3 +430,5 @@ UI_LINK_SUBSCRIPTION = '/subscription'
 UI_LINK_FEEDBACK = '/feedback'
 UI_LINK_LOGIN = '/login'
 UI_LINK_JOINTEAM = '/join-team'
+
+WELCOME_ARTICLE_URL = 'https://www.ncbi.nlm.nih.gov/pubmed/30459182'

@@ -12,7 +12,8 @@ from .models import (
         CmeTag,
         AffiliateDetail,
         SubscriptionPlan,
-        UserSubscription
+        UserSubscription,
+        OrbitCmeOffer
     )
 logger = logging.getLogger('gen.auth')
 # https://auth0.com/docs/user-profile/normalized
@@ -84,6 +85,8 @@ class Auth0Backend(object):
                     logger.exception('braintree.Customer.create exception')
                 # initialize UserCmeCredit instance for this user
                 UserSubscription.objects.setUserCmeCreditByPlan(user, plan)
+                # pre-generate a first orbit cme offer for the welcome article
+                OrbitCmeOffer.objects.makeWelcomeOffer(user)
         else:
             profile = user.profile
             # profile.socialId must match user_id

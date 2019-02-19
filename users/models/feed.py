@@ -102,8 +102,8 @@ class CreditType(models.Model):
     # fields
     name = models.CharField(max_length=40, unique=True,
             help_text='Name used in UI form. Must be unique')
-    category = models.CharField(max_length=4,
-            help_text='Value only. e.g. 1-A')
+    abbrev = models.CharField(max_length=8,
+            help_text='Abbreviation used in Track View e.g. AMA-1 or AOA-1A')
     auditname = models.CharField(max_length=60,
             help_text='Name used in audit report')
     needs_tm = models.BooleanField(default=False,
@@ -280,11 +280,12 @@ class EntryManager(models.Manager):
             )
             return res
 
-    def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False):
+    def sumSRCme(self, user, startDate, endDate, tag=None, untaggedOnly=False, creditTypes=None):
         """
         Total valid Srcme credits over the given time period for the given user.
         Optional filter by specific tag (cmeTag object).
         Optional filter by untagged only. This arg cannot be specified together with tag.
+        Optional filter by list of creditType pkeyids.
         """
         filter_kwargs = dict(
             valid=True,
@@ -295,6 +296,8 @@ class EntryManager(models.Manager):
         )
         if tag:
             filter_kwargs['tags__exact'] = tag
+        if creditTypes:
+            filter_kwargs['creditType__in'] = creditTypes
         qset = self.model.objects.select_related('entryType').filter(**filter_kwargs)
         if untaggedOnly:
             qset = qset.annotate(num_tags=Count('tags')).filter(num_tags=0)

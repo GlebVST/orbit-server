@@ -65,3 +65,42 @@ def makeOffers(user):
             offer.assignCmeTags()
         print('{0.pk}|{0.url}|{0.activityDate:%Y-%m-%d}'.format(offer))
         #print(offer.tags.all())
+
+def makeOffersForRecs(user, tag):
+    """Generate offer for recaurl and set recaurl.offer"""
+    sponsor = Sponsor.objects.get(pk=1)
+    recaurls = user.recaurls.select_related('url').filter(cmeTag=tag, offer__isnull=True).order_by('id')
+    now = timezone.now()
+    t1 = now - timedelta(days=1)
+    for j, recaurl in enumerate(recaurls[0:5]):
+        activityDate = t1 + timedelta(seconds=j)
+        expireDate = now + timedelta(days=300)
+        aurl = recaurl.url
+        esite = aurl.eligible_site
+        url = aurl.url
+        if aurl.page_title:
+            suggestedDescr = aurl.page_title
+        else:
+            urlname = viewutils.getUrlLastPart(url)
+            suggestedDescr = urlname
+        with transaction.atomic():
+            offer = OrbitCmeOffer.objects.create(
+                user=user,
+                eligible_site=esite,
+                activityDate=activityDate,
+                url=aurl,
+                suggestedDescr=suggestedDescr,
+                expireDate=expireDate,
+                credits=0.5,
+                sponsor=sponsor
+            )
+            offer.assignCmeTags()
+            recaurl.offer = offer
+            recaurl.save(update_fields=('offer',))
+            # check if can assign this offer to other recs for this same aurl
+            qs = user.recaurls.filter(url=aurl, offer__isnull=True)
+            for ra in qs:
+                ra.offer = offer
+                recaurl.save(update_fields=('offer',))
+        print('{0.pk}|{0.url}|{0.activityDate:%Y-%m-%d} assigned to recaurl {1.pk}|{1.cmeTag}'.format(offer, recaurl))
+

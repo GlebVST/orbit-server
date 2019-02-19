@@ -24,6 +24,16 @@ class NestedHospitalSerializer(serializers.ModelSerializer):
         model = Hospital
         fields = ('id', 'display_name')
 
+class ResidencyProgramSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResidencyProgram
+        fields = ('id', 'name')
+
+class NestedResidencySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResidencyProgram
+        fields = ('id', 'name')
+
 class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(
         queryset=PracticeSpecialty.objects.all(),
@@ -31,12 +41,8 @@ class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     )
     class Meta:
         model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'specialties', 'srcme_only', 'notes')
+        fields = ('id', 'name', 'priority', 'description', 'specialties', 'srcme_only', 'instructions')
 
-class CmeTagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'srcme_only', 'notes')
 
 # Used by auth_view to serialize the SA-CME tag
 class ActiveCmeTagSerializer(serializers.ModelSerializer):
@@ -47,7 +53,7 @@ class ActiveCmeTagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only', 'notes')
+        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only', 'instructions')
 
 
 class NestedStateSerializer(serializers.ModelSerializer):
@@ -137,7 +143,8 @@ class ManageProfileCmetagSerializer(serializers.Serializer):
                     pct.save()
                     logger.info('Updated ProfileCmetag {0}'.format(pct))
         # emit profile_saved signal
-        ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
+        if user.groups.filter(name=GROUP_ENTERPRISE_MEMBER).exists():
+            ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
 class ProfileInitialUpdateSerializer(serializers.ModelSerializer):
@@ -185,8 +192,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         queryset=Country.objects.all(),
         allow_null=True
     )
-    residency = serializers.PrimaryKeyRelatedField(
-        queryset=Hospital.objects.all(),
+    residency_program = serializers.PrimaryKeyRelatedField(
+        queryset=ResidencyProgram.objects.all(),
         allow_null=True
     )
     degrees = serializers.PrimaryKeyRelatedField(
@@ -227,7 +234,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'lastName',
             'country',
             'organization',
-            'residency',
+            'residency_program',
             'birthDate',
             'residencyEndDate',
             'affiliationText',
@@ -271,21 +278,32 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         Emit profile_saved signal for enterprise members at the end.
         """
         user = instance.user
-        # get current specialties before updating the instance
+        # get current data before updating the instance
+        curDegs = set([m for m in instance.degrees.all()])
         curSpecs = set([m for m in instance.specialties.all()])
-        # get current subspecialties before updating the instance
         curSubSpecs = set([m for m in instance.subspecialties.all()])
-        # get current states before updating the instance
         curStates = set([m for m in instance.states.all()])
-        # get current deaStates before updating the instance
         curDeaStates = set([m for m in instance.deaStates.all()])
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
-        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
-        del_tags = set([]) # tags to be removed or deactivated
+        # if user unchecked DEA box, then clear deaStates
         if instance.deaStates.exists() and not instance.hasDEA:
             logger.info('User {0} : clear deaStates'.format(user))
             instance.deaStates.clear()
+        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
+        del_tags = set([]) # tags to be removed or deactivated
+        fieldName = 'degrees'
+        if fieldName in validated_data:
+            # need to check if key exists, because a PATCH request may not contain the fieldName
+            newDegs = set([deg for deg in validated_data[fieldName]])
+            delDegs = curDegs.difference(newDegs) # difference between old and new are the ones removed
+            for deg in delDegs:
+                if deg.abbrev == Degree.DO:
+                    # delete DO tags
+                    for state in curStates:
+                        for t in state.doTags.all():
+                            del_tags.add(t)
+                logger.info('User {0}: remove Degree: {1}'.format(user, deg))
         # now handle cmeTags
         fieldName = 'specialties'
         if fieldName in validated_data:
@@ -299,7 +317,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 del_tags.add(t)
         fieldName = 'subspecialties'
         if fieldName in validated_data:
-            # need to check if key exists, because a PATCH request may not contain the fieldName
             newSubSpecs = set([ps for ps in validated_data[fieldName]])
             delSubSpecs = curSubSpecs.difference(newSubSpecs)
             for ps in delSubSpecs:
@@ -308,12 +325,13 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                     del_tags.add(t)
         fieldName = 'states'
         if fieldName in validated_data:
-            # need to check if key exists, because a PATCH request may not contain the fieldName
             newStates = set([ps for ps in validated_data[fieldName]])
             delStates = curStates.difference(newStates)
-            for ps in delStates:
-                logger.info('User {0} : remove State: {1}'.format(user, ps))
-                for t in ps.cmeTags.all():
+            for state in delStates:
+                logger.info('User {0} : remove State: {1}'.format(user, state))
+                for t in state.cmeTags.all():
+                    del_tags.add(t)
+                for t in state.deaTags.all():
                     del_tags.add(t)
         # Filter del_tags so it does not contain anything in add_tags
         rtags = add_tags.intersection(del_tags)
@@ -355,7 +373,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
     isNPIComplete = serializers.SerializerMethodField()
     profileComplete = serializers.SerializerMethodField()
     cmeTags = serializers.SerializerMethodField()
-    residency = serializers.SerializerMethodField()
+    residency_program = serializers.SerializerMethodField()
 
     def get_isSignupComplete(self, obj):
         return obj.isSignupComplete()
@@ -370,9 +388,9 @@ class ProfileReadSerializer(serializers.ModelSerializer):
         qset = ProfileCmetag.objects.filter(profile=obj)
         return [ProfileCmetagSerializer(m).data for m in qset]
 
-    def get_residency(self, obj):
-        if obj.residency:
-            s = NestedHospitalSerializer(obj.residency)
+    def get_residency_program(self, obj):
+        if obj.residency_program:
+            s = NestedResidencySerializer(obj.residency_program)
             return s.data
         return None
 
@@ -384,7 +402,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
             'lastName',
             'country',
             'organization',
-            'residency',
+            'residency_program',
             'birthDate',
             'residencyEndDate',
             'affiliationText',

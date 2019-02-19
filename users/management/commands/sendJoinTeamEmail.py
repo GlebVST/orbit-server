@@ -45,7 +45,7 @@ class Command(BaseCommand):
                 elif m.removeDate is not None:
                     logger.info('User {0} is removed OrgMember {1.pk}. Set pending to True'.format(user, m))
                     m.pending = True
-                    m.save(update_field=('pending',))
+                    m.save(update_fields=('pending',))
                 else:
                     self.stdout.write('Error: User {0} is already an active member of Org {1.code}'.format(user, m.organization))
                     user_check = False

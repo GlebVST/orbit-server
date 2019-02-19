@@ -92,16 +92,18 @@ class HospitalList(generics.ListAPIView):
 
 # ResidencyProgram - list only
 class ResidencyProgramList(generics.ListAPIView):
-    serializer_class = HospitalSerializer
+    queryset = ResidencyProgram.objects.all()
+    serializer_class = ResidencyProgramSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
     def get_queryset(self):
-        """Filter by GET parameter: q"""
+        """Filter by GET parameter: q
+        This requires the model Manager to have a search_filter manager method
+        """
         search_term = self.request.query_params.get('q', '').strip()
         if search_term:
-            return Hospital.residency_objects.search_filter(search_term)
-        return Hospital.residency_objects.all().order_by('display_name')
-
+            return ResidencyProgram.objects.search_filter(search_term)
+        return ResidencyProgram.objects.all().order_by('name')
 
 # PracticeSpecialty - list only
 class PracticeSpecialtyList(generics.ListAPIView):
