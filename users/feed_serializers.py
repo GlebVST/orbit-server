@@ -444,6 +444,9 @@ class SRCmeFormSerializer(serializers.Serializer):
         etype = EntryType.objects.get(name=ENTRYTYPE_SRCME)
         user = validated_data['user']
         creditType = validated_data['creditType']
+        credits = validated_data.get('credits', 1)
+        if credits < 1:
+            credits = 1
         entry = Entry(
             entryType=etype,
             activityDate=validated_data.get('activityDate'),
@@ -463,7 +466,7 @@ class SRCmeFormSerializer(serializers.Serializer):
         # Using parent entry, create SRCme instance
         instance = SRCme.objects.create(
             entry=entry,
-            credits=validated_data.get('credits')
+            credits=credits
         )
         # recompute affected usergoals
         num_ug = UserGoal.objects.handleSRCmeForUser(user, creditType, tags)
@@ -511,7 +514,10 @@ class SRCmeFormSerializer(serializers.Serializer):
                 m.delete()
             # update entry.documents
             entry.documents.set(doc_ids)
-        instance.credits = validated_data.get('credits', instance.credits)
+        credits = validated_data.get('credits', instance.credits)
+        if credits < 1:
+            credits = 1
+        instance.credits = credits
         instance.save()
         return instance
 

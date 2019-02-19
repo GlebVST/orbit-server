@@ -882,7 +882,7 @@ class EligibleSite(models.Model):
     objects = EligibleSiteManager()
 
     def __str__(self):
-        return self.domain_title
+        return self.domain_name + ' - ' + self.domain_title
 
 
 def entry_document_path(instance, filename):
