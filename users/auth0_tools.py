@@ -11,6 +11,7 @@ logger = logging.getLogger('gen.auth0')
 
 DEFAULT_CONN_NAME = 'Username-Password-Authentication'
 API_URL = 'https://{0}/api/v2/'.format(settings.AUTH0_DOMAIN)
+PSUFIX = 'AjMAVYQgiOgeS4Kwijb6ejHTzsMNsqvsauMIooVlxkOA'
 
 class Auth0Api(object):
 
@@ -122,8 +123,8 @@ class Auth0Api(object):
             date_joined: datetime
         Returns: str
         """
-        sufx = email.split('@')[0][::-1]
-        p = "Z.{0:%Y%m%d%H%M}.{1}!".format(date_joined, sufx)
+        #sufx = email.split('@')[0][::-1]
+        p = "Z.{0:%Y%m%d%H%M%S}.{1}!".format(date_joined, PSUFIX)
         logger.debug('{0}={1}'.format(email, p))
         return p
 

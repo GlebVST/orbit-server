@@ -285,7 +285,7 @@ def createSRCmeGoals():
     srcmegoals_test = SRCmeGoal.objects \
         .select_related('goal','state','cmeTag','licenseGoal') \
         .prefetch_related('goal__degrees','goal__specialties','creditTypes') \
-        .filter(entityType=CmeGoal.STATE, state__isnull=False) \
+        .filter(state__isnull=False) \
         .order_by('pk')
     for cg in srcmegoals_test:
         bg = cg.goal # basegoal
