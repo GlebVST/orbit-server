@@ -167,6 +167,9 @@ class OrgMemberFormSerializer(serializers.Serializer):
         if is_admin:
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
             user.groups.remove(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
+        else:
+            # pre-generate a first orbit cme offer for the welcome article
+            OrbitCmeOffer.objects.makeWelcomeOffer(user)
         # 7. Create change-password ticket
         if password_ticket:
             m = OrgMember.objects.sendPasswordTicket(socialId, m, apiConn)
