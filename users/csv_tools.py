@@ -67,6 +67,7 @@ class CsvImport():
 
             if not tv: # can be empty, move on
                 output.append(None)
+                continue
             if tv not in dataDict:
                 error_msg = "Invalid {0} at row {1}: {2}".format(fieldName, index, v)
                 raise ValueError(error_msg)
@@ -88,6 +89,7 @@ class CsvImport():
             tv = v.strip().upper() # clear value before converting to date
             if not tv: # can be empty, move on
                 output.append(None)
+                continue
             try: 
                 output.append(dparse(tv))
             except ValueError, e:
