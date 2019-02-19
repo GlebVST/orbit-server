@@ -167,6 +167,9 @@ class OrgMemberFormSerializer(serializers.Serializer):
         if is_admin:
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
             user.groups.remove(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
+            # admin users don't need to be forced to welcome/plugin sequence
+            profile.accessedTour = True
+            profile.save(update_fields=('accessedTour',))
         else:
             # pre-generate a first orbit cme offer for the welcome article
             OrbitCmeOffer.objects.makeWelcomeOffer(user)
