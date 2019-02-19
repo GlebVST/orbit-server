@@ -326,6 +326,8 @@ class ProviderCsvImport(CsvImport):
 
                     num_state_licenses = 0
                     for index, state in enumerate(d['states']):
+                        if not state:
+                            continue
                         expiryDate = None
                         licenseNumber = ''
                         dates = d['stateExpiryDates']
@@ -347,6 +349,8 @@ class ProviderCsvImport(CsvImport):
 
                     num_dea_licenses = 0
                     for index, state in enumerate(d['deaStates']):
+                        if not state:
+                            continue
                         expiryDate = None
                         deaNumber = ''
                         dates = d['deaExpiryDates']
