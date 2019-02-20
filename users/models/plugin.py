@@ -18,7 +18,7 @@ from .base import (
     EligibleSite,
     Organization
 )
-from .feed import Sponsor
+from .feed import Sponsor, ARTICLE_CREDIT
 from decimal import Decimal
 from datetime import date, datetime, timedelta
 from django.utils import timezone
@@ -224,9 +224,6 @@ class WhitelistRequest(models.Model):
 class OrbitCmeOfferManager(models.Manager):
     def makeOffer(self, aurl, user, activityDate, expireDate):
         esite = aurl.eligible_site
-        specnames = [p.name for p in esite.specialties.all()]
-        #print(specnames)
-        spectags = CmeTag.objects.filter(name__in=specnames)
         with transaction.atomic():
             offer = OrbitCmeOffer.objects.create(
                 user=user,
@@ -235,10 +232,10 @@ class OrbitCmeOfferManager(models.Manager):
                 activityDate=activityDate,
                 expireDate=expireDate,
                 suggestedDescr=aurl.page_title,
-                credits=Decimal('0.5'),
+                credits=ARTICLE_CREDIT,
                 sponsor_id=1
             )
-            offer.tags.set(list(spectags))
+            offer.assignCmeTags()
         return offer
 
     def makeDebugOffer(self, aurl, user):
