@@ -50,22 +50,22 @@ class Command(BaseCommand):
             degrees = Degree.objects.all()
             for d in degrees:
                 providerStat[d.abbrev] = {'count': 0, 'lastCount': 0, 'diff': 0}
-            # filter out pending org users and non-verified profiles
+            # filter out pending org users
             members = org.orgmembers.filter(removeDate__isnull=True, pending=False)
-            profiles = Profile.objects.filter(user__in=Subquery(members.values('user')), verified=True).only('user','degrees').prefetch_related('degrees')
+            # Per request of Ram: do not filter by profile.verified. Even if false, should still be included in the count.
+            profiles = Profile.objects.filter(user__in=Subquery(members.values('user'))).only('user','degrees').prefetch_related('degrees')
             for profile in profiles:
                 d = profile.degrees.all()[0]
                 providerStat[d.abbrev]['count'] += 1
             # get datetime of end of last month
             cutoffDate = datetime(now.year, now.month, 1, 23, 59, 59, tzinfo=pytz.utc) - relativedelta(days=1)
             # members existing at that time
-            # filter out pending org users and non-verified profiles
             members = org.orgmembers.filter(
                 Q(removeDate__isnull=True) | Q(removeDate__gte=cutoffDate),
                 created__lte=cutoffDate,
                 pending=False
             )
-            profiles = Profile.objects.filter(user__in=Subquery(members.values('user')), verified=True).only('user','degrees').prefetch_related('degrees')
+            profiles = Profile.objects.filter(user__in=Subquery(members.values('user'))).only('user','degrees').prefetch_related('degrees')
             for profile in profiles:
                 d = profile.degrees.all()[0]
                 providerStat[d.abbrev]['lastCount'] += 1
