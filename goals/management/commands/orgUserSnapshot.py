@@ -37,9 +37,6 @@ class Command(BaseCommand):
                     .filter(removeDate__isnull=True, pending=False) \
                     .order_by('id')
             for m in members:
-                if not m.user.profile.verified:
-                    # user has not officially joined yet
-                    continue
-            userdata = self.handleUser(m.user, fkwargs)
-            m.snapshot = userdata
-            m.save(update_fields=('snapshot',))
+                userdata = self.handleUser(m.user, fkwargs)
+                m.snapshot = userdata
+                m.save(update_fields=('snapshot',))
