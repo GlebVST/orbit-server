@@ -891,7 +891,7 @@ class UserSubscriptionManager(models.Manager):
                 # Probably better to use some "overall credits earned" value to have this banner logic consistent between periods
                 # but this might involve expensive calculation unless we maintain that on UserCmeCredit model.
                 credits_earned = user_subs.plan.maxCmeYear - userCredits.plan_credits
-                if userCredits and not is_unlimited_cme and (credits_earned <= settings.MIN_CME_CREDIT_FOR_REFERRAL):
+                if userCredits and not is_unlimited_cme and (credits_earned < settings.MIN_CME_CREDIT_FOR_REFERRAL):
                     discard_codes.add(PERM_ALLOW_INVITE)
 
         allowed_codes = set(allowed_codes)
