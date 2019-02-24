@@ -16,8 +16,14 @@ def getDataFromDb():
     """
     profiles = Profile.objects.select_related('organization').all().order_by('user_id')
     data= []
+    admin_emails = ["ram@corephysicsreview.com", "rsrinivasan02@gmail.com", \
+                    "faria@orbitcme.com", "glebst@gmail.com", "logicalmath333@gmail.com"]
     for profile in profiles:
         user = profile.user
+
+        if profile.user.email not in admin_emails and \
+           "test1.orbitcme.com" not in profile.user.email:
+            continue
 
         orgName = ''
         if profile.organization:
@@ -38,6 +44,8 @@ def getDataFromDb():
             billingEndDate='',
             creditsRedeemed=0,
             creditsEarned=0,
+            creditsUnredeemed=0,
+            creditsUnredeemedg5=0,
             billingCycle=0,
             planSpecialty='',
             subscribed=0,
@@ -76,6 +84,8 @@ def getDataFromDb():
 
             d['creditsRedeemed'] = redeemedTotal
             d['creditsEarned'] = creditsEarned
+            d['creditsUnredeemed'] = creditsEarned - redeemedTotal
+            d['creditsUnredeemedg5'] = 1 if d['creditsUnredeemed'] > 5 else 0
             d['planSpecialty'] = plan[0].plan.name
             d['subscribed'] = 1
 
@@ -324,6 +334,8 @@ class MailchimpApi(EspApiBackend):
         'SUBSCN_CYC': 'billingCycle',
         'CRDT_REDEE': 'creditsRedeemed',
         'CRDT_EARNE': 'creditsEarned',
+        'CRDT_LEFT': 'creditsUnredeemed',
+        'CRDT_LEFT5': 'creditsUnredeemedg5',
         'PLAN_SPECI': 'planSpecialty',
         'SUBSCRIBED': 'subscribed',
     })
@@ -369,6 +381,8 @@ class MailchimpApi(EspApiBackend):
         'SUBSCN_CYC': {'type':'number'},
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
+        'CRDT_LEFT': {'type':'number'},
+        'CRDT_LEFT5': {'type':'number'},
         'PLAN_SPECI': {'type':'text'},
         'SUBSCRIBED': {'type':'number'},
     }
