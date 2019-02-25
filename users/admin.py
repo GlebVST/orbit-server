@@ -482,7 +482,7 @@ class CmeBoostPurchaseAdmin(admin.ModelAdmin):
     ordering = ('-modified',)
 
 class UserCmeCreditAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'plan_credits', 'boost_credits', 'total_credits_earned', 'modified')
+    list_display = ('user', 'plan_credits', 'boost_credits', 'total_credits_earned', 'modified')
     ordering = ('-modified',)
     list_filter = (UserFilter,)
 
