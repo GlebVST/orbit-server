@@ -350,9 +350,9 @@ class MailchimpApi(EspApiBackend):
         'SUBSCN_SDT': 'billingStartDate',
         'SUBSCN_EDT': 'billingEndDate',
         'SUBSCN_CYC': 'billingCycle',
-        # Enterprise-related field
+        # Enterprise-related fields
         'IS_ENT_ADM': 'isEnterpriseAdmin',
-        'IS_END_PRO': 'isEnterpriseProvider',
+        'IS_ENT_PRO': 'isEnterpriseProvider',
         'ENT_STATUS': 'enterpriseStatus',
         # Credit-related fields
         'CRDT_REDEE': 'overallCeditsRedeemed',
@@ -391,18 +391,26 @@ class MailchimpApi(EspApiBackend):
         'USER_ID': {'type':'text'},
         'ORGANIZAT': {'type':'text'},
         'DEGREE': {'type':'text'},
+        'INVITE_ID': {'type':'text'},
+        'BIRTHDAY': {'type':'birthday'}, # is this the correct type?
         'SUBSCN_ID': {'type':'text'},
+        'SUBSCRIBED': {'type':'number'},
         'PLAN_TYPE': {'type':'text'},
         'PLAN_NAME': {'type':'text'},
+        'PLAN_SPECI': {'type':'text'},
         'SUBSCN_STA': {'type':'text'},
         'SUBSCN_FDT': {'type':'date'},
         'SUBSCN_SDT': {'type':'date'},
         'SUBSCN_EDT': {'type':'date'},
         'SUBSCN_CYC': {'type':'number'},
+        # Enterprise-related fields
+        'IS_ENT_ADM': {'type': 'number'},
+        'IS_ENT_PRO': {'type': 'number'},
+        'ENT_STATUS': {'type': 'text'},
+        # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
-        'PLAN_SPECI': {'type':'text'},
-        'SUBSCRIBED': {'type':'number'},
+        'ARTCL_READ': {'type':'number'},
     }
 
     '''
