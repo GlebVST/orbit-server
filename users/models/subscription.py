@@ -883,15 +883,9 @@ class UserSubscriptionManager(models.Manager):
                 # if reached cme credit limit or at monthly speed limit, disallow post of brcme (e.g. disallow redeem offer)
                 discard_codes.add(PERM_POST_BRCME)
             if user_subs.plan:
-                is_unlimited_cme = user_subs.plan.isUnlimitedCme()
-                # allow referral banner only to users redeemed at least MIN_CME_CREDIT_FOR_REFERRAL Browser CME credits
-                # TODO Resolve a potential issue below:
-                # There is a case when user credits get back to a max amount allowed by current plan -
-                # when user renews their subscription for next period.
-                # Probably better to use some "overall credits earned" value to have this banner logic consistent between periods
-                # but this might involve expensive calculation unless we maintain that on UserCmeCredit model.
-                credits_earned = user_subs.plan.maxCmeYear - userCredits.plan_credits
-                if userCredits and not is_unlimited_cme and (credits_earned < settings.MIN_CME_CREDIT_FOR_REFERRAL):
+                # discard referral banner perm if user has not yet earned MIN_CME_CREDIT_FOR_REFERRAL Browser CME credits
+                credits_earned = userCredits.total_credits_earned
+                if userCredits and (credits_earned < settings.MIN_CME_CREDIT_FOR_REFERRAL):
                     discard_codes.add(PERM_ALLOW_INVITE)
 
         allowed_codes = set(allowed_codes)
@@ -2202,13 +2196,17 @@ class UserCmeCredit(models.Model):
                                 on_delete=models.CASCADE,
                                 primary_key=True
                                 )
-    plan_credits = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    boost_credits = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    plan_credits = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+            help_text='Available credits offered by Plan. Value is deducted when user redeems offer')
+    boost_credits = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+            help_text='Available credits from Boost purchases. Is added to plan_credits to get remaining_credits available.')
+    total_credits_earned = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+            help_text='Total lifetime credits earned by user.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return '{0.user.id}: {0.plan_credits}|{0.boost_credits}'.format(self)
+        return '{0.user}: {0.plan_credits}|{0.boost_credits}'.format(self)
 
     def remaining(self):
         return self.plan_credits + self.boost_credits
@@ -2229,5 +2227,6 @@ class UserCmeCredit(models.Model):
             else:
                 # plan credits depleted - use boost credits instead
                 self.boost_credits -= credits
-
+            # update total_credits_earned
+            self.total_credits_earned += credits
         return self
