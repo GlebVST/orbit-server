@@ -481,6 +481,14 @@ class CmeBoostPurchaseAdmin(admin.ModelAdmin):
     list_filter = ('receipt_sent','failure_alert_sent', 'boost')
     ordering = ('-modified',)
 
+class UserCmeCreditAdmin(admin.ModelAdmin):
+    list_display = ('user', 'plan_credits', 'boost_credits', 'total_credits_earned', 'modified')
+    ordering = ('-modified',)
+    list_filter = (UserFilter,)
+
+    class Media:
+        pass
+
 #
 # plugin models
 #
@@ -621,6 +629,7 @@ admin_site.register(SubscriptionPlanKey, SubscriptionPlanKeyAdmin)
 admin_site.register(SubscriptionPlanType, SubscriptionPlanTypeAdmin)
 admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 admin_site.register(SubSpecialty, SubSpecialtyAdmin)
+admin_site.register(UserCmeCredit, UserCmeCreditAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
 #
 # plugin models

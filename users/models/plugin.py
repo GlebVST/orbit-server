@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models import Q, Subquery
+from django.db.models import Q, Subquery, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.contrib.postgres.fields import JSONField
@@ -257,6 +257,23 @@ class OrbitCmeOfferManager(models.Manager):
         activityDate = now - timedelta(seconds=10)
         expireDate = datetime(now.year+1, 1, 1, tzinfo=pytz.utc)
         return self.makeOffer(aurl, user, activityDate, expireDate)
+
+    def sumCredits(self, user, startDate, endDate):
+        """Total valid offer credits over the given time period for the given user
+        Returns: Float
+        """
+        filter_kwargs = {
+            'valid': True,
+            'user': user,
+            'activityDate__gte': startDate,
+            'activityDate__lte': endDate,
+        }
+        qset = self.model.objects.filter(**filter_kwargs)
+        total = qset.aggregate(credit_sum=Sum('credits'))
+        credit_sum = total['credit_sum']
+        if credit_sum:
+            return float(credit_sum)
+        return 0
 
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.
