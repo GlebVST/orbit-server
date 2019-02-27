@@ -185,7 +185,7 @@ class Auth0Api(object):
         return response
 
 
-    def change_password_ticket(self, user_id, redirect_url, ttl_days=7):
+    def change_password_ticket(self, user_id, redirect_url, ttl_days=30):
         """Create change_password_ticket
         Args:
             user_id: str auth0 userid

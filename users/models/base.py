@@ -14,6 +14,8 @@ from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
 from django.db import transaction
+from common.appconstants import GROUP_ENTERPRISE_ADMIN, GROUP_ENTERPRISE_MEMBER
+
 logger = logging.getLogger('gen.models')
 
 #
@@ -38,6 +40,7 @@ Q_IMPERSONATOR = Q(is_staff=True) & ~Q_ADMIN
 def default_expire():
     """1 hour from now"""
     return timezone.now() + timedelta(seconds=3600)
+
 
 @python_2_unicode_compatible
 class AuthImpersonation(models.Model):
@@ -580,6 +583,12 @@ class Profile(models.Model):
         degrees = self.degrees.all()
         degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
         return u"{0} {1}, {2}".format(self.firstName, self.lastName, degree_str)
+
+    def isEnterpriseAdmin(self):
+        """Returns True if self.user.groups contains GROUP_ENTERPRISE_ADMIN, else False
+        """
+        qs  = self.user.groups.filter(name=GROUP_ENTERPRISE_ADMIN)
+        return qs.exists()
 
     def shouldReqNPINumber(self):
         """

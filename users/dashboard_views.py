@@ -460,7 +460,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             }
             logInfo(logger, request, context['error'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        if profile.isPhysician() and not profile.isNPIComplete():
+        if profile.shouldReqNPINumber() and not profile.npiNumber:
             context = {
                 'error': 'Please update your profile with your NPI Number.'
             }

@@ -2,85 +2,109 @@
 
 # Management Command: users.management.commands.emailSync.py
 from collections import OrderedDict
+from datetime import datetime, timedelta
+import pytz
 import hashlib
 import inspect
 import requests, json
 from django.conf import settings
-from .models import Profile, UserSubscription
-from users.models import UserSubscription, BrowserCme, UserCmeCredit, Customer 
-from django.db.models import Sum
+from users.models import ARTICLE_CREDIT, Profile, UserSubscription, Entry, UserCmeCredit, OrbitCmeOffer
+from django.utils import timezone
+
+ENTERPRISE_STATUS_ACTIVE = 'Active'
+ENTERPRISE_STATUS_INVITED = 'Invited'
+ENTERPRISE_STATUS_REMOVED = 'Removed'
 
 def getDataFromDb():
     """Fetches and combines data from Profile, UserSubscription models
     Returns list of dicts with keys that are used as the values in SYNC_FIELD_MAP_ESP_TO_LOCAL
     """
+    now = timezone.now()
+    minStartDate = now - timedelta(days=365*20)
+    maxEndDate = now + timedelta(days=1)
+    calStartDate = datetime(now.year, 1, 1, tzinfo=pytz.utc)
+    calEndDate = datetime(now.year+1, 1, 1, tzinfo=pytz.utc)
     profiles = Profile.objects.select_related('organization').all().order_by('user_id')
     data= []
     for profile in profiles:
         user = profile.user
-
         orgName = ''
+        isEnterpriseAdmin = 0
+        isEnterpriseProvider = 0
+        enterpriseStatus = ''
+        inviteId = profile.inviteId
         if profile.organization:
             orgName = profile.organization.name
+            if profile.isEnterpriseAdmin():
+                isEnterpriseAdmin = 1
+            else:
+                isEnterpriseProvider = 1
+            inviteId = '' # keep blank for Enterprise users
+            try:
+                orgm = user.orgmembers.filter(organization=profile.organization).order_by('-created')[0]
+            except OrgMember.DoesNotExist:
+                # logger.warning...
+                pass
+            else:
+                if orgm.removeDate:
+                    enterpriseStatus = ENTERPRISE_STATUS_REMOVED
+                elif profile.verified and not orgm.pending:
+                    enterpriseStatus = ENTERPRISE_STATUS_ACTIVE
+                else:
+                    enterpriseStatus = ENTERPRISE_STATUS_INVITED
+        birthmmdd = ''
+        if profile.birthDate:
+            birthmmdd = profile.birthDate.strformat("%m/%d")
         d = dict(
             user_id=profile.pk,
             email=profile.user.email,
             firstName=profile.firstName,
             lastName=profile.lastName,
             organization=orgName,
+            inviteId=inviteId,
+            birthmmdd=birthmmdd,
             degree=profile.formatDegrees(), # primary role. UI only allowes 1 degree selection
+            isEnterpriseAdmin=isEnterpriseAdmin,
+            isEnterpriseProvider=isEnterpriseProvider,
+            enterpriseStatus=enterpriseStatus,
             subscriptionId='',
+            subscribed=0,
             plan_type='',
             plan_name='',
+            planSpecialty='',
             subscription_status='',
             billingFirstDate='',
             billingStartDate='',
             billingEndDate='',
-            creditsRedeemed=0,
-            creditsEarned=0,
             billingCycle=0,
-            planSpecialty='',
-            subscribed=0,
+            overallCreditsRedeemed=0,
+            overallCreditsEarned=0,
+            overallArticlesRead=0,
         )
         # Note: if user only signed up but never created a subscription, then user_subs is None
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         if user_subs:
+            plan = user_subs.plan # SubscriptionPlan instance
+            d['subscribed'] = 1
             d['subscriptionId'] = user_subs.subscriptionId
-            d['plan_type'] = user_subs.plan.plan_type.name
-            d['plan_name'] = user_subs.plan.display_name
+            d['plan_type'] = plan.plan_type.name
+            d['plan_name'] = plan.display_name
             d['subscription_status'] = user_subs.display_status
             d['billingFirstDate'] = str(user_subs.billingFirstDate.date())
             d['billingStartDate'] = str(user_subs.billingStartDate.date())
             d['billingEndDate'] = str(user_subs.billingEndDate.date())
-
-            # Credits redeemed
-            qs = BrowserCme.objects.select_related('entry').filter(
-                entry__user=user,
-                entry__activityDate__year=user_subs.billingStartDate.year,
-                entry__valid=True
-            ).aggregate(cme_total=Sum('credits'))
-            redeemedTotal = qs['cme_total']
-            if not redeemedTotal:
-                redeemedTotal = 0
-
-            # Credits earned (but not necessarily redeemed)
-            qs = BrowserCme.objects.select_related('entry').filter(
-                entry__user=user,
-                entry__valid=True
-            ).aggregate(cme_total=Sum('credits'))
-            creditsEarned = qs['cme_total']
-            if not creditsEarned:
-                creditsEarned = 0
-
-            plan = UserSubscription.objects.filter(user=user)
-
-            d['creditsRedeemed'] = redeemedTotal
-            d['creditsEarned'] = creditsEarned
-            d['planSpecialty'] = plan[0].plan.name
-            d['subscribed'] = 1
-
             if user_subs.billingCycle:
                 d['billingCycle'] = user_subs.billingCycle
+            if plan.plan_key and plan.plan_key.specialty: # the specialty assigned to the plan_key used by the plan
+                d['planSpecialty'] = plan.plan_key.specialty.name
+            # Overall credits earned (but not necessarily redeemed)
+            overallCreditsEarned = float(OrbitCmeOffer.objects.sumCredits(user, minStartDate, maxEndDate))
+            d['overallCreditsEarned'] = overallCreditsEarned
+            d['overallArticlesRead'] = overallCreditsEarned/ARTICLE_CREDIT
+            # Overall credits redeemed
+            if UserCmeCredit.objects.filter(user=user).exists():
+                uc = UserCmeCredit.objects.get(user=user)
+                d['overallCreditsRedeemed'] = float(uc.total_credits_earned) # pre-computed
         data.append(d)
     return data
 
@@ -313,19 +337,27 @@ class MailchimpApi(EspApiBackend):
         'LNAME':'lastName',
         'ORGANIZAT': 'organization',
         'DEGREE': 'degree',
+        'BIRTHDAY': 'birthmmdd',
+        'INVITE_ID': 'inviteId',
         # Subscription fields
         'SUBSCN_ID': 'subscriptionId',
+        'SUBSCRIBED': 'subscribed',
         'PLAN_TYPE': 'plan_type',
         'PLAN_NAME': 'plan_name',
+        'PLAN_SPECI': 'planSpecialty',
         'SUBSCN_STA': 'subscription_status',
         'SUBSCN_FDT': 'billingFirstDate',
         'SUBSCN_SDT': 'billingStartDate',
         'SUBSCN_EDT': 'billingEndDate',
         'SUBSCN_CYC': 'billingCycle',
-        'CRDT_REDEE': 'creditsRedeemed',
-        'CRDT_EARNE': 'creditsEarned',
-        'PLAN_SPECI': 'planSpecialty',
-        'SUBSCRIBED': 'subscribed',
+        # Enterprise-related fields
+        'IS_ENT_ADM': 'isEnterpriseAdmin',
+        'IS_ENT_PRO': 'isEnterpriseProvider',
+        'ENT_STATUS': 'enterpriseStatus',
+        # Credit-related fields
+        'CRDT_REDEE': 'overallCeditsRedeemed',
+        'CRDT_EARNE': 'overallCreditsEarned',
+        'ARTCL_READ': 'overallArticlesRead'
     })
     '''
     SYNC_FIELD_MAP_ESP_TO_LOCAL = OrderedDict({
@@ -359,18 +391,26 @@ class MailchimpApi(EspApiBackend):
         'USER_ID': {'type':'text'},
         'ORGANIZAT': {'type':'text'},
         'DEGREE': {'type':'text'},
+        'INVITE_ID': {'type':'text'},
+        'BIRTHDAY': {'type':'birthday'}, # is this the correct type?
         'SUBSCN_ID': {'type':'text'},
+        'SUBSCRIBED': {'type':'number'},
         'PLAN_TYPE': {'type':'text'},
         'PLAN_NAME': {'type':'text'},
+        'PLAN_SPECI': {'type':'text'},
         'SUBSCN_STA': {'type':'text'},
         'SUBSCN_FDT': {'type':'date'},
         'SUBSCN_SDT': {'type':'date'},
         'SUBSCN_EDT': {'type':'date'},
         'SUBSCN_CYC': {'type':'number'},
+        # Enterprise-related fields
+        'IS_ENT_ADM': {'type': 'number'},
+        'IS_ENT_PRO': {'type': 'number'},
+        'ENT_STATUS': {'type': 'text'},
+        # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
-        'PLAN_SPECI': {'type':'text'},
-        'SUBSCRIBED': {'type':'number'},
+        'ARTCL_READ': {'type':'number'},
     }
 
     '''
