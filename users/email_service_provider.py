@@ -442,7 +442,8 @@ class MailchimpApi(EspApiBackend):
                 list_id = results_json["lists"][0]["id"]
 
         if list_id == None:
-            raise ValueError("Error finding Mailchimp subscriber list by name of %s" % (settings.ORBIT_EMAIL_SYNC_LIST_NAME))   
+            self.LIST_ID = settings.ORBIT_EMAIL_SYNC_LIST_ID
+            #raise ValueError("Error finding Mailchimp subscriber list by name of %s" % (settings.ORBIT_EMAIL_SYNC_LIST_NAME))   
         else:
             self.LIST_ID = list_id
 
