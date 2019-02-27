@@ -8,7 +8,7 @@ import hashlib
 import inspect
 import requests, json
 from django.conf import settings
-from users.models import ARTICLE_CREDIT, Profile, UserSubscription, Entry, UserCmeCredit, OrbitCmeOffer
+from users.models import ARTICLE_CREDIT, Profile, UserSubscription, Entry, UserCmeCredit, OrbitCmeOffer, OrgMember
 from django.utils import timezone
 
 ENTERPRISE_STATUS_ACTIVE = 'Active'
@@ -54,7 +54,7 @@ def getDataFromDb():
                     enterpriseStatus = ENTERPRISE_STATUS_INVITED
         birthmmdd = ''
         if profile.birthDate:
-            birthmmdd = profile.birthDate.strformat("%m/%d")
+            birthmmdd = profile.birthDate.strftime("%m/%d")
         d = dict(
             user_id=profile.pk,
             email=profile.user.email,
