@@ -108,7 +108,7 @@ class OrgFileAdmin(admin.ModelAdmin):
 
     def orgfile_actions(self, obj):
         return format_html(
-            '<a class="button" href="{}">Run import</a>',
+            '<a class="button" href="{}">Validate File</a>',
             reverse('admin:orgfile-process', args=[obj.pk]),
         )
     orgfile_actions.short_description = 'Account Actions'
@@ -120,7 +120,7 @@ class OrgFileAdmin(admin.ModelAdmin):
         src_file = orgfile.csvfile if orgfile.csvfile else orgfile.document
         output = StringIO()
         csv = ProviderCsvImport(stdout=output)
-        success = csv.processOrgFile(org.id, src_file)
+        success = csv.processOrgFile(org_id=org.id, src_file=src_file, dry_run=True)
         if success:
             self.message_user(request, 'Success')
         else:
@@ -159,9 +159,12 @@ class StateAdmin(admin.ModelAdmin):
         return qs.prefetch_related('cmeTags', 'deaTags')
 
 
+class ResidencyProgramAdmin(admin.ModelAdmin):
+    list_display = ('id','name',)
+
 class HospitalAdmin(admin.ModelAdmin):
-    list_display = ('id','state','display_name','city','hasResidencyProgram')
-    list_filter = ('hasResidencyProgram', StateFilter)
+    list_display = ('id','state','display_name','city')
+    list_filter = (StateFilter,)
     list_select_related = ('state',)
 
     class Media:
@@ -478,6 +481,14 @@ class CmeBoostPurchaseAdmin(admin.ModelAdmin):
     list_filter = ('receipt_sent','failure_alert_sent', 'boost')
     ordering = ('-modified',)
 
+class UserCmeCreditAdmin(admin.ModelAdmin):
+    list_display = ('user', 'plan_credits', 'boost_credits', 'total_credits_earned', 'modified')
+    ordering = ('-modified',)
+    list_filter = (UserFilter,)
+
+    class Media:
+        pass
+
 #
 # plugin models
 #
@@ -607,6 +618,7 @@ admin_site.register(OrgFile, OrgFileAdmin)
 admin_site.register(OrgMember, OrgMemberAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
+admin_site.register(ResidencyProgram, ResidencyProgramAdmin)
 admin_site.register(Sponsor, SponsorAdmin)
 admin_site.register(State, StateAdmin)
 admin_site.register(StateLicense, StateLicenseAdmin)
@@ -617,6 +629,7 @@ admin_site.register(SubscriptionPlanKey, SubscriptionPlanKeyAdmin)
 admin_site.register(SubscriptionPlanType, SubscriptionPlanTypeAdmin)
 admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 admin_site.register(SubSpecialty, SubSpecialtyAdmin)
+admin_site.register(UserCmeCredit, UserCmeCreditAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
 #
 # plugin models

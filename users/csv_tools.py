@@ -28,6 +28,7 @@ from users.models import (
     LicenseType,
     StateLicense,
     SubscriptionPlan,
+    ResidencyProgram,
 )
 logger = logging.getLogger('mgmt.csv')
 
@@ -47,7 +48,7 @@ class CsvImport():
         self.multi_value_delimiter = multi_value_delimiter
         self.stdout = stdout
 
-    def parseMultiDictField(self, model, fieldName, dataDict, index = 0):
+    def parseMultiDictField(self, model, fieldName, dataDict, index = 0, uppercase = True):
         """Parse fieldName from the given row and return list of values
         Args:
         Returns: list. Empty list is valid.
@@ -59,8 +60,13 @@ class CsvImport():
         else:
             values = [model[fieldName], ]
         for v in values:
-            tv = v.strip().upper() # transform value before compare to dataDict
+            # transform value before compare to dataDict
+            tv = v.strip()
+            if uppercase:
+                tv=tv.upper()
+
             if not tv: # can be empty, move on
+                output.append(None)
                 continue
             if tv not in dataDict:
                 error_msg = "Invalid {0} at row {1}: {2}".format(fieldName, index, v)
@@ -82,12 +88,33 @@ class CsvImport():
         for v in values:
             tv = v.strip().upper() # clear value before converting to date
             if not tv: # can be empty, move on
+                output.append(None)
                 continue
             try: 
                 output.append(dparse(tv))
             except ValueError, e:
-                error_msg = "Invalid {0}: {1}".format(fieldName, v)
+                error_msg = "Invalid {0} at row {1}: {2}".format(fieldName, index, v)
                 raise ValueError(error_msg)
+        return output
+
+    def parseMultiStringField(self, model, fieldName, uppercase = True):
+        """Parse fieldName from the given row and return list of strings
+        Args:
+        Returns: list. Empty list is valid.
+        """
+        output = []
+        if self.multi_value_delimiter in model[fieldName]:
+            values = model[fieldName].split(self.multi_value_delimiter)
+        else:
+            values = [model[fieldName], ]
+        for v in values:
+            # clear value
+            tv = v.strip()
+            if uppercase:
+                tv=tv.upper()
+            # can be empty, move on
+            output.append(tv)
+
         return output
     
     def print_out(self, msg, is_error = False):
@@ -106,15 +133,17 @@ class ProviderCsvImport(CsvImport):
         ('NPI Number', 'NPINumber'),
         ("Birthdate (MM/DD/YY)", 'Birthdate'),
         ('Email', 'Email'),
+        ('Alternate Email', 'AltEmail'),
         ('Practice Divistion', 'Group'),
         ("Degree", "Role"),
         ("Residency Training Program", 'ResidencyTraining'),
         ("Residency Graduation Date", 'ResidencyTrainingDate'),
         ("State Licenses", 'States'),
+        ("State License Numbers", 'StateLicenseNumbers'),
         ("State License Expiry Dates", 'StateLicenseExpiryDates'),
         ("DEA Certificate States", 'DEAStates'),
+        ("DEA Certificate Numbers", 'DEANumbers'),
         ("DEA Certificate Expiry Dates", 'DEAExpiry'),
-        ("ABMS Active Board Certifications", 'ActiveCoarcCertifications'),
         ("Specialty", 'Specialty'),
         ("Subspecialty scope of practice", 'SubSpecialty'),
     )
@@ -125,7 +154,7 @@ class ProviderCsvImport(CsvImport):
         error_msg = "Invalid {0} at row {1}: {2}".format(fieldName, row, value)
         raise ValueError(error_msg)
     
-    def processOrgFile(self, org_id, src_file, dry_run = False, test_ticket = False):
+    def processOrgFile(self, org_id, src_file, dry_run = False, fake_email = False, send_ticket = False):
         num_existing = 0
         created = [] # list of OrgMembers
         try:
@@ -158,6 +187,8 @@ class ProviderCsvImport(CsvImport):
         groupsDict = {g.name:g for g in qset}
         qset = LicenseType.objects.all()
         licenseTypesDict = {g.name:g for g in qset}
+        qset = ResidencyProgram.objects.all()
+        residencyProgramsDict = {g.name:g for g in qset}
 
         try:
             f = StringIO(src_file.read())
@@ -180,6 +211,12 @@ class ProviderCsvImport(CsvImport):
                     self.throwValueError('Degree', pos, role)
                 d['degree'] = degreeDict[role]
 
+                d['Email'] = d['Email'].strip(' .')
+
+                # make emails fake in test mode
+                if fake_email:
+                    d['Email'] = "{0}@orbitcme.com".format(d['Email'].replace('@','.'))
+
                 # birthdate (optional)
                 if d['Birthdate']:
                     try:
@@ -189,11 +226,19 @@ class ProviderCsvImport(CsvImport):
 
                 # Multi-value fields
                 d['specialties'] = self.parseMultiDictField(d, 'Specialty', psDict, pos) # 0+ PracticeSpecialty instances
-                d['subspecialties'] = self.parseMultiDictField(d, 'SubSpecialty', subSpecDict, pos) # 0+ SubSpecialty instances
+                # test that subspecialties fall into intersection of all found specialties
+                matchingSubspecs = dict()
+                for ps in d['specialties']:
+                    matchingSubspecs.update({m.name.upper():m for m in ps.subspecialties.all()})
+                d['subspecialties'] = self.parseMultiDictField(d, 'SubSpecialty', matchingSubspecs, pos) # 0+ SubSpecialty instances
                 d['states'] = self.parseMultiDictField(d, 'States', stateDict, pos) # 0+ State instances
+                d['stateLicenseNumbers'] = self.parseMultiStringField(d, 'StateLicenseNumbers') # 0+ String instances
                 d['stateExpiryDates'] = self.parseMultiDateField(d, 'StateLicenseExpiryDates', pos) # 0+ Date instances
                 d['deaStates'] = self.parseMultiDictField(d, 'DEAStates', stateDict, pos) # 0+ State instances
+                d['deaNumbers'] = self.parseMultiStringField(d, 'DEANumbers') # 0+ String instances
                 d['deaExpiryDates'] = self.parseMultiDateField(d, 'DEAExpiry', pos) # 0+ Date instances
+                d['residencyPrograms'] = self.parseMultiDictField(d, 'ResidencyTraining', residencyProgramsDict, pos, False) # 0+ ResidencyProgram instances
+                d['residencyProgramEndDates'] = self.parseMultiDateField(d, 'ResidencyTrainingDate', pos) # 0+ Date instances
                 pos += 1
             # filter out existing users
             fdata = []
@@ -255,32 +300,51 @@ class ProviderCsvImport(CsvImport):
                     if d['Birthdate']:
                         profile.birthDate = d['Birthdate']
                     profile.country = country_usa
+                    if d['AltEmail']:
+                        profile.contactEmail = d['AltEmail'].strip(' .')
                     profile.save()
                     for state in d['states']:
-                        profile.states.add(state)
+                        if state:
+                            profile.states.add(state)
                     for state in d['deaStates']:
-                        profile.deaStates.add(state)
+                        if state:
+                            profile.deaStates.add(state)
                     for ps in d['specialties']:
-                        profile.specialties.add(ps)
+                        if ps:
+                            profile.specialties.add(ps)
                     for ps in d['subspecialties']:
-                        profile.subspecialties.add(ps)
+                        if ps:
+                            profile.subspecialties.add(ps)
                     # ProfileCmetags
                     profile.addOrActivateCmeTags()
+
+                    # just using a first residency program for now
+                    if d['residencyPrograms'] and d['residencyPrograms'][0]:
+                        profile.residency_program_id = d['residencyPrograms'][0].id
+                    if d['residencyProgramEndDates'] and d['residencyProgramEndDates'][0]:
+                        profile.residencyEndDate = d['residencyProgramEndDates'][0]
 
                     msg = u"Created User/Profile records: {FirstName} {LastName}, {Email}".format(**d)
                     self.print_out(msg)
 
                     num_state_licenses = 0
                     for index, state in enumerate(d['states']):
+                        if not state:
+                            continue
                         expiryDate = None
+                        licenseNumber = ''
                         dates = d['stateExpiryDates']
+                        numbers = d['stateLicenseNumbers']
                         if index < len(dates):
                             expiryDate = dates[index]
+                        if index < len(numbers):
+                            licenseNumber = numbers[index]
 
                         StateLicense.objects.create(
                             user=user,
                             state=state,
                             licenseType=licenseTypesDict[LicenseType.TYPE_MB],
+                            licenseNumber=licenseNumber,
                             expireDate=expiryDate
                         )
                         num_state_licenses += 1
@@ -288,19 +352,26 @@ class ProviderCsvImport(CsvImport):
 
                     num_dea_licenses = 0
                     for index, state in enumerate(d['deaStates']):
+                        if not state:
+                            continue
                         expiryDate = None
+                        deaNumber = ''
                         dates = d['deaExpiryDates']
+                        numbers = d['deaNumbers']
                         if index < len(dates):
                             expiryDate = dates[index]
+                        if index < len(numbers):
+                            deaNumber = numbers[index]
 
                         StateLicense.objects.create(
                             user=user,
                             state=state,
                             licenseType=licenseTypesDict[LicenseType.TYPE_DEA],
+                            licenseNumber=deaNumber,
                             expireDate=expiryDate
                         )
                         num_dea_licenses += 1
-                    self.print_out("Imported {} DEA licenses for user {}".format(num_state_licenses, d['Email']))
+                    self.print_out("Imported {} DEA licenses for user {}".format(num_dea_licenses, d['Email']))
                     if num_dea_licenses > 0:
                         profile.hasDEA = True
                         profile.save(update_fields=('hasDEA',))
@@ -309,7 +380,7 @@ class ProviderCsvImport(CsvImport):
                     # emit profile_saved signal
                     profile_saved.send(sender=profile.__class__, user_id=user.pk)
 
-            if settings.ENV_TYPE == settings.ENV_PROD or test_ticket:
+            if send_ticket:
                 self.sendPasswordTicketEmails(org, auth0)
 
             # final reporting
@@ -349,6 +420,7 @@ class ProviderCsvImport(CsvImport):
             ticket_url = auth0.change_password_ticket(profile.socialId, redirect_url)
 
             sending_msg = u"Sending password-ticket email for User: {0}: {1}...".format(user, ticket_url)
+            # TODO remove this dangerous ticket exposure when we are sure this works and no need to try out users
             self.print_out(sending_msg)
 
             msg = sendPasswordTicketEmail(orgmember, ticket_url, send_message=False)

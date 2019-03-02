@@ -144,6 +144,7 @@ AUTH0_MGMT_SECRET = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENT_SECRET')
 ORBIT_MAILCHIMP_USERNAME = get_environment_variable('ORBIT_MAILCHIMP_USERNAME')
 ORBIT_MAILCHIMP_API_KEY = get_environment_variable('ORBIT_MAILCHIMP_API_KEY')
 ORBIT_EMAIL_SYNC_LIST_NAME = get_environment_variable('ORBIT_MAILCHIMP_SUBSCRIBERS_LIST')
+ORBIT_EMAIL_SYNC_LIST_ID = get_environment_variable('ORBIT_MAILCHIMP_LIST_ID')
 
 DEFAULT_ESP = "Mailchimp"
 
@@ -432,3 +433,4 @@ UI_LINK_LOGIN = '/login'
 UI_LINK_JOINTEAM = '/join-team'
 
 WELCOME_ARTICLE_URL = 'https://www.ncbi.nlm.nih.gov/pubmed/30459182'
+MIN_CME_CREDIT_FOR_REFERRAL = 5

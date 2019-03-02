@@ -47,6 +47,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
     degree = serializers.SerializerMethodField()
     joined = serializers.SerializerMethodField()
     groupName = serializers.SerializerMethodField()
+    setPasswordEmailSent = serializers.ReadOnlyField()
 
     def get_degree(self, obj):
         return obj.user.profile.formatDegrees()
@@ -77,6 +78,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'removeDate',
             'joined',
             'snapshot',
+            'setPasswordEmailSent',
             'created',
             'modified'
         )
@@ -164,6 +166,13 @@ class OrgMemberFormSerializer(serializers.Serializer):
         # 6. Assign extra groups
         if is_admin:
             user.groups.add(Group.objects.get(name=GROUP_ENTERPRISE_ADMIN))
+            user.groups.remove(Group.objects.get(name=GROUP_ENTERPRISE_MEMBER))
+            # admin users don't need to be forced to welcome/plugin sequence
+            profile.accessedTour = True
+            profile.save(update_fields=('accessedTour',))
+        else:
+            # pre-generate a first orbit cme offer for the welcome article
+            OrbitCmeOffer.objects.makeWelcomeOffer(user)
         # 7. Create change-password ticket
         if password_ticket:
             m = OrgMember.objects.sendPasswordTicket(socialId, m, apiConn)

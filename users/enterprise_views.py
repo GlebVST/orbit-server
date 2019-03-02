@@ -13,7 +13,7 @@ from django.db import transaction
 from django.forms.models import model_to_dict
 from django.template.loader import get_template
 from django.utils import timezone
-
+from time import sleep
 from rest_framework import generics, exceptions, permissions, status, serializers
 from rest_framework.filters import BaseFilterBackend
 from rest_framework.pagination import PageNumberPagination
@@ -410,6 +410,8 @@ class OrgMembersEmailInvite(APIView):
                     # so for such users we send a join-team email again
                     try:
                         sendJoinTeamEmail(member.user, member.organization, send_message=True)
+                        # add small delay here to prevent potential spamming alerts?
+                        sleep(0.2)
                     except SMTPException, e:
                         logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
                 elif not member.user.profile.verified:
@@ -417,7 +419,9 @@ class OrgMembersEmailInvite(APIView):
                     # so for such users we send a set-password email
                     apiConn = Auth0Api.getConnection(self.request)
                     OrgMember.objects.sendPasswordTicket(member.user.profile.socialId, member, apiConn)
-
+                    # auth0 rate-limit API calls on a free tier to 2 requests per second
+                    # https://auth0.com/docs/policies/rate-limits
+                    sleep(0.5)
         context = {'success': True}
         return Response(context, status=status.HTTP_200_OK)
 

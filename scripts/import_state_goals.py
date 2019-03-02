@@ -6,7 +6,7 @@ from goals.models import *
 
 logger = logging.getLogger('mgmt.goals')
 
-# degree abbrev => Degreeinstance
+# degree abbrev => Degree instance
 degreeDict = {}
 degrees = Degree.objects.all()
 for m in degrees:
@@ -25,7 +25,20 @@ states = country.states.all()
 for state in states:
     statesDict[state.abbrev] = state
 
+# Specialty name  => PracticeSpecialty instance
+specialtyDict = {}
+specs = PracticeSpecialty.objects.all()
+for m in specs:
+    specialtyDict[m.name] = m
+
+# (Specialty name, SubSpec name)  => SubSpecialty instance
+subspecialtyDict = {}
+subspecs = SubSpecialty.objects.select_related('specialty').all()
+for m in subspecs:
+    subspecialtyDict[(m.specialty.name, m.name)] = m
+
 med_board_lt = LicenseType.objects.get(name='Medical Board')
+fluo_lt = LicenseType.objects.get(name='Fluoroscopy')
 goaltype_cme = GoalType.objects.get(name=GoalType.CME)
 goaltype_srcme = GoalType.objects.get(name=GoalType.SRCME)
 FL_DO_LIVE_COURSE_TAG = 'All topics, live courses only (FL-DO-specific)'
@@ -51,8 +64,6 @@ def clean_tag(name):
     return name2
 
 def get_state(val):
-#    if val == 'DC':
-#        return statesDict['Washington DC']
     return statesDict[val]
 
 def handle_subspecialty(df):
@@ -61,16 +72,20 @@ def handle_subspecialty(df):
     pc_name = 'Primary Care' # for Internal Med, EM
     uc_name = 'Urgent Care'
     uc_specs = ('Pediatrics','Radiology','Family Medicine','Emergency Medicine','Internal Medicine')
-    sa_name = 'Sexual Assault'
-    sa_specs = ('Emergency Medicine', 'Internal Medicine', 'Family Medicine')
+    ##sa_name = 'Sexual Assault'  # Not doing this one
+    ##sa_specs = ('Emergency Medicine', 'Internal Medicine', 'Family Medicine')
     fp_name = 'Family Planning'
     fp_specs = ('Obstetrics and Gynecology',)
     ems_name = 'EMS Medical Director'
     ems_specs = ('Emergency Medicine',)
 
+    pm_tag = CmeTag.objects.get(name='Pain Management')
+    ems_tag = CmeTag.objects.get(name='EMS Medical Direction')
+
     specs = PracticeSpecialty.objects.all().order_by('name')
     for ps in specs:
         pm_subspec, created = SubSpecialty.objects.get_or_create(specialty=ps, name=pm_name)
+        pm_subspec.cmeTags.add(pm_tag)
         if created:
             logger.info('Created {0} SubSpecialty {1}'.format(ps, pm_subspec))
         if ps.name == 'Emergency Medicine' or ps.name == 'Internal Medicine':
@@ -81,16 +96,13 @@ def handle_subspecialty(df):
             subspec, created = SubSpecialty.objects.get_or_create(specialty=ps, name=uc_name)
             if created:
                 logger.info('Created {0} SubSpecialty {1}'.format(ps, subspec))
-        if ps.name in sa_specs:
-            subspec, created = SubSpecialty.objects.get_or_create(specialty=ps, name=sa_name)
-            if created:
-                logger.info('Created {0} SubSpecialty {1}'.format(ps, subspec))
         if ps.name in fp_specs:
             subspec, created = SubSpecialty.objects.get_or_create(specialty=ps, name=fp_name)
             if created:
                 logger.info('Created {0} SubSpecialty {1}'.format(ps, subspec))
         if ps.name in ems_specs:
             subspec, created = SubSpecialty.objects.get_or_create(specialty=ps, name=ems_name)
+            subspec.cmeTags.add(ems_tag)
             if created:
                 logger.info('Created {0} SubSpecialty {1}'.format(ps, subspec))
 
@@ -113,7 +125,7 @@ def handle_dea_state_tag(df):
             logger.warning('Skip raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        qs = CmeTag.objects.filter(name=tagname)
+        qs = CmeTag.objects.filter(name__iexact=tagname)
         if qs.exists():
             tag = qs[0]
         else:
@@ -140,7 +152,7 @@ def handle_dea_state_tag(df):
             logger.warning('Skip raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        qs = CmeTag.objects.filter(name=tagname)
+        qs = CmeTag.objects.filter(name__iexact=tagname)
         if qs.exists():
             tag = qs[0]
         else:
@@ -164,7 +176,7 @@ def handle_state_cme_tag(df):
             logger.warning('Skip raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        qs = CmeTag.objects.filter(name=tagname)
+        qs = CmeTag.objects.filter(name__iexact=tagname)
         if qs.exists():
             tag = qs[0]
         else:
@@ -189,7 +201,7 @@ def handle_state_srcme_tag(df):
             print('Skip SRCME raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        qs = CmeTag.objects.filter(name=tagname)
+        qs = CmeTag.objects.filter(name__iexact=tagname)
         if qs.exists():
             tag = qs[0]
         else:
@@ -213,7 +225,7 @@ def handle_state_DO_tag(df):
             logger.warning('Skip raw_tag: {0} for State {1}'.format(raw_tag, state))
             continue
         tagname = clean_tag(raw_tag)
-        qs = CmeTag.objects.filter(name=tagname)
+        qs = CmeTag.objects.filter(name__iexact=tagname)
         if qs.exists():
             tag = qs[0]
         else:
@@ -225,7 +237,7 @@ def handle_state_DO_tag(df):
 
 def get_creditType(k):
     if k == 'class':
-        k = 'Other'
+        k = 'Class'
     return creditTypeDict[k]
 
 def getCreditTypesFromRow(row):
@@ -272,7 +284,7 @@ def handle_plain_general_cme_goals(df):
         state = get_state(row['State'])
         raw_tag = row['Tag']
         interval = int(row['Interval'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         creditTypes = getCreditTypesFromRow(row)
         degrees = getDegreesFromRow(row)
         # Create CmeGoal with associated licenseGoal and tag=null
@@ -334,7 +346,7 @@ def handle_plain_mapnulltospec_cme_goals(df):
         state = get_state(row['State'])
         raw_tag = row['Tag']
         interval = int(row['Interval'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         creditTypes = getCreditTypesFromRow(row)
         degrees = getDegreesFromRow(row)
         # Create CmeGoal with associated licenseGoal and tag=null
@@ -409,11 +421,11 @@ def handle_plain_tagged_cme_goals(df):
         else:
             interval = int(row['Interval'])
         print(row['State'], row['Degree'], row['Interval'], row['Tag'], row['Credits'], row['CreditTypes'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         creditTypes = getCreditTypesFromRow(row)
         degrees = getDegreesFromRow(row)
         tagname = clean_tag(raw_tag)
-        tag = CmeTag.objects.get(name=tagname)
+        tag = CmeTag.objects.get(name__iexact=tagname)
         # Create CmeGoal with associated licenseGoal and tag
         lg = getStateLicenseGoal(state)
         fkwargs = {
@@ -485,7 +497,7 @@ def handle_plain_tagged_srcme_goals(df):
         else:
             interval = int(row['Interval'])
         print(row['State'], row['Degree'], row['Interval'], row['Srcme_tag'], row['Credits'], row['CreditTypes'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         has_credit = True
         if credits == 0:
             # Map zero credits to 1 for credits field, and reset has_credit flag
@@ -494,7 +506,7 @@ def handle_plain_tagged_srcme_goals(df):
         creditTypes = getCreditTypesFromRow(row)
         degrees = getDegreesFromRow(row)
         tagname = clean_tag(raw_tag)
-        tag = CmeTag.objects.get(name=tagname)
+        tag = CmeTag.objects.get(name__iexact=tagname)
         # Create CmeGoal with associated licenseGoal and tag
         lg = getStateLicenseGoal(state)
         fkwargs = {
@@ -566,7 +578,7 @@ def handle_plain_aoa_srcme_goals(df):
         else:
             interval = int(row['Interval'])
         print(row['State'], row['Degree'], row['Interval'], row['AOA_srcme_tag'], row['Credits'], row['CreditTypes'])
-        credits = int(row['Credits'])
+        credits = float(row['Credits'])
         has_credit = True
         if credits == 0:
             # Map zero credits to 1 for credits field, and reset has_credit flag
@@ -575,7 +587,7 @@ def handle_plain_aoa_srcme_goals(df):
         creditTypes = getCreditTypesFromRow(row)
         degrees = getDegreesFromRow(row)
         tagname = clean_tag(raw_tag)
-        tag = CmeTag.objects.get(name=tagname)
+        tag = CmeTag.objects.get(name__iexact=tagname)
         # Create SRCmeGoal with associated licenseGoal and tag
         lg = getStateLicenseGoal(state)
         fkwargs = {
@@ -627,17 +639,415 @@ def handle_plain_aoa_srcme_goals(df):
     return (existing_goals, new_goals)
 
 
-
-def handle_specialty_cme_goals(df):
-    """Handle cme goals that apply to specifc specialties
-    Returns: (existing, new) of CmeGoals
+def load_ca_fluoroscopy_goal():
+    """Create CMEGoal attached to CA Fluoroscopy license goal.
     """
-    existing_goals = []
-    new_goals = []
-    df2 = df[(~df.Specialties.isnull()) & (~df.Tag.isnull()) & (~df.Credits.isnull()) & (~df.Interval.isnull())]
-    for index, row in df2.iterrows():
-        raw_tag = row['Tag']
- 
+    tag = CmeTag.objects.get(name='Fluoroscopy')
+    degrees = [degreeDict['MD'], degreeDict['DO']]
+    state = statesDict['CA']
+    flg = LicenseGoal.objects.get(state=state, licenseType=fluo_lt)
+    creditTypes = [get_creditType('AMA-1'),]
+    credits = 10
+    interval = 2
+    # check if exist
+    fkwargs = {
+        'entityType': CmeGoal.STATE,
+        'state': state,
+        'licenseGoal': flg,
+        'cmeTag': tag,
+        'credits': credits,
+        'goal__interval': interval
+    }
+    qs = CmeGoal.objects.filter(**fkwargs).select_related('goal').order_by('pk')
+    if qs.exists():
+        return qs[0]
+    # else create basegoal
+    bg_dueDateType = BaseGoal.RECUR_LICENSE_DATE
+    bg = BaseGoal.objects.create(
+        goalType=goaltype_cme,
+        dueDateType=bg_dueDateType,
+        interval=interval,
+        notes=''
+    )
+    for deg in degrees:
+        bg.degrees.add(deg)
+    # create cmegoal
+    cmegoal = CmeGoal.objects.create(
+        goal=bg,
+        entityType=CmeGoal.STATE,
+        state=state,
+        cmeTag=tag,
+        licenseGoal=flg,
+        credits=credits,
+    )
+    for m in creditTypes:
+        cmegoal.creditTypes.add(m)
+    msg = "Created Fluoroscopy CmeGoal {0.pk}|{0}|{0.cmeTag}|{0.credits}|{1}".format(cmegoal, cmegoal.formatCreditTypes())
+    print(msg)
+    logger.info(msg)
+    return cmegoal
+
+#
+# Specialty cmegoals
+# df2 = df[(~df.Specialties.isnull()) & (~df.Tag.isnull()) & (~df.Credits.isnull()) & (~df.Interval.isnull())]
+#
+def load_ca_geriatric_cmegoal(df):
+    """
+    ('CA', 'internal medicine, family medicine', 'geriatric medicine', '2', 10.0, 'AMA-1, AOA-1A, AOA-1B')
+    Returns: CmeGoal
+    """
+    tag = CmeTag.objects.get(name='Geriatric Medicine')
+    state = statesDict['CA']
+    degrees = [degreeDict['MD'], degreeDict['DO']]
+    creditTypes = [
+            get_creditType('AMA-1'),
+            get_creditType('AOA-1A'),
+            get_creditType('AOA-1B'),
+        ]
+    interval = 2
+    credits = 10
+    specialties = [
+            specialtyDict['Internal Medicine'],
+            specialtyDict['Family Medicine'],
+        ]
+    lg = getStateLicenseGoal(state)
+    # check if exist
+    fkwargs = {
+        'entityType': CmeGoal.STATE,
+        'state': state,
+        'licenseGoal': lg,
+        'cmeTag': tag,
+        'credits': credits,
+        'goal__interval': interval
+    }
+    qs = CmeGoal.objects.filter(**fkwargs).select_related('goal').order_by('pk')
+    if qs.exists():
+        for cg in qs:
+            if (isEqual(degrees, cmegoal.goal.degrees.all())
+                    and isEqual(specialties, cmegoal.goal.specialties.all())
+                    and isEqual(creditTypes, cmegoal.creditTypes.all())):
+                print('Found existing cmegoal: {0}'.format(cg))
+                return cg
+    # else create basegoal
+    bg_dueDateType = BaseGoal.RECUR_LICENSE_DATE
+    bg = BaseGoal.objects.create(
+        goalType=goaltype_cme,
+        dueDateType=bg_dueDateType,
+        interval=interval,
+        notes=''
+    )
+    for deg in degrees:
+        bg.degrees.add(deg)
+    for spec in specialties:
+        bg.specialties.add(spec)
+    # create cmegoal
+    cmegoal = CmeGoal.objects.create(
+        goal=bg,
+        entityType=CmeGoal.STATE,
+        state=state,
+        cmeTag=tag,
+        licenseGoal=lg,
+        credits=credits,
+    )
+    for m in creditTypes:
+        cmegoal.creditTypes.add(m)
+    msg = "Created {0.state} Specialty CmeGoal {0.pk}|{0}|{0.cmeTag}|{0.credits}|{1}".format(cmegoal, cmegoal.formatCreditTypes())
+    print(msg)
+    logger.info(msg)
+    return cmegoal
+
+def load_ia_endoflife_cmegoal(df):
+    """
+    ('IA', 'internal medicine, emergency medicine, family medicine, neurology, psychiatry, /pain management', 'end-of-life care', '5', 2.0, 'AMA-1, AOA-1A, AOA-1B')
+    Returns: CmeGoal
+    """
+    tag = CmeTag.objects.get(name__iexact='End-of-Life Care')
+    state = statesDict['IA']
+    degrees = [degreeDict['MD'], degreeDict['DO']]
+    creditTypes = [
+            get_creditType('AMA-1'),
+            get_creditType('AOA-1A'),
+            get_creditType('AOA-1B'),
+        ]
+    interval = 5
+    credits = 2
+    # I believe we want these to match *regardless* of SubSpecialty
+    specialties = [
+            specialtyDict['Internal Medicine'],
+            specialtyDict['Emergency Medicine'],
+            specialtyDict['Family Medicine'],
+            specialtyDict['Neurology'],
+            specialtyDict['Psychiatry'],
+        ]
+    spids = set([ps.pk for ps in specialties])
+    # so here we want all specs NOT in the above for /pain management
+    subspecialties = []
+    pm_subspecs = SubSpecialty.objects.select_related('specialty').filter(name='Pain Management')
+    for subspec in pm_subspecs:
+        ps = subspec.specialty
+        if ps.pk not in spids:
+            subspecialties.append(subspecialtyDict[(ps.name, subspec.name)])
+    lg = getStateLicenseGoal(state)
+    # check if exist
+    fkwargs = {
+        'entityType': CmeGoal.STATE,
+        'state': state,
+        'licenseGoal': lg,
+        'cmeTag': tag,
+        'credits': credits,
+        'goal__interval': interval
+    }
+    qs = CmeGoal.objects.filter(**fkwargs).select_related('goal').order_by('pk')
+    if qs.exists():
+        for cg in qs:
+            if (isEqual(degrees, cmegoal.goal.degrees.all())
+                    and isEqual(specialties, cmegoal.goal.specialties.all())
+                    and isEqual(subspecialties, cmegoal.goal.subspecialties.all())
+                    and isEqual(creditTypes, cmegoal.creditTypes.all())):
+                print('Found existing cmegoal: {0}'.format(cg))
+                return cg
+    # else create basegoal
+    bg_dueDateType = BaseGoal.RECUR_LICENSE_DATE
+    bg = BaseGoal.objects.create(
+        goalType=goaltype_cme,
+        dueDateType=bg_dueDateType,
+        interval=interval,
+        notes=''
+    )
+    for deg in degrees:
+        bg.degrees.add(deg)
+    for spec in specialties:
+        bg.specialties.add(spec)
+    for subspec in subspecialties:
+        bg.subspecialties.add(subspec)
+    # create cmegoal
+    cmegoal = CmeGoal.objects.create(
+        goal=bg,
+        entityType=CmeGoal.STATE,
+        state=state,
+        cmeTag=tag,
+        licenseGoal=lg,
+        credits=credits,
+    )
+    for m in creditTypes:
+        cmegoal.creditTypes.add(m)
+    msg = "Created {0.state} Specialty CmeGoal {0.pk}|{0}|{0.cmeTag}|{0.credits}|{1}".format(cmegoal, cmegoal.formatCreditTypes())
+    print(msg)
+    logger.info(msg)
+    return cmegoal
+
+def load_nj_obgyn_cmegoal(df):
+    """
+    ('NJ', 'Obstetrics and Gynecology/family planning', 'ob-gyn', '1', 15.0, 'AMA-1, AOA-1A, AOA-1B')
+    Returns: CmeGoal
+    """
+    #tag = CmeTag.objects.get(name='Ob-gyn')
+    tag = CmeTag.objects.get(name='Obstetrics and Gynecology')
+    state = statesDict['NJ']
+    degrees = [degreeDict['MD'], degreeDict['DO']]
+    creditTypes = [
+            get_creditType('AMA-1'),
+            get_creditType('AOA-1A'),
+            get_creditType('AOA-1B'),
+        ]
+    interval = 1
+    credits = 15
+    specialties = [
+            specialtyDict['Obstetrics and Gynecology'],
+        ]
+    subspecialties = [
+            subspecialtyDict[('Obstetrics and Gynecology', 'Family Planning')],
+        ]
+    lg = getStateLicenseGoal(state)
+    # check if exist
+    fkwargs = {
+        'entityType': CmeGoal.STATE,
+        'state': state,
+        'licenseGoal': lg,
+        'cmeTag': tag,
+        'credits': credits,
+        'goal__interval': interval
+    }
+    qs = CmeGoal.objects.filter(**fkwargs).select_related('goal').order_by('pk')
+    if qs.exists():
+        for cg in qs:
+            if (isEqual(degrees, cmegoal.goal.degrees.all())
+                    and isEqual(specialties, cmegoal.goal.specialties.all())
+                    and isEqual(subspecialties, cmegoal.goal.subspecialties.all())
+                    and isEqual(creditTypes, cmegoal.creditTypes.all())):
+                print('Found existing cmegoal: {0}'.format(cg))
+                return cg
+    # else create basegoal
+    bg_dueDateType = BaseGoal.RECUR_LICENSE_DATE
+    bg = BaseGoal.objects.create(
+        goalType=goaltype_cme,
+        dueDateType=bg_dueDateType,
+        interval=interval,
+        notes=''
+    )
+    for deg in degrees:
+        bg.degrees.add(deg)
+    for spec in specialties:
+        bg.specialties.add(spec)
+    for subspec in subspecialties:
+        bg.subspecialties.add(subspec)
+    # create cmegoal
+    cmegoal = CmeGoal.objects.create(
+        goal=bg,
+        entityType=CmeGoal.STATE,
+        state=state,
+        cmeTag=tag,
+        licenseGoal=lg,
+        credits=credits,
+    )
+    for m in creditTypes:
+        cmegoal.creditTypes.add(m)
+    msg = "Created {0.state} Specialty CmeGoal {0.pk}|{0}|{0.cmeTag}|{0.credits}|{1}".format(cmegoal, cmegoal.formatCreditTypes())
+    print(msg)
+    logger.info(msg)
+    return cmegoal
+
+def load_tx_ems_cmegoal(df):
+    """
+    ('TX', 'Emergency Medicine/EMS Medical Director', 'EMS Medical Direction', '2', 1.0, 'AMA-1, AOA-1A, AOA-1B')
+    Returns: CmeGoal
+    """
+    tag = CmeTag.objects.get(name='EMS Medical Direction')
+    state = statesDict['TX']
+    degrees = [degreeDict['MD'], degreeDict['DO']]
+    creditTypes = [
+            get_creditType('AMA-1'),
+            get_creditType('AOA-1A'),
+            get_creditType('AOA-1B'),
+        ]
+    interval = 2
+    credits = 1
+    specialties = [
+            specialtyDict['Emergency Medicine'],
+        ]
+    subspecialties = [
+            subspecialtyDict[('Emergency Medicine', 'EMS Medical Director')],
+        ]
+    lg = getStateLicenseGoal(state)
+    # check if exist
+    fkwargs = {
+        'entityType': CmeGoal.STATE,
+        'state': state,
+        'licenseGoal': lg,
+        'cmeTag': tag,
+        'credits': credits,
+        'goal__interval': interval
+    }
+    qs = CmeGoal.objects.filter(**fkwargs).select_related('goal').order_by('pk')
+    if qs.exists():
+        for cg in qs:
+            if (isEqual(degrees, cmegoal.goal.degrees.all())
+                    and isEqual(specialties, cmegoal.goal.specialties.all())
+                    and isEqual(subspecialties, cmegoal.goal.subspecialties.all())
+                    and isEqual(creditTypes, cmegoal.creditTypes.all())):
+                print('Found existing cmegoal: {0}'.format(cg))
+                return cg
+    # else create basegoal
+    bg_dueDateType = BaseGoal.RECUR_LICENSE_DATE
+    bg = BaseGoal.objects.create(
+        goalType=goaltype_cme,
+        dueDateType=bg_dueDateType,
+        interval=interval,
+        notes=''
+    )
+    for deg in degrees:
+        bg.degrees.add(deg)
+    for spec in specialties:
+        bg.specialties.add(spec)
+    for subspec in subspecialties:
+        bg.subspecialties.add(subspec)
+    # create cmegoal
+    cmegoal = CmeGoal.objects.create(
+        goal=bg,
+        entityType=CmeGoal.STATE,
+        state=state,
+        cmeTag=tag,
+        licenseGoal=lg,
+        credits=credits,
+    )
+    for m in creditTypes:
+        cmegoal.creditTypes.add(m)
+    msg = "Created {0.state} Specialty CmeGoal {0.pk}|{0}|{0.cmeTag}|{0.credits}|{1}".format(cmegoal, cmegoal.formatCreditTypes())
+    print(msg)
+    logger.info(msg)
+    return cmegoal
+
+def load_tx_painmanagement_cmegoal(df):
+    """
+    ('TX', '/pain management', 'Pain Management', '2', 10.0, 'AMA-1, AOA-1A, AOA-1B')
+    Returns: CmeGoal
+    """
+    tag = CmeTag.objects.get(name='Pain Management')
+    state = statesDict['TX']
+    degrees = [degreeDict['MD'], degreeDict['DO']]
+    creditTypes = [
+            get_creditType('AMA-1'),
+            get_creditType('AOA-1A'),
+            get_creditType('AOA-1B'),
+        ]
+    interval = 2
+    credits = 10
+    # all specs with subspec=Pain Management
+    specialties = []
+    subspecialties = []
+    subspecs = SubSpecialty.objects.select_related('specialty').filter(name='Pain Management')
+    for m in subspecs:
+        specialties.append(specialtyDict[m.specialty.name])
+        subspecialties.append(subspecialtyDict[(m.specialty.name, m.name)])
+    lg = getStateLicenseGoal(state)
+    # check if exist
+    fkwargs = {
+        'entityType': CmeGoal.STATE,
+        'state': state,
+        'licenseGoal': lg,
+        'cmeTag': tag,
+        'credits': credits,
+        'goal__interval': interval
+    }
+    qs = CmeGoal.objects.filter(**fkwargs).select_related('goal').order_by('pk')
+    if qs.exists():
+        for cg in qs:
+            if (isEqual(degrees, cmegoal.goal.degrees.all())
+                    and isEqual(specialties, cmegoal.goal.specialties.all())
+                    and isEqual(subspecialties, cmegoal.goal.subspecialties.all())
+                    and isEqual(creditTypes, cmegoal.creditTypes.all())):
+                print('Found existing cmegoal: {0}'.format(cg))
+                return cg
+    # else create basegoal
+    bg_dueDateType = BaseGoal.RECUR_LICENSE_DATE
+    bg = BaseGoal.objects.create(
+        goalType=goaltype_cme,
+        dueDateType=bg_dueDateType,
+        interval=interval,
+        notes=''
+    )
+    for deg in degrees:
+        bg.degrees.add(deg)
+    for spec in specialties:
+        bg.specialties.add(spec)
+    for subspec in subspecialties:
+        bg.subspecialties.add(subspec)
+    # create cmegoal
+    cmegoal = CmeGoal.objects.create(
+        goal=bg,
+        entityType=CmeGoal.STATE,
+        state=state,
+        cmeTag=tag,
+        licenseGoal=lg,
+        credits=credits,
+    )
+    for m in creditTypes:
+        cmegoal.creditTypes.add(m)
+    msg = "Created {0.state} Specialty CmeGoal {0.pk}|{0}|{0.cmeTag}|{0.credits}|{1}".format(cmegoal, cmegoal.formatCreditTypes())
+    print(msg)
+    logger.info(msg)
+    return cmegoal
+
 
 def main(fpath):
     df = pd.read_csv(fpath)

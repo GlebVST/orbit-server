@@ -190,7 +190,10 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
         return obj.progress
 
     def get_title(self, obj):
-        return obj.title
+        gtype = obj.goal.goalType.name
+        if gtype != GoalType.CME or obj.cmeTag:
+            return obj.title
+        return obj.title + ' in ' + obj.formatCreditTypes()
 
     def get_extra(self, obj):
         gtype = obj.goal.goalType.name
@@ -305,6 +308,7 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
             tdiff = expireDate - license.expireDate
             if tdiff.days >= 365:
                 createNewLicense = True # create new license instance
+        createNewLicense = False # for now until have code in place for handling renew
         if createNewLicense:
             newLicense = StateLicense.objects.create(
                     user=user,

@@ -21,11 +21,18 @@ class Command(BaseCommand):
             help='Dry run. Does not create any new members. Just print to console for debugging.'
         )
         parser.add_argument(
-            '--test_ticket',
+            '--send_ticket',
             action='store_true',
-            dest='test_ticket',
+            dest='send_ticket',
             default=False,
-            help='Applicable on test server only: send out change-password-ticket emails. This is always done in prod.'
+            help='If enabled sends out change-password-ticket emails for all non-invited users of this org'
+        )
+        parser.add_argument(
+            '--fake_email',
+            action='store_true',
+            dest='fake_email',
+            default=False,
+            help='If enabled fakes out all user email by appending @orbitcme.com domain to avoid spamming in test'
         )
 
     def handle(self, *args, **options):
@@ -41,7 +48,7 @@ class Command(BaseCommand):
         src_file = orgfile.csvfile if orgfile.csvfile else orgfile.document
 
         csv = ProviderCsvImport(stdout=self.stdout)
-        success = csv.processOrgFile(org.id, src_file, options['dry_run'], options['test_ticket'])
+        success = csv.processOrgFile(org.id, src_file, options['dry_run'], fake_email=options['fake_email'], send_ticket=options['send_ticket'])
         if success and not options['dry_run']:
             orgfile.processed = True
             orgfile.save(update_fields=('processed',))

@@ -125,6 +125,13 @@ class SRCmeGoalForm(forms.ModelForm):
                     'data-minimum-input-length': 1,
                 }
             ),
+            'cmeTag': autocomplete.ModelSelect2(
+                url='cmetag-autocomplete',
+                attrs={
+                    'data-placeholder': 'CmeTag',
+                    'data-minimum-input-length': 1,
+                }
+            ),
             'dueMonth': forms.NumberInput,
             'dueDay': forms.NumberInput
         }
@@ -185,10 +192,10 @@ class SRCmeBaseGoalAdmin(admin.ModelAdmin):
 
     def getTag(self, obj):
         return obj.srcmegoal.cmeTag
-    getTag.short_description = 'CME Tag'
+    getTag.short_description = 'CmeTag'
 
     def getCredits(self, obj):
-        if not obj.has_credit:
+        if not obj.srcmegoal.has_credit:
             return 0
         return obj.srcmegoal.credits
     getCredits.short_description = 'Credits'
@@ -237,6 +244,13 @@ class CmeGoalForm(forms.ModelForm):
                     'data-minimum-input-length': 2,
                 }
             ),
+            'cmeTag': autocomplete.ModelSelect2(
+                url='cmetag-autocomplete',
+                attrs={
+                    'data-placeholder': 'CmeTag',
+                    'data-minimum-input-length': 1,
+                }
+            ),
             'dueMonth': forms.NumberInput,
             'dueDay': forms.NumberInput
         }
@@ -267,13 +281,18 @@ class CmeGoalInline(admin.StackedInline):
 
 class CmeBaseGoalAdmin(admin.ModelAdmin):
     list_display = ('id', 'getEntityType', 'getEntityName', 'getTag', 'getCredits', 'interval', 'fmtDueDateType', 'getDueMMDD', 'formatDegrees', 'formatSpecialties')
-    list_filter = ('cmegoal__entityType', 'dueDateType', 'cmegoal__board',)
+    list_filter = (
+        'cmegoal__entityType',
+        'dueDateType',
+        'cmegoal__board',
+        'cmegoal__state',
+        )
     ordering = ('-modified',)
     inlines = (CmeGoalInline,)
     filter_horizontal = (
         'degrees',
         'specialties',
-        #'subspecialties' # TODO - needs additional validation to ensure selection agrees with specialties
+        'subspecialties' # TODO - needs additional validation to ensure selection agrees with specialties
     )
     exclude = ('modifiedBy',)
 
@@ -310,7 +329,7 @@ class CmeBaseGoalAdmin(admin.ModelAdmin):
     getEntityName.short_description = 'Entity'
 
     def getTag(self, obj):
-        return obj.cmegoal.cmeTag if obj.cmegoal.cmeTag else u'(Any)'
+        return obj.cmegoal.getTag()
     getTag.short_description = 'CME Tag'
 
     def getCredits(self, obj):

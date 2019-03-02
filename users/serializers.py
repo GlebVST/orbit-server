@@ -24,6 +24,16 @@ class NestedHospitalSerializer(serializers.ModelSerializer):
         model = Hospital
         fields = ('id', 'display_name')
 
+class ResidencyProgramSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResidencyProgram
+        fields = ('id', 'name')
+
+class NestedResidencySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResidencyProgram
+        fields = ('id', 'name')
+
 class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(
         queryset=PracticeSpecialty.objects.all(),
@@ -182,8 +192,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         queryset=Country.objects.all(),
         allow_null=True
     )
-    residency = serializers.PrimaryKeyRelatedField(
-        queryset=Hospital.objects.all(),
+    residency_program = serializers.PrimaryKeyRelatedField(
+        queryset=ResidencyProgram.objects.all(),
         allow_null=True
     )
     degrees = serializers.PrimaryKeyRelatedField(
@@ -224,7 +234,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'lastName',
             'country',
             'organization',
-            'residency',
+            'residency_program',
             'birthDate',
             'residencyEndDate',
             'affiliationText',
@@ -291,7 +301,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 if deg.abbrev == Degree.DO:
                     # delete DO tags
                     for state in curStates:
-                        for t in state.doTags:
+                        for t in state.doTags.all():
                             del_tags.add(t)
                 logger.info('User {0}: remove Degree: {1}'.format(user, deg))
         # now handle cmeTags
@@ -363,7 +373,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
     isNPIComplete = serializers.SerializerMethodField()
     profileComplete = serializers.SerializerMethodField()
     cmeTags = serializers.SerializerMethodField()
-    residency = serializers.SerializerMethodField()
+    residency_program = serializers.SerializerMethodField()
 
     def get_isSignupComplete(self, obj):
         return obj.isSignupComplete()
@@ -378,9 +388,9 @@ class ProfileReadSerializer(serializers.ModelSerializer):
         qset = ProfileCmetag.objects.filter(profile=obj)
         return [ProfileCmetagSerializer(m).data for m in qset]
 
-    def get_residency(self, obj):
-        if obj.residency:
-            s = NestedHospitalSerializer(obj.residency)
+    def get_residency_program(self, obj):
+        if obj.residency_program:
+            s = NestedResidencySerializer(obj.residency_program)
             return s.data
         return None
 
@@ -392,7 +402,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
             'lastName',
             'country',
             'organization',
-            'residency',
+            'residency_program',
             'birthDate',
             'residencyEndDate',
             'affiliationText',

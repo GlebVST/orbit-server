@@ -9,6 +9,11 @@ class UserFilter(AutocompleteFilter):
     field_name = 'user'
     autocomplete_url = 'useremail-autocomplete'
 
+class CmeTagFilter(AutocompleteFilter):
+    title = 'CmeTag'
+    field_name = 'cmeTag'
+    autocomplete_url = 'cmetag-autocomplete'
+
 class StateFilter(AutocompleteFilter):
     title = 'State'
     field_name = 'state'
