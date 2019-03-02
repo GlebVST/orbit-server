@@ -81,6 +81,8 @@ def getDataFromDb():
             billingCycle=0,
             overallCreditsRedeemed=0,
             overallCreditsEarned=0,
+            overallCreditsUnredeemed=0,
+            overallCreditsUnredeemedGreaterThan5=0,
             overallArticlesRead=0,
         )
         # Note: if user only signed up but never created a subscription, then user_subs is None
@@ -107,6 +109,9 @@ def getDataFromDb():
             if UserCmeCredit.objects.filter(user=user).exists():
                 uc = UserCmeCredit.objects.get(user=user)
                 d['overallCreditsRedeemed'] = float(uc.total_credits_earned) # pre-computed
+                d['overallCreditsUnredeemed'] = d['overallCreditsEarned'] - d['overallCreditsRedeemed']
+                if (d['overallCreditsUnredeemed'] > 5):
+                    d['overallCreditsUnredeemedGreaterThan5'] = 1
         data.append(d)
     return data
 
@@ -359,6 +364,8 @@ class MailchimpApi(EspApiBackend):
         # Credit-related fields
         'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
+        'CRDT_LEFT': 'overallCreditsUnredeemed',
+        'CRDT_LEFT5': 'overallCreditsUnredeemedGreaterThan5',
         'ARTCL_READ': 'overallArticlesRead'
     })
     '''
@@ -412,6 +419,8 @@ class MailchimpApi(EspApiBackend):
         # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
+        'CRDT_LEFT': {'type':'number'},
+        'CRDT_LEFT5': {'type':'number'},
         'ARTCL_READ': {'type':'number'},
     }
 
