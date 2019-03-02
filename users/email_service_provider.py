@@ -26,18 +26,8 @@ def getDataFromDb():
     calEndDate = datetime(now.year+1, 1, 1, tzinfo=pytz.utc)
     profiles = Profile.objects.select_related('organization').all().order_by('user_id')
     data= []
-    admin_emails = ["ram@corephysicsreview.com", "rsrinivasan02@gmail.com", \
-                    "faria@orbitcme.com", "glebst@gmail.com", "logicalmath333@gmail.com"]
     for profile in profiles:
         user = profile.user
-<<<<<<< HEAD
-
-        if profile.user.email not in admin_emails and \
-           "test1.orbitcme.com" not in profile.user.email:
-            continue
-
-=======
->>>>>>> 9bddeac66d84f079c23770bd8da90d4144856ec6
         orgName = ''
         isEnterpriseAdmin = 0
         isEnterpriseProvider = 0
@@ -52,8 +42,10 @@ def getDataFromDb():
             inviteId = '' # keep blank for Enterprise users
             try:
                 orgm = user.orgmembers.filter(organization=profile.organization).order_by('-created')[0]
-            except OrgMember.DoesNotExist:
+            #except OrgMember.DoesNotExist:
+            except IndexError:
                 # logger.warning...
+                #print "Org member does not exist"
                 pass
             else:
                 if orgm.removeDate:
@@ -86,13 +78,6 @@ def getDataFromDb():
             billingFirstDate='',
             billingStartDate='',
             billingEndDate='',
-<<<<<<< HEAD
-            creditsRedeemed=0,
-            creditsEarned=0,
-            creditsUnredeemed=0,
-            creditsUnredeemedg5=0,
-=======
->>>>>>> 9bddeac66d84f079c23770bd8da90d4144856ec6
             billingCycle=0,
             overallCreditsRedeemed=0,
             overallCreditsEarned=0,
@@ -110,38 +95,6 @@ def getDataFromDb():
             d['billingFirstDate'] = str(user_subs.billingFirstDate.date())
             d['billingStartDate'] = str(user_subs.billingStartDate.date())
             d['billingEndDate'] = str(user_subs.billingEndDate.date())
-<<<<<<< HEAD
-
-            # Credits redeemed
-            qs = BrowserCme.objects.select_related('entry').filter(
-                entry__user=user,
-                entry__activityDate__year=user_subs.billingStartDate.year,
-                entry__valid=True
-            ).aggregate(cme_total=Sum('credits'))
-            redeemedTotal = qs['cme_total']
-            if not redeemedTotal:
-                redeemedTotal = 0
-
-            # Credits earned (but not necessarily redeemed)
-            qs = BrowserCme.objects.select_related('entry').filter(
-                entry__user=user,
-                entry__valid=True
-            ).aggregate(cme_total=Sum('credits'))
-            creditsEarned = qs['cme_total']
-            if not creditsEarned:
-                creditsEarned = 0
-
-            plan = UserSubscription.objects.filter(user=user)
-
-            d['creditsRedeemed'] = redeemedTotal
-            d['creditsEarned'] = creditsEarned
-            d['creditsUnredeemed'] = creditsEarned - redeemedTotal
-            d['creditsUnredeemedg5'] = 1 if d['creditsUnredeemed'] > 5 else 0
-            d['planSpecialty'] = plan[0].plan.name
-            d['subscribed'] = 1
-
-=======
->>>>>>> 9bddeac66d84f079c23770bd8da90d4144856ec6
             if user_subs.billingCycle:
                 d['billingCycle'] = user_subs.billingCycle
             if plan.plan_key and plan.plan_key.specialty: # the specialty assigned to the plan_key used by the plan
@@ -399,23 +352,14 @@ class MailchimpApi(EspApiBackend):
         'SUBSCN_SDT': 'billingStartDate',
         'SUBSCN_EDT': 'billingEndDate',
         'SUBSCN_CYC': 'billingCycle',
-<<<<<<< HEAD
-        'CRDT_REDEE': 'creditsRedeemed',
-        'CRDT_EARNE': 'creditsEarned',
-        'CRDT_LEFT': 'creditsUnredeemed',
-        'CRDT_LEFT5': 'creditsUnredeemedg5',
-        'PLAN_SPECI': 'planSpecialty',
-        'SUBSCRIBED': 'subscribed',
-=======
         # Enterprise-related fields
         'IS_ENT_ADM': 'isEnterpriseAdmin',
         'IS_ENT_PRO': 'isEnterpriseProvider',
         'ENT_STATUS': 'enterpriseStatus',
         # Credit-related fields
-        'CRDT_REDEE': 'overallCeditsRedeemed',
+        'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
         'ARTCL_READ': 'overallArticlesRead'
->>>>>>> 9bddeac66d84f079c23770bd8da90d4144856ec6
     })
     '''
     SYNC_FIELD_MAP_ESP_TO_LOCAL = OrderedDict({
@@ -468,14 +412,7 @@ class MailchimpApi(EspApiBackend):
         # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
-<<<<<<< HEAD
-        'CRDT_LEFT': {'type':'number'},
-        'CRDT_LEFT5': {'type':'number'},
-        'PLAN_SPECI': {'type':'text'},
-        'SUBSCRIBED': {'type':'number'},
-=======
         'ARTCL_READ': {'type':'number'},
->>>>>>> 9bddeac66d84f079c23770bd8da90d4144856ec6
     }
 
     '''
