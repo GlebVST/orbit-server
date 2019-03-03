@@ -368,25 +368,6 @@ class MailchimpApi(EspApiBackend):
         'CRDT_LEFT5': 'overallCreditsUnredeemedGreaterThan5',
         'ARTCL_READ': 'overallArticlesRead'
     })
-    '''
-    SYNC_FIELD_MAP_ESP_TO_LOCAL = OrderedDict({
-        'USER_ID': 'user_id',
-        'email_address': 'email',
-        'FNAME':'firstName',
-        'LNAME':'lastName',
-        'ORGANIZATION': 'organization',
-        'DEGREE': 'degree',
-        # Subscription fields
-        'SUBSCRIPTIONID': 'subscriptionId',
-        'PLAN_TYPE': 'plan_type',
-        'PLAN_NAME': 'plan_name',
-        'SUBSCRIPTION_STATUS': 'subscription_status',
-        'SUBSCRIPTION_FIRSTDATE': 'billingFirstDate',
-        'SUBSCRIPTION_STARTDATE': 'billingStartDate',
-        'SUBSCRIPTION_ENDDATE': 'billingEndDate',
-        'SUBSCRIPTION_CYCLE': 'billingCycle',
-    })
-    '''
     MANDATORY_FIELDS_ESP = ["email_address"]
 
     # Mailchimp-specific variables:
@@ -401,7 +382,6 @@ class MailchimpApi(EspApiBackend):
         'ORGANIZAT': {'type':'text'},
         'DEGREE': {'type':'text'},
         'INVITE_ID': {'type':'text'},
-        'BIRTHDAY': {'type':'birthday'}, # is this the correct type?
         'SUBSCN_ID': {'type':'text'},
         'SUBSCRIBED': {'type':'number'},
         'PLAN_TYPE': {'type':'text'},
@@ -424,23 +404,8 @@ class MailchimpApi(EspApiBackend):
         'ARTCL_READ': {'type':'number'},
     }
 
-    '''
-    CUSTOM_FIELDS = {
-        'USER_ID': {'type':'text'},
-        'ORGANIZATION': {'type':'text'},
-        'DEGREE': {'type':'text'},
-        'SUBSCRIPTIONID': {'type':'text'},
-        'PLAN_TYPE': {'type':'text'},
-        'PLAN_NAME': {'type':'text'},
-        'SUBSCRIPTION_STATUS': {'type':'text'},
-        'SUBSCRIPTION_FIRSTDATE': {'type':'date'},
-        'SUBSCRIPTION_STARTDATE': {'type':'date'},
-        'SUBSCRIPTION_ENDDATE': {'type':'date'},
-        'SUBSCRIPTION_CYCLE': {'type':'number'},
-    }
-    '''
     # Mailchimp supplies default: ADDRESS, BIRTHDAY, FNAME, LNAME, PHONE. DEFAULT_MERGE_FIELDS specifies which of those we care to sync.
-    DEFAULT_MERGE_FIELDS = ["FNAME", "LNAME"]
+    DEFAULT_MERGE_FIELDS = ["FNAME", "LNAME", "BIRTHDAY"]
     ALL_MERGE_FIELDS = DEFAULT_MERGE_FIELDS + list(CUSTOM_FIELDS.keys())
 
     def __init__(self):
