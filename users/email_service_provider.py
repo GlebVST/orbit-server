@@ -42,8 +42,10 @@ def getDataFromDb():
             inviteId = '' # keep blank for Enterprise users
             try:
                 orgm = user.orgmembers.filter(organization=profile.organization).order_by('-created')[0]
-            except OrgMember.DoesNotExist:
+            #except OrgMember.DoesNotExist:
+            except IndexError:
                 # logger.warning...
+                #print "Org member does not exist"
                 pass
             else:
                 if orgm.removeDate:
@@ -79,6 +81,8 @@ def getDataFromDb():
             billingCycle=0,
             overallCreditsRedeemed=0,
             overallCreditsEarned=0,
+            overallCreditsUnredeemed=0,
+            overallCreditsUnredeemedGreaterThan5=0,
             overallArticlesRead=0,
         )
         # Note: if user only signed up but never created a subscription, then user_subs is None
@@ -105,6 +109,9 @@ def getDataFromDb():
             if UserCmeCredit.objects.filter(user=user).exists():
                 uc = UserCmeCredit.objects.get(user=user)
                 d['overallCreditsRedeemed'] = float(uc.total_credits_earned) # pre-computed
+                d['overallCreditsUnredeemed'] = d['overallCreditsEarned'] - d['overallCreditsRedeemed']
+                if (d['overallCreditsUnredeemed'] > 5):
+                    d['overallCreditsUnredeemedGreaterThan5'] = 1
         data.append(d)
     return data
 
@@ -355,29 +362,12 @@ class MailchimpApi(EspApiBackend):
         'IS_ENT_PRO': 'isEnterpriseProvider',
         'ENT_STATUS': 'enterpriseStatus',
         # Credit-related fields
-        'CRDT_REDEE': 'overallCeditsRedeemed',
+        'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
+        'CRDT_LEFT': 'overallCreditsUnredeemed',
+        'CRDT_LEFT5': 'overallCreditsUnredeemedGreaterThan5',
         'ARTCL_READ': 'overallArticlesRead'
     })
-    '''
-    SYNC_FIELD_MAP_ESP_TO_LOCAL = OrderedDict({
-        'USER_ID': 'user_id',
-        'email_address': 'email',
-        'FNAME':'firstName',
-        'LNAME':'lastName',
-        'ORGANIZATION': 'organization',
-        'DEGREE': 'degree',
-        # Subscription fields
-        'SUBSCRIPTIONID': 'subscriptionId',
-        'PLAN_TYPE': 'plan_type',
-        'PLAN_NAME': 'plan_name',
-        'SUBSCRIPTION_STATUS': 'subscription_status',
-        'SUBSCRIPTION_FIRSTDATE': 'billingFirstDate',
-        'SUBSCRIPTION_STARTDATE': 'billingStartDate',
-        'SUBSCRIPTION_ENDDATE': 'billingEndDate',
-        'SUBSCRIPTION_CYCLE': 'billingCycle',
-    })
-    '''
     MANDATORY_FIELDS_ESP = ["email_address"]
 
     # Mailchimp-specific variables:
@@ -392,7 +382,6 @@ class MailchimpApi(EspApiBackend):
         'ORGANIZAT': {'type':'text'},
         'DEGREE': {'type':'text'},
         'INVITE_ID': {'type':'text'},
-        'BIRTHDAY': {'type':'birthday'}, # is this the correct type?
         'SUBSCN_ID': {'type':'text'},
         'SUBSCRIBED': {'type':'number'},
         'PLAN_TYPE': {'type':'text'},
@@ -410,26 +399,13 @@ class MailchimpApi(EspApiBackend):
         # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
+        'CRDT_LEFT': {'type':'number'},
+        'CRDT_LEFT5': {'type':'number'},
         'ARTCL_READ': {'type':'number'},
     }
 
-    '''
-    CUSTOM_FIELDS = {
-        'USER_ID': {'type':'text'},
-        'ORGANIZATION': {'type':'text'},
-        'DEGREE': {'type':'text'},
-        'SUBSCRIPTIONID': {'type':'text'},
-        'PLAN_TYPE': {'type':'text'},
-        'PLAN_NAME': {'type':'text'},
-        'SUBSCRIPTION_STATUS': {'type':'text'},
-        'SUBSCRIPTION_FIRSTDATE': {'type':'date'},
-        'SUBSCRIPTION_STARTDATE': {'type':'date'},
-        'SUBSCRIPTION_ENDDATE': {'type':'date'},
-        'SUBSCRIPTION_CYCLE': {'type':'number'},
-    }
-    '''
     # Mailchimp supplies default: ADDRESS, BIRTHDAY, FNAME, LNAME, PHONE. DEFAULT_MERGE_FIELDS specifies which of those we care to sync.
-    DEFAULT_MERGE_FIELDS = ["FNAME", "LNAME"]
+    DEFAULT_MERGE_FIELDS = ["FNAME", "LNAME", "BIRTHDAY"]
     ALL_MERGE_FIELDS = DEFAULT_MERGE_FIELDS + list(CUSTOM_FIELDS.keys())
 
     def __init__(self):
