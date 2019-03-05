@@ -2,7 +2,7 @@ import os
 import braintree
 import logging
 from operator import itemgetter
-from pprint import pprint
+from smtplib import SMTPException
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
@@ -20,6 +20,7 @@ from common.logutils import *
 from .models import *
 from .serializers import UserSubsReadSerializer
 from .payment_serializers import *
+from .emailutils import sendFirstSubsInvoiceEmail, sendUpgradePlanInvoiceEmail
 
 TPL_DIR = 'users'
 
@@ -422,13 +423,22 @@ class NewSubscription(generics.CreateAPIView):
         logInfo(logger, request, 'NewSubscription: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
         out_serializer = UserSubsReadSerializer(user_subs)
         context['subscription'] = out_serializer.data
+        # send out invoice email
+        paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
+        subs_trans = None # SubscriptionTransaction
+        if not do_trial and user_subs.transactions.exists():
+            subs_trans = user_subs.transactions.all()[0]
+        try:
+            sendFirstSubsInvoiceEmail(request.user, user_subs, paymentMethod, subs_trans)
+        except SMTPException:
+            logError(logger, request, 'NewSubscription: Send Invoice email failed.')
         return Response(context, status=status.HTTP_201_CREATED)
 
 class ActivatePaidSubscription(generics.CreateAPIView):
     """
     This expects a nonce in the POST data:
         {"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9"}
-    Switch user from free plan to their first active subscription on paid plan: BT Standard Plan that shares the same plan_key as the user's current free plan.
+    Switch user from free plan to their first active subscription on partner paid plan
     It creates new active BT subscription with no trial period (billing starts immediately).
     """
     serializer_class = ActivatePaidUserSubsSerializer
@@ -525,6 +535,13 @@ class ActivatePaidSubscription(generics.CreateAPIView):
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context['permissions'] = pdata['permissions']
         context['credits'] = pdata['credits']
+        # send out invoice email
+        try:
+            subs_trans = user_subs.transactions.all()[0]
+            paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
+            sendFirstSubsInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
+        except (IndexError, SMTPException) as e:
+            logError(logger, request, 'ActivatePaidSubscription: Send Invoice email failed.')
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -656,6 +673,7 @@ class UpgradePlan(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         logDebug(logger, request, 'UpgradePlan begin')
         user = request.user
+        customer = user.customer
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         if not user_subs:
             # this endpoint is for upgrade only. An existing subs must exist.
@@ -688,7 +706,6 @@ class UpgradePlan(generics.CreateAPIView):
         payment_nonce = form_data.get('payment_method_nonce', None)
         if payment_nonce:
             # Convert nonce into token because it is required by subs
-            customer = user.customer
             try:
                 pm_result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
             except braintree.exceptions.not_found_error.NotFoundError:
@@ -736,6 +753,13 @@ class UpgradePlan(generics.CreateAPIView):
         pdata = UserSubscription.objects.serialize_permissions(user, new_user_subs)
         context['permissions'] = pdata['permissions']
         context['credits'] = pdata['credits']
+        # send out invoice email
+        try:
+            subs_trans = user_subs.transactions.all()[0]
+            paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
+            sendUpgradePlanInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
+        except (IndexError, SMTPException) as e:
+            logException(logger, request, 'UpgradePlan: Send Invoice email failed.')
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -794,6 +818,8 @@ class SwitchTrialToActive(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):
+        user = request.user
+        customer = user.customer
         # 1. check that user is currently in UI_TRIAL
         last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
         if not last_subscription or (last_subscription.display_status != UserSubscription.UI_TRIAL):
@@ -821,13 +847,20 @@ class SwitchTrialToActive(APIView):
             message = 'SwitchTrialToActive: Create Subscription failed. Result message: {0.message}'.format(result)
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            context['subscriptionId'] = user_subs.subscriptionId
-            context['bt_status'] = user_subs.status
-            context['display_status'] = user_subs.display_status
-            context['billingStartDate'] = user_subs.billingStartDate
-            context['billingEndDate'] = user_subs.billingEndDate
-            logInfo(logger, request, 'SwitchTrialToActive complete for subscriptionId={0.subscriptionId}'.format(user_subs))
+        # else
+        context['subscriptionId'] = user_subs.subscriptionId
+        context['bt_status'] = user_subs.status
+        context['display_status'] = user_subs.display_status
+        context['billingStartDate'] = user_subs.billingStartDate
+        context['billingEndDate'] = user_subs.billingEndDate
+        logInfo(logger, request, 'SwitchTrialToActive complete for subscriptionId={0.subscriptionId}'.format(user_subs))
+        # send out invoice email
+        try:
+            subs_trans = user_subs.transactions.all()[0]
+            paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
+            sendFirstSubsInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
+        except (IndexError, SMTPException) as e:
+            logError(logger, request, 'SwitchTrialToActive: Send Invoice email failed.')
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -1092,6 +1125,7 @@ class TestFormCheckout(View):
     {"payment-method-nonce":"cd36493e-f883-48c2-aef8-3789ee3569a9"}
     """
     from django.http import JsonResponse
+    from pprint import pprint
     def post(self, request, *args, **kwargs):
         context = {}
         userdata = request.POST.copy()

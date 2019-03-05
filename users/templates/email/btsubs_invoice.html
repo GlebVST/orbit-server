@@ -1,0 +1,43 @@
+<html>
+    <head>
+        <title>Your Orbit Subscription Invoice</title>
+        <style type="text/css">
+            .orbit-href {
+                color: #008cdd;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                text-decoration: none; 
+            }
+            .signature {
+                margin-top: 15px;
+            }
+            .signature p {
+                line-height: 0.5;
+            }
+            .footer {
+                margin-top: 15px;
+                border-top: 1px solid #eee;
+            }
+            .footer p {
+                font-size: 11px;
+                color: #999;
+            }
+        </style>
+    </head>
+    <body>
+    <div>
+        <p>Dear {{ profile.firstName|default:"Provider" }},</p>
+        <p>This is an invoice for your recent purchase at Orbit.</p>
+        
+        <p>Your subscription to the {{ plan.display_name }} plan begins on {{ subscription.billingStartDate|date:" d M Y" }} when your {{ card.type }} card ending in {{ card.last4 }} expiring on {{ card.expiry }} will be charged  ${{ billingAmount }}.
+        </p>
+        {% if nextBillingDate %}
+            <p>Your subscription will renew on {{ nextBillingDate|date:" d M Y" }}.</p>
+        {% endif %}
+        <p>To view your account, please click <a class="orbit-href" target="_blank" rel="noreferrer" href="https://{{ server_hostname }}{{ subscription_link }}">here</a>.</p>
+
+        {% include "email/mailto_support_snippet.html" %}
+        {% include "email/founder_signature.html" %}
+        {% include "email/basic_footer.html" %}
+    </div>
+    </body>
+</html>

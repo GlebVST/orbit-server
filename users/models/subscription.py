@@ -1144,9 +1144,9 @@ class UserSubscriptionManager(models.Manager):
 
     def getDiscountsForNewSubscription(self, user):
         """This returns the list of discounts for the user for his/her first Active subscription.
-        If called by createBtSubscription, then it should be called like so:
-        qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
-        if not qset.exists():
+        If called by createBtSubscription, it should be called like so:
+        allow_signup = UserSubscription.objects.allowSignupDiscount(user)
+        if allow_signup:
             call this method to get the discounts
         Otherwise can be called even after user has started Active Subs for other purpose (such as receipt).
         Returns list of dicts:
@@ -1185,6 +1185,25 @@ class UserSubscriptionManager(models.Manager):
                 'displayLabel': sd.organization.code
             })
         return discounts
+
+    def calcInitialChargeAmountForUserInTrial(self, user_subs):
+        """Calculate initial charge amount for user currently in UI_TRIAL for their first Bt subscription.
+        Returns: Decimal
+        """
+        user = user_subs.user
+        plan = user_subs.plan
+        owed = plan.discountPrice
+        # If user's email exists in SignupEmailPromo then it overrides any other discounts
+        promo = SignupEmailPromo.objects.get_casei(user.email)
+        if promo:
+            owed = promo.first_year_price
+            return owed
+        # else check for other signup discounts
+        discounts = self.getDiscountsForNewSubscription(user)
+        for d in discounts:
+            owed -= d['discount'].amount
+        return owed
+
 
     def createBtSubscription(self, user, plan, subs_params):
         """Create Braintree subscription using the given params

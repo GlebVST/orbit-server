@@ -87,13 +87,104 @@ def sendNewUserReportEmail(profiles, email_to):
     msg.content_subtype = 'html'
     msg.send()
 
+def sendFirstSubsInvoiceEmail(user, user_subs, payment_method, subs_trans=None):
+    """Send invoice email to user for first subscription (if payment succeeds, user will receive a separate receipt email).
+    Args:
+        user_subs: UserSubscription instance
+        payment_method:dict from Customer vault (getPaymentMethods)
+        subs_trans: SubscriptionTransaction instance or None (if user is in BT Trial period)
+    Can raise SMTPException
+    """
+    from_email = settings.SUPPORT_EMAIL
+    plan = user_subs.plan
+    plan_name = u'Orbit ' + plan.display_name
+    subject = makeSubject(u'Your invoice for subscription to {0}'.format(plan_name))
+    card = Customer.objects.formatCard(payment_method)
+    if subs_trans:
+        billingAmount = subs_trans.amount
+        nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
+    else:
+        # user is in BT Trial period; calculate charge amount
+        billingAmount = UserSubscription.objects.calcInitialChargeAmountForUserInTrial(user_subs)
+        nextBillingDate = None
+    ctx = {
+        'profile': user.profile,
+        'subscription': user_subs,
+        'card': card,
+        'plan': plan,
+        'nextBillingDate': nextBillingDate,
+        'billingAmount': billingAmount,
+    }
+    setCommonContext(ctx)
+    orig_message = get_template('email/btsubs_invoice.html').render(ctx)
+    # setup premailer
+    plog = StringIO()
+    phandler = logging.StreamHandler(plog)
+    p = premailer.Premailer(orig_message,
+            cssutils_logging_handler=phandler,
+            cssutils_logging_level=logging.INFO)
+    # transformed message
+    message = p.transform()
+    msg = EmailMessage(subject,
+            message,
+            from_email=from_email,
+            to=[user.email],
+            bcc=['faria@orbitcme.com',]
+        )
+    msg.content_subtype = 'html'
+    msg.send()
+
+def sendUpgradePlanInvoiceEmail(user, user_subs, payment_method, subs_trans):
+    """Send invoice email to user for UpgradePlan action completed.
+    Note: uses same email template as sendFirstSubsInvoiceEmail: btsubs_invoice.html
+    Args:
+        user_subs: UserSubscription instance
+        payment_method:dict from Customer vault (getPaymentMethods)
+        subs_trans: SubscriptionTransaction instance
+    Can raise SMTPException
+    """
+    from_email = settings.SUPPORT_EMAIL
+    plan = user_subs.plan
+    plan_name = u'Orbit ' + plan.display_name
+    subject = makeSubject(u'Your invoice for subscription to {0}'.format(plan_name))
+    card = Customer.objects.formatCard(payment_method)
+    billingAmount = subs_trans.amount
+    nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
+    ctx = {
+        'profile': user.profile,
+        'subscription': user_subs,
+        'card': card,
+        'plan': plan,
+        'nextBillingDate': nextBillingDate,
+        'billingAmount': billingAmount,
+    }
+    setCommonContext(ctx)
+    orig_message = get_template('email/btsubs_invoice.html').render(ctx)
+    # setup premailer
+    plog = StringIO()
+    phandler = logging.StreamHandler(plog)
+    p = premailer.Premailer(orig_message,
+            cssutils_logging_handler=phandler,
+            cssutils_logging_level=logging.INFO)
+    # transformed message
+    message = p.transform()
+    msg = EmailMessage(subject,
+            message,
+            from_email=from_email,
+            to=[user.email],
+            bcc=['faria@orbitcme.com',]
+        )
+    msg.content_subtype = 'html'
+    msg.send()
+
+
 def sendReceiptEmail(user, user_subs, subs_trans):
     """Send EmailMessage receipt to user using receipt template
     Can raise SMTPException
     """
     from_email = settings.SUPPORT_EMAIL
-    plan_name = u'Orbit ' + user_subs.plan.name
-    subject = makeSubject(u'Your receipt for annual subscription to {0}'.format(plan_name))
+    plan_name = u'Orbit ' + user_subs.plan.display_name
+    subject = makeSubject(u'Your receipt for subscription to {0}'.format(plan_name))
     ctx = {
         'profile': user.profile,
         'subscription': user_subs,
@@ -317,7 +408,7 @@ def sendCardExpiredAlertEmail(user_subs, payment_method):
 
 
 def sendRenewalReminderEmail(user_subs, payment_method, extra_data):
-    """Send reminder email about annual subscription renewal.
+    """Send reminder email about subscription renewal.
     If payment_method has expired, then inform user.
     Args:
         user_subs: UserSubscription instance
@@ -327,7 +418,7 @@ def sendRenewalReminderEmail(user_subs, payment_method, extra_data):
     from_email = settings.EMAIL_FROM
     user = user_subs.user
     email_to = user.email
-    subject = makeSubject(u'Your Orbit annual subscription renewal')
+    subject = makeSubject(u'Your Orbit subscription renewal')
     nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
     card = Customer.objects.formatCard(payment_method)
     card['needs_update'] = card['expiration_date'] <= nextBillingDate
@@ -369,7 +460,7 @@ def sendCancelReminderEmail(user_subs, payment_method, extra_data):
     from_email = settings.EMAIL_FROM
     user = user_subs.user
     email_to = user.email
-    subject = makeSubject(u'Your Orbit annual subscription cancellation')
+    subject = makeSubject(u'Your Orbit subscription cancellation')
     ctx = {
         'profile': user.profile,
         'subscription': user_subs,
