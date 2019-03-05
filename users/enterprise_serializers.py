@@ -76,6 +76,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'degree',
             'is_admin',
             'compliance',
+            'inviteDate',
             'removeDate',
             'joined',
             'snapshot',
