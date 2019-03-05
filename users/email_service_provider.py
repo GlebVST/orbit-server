@@ -1,6 +1,6 @@
 # Nightly synch to an Email Service Provider (ESP) of users and custom fields
-
 # Management Command: users.management.commands.emailSync.py
+import logging
 from collections import OrderedDict
 from datetime import datetime, timedelta
 import pytz
@@ -10,6 +10,8 @@ import requests, json
 from django.conf import settings
 from users.models import ARTICLE_CREDIT, Profile, UserSubscription, Entry, UserCmeCredit, OrbitCmeOffer, OrgMember
 from django.utils import timezone
+
+logger = logging.getLogger('gen.esp')
 
 def getDataFromDb():
     """Fetches and combines data from Profile, UserSubscription models
