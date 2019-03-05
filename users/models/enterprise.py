@@ -176,6 +176,10 @@ class OrgMemberManager(models.Manager):
 
 @python_2_unicode_compatible
 class OrgMember(models.Model):
+    STATUS_ACTIVE = 'Active'
+    STATUS_INVITED = 'Invited'
+    STATUS_REMOVED = 'Removed'
+    # fields
     organization = models.ForeignKey(Organization,
         on_delete=models.CASCADE,
         db_index=True,
@@ -220,5 +224,16 @@ class OrgMember(models.Model):
     def __str__(self):
         return '{0.user}/{0.organization}'.format(self)
 
-
-
+    def getEnterpriseStatus(self):
+        """Return one of:
+        STATUS_ACTIVE
+        STATUS_INVITED
+        STATUS_REMOVED
+        for self
+        """
+        profile = self.user.profile
+        if self.removeDate:
+            return OrgMember.STATUS_REMOVED
+        elif profile.verified and not self.pending:
+            return OrgMember.STATUS_ACTIVE
+        return OrgMember.STATUS_INVITED
