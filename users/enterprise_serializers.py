@@ -44,6 +44,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
     firstName = serializers.ReadOnlyField(source='user.profile.firstName')
     lastName = serializers.ReadOnlyField(source='user.profile.lastName')
     pending = serializers.ReadOnlyField()
+    inviteDate = serializers.ReadOnlyField()
     degree = serializers.SerializerMethodField()
     joined = serializers.SerializerMethodField()
     groupName = serializers.SerializerMethodField()

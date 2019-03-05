@@ -1032,7 +1032,7 @@ class UserSubscriptionManager(models.Manager):
         """
         user_subs = self.getLatestSubscription(user)
         if not user_subs.plan.isEnterprise():
-            logger.error('endEnterpriseSubscription: invalid subscription {0.subscriptionId}'.format(user_subs))
+            logger.warning('endEnterpriseSubscription: UserSubscription {0.subscriptionId} is not ENTERPRISE.'.format(user_subs))
             return None
         profile = user.profile
         pt_free = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.FREE_INDIVIDUAL)
@@ -1064,7 +1064,7 @@ class UserSubscriptionManager(models.Manager):
                 )
         qset = SubscriptionPlan.objects.filter(**filter_kwargs)
         if not qset.exists():
-            logger.warning('endEnterpriseSubscription: no Free plan for plan_key: {0}'.format(plan_key))
+            logger.error('endEnterpriseSubscription: no Free plan for plan_key: {0}'.format(plan_key))
             return
         # else
         free_plan = qset[0]
