@@ -1808,7 +1808,7 @@ class UserGoal(models.Model):
         # compute status
         if not creditsDue:
             status = UserGoal.COMPLETED # for now
-        elif not daysLeft or not creditsEarned:
+        elif not daysLeft:
             status = UserGoal.PASTDUE
         else:
             status = UserGoal.IN_PROGRESS
