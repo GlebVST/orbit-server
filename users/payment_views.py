@@ -20,7 +20,7 @@ from common.logutils import *
 from .models import *
 from .serializers import UserSubsReadSerializer
 from .payment_serializers import *
-from .emailutils import sendFirstSubsInvoiceEmail, sendUpgradePlanInvoiceEmail
+from .emailutils import sendFirstSubsInvoiceEmail, sendUpgradePlanInvoiceEmail, sendBoostPurchaseEmail
 
 TPL_DIR = 'users'
 
@@ -431,7 +431,7 @@ class NewSubscription(generics.CreateAPIView):
         try:
             sendFirstSubsInvoiceEmail(request.user, user_subs, paymentMethod, subs_trans)
         except SMTPException:
-            logError(logger, request, 'NewSubscription: Send Invoice email failed.')
+            logException(logger, request, 'NewSubscription: Send Invoice email failed.')
         return Response(context, status=status.HTTP_201_CREATED)
 
 class ActivatePaidSubscription(generics.CreateAPIView):
@@ -541,7 +541,7 @@ class ActivatePaidSubscription(generics.CreateAPIView):
             paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
             sendFirstSubsInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
         except (IndexError, SMTPException) as e:
-            logError(logger, request, 'ActivatePaidSubscription: Send Invoice email failed.')
+            logException(logger, request, 'ActivatePaidSubscription: Send Invoice email failed.')
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -860,7 +860,7 @@ class SwitchTrialToActive(APIView):
             paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
             sendFirstSubsInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
         except (IndexError, SMTPException) as e:
-            logError(logger, request, 'SwitchTrialToActive: Send Invoice email failed.')
+            logException(logger, request, 'SwitchTrialToActive: Send Invoice email failed.')
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -1084,8 +1084,6 @@ class CmeBoostPurchase(generics.CreateAPIView):
         # finally update form_data for serializer
         form_data['payment_method_token'] = payment_token
 
-        # set plan from profile.planId
-        # form_data['plan'] = SubscriptionPlan.objects.get(planId=profile.planId).pk
         logDebug(logger, request, str(form_data))
         in_serializer = self.get_serializer(data=form_data)
         in_serializer.is_valid(raise_exception=True)
@@ -1103,6 +1101,11 @@ class CmeBoostPurchase(generics.CreateAPIView):
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context['permissions'] = pdata['permissions']
         context['credits'] = pdata['credits']
+        # send purchase email
+        try:
+            sendBoostPurchaseEmail(user, boost_purchase)
+        except SMTPException as e:
+            logException(logger, request, 'CmeBoostPurchase: Send purchase email failed.')
         return Response(context, status=status.HTTP_201_CREATED)
 
 #

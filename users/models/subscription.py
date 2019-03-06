@@ -2206,7 +2206,7 @@ class CmeBoostPurchase(models.Model):
     objects = CmeBoostPurchaseManager()
 
     def __str__(self):
-        return '{0.user.id} by {0.boost.name}'.format(self)
+        return '{0.boost}|{0.user}'.format(self)
 
 
 @python_2_unicode_compatible

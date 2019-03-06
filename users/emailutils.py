@@ -90,6 +90,7 @@ def sendNewUserReportEmail(profiles, email_to):
 def sendFirstSubsInvoiceEmail(user, user_subs, payment_method, subs_trans=None):
     """Send invoice email to user for first subscription (if payment succeeds, user will receive a separate receipt email).
     Args:
+        user: User instance
         user_subs: UserSubscription instance
         payment_method:dict from Customer vault (getPaymentMethods)
         subs_trans: SubscriptionTransaction instance or None (if user is in BT Trial period)
@@ -138,6 +139,7 @@ def sendUpgradePlanInvoiceEmail(user, user_subs, payment_method, subs_trans):
     """Send invoice email to user for UpgradePlan action completed.
     Note: uses same email template as sendFirstSubsInvoiceEmail: btsubs_invoice.html
     Args:
+        user: User instance
         user_subs: UserSubscription instance
         payment_method:dict from Customer vault (getPaymentMethods)
         subs_trans: SubscriptionTransaction instance
@@ -218,6 +220,38 @@ def sendPaymentFailureEmail(user, subs_trans):
     setCommonContext(ctx)
     message = get_template('email/payment_failed.html').render(ctx)
     msg = EmailMessage(subject, message, to=[user.email], from_email=from_email, bcc=[from_email,])
+    msg.content_subtype = 'html'
+    msg.send()
+
+def sendBoostPurchaseEmail(user, boost_purchase):
+    """Send email confirming purchase of CmeBoost by user
+    Args:
+        user: User instance
+        boost_purchase: CmeBoostPurchase instance
+    Can raise SMTPException
+    """
+    from_email = settings.SUPPORT_EMAIL
+    subject = makeSubject(u'Your Orbit Boost purchase')
+    ctx = {
+        'profile': user.profile,
+        'boost_purchase': boost_purchase,
+    }
+    setCommonContext(ctx)
+    orig_message = get_template('email/boost_invoice.html').render(ctx)
+    # setup premailer
+    plog = StringIO()
+    phandler = logging.StreamHandler(plog)
+    p = premailer.Premailer(orig_message,
+            cssutils_logging_handler=phandler,
+            cssutils_logging_level=logging.INFO)
+    # transformed message
+    message = p.transform()
+    msg = EmailMessage(subject,
+            message,
+            from_email=from_email,
+            to=[user.email],
+            bcc=['faria@orbitcme.com',]
+        )
     msg.content_subtype = 'html'
     msg.send()
 
