@@ -80,6 +80,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'removeDate',
             'joined',
             'snapshot',
+            'snapshotDate',
             'setPasswordEmailSent',
             'created',
             'modified'

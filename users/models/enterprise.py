@@ -212,7 +212,10 @@ class OrgMember(models.Model):
     orgfiles = models.ManyToManyField(OrgFile, blank=True, related_name='orgmembers')
     pending = models.BooleanField(default=False,
             help_text='Set to True when invitation is sent to existing user to join team.')
-    snapshot = JSONField(default='', blank=True)
+    snapshot = JSONField(default='', blank=True,
+            help_text='A snapshot of the goals status for this user. It is computed by a management command run periodically.')
+    snapshotDate = models.DateTimeField(null=True, blank=True,
+            help_text='Timestamp of the snapshot generation')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = OrgMemberManager()
