@@ -443,6 +443,15 @@ class Organization(models.Model):
     def __str__(self):
         return self.code
 
+    def getSubscriptionPlan(self):
+        """Find the latest SubscriptionPlan associated with self
+        Returns: SubscriptionPlan or None
+        """
+        qs = self.plans.order_by('-created')
+        if qs.exists():
+            return qs[0]
+        return None
+
 def orgfile_document_path(instance, filename):
     """Used as the OrgFile document FileField upload_to value
     Note: tried moving it to same file as OrgFile but it resulted in
