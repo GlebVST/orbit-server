@@ -143,7 +143,7 @@ class ManageProfileCmetagSerializer(serializers.Serializer):
                     pct.save()
                     logger.info('Updated ProfileCmetag {0}'.format(pct))
         # emit profile_saved signal
-        if user.groups.filter(name=GROUP_ENTERPRISE_MEMBER).exists():
+        if instance.allowUserGoals():
             ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
@@ -353,7 +353,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 pct.save(update_fields=('is_active',))
                 logger.info('Inactivate ProfileCmetag: {0}'.format(pct))
         # emit profile_saved signal
-        if user.groups.filter(name=GROUP_ENTERPRISE_MEMBER).exists():
+        if instance.allowUserGoals():
             ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
@@ -508,11 +508,13 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
                 host.is_secure = True
                 host.save(update_fields=('is_secure',))
         # create AllowedUrl
+        page_title = validated_data.get('example_title')
+        logger.info('Check get_or_create AllowedUrl. page_title: ' + page_title)
         allowed_url, created = AllowedUrl.objects.get_or_create(
             host=host,
             eligible_site=instance,
             url=example_url,
-            page_title=validated_data.get('example_title')
+            page_title=page_title
         )
         if created:
             logger.info('EligibleSite: new AllowedUrl: {0.url}'.format(allowed_url))

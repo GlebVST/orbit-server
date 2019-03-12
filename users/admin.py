@@ -82,12 +82,19 @@ class OrgGroupInline(admin.TabularInline):
     model = OrgGroup
 
 class OrgAdmin(admin.ModelAdmin):
-    list_display = ('id', 'joinCode', 'code', 'name', 'credits', 'creditStartDate')
+    list_display = ('id', 'joinCode', 'code', 'name', 'activateGoals', 'credits', 'creditStartDate', 'subscriptionPlan')
+    list_filter = ('activateGoals',)
     form = OrgForm
     ordering = ('joinCode',)
     inlines = [
         OrgGroupInline,
     ]
+
+    def subscriptionPlan(self, obj):
+        p = obj.getSubscriptionPlan()
+        if p:
+            return p.name
+        return ''
 
 class OrgFileAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created', 'orgfile_actions')
@@ -367,11 +374,12 @@ class PlanForm(forms.ModelForm):
             # check plan_type
             if plan_type != pt:
                 self.add_error('plan_type', 'If Organization is selected, then plan_type must be Enterprise.')
-            # check that org is assigned to only 1 active plan
-            qs = SubscriptionPlan.objects.filter(organization=org, active=True)
-            if qs.exists():
-                p = qs[0]
-                self.add_error('organization', 'This Organization is already assigned to active plan: {0}.'.format(p))
+            # for new plan: check that org is assigned to only 1 active plan
+            if not hasattr(self, 'instance'):
+                qs = SubscriptionPlan.objects.filter(organization=org, active=True)
+                if qs.exists():
+                    p = qs[0]
+                    self.add_error('organization', 'This Organization is already assigned to active plan: {0}.'.format(p))
 
     def save(self, commit=True):
         """Auto assign planId based on plan name and hashid of next id"""
@@ -396,7 +404,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'maxCmeMonth'
     )
     list_select_related = True
-    list_filter = ('active', 'plan_type', 'plan_key',)
+    list_filter = ('active', 'plan_type', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
     form = PlanForm
     fieldsets = (

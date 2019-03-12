@@ -37,6 +37,8 @@ class Command(BaseCommand):
                     .filter(removeDate__isnull=True, pending=False) \
                     .order_by('id')
             for m in members:
+                now = timezone.now()
                 userdata = self.handleUser(m.user, fkwargs)
                 m.snapshot = userdata
-                m.save(update_fields=('snapshot',))
+                m.snapshotDate = now
+                m.save(update_fields=('snapshot', 'snapshotDate'))

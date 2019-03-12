@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import JSONField
 from django.db import models
+from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from smtplib import SMTPException
 from users.emailutils import getHostname, sendPasswordTicketEmail
@@ -112,6 +113,8 @@ class OrgMemberManager(models.Manager):
                 is_admin=is_admin,
                 pending=pending
             )
+        m.inviteDate = m.created
+        m.save(update_fields=('inviteDate',))
         return m
 
     def search_filter(self, search_term, filter_kwargs, orderByFields):
@@ -156,12 +159,13 @@ class OrgMemberManager(models.Manager):
         UI_LOGIN_URL = 'https://{0}{1}'.format(hostname, settings.UI_LINK_LOGIN)
         ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
         # TODO remove this dangerous ticket exposure when we are sure this works and no need to try out users
-        logger.info('sending ticket_url for {0}={1}'.format(member.user.email, ticket_url))
+        logger.info('ticket_url for {0}={1}'.format(member.user.email, ticket_url))
         try:
             delivered = sendPasswordTicketEmail(member, ticket_url)
             if delivered:
                 member.setPasswordEmailSent = True
-                member.save(update_fields=('setPasswordEmailSent',))
+                member.inviteDate = timezone.now()
+                member.save(update_fields=('setPasswordEmailSent','inviteDate'))
         except SMTPException as e:
             error_msg = u'sendPasswordTicketEmail failed for org member {0.fullname}. ticket_url={1}'.format(member, ticket_url)
             if settings.ENV_TYPE == settings.ENV_PROD:
@@ -172,6 +176,10 @@ class OrgMemberManager(models.Manager):
 
 @python_2_unicode_compatible
 class OrgMember(models.Model):
+    STATUS_ACTIVE = 'Active'
+    STATUS_INVITED = 'Invited'
+    STATUS_REMOVED = 'Removed'
+    # fields
     organization = models.ForeignKey(Organization,
         on_delete=models.CASCADE,
         db_index=True,
@@ -195,6 +203,8 @@ class OrgMember(models.Model):
             help_text='True if user is an admin for this organization')
     removeDate = models.DateTimeField(null=True, blank=True,
             help_text='date the member was removed')
+    inviteDate = models.DateTimeField(null=True, blank=True,
+            help_text='date the member was last invited. This is updated each time the invite email is re-sent to the user.')
     compliance = models.PositiveSmallIntegerField(default=1, db_index=True,
             help_text='Cached compliance level aggregated over user goals')
     setPasswordEmailSent = models.BooleanField(default=False,
@@ -202,7 +212,10 @@ class OrgMember(models.Model):
     orgfiles = models.ManyToManyField(OrgFile, blank=True, related_name='orgmembers')
     pending = models.BooleanField(default=False,
             help_text='Set to True when invitation is sent to existing user to join team.')
-    snapshot = JSONField(default='', blank=True)
+    snapshot = JSONField(default='', blank=True,
+            help_text='A snapshot of the goals status for this user. It is computed by a management command run periodically.')
+    snapshotDate = models.DateTimeField(null=True, blank=True,
+            help_text='Timestamp of the snapshot generation')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = OrgMemberManager()
@@ -214,5 +227,16 @@ class OrgMember(models.Model):
     def __str__(self):
         return '{0.user}/{0.organization}'.format(self)
 
-
-
+    def getEnterpriseStatus(self):
+        """Return one of:
+        STATUS_ACTIVE
+        STATUS_INVITED
+        STATUS_REMOVED
+        for self
+        """
+        profile = self.user.profile
+        if self.removeDate:
+            return OrgMember.STATUS_REMOVED
+        elif profile.verified and not self.pending:
+            return OrgMember.STATUS_ACTIVE
+        return OrgMember.STATUS_INVITED

@@ -439,9 +439,22 @@ class Organization(models.Model):
     joinCode = models.CharField(max_length=20, default='',
             help_text='Join Code for invitation URL')
     providerStat = JSONField(default='', blank=True)
+    # Note: if value is changed to False after usergoals are created, a manual command must be run to delete the usergoals.
+    # Likewise, if value is changed to True after members already exist, a manual command must be run to assign them usergoals.
+    activateGoals = models.BooleanField(default=True,
+            help_text='If True: goal compliance checking is enabled for members of this enterprise org.')
 
     def __str__(self):
         return self.code
+
+    def getSubscriptionPlan(self):
+        """Find the latest SubscriptionPlan associated with self
+        Returns: SubscriptionPlan or None
+        """
+        qs = self.plans.order_by('-created')
+        if qs.exists():
+            return qs[0]
+        return None
 
 def orgfile_document_path(instance, filename):
     """Used as the OrgFile document FileField upload_to value
@@ -710,6 +723,13 @@ class Profile(models.Model):
         if delim in self.socialId:
             L = self.socialId.split(delim, 1)
             return L[-1]
+
+    def allowUserGoals(self):
+        """Returns True if self.organization.activateGoals is True, else False"""
+
+        if self.organization and self.organization.activateGoals:
+            return True
+        return False
 
     def isForTestTransaction(self):
         """Test if user.email matches TEST_CARD_EMAIL_PATTERN

@@ -576,8 +576,8 @@ class Command(BaseCommand):
         summary = summaryCsvFile.getvalue()
         summaryFileName = 'orbit-summary-{0}-{1}.csv'.format(startRds, endRds)
 
-        msg.attach(reportFileName, cf, 'application/vnd.ms-excel')
-        msg.attach(summaryFileName, summary, 'application/vnd.ms-excel')
+        msg.attach(reportFileName, cf, 'application/octet-stream')
+        msg.attach(summaryFileName, summary, 'application/octet-stream')
         try:
             msg.send()
         except SMTPException as e:

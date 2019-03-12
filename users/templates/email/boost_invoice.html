@@ -1,0 +1,38 @@
+<html>
+    <head>
+        <title>Your Orbit Boost Purchase</title>
+        <style type="text/css">
+            .orbit-href {
+                color: #008cdd;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                text-decoration: none; 
+            }
+            .signature {
+                margin-top: 15px;
+            }
+            .signature p {
+                line-height: 0.5;
+            }
+            .footer {
+                margin-top: 15px;
+                border-top: 1px solid #eee;
+            }
+            .footer p {
+                font-size: 11px;
+                color: #999;
+            }
+        </style>
+    </head>
+    <body>
+    <div>
+        <p>Dear {{ profile.firstName|default:"Provider" }},</p>
+        <p>This is an invoice for your recent Boost purchase of {{ boost_purchase.boost.credits }} credits at Orbit.</p>
+        
+        <p>Your {{ boost_purchase.card_type }} card ending in {{ boost_purchase.card_last4 }} will be charged  ${{ boost_purchase.amount }}.</p>
+        <p>Transaction ID: {{ boost_purchase.transactionId }} created on {{ boost_purchase.created|date:"r" }}.</p>
+        {% include "email/mailto_support_snippet.html" %}
+        {% include "email/founder_signature.html" %}
+        {% include "email/basic_footer.html" %}
+    </div>
+    </body>
+</html>

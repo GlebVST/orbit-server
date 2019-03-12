@@ -1032,7 +1032,7 @@ class UserSubscriptionManager(models.Manager):
         """
         user_subs = self.getLatestSubscription(user)
         if not user_subs.plan.isEnterprise():
-            logger.error('endEnterpriseSubscription: invalid subscription {0.subscriptionId}'.format(user_subs))
+            logger.warning('endEnterpriseSubscription: UserSubscription {0.subscriptionId} is not ENTERPRISE.'.format(user_subs))
             return None
         profile = user.profile
         pt_free = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.FREE_INDIVIDUAL)
@@ -1064,7 +1064,7 @@ class UserSubscriptionManager(models.Manager):
                 )
         qset = SubscriptionPlan.objects.filter(**filter_kwargs)
         if not qset.exists():
-            logger.warning('endEnterpriseSubscription: no Free plan for plan_key: {0}'.format(plan_key))
+            logger.error('endEnterpriseSubscription: no Free plan for plan_key: {0}'.format(plan_key))
             return
         # else
         free_plan = qset[0]
@@ -1144,9 +1144,9 @@ class UserSubscriptionManager(models.Manager):
 
     def getDiscountsForNewSubscription(self, user):
         """This returns the list of discounts for the user for his/her first Active subscription.
-        If called by createBtSubscription, then it should be called like so:
-        qset = UserSubscription.objects.filter(user=user).exclude(display_status=self.model.UI_TRIAL_CANCELED)
-        if not qset.exists():
+        If called by createBtSubscription, it should be called like so:
+        allow_signup = UserSubscription.objects.allowSignupDiscount(user)
+        if allow_signup:
             call this method to get the discounts
         Otherwise can be called even after user has started Active Subs for other purpose (such as receipt).
         Returns list of dicts:
@@ -1185,6 +1185,25 @@ class UserSubscriptionManager(models.Manager):
                 'displayLabel': sd.organization.code
             })
         return discounts
+
+    def calcInitialChargeAmountForUserInTrial(self, user_subs):
+        """Calculate initial charge amount for user currently in UI_TRIAL for their first Bt subscription.
+        Returns: Decimal
+        """
+        user = user_subs.user
+        plan = user_subs.plan
+        owed = plan.discountPrice
+        # If user's email exists in SignupEmailPromo then it overrides any other discounts
+        promo = SignupEmailPromo.objects.get_casei(user.email)
+        if promo:
+            owed = promo.first_year_price
+            return owed
+        # else check for other signup discounts
+        discounts = self.getDiscountsForNewSubscription(user)
+        for d in discounts:
+            owed -= d['discount'].amount
+        return owed
+
 
     def createBtSubscription(self, user, plan, subs_params):
         """Create Braintree subscription using the given params
@@ -2187,7 +2206,7 @@ class CmeBoostPurchase(models.Model):
     objects = CmeBoostPurchaseManager()
 
     def __str__(self):
-        return '{0.user.id} by {0.boost.name}'.format(self)
+        return '{0.boost}|{0.user}'.format(self)
 
 
 @python_2_unicode_compatible

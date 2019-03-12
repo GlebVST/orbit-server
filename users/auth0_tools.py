@@ -187,6 +187,7 @@ class Auth0Api(object):
 
     def change_password_ticket(self, user_id, redirect_url, ttl_days=30):
         """Create change_password_ticket
+        Reference: https://auth0.com/docs/api/management/v2#!/Tickets/post_password_change
         Args:
             user_id: str auth0 userid
             redirect_url: URL - to redirect user to after ticket is used

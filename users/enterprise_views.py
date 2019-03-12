@@ -180,7 +180,10 @@ class OrgMemberList(generics.ListCreateAPIView):
 
     def get_queryset(self):
         orderByFields = ['user__profile__lastName', 'user__profile__firstName', 'created']
-        return OrgMember.objects.filter(organization=self.request.user.profile.organization).order_by(*orderByFields)
+        return OrgMember.objects \
+            .select_related('organization','group','user__profile') \
+            .filter(organization=self.request.user.profile.organization) \
+            .order_by(*orderByFields)
 
     def get_serializer_class(self):
         """Note: django-rest-swagger call this without a request object so must check for request attr"""
@@ -281,22 +284,18 @@ class OrgMembersRemove(APIView):
         ids = request.data.get('ids', [])
         logInfo(logger, self.request, 'Remove OrgMembers: {}'.format(ids))
         updates = []
-        for id in ids:
-            try:
-                member = OrgMember.objects.get(pk=id)
-            except OrgMember.DoesNotExist:
-                logger.info("OrgMember with ID {0} not found".format(id))
-            else:
-                member.removeDate = datetime.now()
-                member.save(update_fields=('removeDate',))
-                updates.append({
-                    "id": member.id,
-                    "removeDate": member.removeDate
-                })
-                # if wasn't enterprise user (like existing orbit user hasn't accepted org invite) -
-                # below method won't do anything
-                UserSubscription.objects.endEnterpriseSubscription(member.user)
-
+        now = timezone.now()
+        members = OrgMember.objects.select_related('user__profile').filter(pk__in=ids)
+        for member in members:
+            member.removeDate = now
+            member.save(update_fields=('removeDate',))
+            updates.append({
+                "id": member.id,
+                "removeDate": member.removeDate
+            })
+            # if wasn't enterprise user (like existing orbit user hasn't accepted org invite) -
+            # below method won't do anything
+            UserSubscription.objects.endEnterpriseSubscription(member.user)
         context = {'success': True, 'data':updates}
         return Response(context, status=status.HTTP_200_OK)
 
@@ -316,7 +315,7 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         an admin belonging to the same org as the member
         """
         org = self.request.user.profile.organization
-        return OrgMember.objects.filter(organization=org)
+        return OrgMember.objects.select_related('organization','group','user__profile').filter(organization=org)
 
     def perform_update(self, serializer, format=None):
         """If email is given, check that it does not trample on an existing user account"""
@@ -359,7 +358,7 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         try:
             fileData = instance.document.read()
         except Exception, e:
-            logger.error('UploadRoster readFile Exception: {0}'.format(e))
+            logError(logger, self.request, 'UploadRoster readFile Exception: {0}'.format(e))
             raise serializers.ValidationError('readFile Exception')
         else:
             # create EmailMessage
@@ -399,29 +398,28 @@ class OrgMembersEmailInvite(APIView):
     def post(self, request, *args, **kwargs):
         ids = request.data.get('ids', [])
         logInfo(logger, self.request, 'Repeat email invites for OrgMembers: {}'.format(ids))
-        for id in ids:
-            try:
-                member = OrgMember.objects.get(pk=id)
-            except OrgMember.DoesNotExist:
-                logger.info("OrgMember with ID {0} not found".format(id))
-            else:
-                if member.pending:
-                    # member get into a pending state only when existing Orbit user get invited to organisation
-                    # so for such users we send a join-team email again
-                    try:
-                        sendJoinTeamEmail(member.user, member.organization, send_message=True)
-                        # add small delay here to prevent potential spamming alerts?
-                        sleep(0.2)
-                    except SMTPException, e:
-                        logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
-                elif not member.user.profile.verified:
-                    # unverified users with non-pending state are those recently invited and never actually joined Orbit
-                    # so for such users we send a set-password email
-                    apiConn = Auth0Api.getConnection(self.request)
-                    OrgMember.objects.sendPasswordTicket(member.user.profile.socialId, member, apiConn)
-                    # auth0 rate-limit API calls on a free tier to 2 requests per second
-                    # https://auth0.com/docs/policies/rate-limits
-                    sleep(0.5)
+        apiConn = Auth0Api.getConnection(self.request)
+        members = OrgMember.objects.select_related('user__profile').filter(pk__in=ids)
+        for member in members:
+            if member.pending:
+                # member get into a pending state only when existing Orbit user get invited to organisation
+                # so for such users we send a join-team email
+                try:
+                    sendJoinTeamEmail(member.user, member.organization, send_message=True)
+                    # add small delay here to prevent potential spamming alerts?
+                    sleep(0.2)
+                except SMTPException, e:
+                    logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
+                else:
+                    member.inviteDate = timezone.now()
+                    member.save(update_fields=('inviteDate',))
+            elif not member.user.profile.verified:
+                # unverified users with non-pending state are those recently invited and never actually joined Orbit
+                # so for such users we send a set-password email
+                OrgMember.objects.sendPasswordTicket(member.user.profile.socialId, member, apiConn)
+                # auth0 rate-limit API calls on a free tier to 2 requests per second
+                # https://auth0.com/docs/policies/rate-limits
+                sleep(0.5)
         context = {'success': True}
         return Response(context, status=status.HTTP_200_OK)
 
@@ -432,34 +430,27 @@ class OrgMembersRestore(APIView):
         ids = request.data.get('ids', [])
         logInfo(logger, self.request, 'Restore email invites for OrgMembers: {}'.format(ids))
         updates = []
-        for id in ids:
+        now = timezone.now()
+        members = OrgMember.objects.select_related('user', 'organization').filter(pk__in=ids, removeDate__isnull=False)
+        for member in members:
+            # restore removed member
+            member.removeDate = None
+            member.pending = True
+            member.inviteDate = now
+            member.save(update_fields=('pending', 'removeDate','inviteDate'))
+            updates.append({
+                "id": member.id,
+                "inviteDate": member.inviteDate,
+                "pending": True,
+                "joined": False,
+                "removeDate": None,
+            })
+            # since member was removed they should have been moved to a free trial subscription
+            # so ask them to join organisation
             try:
-                member = OrgMember.objects.get(pk=id)
-            except OrgMember.DoesNotExist:
-                logger.info("OrgMember with ID {0} not found".format(id))
-            else:
-                if member.removeDate:
-                    member.removeDate = None
-                    member.pending = True
-                    # todo
-                    # decide if need to reset the created timestamp as
-                    # this field will be used for "invited" date field on UI
-                    # member.created = datetime.now()
-                    member.save(update_fields=('pending', 'removeDate',))
-                    updates.append({
-                        "id": member.id,
-                        "pending": True,
-                        "joined": False,
-                        "removeDate": None,
-                    })
-                    # since member was removed they should have been moved to a free trial subscription
-                    # so ask them to join organisation
-                    try:
-                        sendJoinTeamEmail(member.user, member.organization, send_message=True)
-                    except SMTPException, e:
-                        logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
-
-
+                sendJoinTeamEmail(member.user, member.organization, send_message=True)
+            except SMTPException, e:
+                logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
         context = {'success': True, 'data': updates}
         return Response(context, status=status.HTTP_200_OK)
 
@@ -522,7 +513,7 @@ class JoinTeam(APIView):
         user = self.request.user
         qset = OrgMember.objects.filter(user=user, pending=True).order_by('-modified')
         if not qset.exists():
-            logger.warning('No pending OrgMember instance found')
+            logWarning(logger, self.request, 'No pending OrgMember instance found')
             error_msg = 'Invalid or expired invitation'
             raise serializers.ValidationError({'user': error_msg}, code='invalid')
         m = qset[0] # pending OrgMember instance

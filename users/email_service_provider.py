@@ -1,6 +1,6 @@
 # Nightly synch to an Email Service Provider (ESP) of users and custom fields
-
 # Management Command: users.management.commands.emailSync.py
+import logging
 from collections import OrderedDict
 from datetime import datetime, timedelta
 import pytz
@@ -11,9 +11,7 @@ from django.conf import settings
 from users.models import ARTICLE_CREDIT, Profile, UserSubscription, Entry, UserCmeCredit, OrbitCmeOffer, OrgMember
 from django.utils import timezone
 
-ENTERPRISE_STATUS_ACTIVE = 'Active'
-ENTERPRISE_STATUS_INVITED = 'Invited'
-ENTERPRISE_STATUS_REMOVED = 'Removed'
+logger = logging.getLogger('gen.esp')
 
 def getDataFromDb():
     """Fetches and combines data from Profile, UserSubscription models
@@ -42,18 +40,10 @@ def getDataFromDb():
             inviteId = '' # keep blank for Enterprise users
             try:
                 orgm = user.orgmembers.filter(organization=profile.organization).order_by('-created')[0]
-            #except OrgMember.DoesNotExist:
             except IndexError:
-                # logger.warning...
-                #print "Org member does not exist"
-                pass
+                logger.warning("OrgMember instance does not exist for userid {0.pk}".format(user))
             else:
-                if orgm.removeDate:
-                    enterpriseStatus = ENTERPRISE_STATUS_REMOVED
-                elif profile.verified and not orgm.pending:
-                    enterpriseStatus = ENTERPRISE_STATUS_ACTIVE
-                else:
-                    enterpriseStatus = ENTERPRISE_STATUS_INVITED
+                enterpriseStatus = orgm.getEnterpriseStatus()
         birthmmdd = ''
         if profile.birthDate:
             birthmmdd = profile.birthDate.strftime("%m/%d")
