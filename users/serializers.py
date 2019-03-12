@@ -508,6 +508,7 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
                 host.is_secure = True
                 host.save(update_fields=('is_secure',))
         # create AllowedUrl
+        logger.info('Creating AllowedUrl: page_title: ' + page_title)
         allowed_url, created = AllowedUrl.objects.get_or_create(
             host=host,
             eligible_site=instance,
