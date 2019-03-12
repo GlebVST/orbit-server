@@ -406,48 +406,9 @@ class AccessCmeCertificate(APIView):
         out_serializer = CertificateReadSerializer(certificate)
         return Response(out_serializer.data, status=status.HTTP_200_OK)
 
-#
-# Audit Report
-#
-class CreateAuditReport(CertificateMixin, APIView):
-    """
-    This view expects a start date and end date in UNIX epoch format
-    (number of seconds since 1970/1/1) as URL parameters.
-    It generates an Audit Report for the date range, and uploads to S3.
-    If user has earned browserCme credits in the date range, it also
-    generates a Certificate that is associated with the report.
+class AuditReportMixin(CertificateMixin):
 
-    parameters:
-        - name: start
-          description: seconds since epoch
-          required: true
-          type: string
-          paramType: form
-        - name: end
-          description: seconds since epoch
-          required: true
-          type: string
-          paramType: form
-    """
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
-    def post(self, request, start, end):
-        try:
-            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
-            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
-            if startdt >= enddt:
-                context = {
-                    'error': 'Start date must be prior to End Date.'
-                }
-                return Response(context, status=status.HTTP_400_BAD_REQUEST)
-            brcme_startdt = startdt
-        except ValueError:
-            context = {
-                'error': 'Invalid date parameters'
-            }
-            message = context['error'] + ': ' + start + ' - ' + end
-            logWarning(logger, request, message)
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        user = request.user
+    def generateUserReport(self, user, startdt, enddt, request):
         profile = user.profile
         # get total self-reported cme credits earned by user in date range
         srCmeTotal = Entry.objects.sumSRCme(user, startdt, enddt)
@@ -458,19 +419,19 @@ class CreateAuditReport(CertificateMixin, APIView):
             context = {
                 'error': 'No CME credits earned in this date range.'
             }
-            logInfo(logger, request, context['error'])
+            logInfo(logger, request, "Failed to generate audit report for user {0}: {1}".format(user.id, context['error']))
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         if profile.shouldReqNPINumber() and not profile.npiNumber:
             context = {
                 'error': 'Please update your profile with your NPI Number.'
             }
-            logInfo(logger, request, context['error'])
+            logInfo(logger, request, "Failed to generate audit report for user {0}: {1}".format(user.id, context['error']))
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         elif profile.isNurse() and not user.statelicenses.exists():
             context = {
                 'error': 'Please update your profile with your State License.'
             }
-            logInfo(logger, request, context['error'])
+            logInfo(logger, request, "Failed to generate audit report for user {0}: {1}".format(user.id, context['error']))
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
         # check which cert class to use (MD or Nurse)
@@ -492,7 +453,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             d['brcmeCertReferenceId'] = None
             if brcme_sum:
                 # tag has non-zero brcme credits, so make cert
-                logInfo(logger, request, 'Making certificate for {0.name}'.format(tag))
+                logInfo(logger, request, "Making certificate for user {0} and tag {1.name}".format(user.id, tag))
                 certificate = self.makeCertificate(
                     certClass,
                     profile,
@@ -521,7 +482,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             context = {
                 'error': 'There was an error in creating this Audit Report.'
             }
-            logWarning(logger, request, context['error'])
+            logWarning(logger, request, "Failed to generate audit report for user {0}: {1}".format(user.id, context['error']))
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         else:
             context = {
@@ -569,7 +530,48 @@ class CreateAuditReport(CertificateMixin, APIView):
         # set report.certificates ManyToManyField
         report.certificates.set([certificatesByTag[tagid] for tagid in certificatesByTag])
         return report
+#
+# Audit Report
+#
+class CreateAuditReport(AuditReportMixin, APIView):
+    """
+    This view expects a start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1) as URL parameters.
+    It generates an Audit Report for the date range, and uploads to S3.
+    If user has earned browserCme credits in the date range, it also
+    generates a Certificate that is associated with the report.
 
+    parameters:
+        - name: start
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: end
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    def post(self, request, start, end):
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+            if startdt >= enddt:
+                context = {
+                    'error': 'Start date must be prior to End Date.'
+                }
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
+        return self.generateUserReport(request.user, startdt, enddt, request)
 
 class AccessAuditReport(APIView):
     """

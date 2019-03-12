@@ -32,6 +32,7 @@ from .serializers import ProfileReadSerializer, UserSubsReadSerializer
 from .upload_serializers import UploadOrgFileSerializer
 from .permissions import *
 from .emailutils import makeSubject, sendJoinTeamEmail
+from .dashboard_views import AuditReportMixin
 
 logger = logging.getLogger('api.entpv')
 
@@ -559,3 +560,56 @@ class JoinTeam(APIView):
             'credits': pdata['credits']
         }
         return Response(context, status=status.HTTP_200_OK)
+
+class EnterpriseMemberAuditReport(AuditReportMixin, APIView):
+    """
+    This view expects a userid plus start date and end date in UNIX epoch format
+    (number of seconds since 1970/1/1) as URL parameters.
+    It generates an Audit Report for the date range, and uploads to S3.
+    If user has earned browserCme credits in the date range, it also
+    generates a Certificate that is associated with the report.
+
+    parameters:
+        - name: userid
+          description: target user ID to generate report for
+          required: true
+          type: string
+          paramType: form
+        - name: start
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+        - name: end
+          description: seconds since epoch
+          required: true
+          type: string
+          paramType: form
+    """
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, IsEnterpriseAdmin)
+    def post(self, request, memberId, start, end):
+        # check if specified user is member if the same organisation as admin
+        admin_user = request.user
+        admin_org = admin_user.profile.organization
+        qset = OrgMember.objects.filter(organization=admin_org, id=memberId)
+        if not qset.exists():
+            logWarning(logger, self.request, 'Admin user {0} tried to generate audit report for org member {1}, not existing in their organisation: {2}'.format(admin_user.id, memberId, admin_org.id))
+            return Response({'results': [], 'error': 'Failed to generate audit report: no member found'}, status=status.HTTP_404_NOT_FOUND)
+        target_user = qset[0].user
+        try:
+            startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
+            enddt = timezone.make_aware(datetime.utcfromtimestamp(int(end)), pytz.utc)
+            if startdt >= enddt:
+                context = {
+                    'error': 'Start date must be prior to End Date.'
+                }
+                return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+
+        return self.generateUserReport(target_user, startdt, enddt, request)
