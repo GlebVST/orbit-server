@@ -591,6 +591,8 @@ class BrowserCme(models.Model):
     credits = models.DecimalField(max_digits=5, decimal_places=2)
     url = models.URLField(max_length=500)
     pageTitle = models.TextField()
+    logger.info('BrowserCME pageTitle: ' + pageTitle)
+    logger.info('BrowserCME url: ' + url)
     competence = models.IntegerField(
         default=1,
         choices=RESPONSE_CHOICES,
@@ -623,6 +625,7 @@ class BrowserCme(models.Model):
 
     def formatActivity(self):
         res = urlparse(self.url)
+        logger.info('BrowserCME formatActivity: ' + res.netloc + ' - ' + self.entry.description)
         return res.netloc + ' - ' + self.entry.description
 
 # A Story is broadcast to many users.
