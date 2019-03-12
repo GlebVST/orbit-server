@@ -13,9 +13,10 @@ def handleProfileSaved(sender, **kwargs):
     except User.DoesNotExist:
         logger.error('handleProfileSaved: invalid user_id: {0}'.format(user_id))
     else:
-        usergoals = UserGoal.objects.rematchGoals(user)
-        if usergoals:
-            logger.info('handleProfileSaved: {0} new usergoals created.'.format(len(usergoals)))
+        if user.profile.allowUserGoals():
+            usergoals = UserGoal.objects.rematchGoals(user)
+            if usergoals:
+                logger.info('handleProfileSaved: {0} new usergoals created.'.format(len(usergoals)))
 
 #handler bound to signal once for each unique dispatch_uid value
 profile_saved.connect(handleProfileSaved, dispatch_uid='handle-profile-saved')

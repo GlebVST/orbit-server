@@ -143,7 +143,7 @@ class ManageProfileCmetagSerializer(serializers.Serializer):
                     pct.save()
                     logger.info('Updated ProfileCmetag {0}'.format(pct))
         # emit profile_saved signal
-        if user.groups.filter(name=GROUP_ENTERPRISE_MEMBER).exists():
+        if instance.allowUserGoals():
             ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 
@@ -353,7 +353,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 pct.save(update_fields=('is_active',))
                 logger.info('Inactivate ProfileCmetag: {0}'.format(pct))
         # emit profile_saved signal
-        if user.groups.filter(name=GROUP_ENTERPRISE_MEMBER).exists():
+        if instance.allowUserGoals():
             ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         return instance
 

@@ -82,7 +82,8 @@ class OrgGroupInline(admin.TabularInline):
     model = OrgGroup
 
 class OrgAdmin(admin.ModelAdmin):
-    list_display = ('id', 'joinCode', 'code', 'name', 'credits', 'creditStartDate', 'subscriptionPlan')
+    list_display = ('id', 'joinCode', 'code', 'name', 'activateGoals', 'credits', 'creditStartDate', 'subscriptionPlan')
+    list_filter = ('activateGoals',)
     form = OrgForm
     ordering = ('joinCode',)
     inlines = [
