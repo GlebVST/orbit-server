@@ -755,9 +755,9 @@ class UpgradePlan(generics.CreateAPIView):
         context['credits'] = pdata['credits']
         # send out invoice email
         try:
-            subs_trans = user_subs.transactions.all()[0]
+            subs_trans = new_user_subs.transactions.all()[0]
             paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
-            sendUpgradePlanInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
+            sendUpgradePlanInvoiceEmail(user, new_user_subs, paymentMethod, subs_trans)
         except (IndexError, SMTPException) as e:
             logException(logger, request, 'UpgradePlan: Send Invoice email failed.')
         return Response(context, status=status.HTTP_201_CREATED)
