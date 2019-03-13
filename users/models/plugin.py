@@ -1,10 +1,11 @@
 """Models managed by the plugin_server project"""
 from __future__ import unicode_literals
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
+import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q, Subquery, Sum
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
@@ -19,15 +20,10 @@ from .base import (
     Organization
 )
 from .feed import Sponsor, ARTICLE_CREDIT
-from decimal import Decimal
-from datetime import date, datetime, timedelta
-from django.utils import timezone
-from django.db import transaction
-import pytz
 
 logger = logging.getLogger('gen.models')
 
-OFFER_LOOKBACK_DAYS = 365
+OFFER_LOOKBACK_DAYS = 365*3
 
 @python_2_unicode_compatible
 class AllowedHost(models.Model):
@@ -241,7 +237,7 @@ class OrbitCmeOfferManager(models.Manager):
     def makeDebugOffer(self, aurl, user):
         now = timezone.now()
         activityDate = now + timedelta(seconds=20)
-        expireDate = datetime(now.year, now.month+1, 1, tzinfo=pytz.utc)
+        expireDate = now + timedelta(days=365)
         return self.makeOffer(aurl, user, activityDate, expireDate)
 
     def makeWelcomeOffer(self, user):
@@ -255,18 +251,20 @@ class OrbitCmeOfferManager(models.Manager):
             return None
         now = timezone.now()
         activityDate = now - timedelta(seconds=10)
-        expireDate = datetime(now.year+1, 1, 1, tzinfo=pytz.utc)
+        expireDate = now + timedelta(days=365)
         return self.makeOffer(aurl, user, activityDate, expireDate)
 
     def sumCredits(self, user, startDate, endDate):
         """Total valid offer credits over the given time period for the given user
         Returns: Float
         """
+        now = timezone.now()
         filter_kwargs = {
             'valid': True,
             'user': user,
             'activityDate__gte': startDate,
             'activityDate__lte': endDate,
+            'expireDate__gt': now
         }
         qset = self.model.objects.filter(**filter_kwargs)
         total = qset.aggregate(credit_sum=Sum('credits'))
