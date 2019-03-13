@@ -81,7 +81,6 @@ def getDataFromDb():
             overallCreditsRedeemed=0,
             overallCreditsEarned=0,
             overallCreditsUnredeemed=0,
-            overallCreditsUnredeemedGreaterThan5=0,
             overallArticlesRead=0,
             expiredLicenses=0,
             expiringLicenses=0,
@@ -112,8 +111,6 @@ def getDataFromDb():
                 uc = UserCmeCredit.objects.get(user=user)
                 d['overallCreditsRedeemed'] = float(uc.total_credits_earned) # pre-computed
                 d['overallCreditsUnredeemed'] = d['overallCreditsEarned'] - d['overallCreditsRedeemed']
-                if (d['overallCreditsUnredeemed'] > 5):
-                    d['overallCreditsUnredeemedGreaterThan5'] = 1
             # extra fields computed for enterprise providers
             if isEnterpriseProvider:
                 licenseDict = StateLicense.objects.partitionByStatusForUser(user)
@@ -376,7 +373,6 @@ class MailchimpApi(EspApiBackend):
         'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
         'CRDT_LEFT': 'overallCreditsUnredeemed',
-        'CRDT_LEFT5': 'overallCreditsUnredeemedGreaterThan5',
         'ARTCL_READ': 'overallArticlesRead'
     })
     MANDATORY_FIELDS_ESP = ["email_address"]
@@ -414,7 +410,6 @@ class MailchimpApi(EspApiBackend):
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
         'CRDT_LEFT': {'type':'number'},
-        'CRDT_LEFT5': {'type':'number'},
         'ARTCL_READ': {'type':'number'},
     }
 
