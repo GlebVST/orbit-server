@@ -100,8 +100,14 @@ def getDataFromDb():
             d['billingEndDate'] = str(user_subs.billingEndDate.date())
             if user_subs.billingCycle:
                 d['billingCycle'] = user_subs.billingCycle
-            if plan.plan_key and plan.plan_key.specialty: # the specialty assigned to the plan_key used by the plan
-                d['planSpecialty'] = plan.plan_key.specialty.name
+            if plan.plan_key:
+                if plan.plan_key.specialty: # the specialty assigned to the plan_key used by the plan
+                    d['planSpecialty'] = plan.plan_key.specialty.name
+                elif plan.plan_key.degree: # for NP/PA/etc
+                    d['planSpecialty'] = plan.plan_key.degree.abbrev
+            if not d['planSpecialty'] and profile.specialties.exists():
+                ps = profile.specialties.all().order_by('name')[0]
+                d['planSpecialty'] = ps.name
             # Overall credits earned (but not necessarily redeemed)
             overallCreditsEarned = float(OrbitCmeOffer.objects.sumCredits(user, minStartDate, maxEndDate))
             d['overallCreditsEarned'] = overallCreditsEarned
