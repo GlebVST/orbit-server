@@ -8,7 +8,16 @@ import hashlib
 import inspect
 import requests, json
 from django.conf import settings
-from users.models import ARTICLE_CREDIT, Profile, UserSubscription, Entry, UserCmeCredit, OrbitCmeOffer, OrgMember
+from users.models import (
+        ARTICLE_CREDIT,
+        Entry,
+        Profile,
+        UserSubscription,
+        UserCmeCredit,
+        OrbitCmeOffer,
+        OrgMember,
+        StateLicense
+    )
 from django.utils import timezone
 
 logger = logging.getLogger('gen.esp')
@@ -74,6 +83,9 @@ def getDataFromDb():
             overallCreditsUnredeemed=0,
             overallCreditsUnredeemedGreaterThan5=0,
             overallArticlesRead=0,
+            expiredLicenses=0,
+            expiringLicenses=0,
+            completedLicenses=0
         )
         # Note: if user only signed up but never created a subscription, then user_subs is None
         user_subs = UserSubscription.objects.getLatestSubscription(user)
@@ -102,6 +114,12 @@ def getDataFromDb():
                 d['overallCreditsUnredeemed'] = d['overallCreditsEarned'] - d['overallCreditsRedeemed']
                 if (d['overallCreditsUnredeemed'] > 5):
                     d['overallCreditsUnredeemedGreaterThan5'] = 1
+            # extra fields computed for enterprise providers
+            if isEnterpriseProvider:
+                licenseDict = StateLicense.objects.partitionByStatusForUser(user)
+                d['expiredLicenses'] = len(licenseDict[StateLicense.EXPIRED])
+                d['expiringLicenses'] = len(licenseDict[StateLicense.EXPIRING])
+                d['completedLicenses'] = len(licenseDict[StateLicense.COMPLETED])
         data.append(d)
     return data
 
@@ -351,6 +369,9 @@ class MailchimpApi(EspApiBackend):
         'IS_ENT_ADM': 'isEnterpriseAdmin',
         'IS_ENT_PRO': 'isEnterpriseProvider',
         'ENT_STATUS': 'enterpriseStatus',
+        'EXPRD_LIC': 'expiredLicenses',
+        'EXPRNG_LIC': 'expiringLicenses',
+        'COMPLT_LIC': 'completedLicenses',
         # Credit-related fields
         'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
@@ -386,6 +407,9 @@ class MailchimpApi(EspApiBackend):
         'IS_ENT_ADM': {'type': 'number'},
         'IS_ENT_PRO': {'type': 'number'},
         'ENT_STATUS': {'type': 'text'},
+        'EXPRD_LIC': {'type': 'number'},
+        'EXPRNG_LIC': {'type': 'number'},
+        'COMPLT_LIC': {'type': 'number'},
         # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},

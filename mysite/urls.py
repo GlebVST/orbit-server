@@ -149,6 +149,7 @@ api_patterns = [
     url(r'^enterprise/orgmembers-remove/?$', enterprise_views.OrgMembersRemove.as_view()),
     url(r'^enterprise/orgmembers-email-invite/?$', enterprise_views.OrgMembersEmailInvite.as_view()),
     url(r'^enterprise/orgmembers-restore/?$', enterprise_views.OrgMembersRestore.as_view()),
+    url(r'^enterprise/orgmembers-audit-report/(?P<memberId>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.EnterpriseMemberAuditReport.as_view()),
     url(r'^enterprise/upload-roster/?$', enterprise_views.UploadRoster.as_view()),
     url(r'^enterprise/team-stats/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.TeamStats.as_view()),
     url(r'^enterprise/join-team/?$', enterprise_views.JoinTeam.as_view()),
