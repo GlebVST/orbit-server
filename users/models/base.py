@@ -973,7 +973,41 @@ class StateLicenseManager(models.Manager):
         """
         return StateLicense.objects.filter(user=user).order_by('licenseType_id', 'state_id', '-expireDate').distinct('licenseType','state')
 
+    def partitionByStatusForUser(self, user):
+        """Get the latest set of licenses for the given user, and partition them
+        into 3 status groups: EXPIRED, EXPIRING, COMPLETED.
+        This method is used by email_service_provider module.
+        Args:
+            user: User instance
+        Returns: dict {
+            EXPIRED: list of StateLicenses
+            EXPIRING: ,,
+            COMPLETED: ,,
+        }
+        """
+        now = timezone.now()
+        expiringCutoffDate = now + timedelta(days=self.model.EXPIRING_CUTOFF_DAYS)
+        statelicenses = self.getLatestSetForUser(user)
+        expired = []; expiring = []; completed = []
+        for sl in statelicenses:
+            if not sl.expireDate or sl.expireDate < now:
+                expired.append(sl)
+            elif sl.expireDate <= expiringCutoffDate:
+                expiring.append(sl)
+            else:
+                completed.append(sl)
+        data = {
+                self.model.EXPIRED: expired,
+                self.model.EXPIRING: expiring,
+                self.model.COMPLETED: completed
+            }
+        return data
+
 class StateLicense(models.Model):
+    EXPIRING_CUTOFF_DAYS = 90 # expireDate cutoff for expiring goals (match UserGoal const)
+    EXPIRED = 'EXPIRED'
+    EXPIRING = 'EXPIRING'
+    COMPLETED = 'COMPLETED'
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         related_name='statelicenses',

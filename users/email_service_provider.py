@@ -8,7 +8,16 @@ import hashlib
 import inspect
 import requests, json
 from django.conf import settings
-from users.models import ARTICLE_CREDIT, Profile, UserSubscription, Entry, UserCmeCredit, OrbitCmeOffer, OrgMember
+from users.models import (
+        ARTICLE_CREDIT,
+        Entry,
+        Profile,
+        UserSubscription,
+        UserCmeCredit,
+        OrbitCmeOffer,
+        OrgMember,
+        StateLicense
+    )
 from django.utils import timezone
 
 logger = logging.getLogger('gen.esp')
@@ -72,8 +81,10 @@ def getDataFromDb():
             overallCreditsRedeemed=0,
             overallCreditsEarned=0,
             overallCreditsUnredeemed=0,
-            overallCreditsUnredeemedGreaterThan5=0,
             overallArticlesRead=0,
+            expiredLicenses=0,
+            expiringLicenses=0,
+            completedLicenses=0
         )
         # Note: if user only signed up but never created a subscription, then user_subs is None
         user_subs = UserSubscription.objects.getLatestSubscription(user)
@@ -89,8 +100,14 @@ def getDataFromDb():
             d['billingEndDate'] = str(user_subs.billingEndDate.date())
             if user_subs.billingCycle:
                 d['billingCycle'] = user_subs.billingCycle
-            if plan.plan_key and plan.plan_key.specialty: # the specialty assigned to the plan_key used by the plan
-                d['planSpecialty'] = plan.plan_key.specialty.name
+            if plan.plan_key:
+                if plan.plan_key.specialty: # the specialty assigned to the plan_key used by the plan
+                    d['planSpecialty'] = plan.plan_key.specialty.name
+                elif plan.plan_key.degree: # for NP/PA/etc
+                    d['planSpecialty'] = plan.plan_key.degree.abbrev
+            if not d['planSpecialty'] and profile.specialties.exists():
+                ps = profile.specialties.all().order_by('name')[0]
+                d['planSpecialty'] = ps.name
             # Overall credits earned (but not necessarily redeemed)
             overallCreditsEarned = float(OrbitCmeOffer.objects.sumCredits(user, minStartDate, maxEndDate))
             d['overallCreditsEarned'] = overallCreditsEarned
@@ -100,8 +117,12 @@ def getDataFromDb():
                 uc = UserCmeCredit.objects.get(user=user)
                 d['overallCreditsRedeemed'] = float(uc.total_credits_earned) # pre-computed
                 d['overallCreditsUnredeemed'] = d['overallCreditsEarned'] - d['overallCreditsRedeemed']
-                if (d['overallCreditsUnredeemed'] > 5):
-                    d['overallCreditsUnredeemedGreaterThan5'] = 1
+            # extra fields computed for enterprise providers
+            if isEnterpriseProvider:
+                licenseDict = StateLicense.objects.partitionByStatusForUser(user)
+                d['expiredLicenses'] = len(licenseDict[StateLicense.EXPIRED])
+                d['expiringLicenses'] = len(licenseDict[StateLicense.EXPIRING])
+                d['completedLicenses'] = len(licenseDict[StateLicense.COMPLETED])
         data.append(d)
     return data
 
@@ -351,11 +372,13 @@ class MailchimpApi(EspApiBackend):
         'IS_ENT_ADM': 'isEnterpriseAdmin',
         'IS_ENT_PRO': 'isEnterpriseProvider',
         'ENT_STATUS': 'enterpriseStatus',
+        'EXPRD_LIC': 'expiredLicenses',
+        'EXPRNG_LIC': 'expiringLicenses',
+        'COMPLT_LIC': 'completedLicenses',
         # Credit-related fields
         'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
         'CRDT_LEFT': 'overallCreditsUnredeemed',
-        'CRDT_LEFT5': 'overallCreditsUnredeemedGreaterThan5',
         'ARTCL_READ': 'overallArticlesRead'
     })
     MANDATORY_FIELDS_ESP = ["email_address"]
@@ -386,11 +409,13 @@ class MailchimpApi(EspApiBackend):
         'IS_ENT_ADM': {'type': 'number'},
         'IS_ENT_PRO': {'type': 'number'},
         'ENT_STATUS': {'type': 'text'},
+        'EXPRD_LIC': {'type': 'number'},
+        'EXPRNG_LIC': {'type': 'number'},
+        'COMPLT_LIC': {'type': 'number'},
         # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
         'CRDT_LEFT': {'type':'number'},
-        'CRDT_LEFT5': {'type':'number'},
         'ARTCL_READ': {'type':'number'},
     }
 

@@ -882,11 +882,13 @@ class UserSubscriptionManager(models.Manager):
             if remaining_credits <= 0 or is_brcme_month_limit:
                 # if reached cme credit limit or at monthly speed limit, disallow post of brcme (e.g. disallow redeem offer)
                 discard_codes.add(PERM_POST_BRCME)
-            if user_subs.plan:
-                # discard referral banner perm if user has not yet earned MIN_CME_CREDIT_FOR_REFERRAL Browser CME credits
+            if userCredits:
                 credits_earned = userCredits.total_credits_earned
-                if userCredits and (credits_earned < settings.MIN_CME_CREDIT_FOR_REFERRAL):
-                    discard_codes.add(PERM_ALLOW_INVITE)
+            else:
+                credits_earned = 0
+            # discard referral banner perm if user has not yet earned MIN_CME_CREDIT_FOR_REFERRAL Browser CME credits
+            if credits_earned < settings.MIN_CME_CREDIT_FOR_REFERRAL:
+                discard_codes.add(PERM_ALLOW_INVITE)
 
         allowed_codes = set(allowed_codes)
         for codename in discard_codes:

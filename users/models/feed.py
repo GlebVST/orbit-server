@@ -623,6 +623,7 @@ class BrowserCme(models.Model):
 
     def formatActivity(self):
         res = urlparse(self.url)
+        #logger.info('BrowserCME formatActivity: ' + res.netloc + ' - ' + self.entry.description)
         return res.netloc + ' - ' + self.entry.description
 
 # A Story is broadcast to many users.
