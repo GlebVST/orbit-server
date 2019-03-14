@@ -798,7 +798,7 @@ class UserSubscriptionManager(models.Manager):
         except UserCmeCredit.DoesNotExist:
             UserCmeCredit.objects.create(
                 user=user,
-                plan_credits=plan.maxCmeYear,
+                plan_credits=plan_credits,
                 boost_credits=0
             )
         else:
