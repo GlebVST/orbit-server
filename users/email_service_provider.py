@@ -39,6 +39,7 @@ def getDataFromDb():
         isEnterpriseAdmin = 0
         isEnterpriseProvider = 0
         enterpriseStatus = ''
+        enterpriseGroup = ''
         inviteId = profile.inviteId
         if profile.organization:
             orgName = profile.organization.name
@@ -48,11 +49,16 @@ def getDataFromDb():
                 isEnterpriseProvider = 1
             inviteId = '' # keep blank for Enterprise users
             try:
-                orgm = user.orgmembers.filter(organization=profile.organization).order_by('-created')[0]
+                orgm = user.orgmembers \
+                        .select_related('group') \
+                        .filter(organization=profile.organization) \
+                        .order_by('-created')[0]
             except IndexError:
                 logger.warning("OrgMember instance does not exist for userid {0.pk}".format(user))
             else:
                 enterpriseStatus = orgm.getEnterpriseStatus()
+                if orgm.group:
+                    enterpriseGroup = orgm.group.name
         birthmmdd = ''
         if profile.birthDate:
             birthmmdd = profile.birthDate.strftime("%m/%d")
@@ -68,6 +74,7 @@ def getDataFromDb():
             isEnterpriseAdmin=isEnterpriseAdmin,
             isEnterpriseProvider=isEnterpriseProvider,
             enterpriseStatus=enterpriseStatus,
+            enterpriseGroup=enterpriseGroup,
             subscriptionId='',
             subscribed=0,
             plan_type='',
@@ -372,6 +379,7 @@ class MailchimpApi(EspApiBackend):
         'IS_ENT_ADM': 'isEnterpriseAdmin',
         'IS_ENT_PRO': 'isEnterpriseProvider',
         'ENT_STATUS': 'enterpriseStatus',
+        'ENT_GROUP': 'enterpriseGroup',
         'EXPRD_LIC': 'expiredLicenses',
         'EXPRNG_LIC': 'expiringLicenses',
         'COMPLT_LIC': 'completedLicenses',
@@ -409,6 +417,7 @@ class MailchimpApi(EspApiBackend):
         'IS_ENT_ADM': {'type': 'number'},
         'IS_ENT_PRO': {'type': 'number'},
         'ENT_STATUS': {'type': 'text'},
+        'ENT_GROUP': {'type': 'text'},
         'EXPRD_LIC': {'type': 'number'},
         'EXPRNG_LIC': {'type': 'number'},
         'COMPLT_LIC': {'type': 'number'},
