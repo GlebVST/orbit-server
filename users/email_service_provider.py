@@ -18,7 +18,7 @@ from users.models import (
         OrgMember,
         StateLicense
     )
-from goals.models import UserGoal
+from goals.models import UserGoal, GoalType
 from django.utils import timezone
 
 logger = logging.getLogger('gen.esp')
