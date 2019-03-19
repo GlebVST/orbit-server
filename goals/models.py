@@ -51,7 +51,7 @@ def makeDueDate(year, month, day, now, advance_if_past=True):
     """Create dueDate as (year,month,day) and advance to next year if dueDate is < now
     Returns: datetime
     """
-    dueDate = makeAwareDatetime(year, month, day)
+    dueDate = makeAwareDatetime(year, month, day, 12)
     if dueDate < now and advance_if_past:
         dueDate = makeAwareDatetime(year+1, month, day, 12)
     return dueDate
@@ -657,7 +657,10 @@ class CmeGoal(models.Model):
         return self.hospital.display_name
 
     def __str__(self):
-        return u"{0.entityType}|{0.entityName}".format(self)
+        tag = self.cmeTag
+        if not tag:
+            tag = u'Specialty' if self.mapNullTagToSpecialty else ANY_TOPIC
+        return u"{0.entityType}|{0.entityName}|{0.credits} credits in {1}".format(self, tag)
 
     @cached_property
     def dueMMDD(self):
@@ -1684,7 +1687,11 @@ class UserGoal(models.Model):
     def __str__(self):
         gtype = self.goal.goalType.name
         if gtype == GoalType.CME or gtype == GoalType.SRCME:
-            return '{0.goal.goalType}|{0.stateOrComposite}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.creditsDue} in {1}'.format(self, self.formatCreditTypes())
+            dueDateType = self.goal.formatDueDateType()
+            src = self.stateOrComposite
+            if gtype == GoalType.CME and not src:
+                src = self.goal.cmegoal.board
+            return '{0.goal.goalType}|{1}|{2}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.creditsDue} in {3}'.format(self, src, dueDateType, self.formatCreditTypes())
         # license usergoal
         return '{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}'.format(self)
 

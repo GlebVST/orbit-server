@@ -9,11 +9,11 @@ TIMESTAMP_FMT = "%Y-%m-%d %H:%M:%S %Z"
 
 UNKNOWN_DATE = datetime(3000,1,1,tzinfo=pytz.utc)
 
-def makeAwareDatetime(year, month, day, tz=pytz.utc):
+def makeAwareDatetime(year, month, day, hour=0, tz=pytz.utc):
     """Returns datetime object with tzinfo set.
     Raise ValueError if invalid date
     """
-    return datetime(year, month, day, tzinfo=tz)
+    return datetime(year, month, day, hour, tzinfo=tz)
 
 def fmtLocalDatetime(dt):
     return dt.astimezone(LOCAL_TZ).strftime(TIMESTAMP_FMT)
