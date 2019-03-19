@@ -20,6 +20,7 @@ DATE_FORMAT = '%Y-%m-%d'
 DEV_EMAILS = ['faria@orbitcme.com', 'logicalmath333@gmail.com']
 outputFields = (
     'Status',
+    'Group',
     'LastName',
     'FirstName',
     'NPI',
@@ -73,7 +74,9 @@ class Command(BaseCommand):
         logger.info(msg)
         self.stdout.write(msg)
         # omit pending members since they have not joined yet
-        orgmembers = OrgMember.objects.filter(organization=org, pending=False)
+        orgmembers = OrgMember.objects \
+                .select_related('group') \
+                .filter(organization=org, pending=False)
         profiles = Profile.objects \
             .prefetch_related('degrees','specialties') \
             .filter(user__in=Subquery(orgmembers.values('user'))) \
@@ -90,7 +93,7 @@ class Command(BaseCommand):
             omit_users = User.objects.filter(email__in=IGNORE_USERS).values_list('id', flat=True)
             qset = qset.exclude(entry__user__in=list(omit_users))
         qset = qset.order_by('entry__activityDate')
-        print(qset.query)
+        #print(qset.query)
         profilesById = dict()
         for p in profiles:
             profilesById[p.pk] = p
@@ -145,6 +148,8 @@ class Command(BaseCommand):
             for k in outputFields:
                 d[k] = ''
             d['Status'] = orgmember.getEnterpriseStatus()
+            if orgmember.group:
+                d['Group'] = orgmember.group.name
             d['NPI'] = profile.npiNumber
             if profile.lastName:
                 d['LastName'] = profile.lastName.capitalize()
