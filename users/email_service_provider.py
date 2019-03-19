@@ -18,6 +18,7 @@ from users.models import (
         OrgMember,
         StateLicense
     )
+from goals.models import UserGoal
 from django.utils import timezone
 
 logger = logging.getLogger('gen.esp')
@@ -27,10 +28,22 @@ def getDataFromDb():
     Returns list of dicts with keys that are used as the values in SYNC_FIELD_MAP_ESP_TO_LOCAL
     """
     now = timezone.now()
+    expiringCutoffDate = now + timedelta(days=UserGoal.EXPIRING_CUTOFF_DAYS)
     minStartDate = now - timedelta(days=365*20)
     maxEndDate = now + timedelta(days=1)
     calStartDate = datetime(now.year, 1, 1, tzinfo=pytz.utc)
     calEndDate = datetime(now.year+1, 1, 1, tzinfo=pytz.utc)
+    fkwCmeGap = {
+        'valid': True,
+        'goal__goalType__in': GoalType.objects.getCreditGoalTypes(),
+        'is_composite_goal': False,
+    }
+    fkwExpired = fkwCmeGap.copy()
+    fkwExpired['status'] = UserGoal.PASTDUE
+    fkwExpiring = fkwCmeGap.copy()
+    fkwExpiring['dueDate__lte'] = expiringCutoffDate
+    fkwExpiring['dueDate__gt'] = now
+    fkwExpiring['status'] = UserGoal.IN_PROGRESS
     profiles = Profile.objects.select_related('organization').all().order_by('user_id')
     data= []
     for profile in profiles:
@@ -91,7 +104,9 @@ def getDataFromDb():
             overallArticlesRead=0,
             expiredLicenses=0,
             expiringLicenses=0,
-            completedLicenses=0
+            completedLicenses=0,
+            expiredCmeGap=0,
+            expiringCmeGap=0
         )
         # Note: if user only signed up but never created a subscription, then user_subs is None
         user_subs = UserSubscription.objects.getLatestSubscription(user)
@@ -130,6 +145,10 @@ def getDataFromDb():
                 d['expiredLicenses'] = len(licenseDict[StateLicense.EXPIRED])
                 d['expiringLicenses'] = len(licenseDict[StateLicense.EXPIRING])
                 d['completedLicenses'] = len(licenseDict[StateLicense.COMPLETED])
+                cmeGap, numGoals = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpired)
+                d['expiredCmeGap'] = cmeGap
+                cmeGap, numGoals = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpiring)
+                d['expiringCmeGap'] = cmeGap
         data.append(d)
     return data
 
@@ -383,6 +402,8 @@ class MailchimpApi(EspApiBackend):
         'EXPRD_LIC': 'expiredLicenses',
         'EXPRNG_LIC': 'expiringLicenses',
         'COMPLT_LIC': 'completedLicenses',
+        'EXPRD_GAP': 'expiredCmeGap',
+        'EXPRNG_GAP': 'expiringCmeGap',
         # Credit-related fields
         'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
@@ -421,6 +442,8 @@ class MailchimpApi(EspApiBackend):
         'EXPRD_LIC': {'type': 'number'},
         'EXPRNG_LIC': {'type': 'number'},
         'COMPLT_LIC': {'type': 'number'},
+        'EXPRD_GAP': {'type': 'number'},
+        'EXPRNG_GAP': {'type': 'number'},
         # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
