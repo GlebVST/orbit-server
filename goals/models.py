@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.db.models import Q
+from django.db.utils import IntegrityError
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
@@ -50,9 +51,9 @@ def makeDueDate(year, month, day, now, advance_if_past=True):
     """Create dueDate as (year,month,day) and advance to next year if dueDate is < now
     Returns: datetime
     """
-    dueDate = makeAwareDatetime(year, month, day)
+    dueDate = makeAwareDatetime(year, month, day, 12)
     if dueDate < now and advance_if_past:
-        dueDate = makeAwareDatetime(year+1, month, day)
+        dueDate = makeAwareDatetime(year+1, month, day, 12)
     return dueDate
 
 def nround(n):
@@ -656,7 +657,10 @@ class CmeGoal(models.Model):
         return self.hospital.display_name
 
     def __str__(self):
-        return u"{0.entityType}|{0.entityName}".format(self)
+        tag = self.cmeTag
+        if not tag:
+            tag = u'Specialty' if self.mapNullTagToSpecialty else ANY_TOPIC
+        return u"{0.entityType}|{0.entityName}|{0.credits} credits in {1}".format(self, tag)
 
     @cached_property
     def dueMMDD(self):
@@ -725,7 +729,9 @@ class CmeGoal(models.Model):
             profile: Profile instance
             userLicense: StateLicense/None
             now: datetime
-            dueYear: int/None year to use for dueDate
+            dueYear: int/None
+             if given: dueDate year used only for RECUR_MMDD and BirthDate
+             else: uses now.year
         Returns: datetime
         Note: UNKNOWN_DATE is reserved for internal errors (e.g. unknown dueDateType)
         """
@@ -956,7 +962,14 @@ class SRCmeGoal(models.Model):
         if not dueYear:
             dueYear = now.year
         basegoal = self.goal
-        if basegoal.isOneOff() or basegoal.isRecurAny():
+        if basegoal.isRecurAny():
+            return now
+        if basegoal.isOneOff():
+            if self.state:
+                if not userLicense or userLicense.isUnInitialized():
+                    return now
+                else:
+                    return userLicense.expireDate
             return now
         if basegoal.isRecurMMDD():
             dueDate = makeDueDate(dueYear, self.dueMonth, self.dueDay, now)
@@ -1122,18 +1135,21 @@ class UserGoalManager(models.Manager):
             else:
                 filter_kwargs['cmeTag__isnull'] = True
             # Does non-archived UserGoal for (user, basegoal) exist
-            qs = self.model.objects.filter(**filter_kwargs).exclude(status=self.model.EXPIRED)
+            qs = self.model.objects \
+                .filter(**filter_kwargs) \
+                .exclude(status=self.model.EXPIRED) \
+                .order_by('-created')
             if qs.exists():
                 ug = qs[0]
                 consgoals.append(ug)
                 continue
-            # create UserGoal for (user, basegoal) with initial dueDate=now
+            # create UserGoal for (user, basegoal) with initial status=NEW
             usergoal = self.model.objects.create(
                     user=user,
                     goal=basegoal,
                     state=goal.state, # State or None
                     dueDate=now,
-                    status=self.model.PASTDUE,
+                    status=self.model.NEW,
                     cmeTag=tag,
                     creditsDue=0,
                     creditsDueMonthly=0,
@@ -1155,7 +1171,10 @@ class UserGoalManager(models.Manager):
             filter_kwargs['cmeTag'] = tag
         else:
             filter_kwargs['cmeTag__isnull'] = True
-        qs = self.model.objects.filter(**filter_kwargs).exclude(status=self.model.EXPIRED)
+        qs = self.model.objects \
+            .filter(**filter_kwargs) \
+            .exclude(status=self.model.EXPIRED) \
+            .order_by('-created')
         if qs.exists():
             compositeGoal = qs[0]
             saved = compositeGoal.checkUpdate(firstGoal, consgoals, userLicenseDict)
@@ -1167,7 +1186,7 @@ class UserGoalManager(models.Manager):
                     goal=firstGoal.goal,
                     state=None,
                     dueDate=now,
-                    status=self.model.PASTDUE,
+                    status=self.model.NEW,
                     cmeTag=tag,
                     creditsDue=0,
                     creditsDueMonthly=0,
@@ -1457,6 +1476,27 @@ class UserGoalManager(models.Manager):
             logger.info('handleRedeemOffer for: {0}'.format(ug))
         return num_ug # number of usergoals updated
 
+    def calcMaxCmeGapForUser(self, user, fkwargs):
+        """Compute max cme gap over the credit goals of a given user.
+        The fkwargs determine what status/dueDate to filter by
+        Args:
+            user: User instance
+            fkwargs: dict of kwargs for filtering UserGoal
+                - valid: True,
+                - goal__goalType__in: credit goaltypes
+                - is_composite_goal: False
+        Returns: tuple (cme_gap: float, num_goals: int)
+        """
+        cme_gap = 0
+        num_goals = 0
+        usergoals = user.usergoals \
+            .filter(**fkwargs) \
+            .order_by('-creditsDue')
+        if usergoals.exists():
+            cme_gap = float(usergoals[0].creditsDue)
+            num_goals = usergoals.count()
+        return (cme_gap, num_goals)
+
     def compute_userdata_for_admin_view(self, u, fkwargs, sl_qset, stateid=None):
         """Args:
             u: User instance
@@ -1484,33 +1524,19 @@ class UserGoalManager(models.Manager):
             elif sl.expireDate <= expiringCutoffDate:
                 expiring.append(sl)
         # compute max cme gap for expired goals (over all entityTypes)
-        pastdue_cme_gap = 0
-        pastdue_num_goals = 0
         fkw = fkwargs.copy()
         fkw['status'] = UserGoal.PASTDUE
         if stateid:
             fkw['state'] = stateid
-        usergoals = u.usergoals \
-            .filter(**fkw) \
-            .order_by('-creditsDue')
-        if usergoals.exists():
-            pastdue_cme_gap = float(usergoals[0].creditsDue)
-            pastdue_num_goals = usergoals.count()
+        pastdue_cme_gap, pastdue_num_goals = self.calcMaxCmeGapForUser(u, fkw)
         # compute max cme gap for expiring goals (over all entityTypes)
-        expiring_cme_gap = 0
-        expiring_num_goals = 0
         fkw = fkwargs.copy()
         fkw['dueDate__lte'] = expiringCutoffDate
         fkw['dueDate__gt'] = now
         fkw['status'] = UserGoal.IN_PROGRESS
         if stateid:
             fkw['state'] = stateid
-        usergoals = u.usergoals \
-            .filter(**fkw) \
-            .order_by('-creditsDue')
-        if usergoals.exists():
-            expiring_cme_gap = float(usergoals[0].creditsDue)
-            expiring_num_goals = usergoals.count()
+        expiring_cme_gap, expiring_num_goals = self.calcMaxCmeGapForUser(u, fkw)
         # return dict for userdata
         return {
             'total': total_licenses,
@@ -1535,11 +1561,13 @@ class UserGoal(models.Model):
     IN_PROGRESS = 1
     COMPLETED = 2
     EXPIRED = 3
+    NEW = 4
     STATUS_CHOICES = (
         (PASTDUE, 'Past Due'),
         (IN_PROGRESS, 'In Progress'),
         (COMPLETED, 'Completed'),
-        (EXPIRED, 'Expired')
+        (EXPIRED, 'Expired'),
+        (NEW, 'New - uninitialized')
     )
     NON_COMPLIANT = 0
     MARGINAL_COMPLIANT = 1
@@ -1659,7 +1687,11 @@ class UserGoal(models.Model):
     def __str__(self):
         gtype = self.goal.goalType.name
         if gtype == GoalType.CME or gtype == GoalType.SRCME:
-            return '{0.goal.goalType}|{0.stateOrComposite}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.creditsDue} in {1}'.format(self, self.formatCreditTypes())
+            dueDateType = self.goal.formatDueDateType()
+            src = self.stateOrComposite
+            if gtype == GoalType.CME and not src:
+                src = self.goal.cmegoal.board
+            return '{0.goal.goalType}|{1}|{2}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.creditsDue} in {3}'.format(self, src, dueDateType, self.formatCreditTypes())
         # license usergoal
         return '{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}'.format(self)
 
@@ -1717,6 +1749,9 @@ class UserGoal(models.Model):
 
     def calcLicenseStatus(self, now):
         """Returns status based on now, expireDate, and daysBeforeDue"""
+        if self.status == UserGoal.EXPIRED:
+            # this goal has already been archived
+            return self.status
         expireDate = self.license.expireDate
         if not expireDate or expireDate < now:
             return UserGoal.PASTDUE
@@ -1754,6 +1789,19 @@ class UserGoal(models.Model):
             self.save(update_fields=('status', 'dueDate', 'compliance'))
         return
 
+    def getDueYear(self, now):
+        """Helper method for recomputeCmeGoal, recomputeSRCmeGoal
+        If status is New or RECUR_ANY then
+          dueYear = now.year, else preserve existing dueDate.year
+        Returns: int
+        """
+        if self.status == UserGoal.NEW or self.goal.isRecurAny():
+            # status = NEW: need initial set of dueDate
+            # RECUR_ANY: always use now
+            return now.year
+        # preserve existing year
+        return self.dueDate.year
+
     def recomputeSRCmeGoal(self, userLicenseDict):
         """Recompute individual srcmegoal"""
         status = self.status
@@ -1770,9 +1818,8 @@ class UserGoal(models.Model):
                 logger.exception("No userLicense found for usergoal {0}".format(self))
                 return
         credits = goal.credits
-        # TODO: add NEW status if status is New or RECUR_ANY then
-        # dueYear = now.year, else preserve existing dueYear
-        dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
+        dueYear = self.getDueYear(now)
+        dueDate = goal.computeDueDateForProfile(profile, userLicense, now, dueYear)
         startDate = self.computeStartDateFromDue(dueDate)
         # compute creditsEarned for self.tag over goal interval
         if startDate <= now:
@@ -1807,7 +1854,7 @@ class UserGoal(models.Model):
             compliance = UserGoal.INCOMPLETE_PROFILE
         # compute status
         if not creditsDue:
-            status = UserGoal.COMPLETED # for now
+            status = UserGoal.COMPLETED
         elif not daysLeft:
             status = UserGoal.PASTDUE
         else:
@@ -1838,9 +1885,8 @@ class UserGoal(models.Model):
                 return
         # this handles splitting credits among specialties if needed
         credits = goal.computeCredits(numProfileSpecs)
-        # TODO: add NEW status if status is New or RECUR_ANY then
-        # dueYear = now.year, else preserve existing dueYear
-        dueDate = goal.computeDueDateForProfile(profile, userLicense, now)
+        dueYear = self.getDueYear(now)
+        dueDate = goal.computeDueDateForProfile(profile, userLicense, now, dueYear)
         startDate = self.computeStartDateFromDue(dueDate)
         # compute creditsEarned for self.tag over goal interval
         if startDate <= now:
@@ -1883,8 +1929,8 @@ class UserGoal(models.Model):
             compliance = UserGoal.INCOMPLETE_PROFILE
         # compute status
         if not creditsDueMonthly:
-            status = UserGoal.COMPLETED # for now
-        elif not daysLeft or not creditsEarned:
+            status = UserGoal.COMPLETED
+        elif not daysLeft:
             status = UserGoal.PASTDUE
         else:
             status = UserGoal.IN_PROGRESS
@@ -1939,7 +1985,7 @@ class UserGoal(models.Model):
         # compute status
         if not creditsDueMonthly:
             status = UserGoal.COMPLETED # for now
-        elif not daysLeft or not creditsEarned:
+        elif not daysLeft:
             status = UserGoal.PASTDUE
         else:
             status = UserGoal.IN_PROGRESS
@@ -1950,11 +1996,15 @@ class UserGoal(models.Model):
         self.creditsEarned = creditsEarned
         self.status = status
         self.compliance = min([d['subCompliance'] for d in data])
-        self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
-        if dueGoal:
-            self.creditTypes.clear()
-            self.setCreditTypes(dueGoal)
-        logger.debug('recompute compositeCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
+        try:
+            self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+        except IntegrityError as e:
+            logger.warning("recomputeCompositeCmeGoal IntegrityError: {0}".format(e))
+        else:
+            if dueGoal:
+                self.creditTypes.clear()
+                self.setCreditTypes(dueGoal)
+            logger.debug('recompute compositeCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
     def recomputeCompositeSRCmeGoal(self, userLicenseDict):
@@ -1997,7 +2047,7 @@ class UserGoal(models.Model):
         # compute status
         if not creditsDue:
             status = UserGoal.COMPLETED
-        elif not daysLeft or not creditsEarned:
+        elif not daysLeft:
             status = UserGoal.PASTDUE
         else:
             status = UserGoal.IN_PROGRESS
@@ -2008,12 +2058,15 @@ class UserGoal(models.Model):
         self.creditsEarned = creditsEarned
         self.status = status
         self.compliance = min([d['subCompliance'] for d in data])
-        self.save()
-        self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
-        if dueGoal:
-            self.creditTypes.clear()
-            self.setCreditTypes(dueGoal)
-        logger.debug('recompute compositeSRCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
+        try:
+            self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+        except IntegrityError as e:
+            logger.warning("recomputeCompositeSRCmeGoal IntegrityError: {0}".format(e))
+        else:
+            if dueGoal:
+                self.creditTypes.clear()
+                self.setCreditTypes(dueGoal)
+            logger.debug('recompute compositeSRCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
 

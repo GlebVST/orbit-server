@@ -1034,7 +1034,7 @@ class StateLicense(models.Model):
         unique_together = ('user','state','licenseType','expireDate')
 
     def __str__(self):
-        return self.licenseNumber
+        return u"{0.pk}|{0.licenseType}|{0.state}|{0.expireDate:%Y-%m-%d}".format(self)
 
     def isUnInitialized(self):
         return self.licenseNumber == '' or not self.expireDate

@@ -18,6 +18,7 @@ from users.models import (
         OrgMember,
         StateLicense
     )
+from goals.models import UserGoal, GoalType
 from django.utils import timezone
 
 logger = logging.getLogger('gen.esp')
@@ -27,10 +28,22 @@ def getDataFromDb():
     Returns list of dicts with keys that are used as the values in SYNC_FIELD_MAP_ESP_TO_LOCAL
     """
     now = timezone.now()
+    expiringCutoffDate = now + timedelta(days=UserGoal.EXPIRING_CUTOFF_DAYS)
     minStartDate = now - timedelta(days=365*20)
     maxEndDate = now + timedelta(days=1)
     calStartDate = datetime(now.year, 1, 1, tzinfo=pytz.utc)
     calEndDate = datetime(now.year+1, 1, 1, tzinfo=pytz.utc)
+    fkwCmeGap = {
+        'valid': True,
+        'goal__goalType__in': GoalType.objects.getCreditGoalTypes(),
+        'is_composite_goal': False,
+    }
+    fkwExpired = fkwCmeGap.copy()
+    fkwExpired['status'] = UserGoal.PASTDUE
+    fkwExpiring = fkwCmeGap.copy()
+    fkwExpiring['dueDate__lte'] = expiringCutoffDate
+    fkwExpiring['dueDate__gt'] = now
+    fkwExpiring['status'] = UserGoal.IN_PROGRESS
     profiles = Profile.objects.select_related('organization').all().order_by('user_id')
     data= []
     for profile in profiles:
@@ -39,6 +52,7 @@ def getDataFromDb():
         isEnterpriseAdmin = 0
         isEnterpriseProvider = 0
         enterpriseStatus = ''
+        enterpriseGroup = ''
         inviteId = profile.inviteId
         if profile.organization:
             orgName = profile.organization.name
@@ -48,11 +62,16 @@ def getDataFromDb():
                 isEnterpriseProvider = 1
             inviteId = '' # keep blank for Enterprise users
             try:
-                orgm = user.orgmembers.filter(organization=profile.organization).order_by('-created')[0]
+                orgm = user.orgmembers \
+                        .select_related('group') \
+                        .filter(organization=profile.organization) \
+                        .order_by('-created')[0]
             except IndexError:
                 logger.warning("OrgMember instance does not exist for userid {0.pk}".format(user))
             else:
                 enterpriseStatus = orgm.getEnterpriseStatus()
+                if orgm.group:
+                    enterpriseGroup = orgm.group.name
         birthmmdd = ''
         if profile.birthDate:
             birthmmdd = profile.birthDate.strftime("%m/%d")
@@ -68,6 +87,7 @@ def getDataFromDb():
             isEnterpriseAdmin=isEnterpriseAdmin,
             isEnterpriseProvider=isEnterpriseProvider,
             enterpriseStatus=enterpriseStatus,
+            enterpriseGroup=enterpriseGroup,
             subscriptionId='',
             subscribed=0,
             plan_type='',
@@ -84,7 +104,9 @@ def getDataFromDb():
             overallArticlesRead=0,
             expiredLicenses=0,
             expiringLicenses=0,
-            completedLicenses=0
+            completedLicenses=0,
+            expiredCmeGap=0,
+            expiringCmeGap=0
         )
         # Note: if user only signed up but never created a subscription, then user_subs is None
         user_subs = UserSubscription.objects.getLatestSubscription(user)
@@ -123,6 +145,10 @@ def getDataFromDb():
                 d['expiredLicenses'] = len(licenseDict[StateLicense.EXPIRED])
                 d['expiringLicenses'] = len(licenseDict[StateLicense.EXPIRING])
                 d['completedLicenses'] = len(licenseDict[StateLicense.COMPLETED])
+                cmeGap, numGoals = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpired)
+                d['expiredCmeGap'] = cmeGap
+                cmeGap, numGoals = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpiring)
+                d['expiringCmeGap'] = cmeGap
         data.append(d)
     return data
 
@@ -372,9 +398,12 @@ class MailchimpApi(EspApiBackend):
         'IS_ENT_ADM': 'isEnterpriseAdmin',
         'IS_ENT_PRO': 'isEnterpriseProvider',
         'ENT_STATUS': 'enterpriseStatus',
+        'ENT_GROUP': 'enterpriseGroup',
         'EXPRD_LIC': 'expiredLicenses',
         'EXPRNG_LIC': 'expiringLicenses',
         'COMPLT_LIC': 'completedLicenses',
+        'EXPRD_GAP': 'expiredCmeGap',
+        'EXPRNG_GAP': 'expiringCmeGap',
         # Credit-related fields
         'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
@@ -409,9 +438,12 @@ class MailchimpApi(EspApiBackend):
         'IS_ENT_ADM': {'type': 'number'},
         'IS_ENT_PRO': {'type': 'number'},
         'ENT_STATUS': {'type': 'text'},
+        'ENT_GROUP': {'type': 'text'},
         'EXPRD_LIC': {'type': 'number'},
         'EXPRNG_LIC': {'type': 'number'},
         'COMPLT_LIC': {'type': 'number'},
+        'EXPRD_GAP': {'type': 'number'},
+        'EXPRNG_GAP': {'type': 'number'},
         # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
