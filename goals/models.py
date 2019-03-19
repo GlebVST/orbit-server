@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.db.models import Q
+from django.db.utils import IntegrityError
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
@@ -1810,7 +1811,7 @@ class UserGoal(models.Model):
                 logger.exception("No userLicense found for usergoal {0}".format(self))
                 return
         credits = goal.credits
-        dueYear = self.getDueYear()
+        dueYear = self.getDueYear(now)
         dueDate = goal.computeDueDateForProfile(profile, userLicense, now, dueYear)
         startDate = self.computeStartDateFromDue(dueDate)
         # compute creditsEarned for self.tag over goal interval
@@ -1877,7 +1878,7 @@ class UserGoal(models.Model):
                 return
         # this handles splitting credits among specialties if needed
         credits = goal.computeCredits(numProfileSpecs)
-        dueYear = self.getDueYear()
+        dueYear = self.getDueYear(now)
         dueDate = goal.computeDueDateForProfile(profile, userLicense, now, dueYear)
         startDate = self.computeStartDateFromDue(dueDate)
         # compute creditsEarned for self.tag over goal interval
@@ -1988,11 +1989,15 @@ class UserGoal(models.Model):
         self.creditsEarned = creditsEarned
         self.status = status
         self.compliance = min([d['subCompliance'] for d in data])
-        self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
-        if dueGoal:
-            self.creditTypes.clear()
-            self.setCreditTypes(dueGoal)
-        logger.debug('recompute compositeCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
+        try:
+            self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+        except IntegrityError as e:
+            logger.warning("recomputeCompositeCmeGoal IntegrityError: {0}".format(e))
+        else:
+            if dueGoal:
+                self.creditTypes.clear()
+                self.setCreditTypes(dueGoal)
+            logger.debug('recompute compositeCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
     def recomputeCompositeSRCmeGoal(self, userLicenseDict):
@@ -2046,12 +2051,15 @@ class UserGoal(models.Model):
         self.creditsEarned = creditsEarned
         self.status = status
         self.compliance = min([d['subCompliance'] for d in data])
-        self.save()
-        self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
-        if dueGoal:
-            self.creditTypes.clear()
-            self.setCreditTypes(dueGoal)
-        logger.debug('recompute compositeSRCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
+        try:
+            self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+        except IntegrityError as e:
+            logger.warning("recomputeCompositeSRCmeGoal IntegrityError: {0}".format(e))
+        else:
+            if dueGoal:
+                self.creditTypes.clear()
+                self.setCreditTypes(dueGoal)
+            logger.debug('recompute compositeSRCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
 
