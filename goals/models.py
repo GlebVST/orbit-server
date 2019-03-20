@@ -1177,7 +1177,7 @@ class UserGoalManager(models.Manager):
             .order_by('-created')
         if qs.exists():
             compositeGoal = qs[0]
-            saved = compositeGoal.checkUpdate(firstGoal, consgoals, userLicenseDict)
+            saved = compositeGoal.checkUpdate(consgoals, userLicenseDict)
             if saved:
                 logger.info('Updated composite UserGoal: {0}'.format(compositeGoal))
         else:
@@ -1944,15 +1944,17 @@ class UserGoal(models.Model):
         logger.debug('recompute {0} creditsDue: {0.creditsDue} Monthly: {0.creditsDueMonthly}.'.format(self))
 
     def recomputeCompositeCmeGoal(self, userLicenseDict, numProfileSpecs):
-        """Recompute composite cme usergoal
+        """Recompute composite cme usergoal.
+        All of its constituentGoals should have been recomputed prior to calling this method.
         """
         consgoals = self.constituentGoals.all()
-        data = []
-        creditsDue = 0 # init to 0 since status expects var to be set even if no cmegoals
-        daysLeft = 0
+        completedGoals = []
+        incompleteGoals = []
         dueGoal = None
+        # split consgoals into completed vs incomplete
         for goal in consgoals:
-            data.append({
+            bucket = completedGoals if goal.status == UserGoal.COMPLETED else incompleteGoals
+            bucket.append({
                 'goal': goal,
                 'dueDate': goal.dueDate,
                 'daysLeft': goal.daysLeft,
@@ -1961,14 +1963,19 @@ class UserGoal(models.Model):
                 'creditsEarned': goal.creditsEarned,
                 'subCompliance': goal.compliance
             })
-        data.sort(key=itemgetter('dueDate'))
+        completedGoals.sort(key=itemgetter('dueDate'))
+        incompleteGoals.sort(key=itemgetter('dueDate'))
+        # only use completedGoals if there are no incompleteGoals
+        data = incompleteGoals if incompleteGoals else completedGoals
+        # get data for the earliest due goal
         dueDate = data[0]['dueDate'] # earliest
         dueGoal = data[0]['goal']
         daysLeft = data[0]['daysLeft']
         creditsDue = data[0]['creditsDue']
         creditsDueMonthly = data[0]['creditsDueMonthly']
         creditsEarned = data[0]['creditsEarned']
-        if len(data) > 1:
+        if len(data) > 1 and incompleteGoals:
+            # data points to incompleteGoals
             # compare creditsDue for the two earliest dueDates
             dueDate1 = data[1]['dueDate'] # 2nd-earliest
             creditsDue1 = data[1]['creditsDue']
@@ -1984,12 +1991,14 @@ class UserGoal(models.Model):
                     dueGoal = data[1]['goal']
         # compute status
         if not creditsDueMonthly:
-            status = UserGoal.COMPLETED # for now
+            status = UserGoal.COMPLETED
         elif not daysLeft:
             status = UserGoal.PASTDUE
         else:
             status = UserGoal.IN_PROGRESS
         # update model instance
+        oldBaseGoal = self.goal
+        self.goal = dueGoal.goal
         self.dueDate = dueDate # earliest
         self.creditsDue = creditsDue
         self.creditsDueMonthly = creditsDueMonthly
@@ -1997,26 +2006,26 @@ class UserGoal(models.Model):
         self.status = status
         self.compliance = min([d['subCompliance'] for d in data])
         try:
-            self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+            self.save(update_fields=('goal','status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
         except IntegrityError as e:
             logger.warning("recomputeCompositeCmeGoal IntegrityError: {0}".format(e))
         else:
-            if dueGoal:
+            if self.goal != oldBaseGoal:
                 self.creditTypes.clear()
                 self.setCreditTypes(dueGoal)
-            logger.debug('recompute compositeCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
     def recomputeCompositeSRCmeGoal(self, userLicenseDict):
         """Recompute composite srcme usergoal. This should be called after the individual goals are recomputed.
         """
         consgoals = self.constituentGoals.all()
-        data = []
-        creditsDue = 0 # init to 0 since status expects var to be set even if no cmegoals
-        daysLeft = 0
+        completedGoals = []
+        incompleteGoals = []
         dueGoal = None
+        # split consgoals into completed vs incomplete
         for goal in consgoals:
-            data.append({
+            bucket = completedGoals if goal.status == UserGoal.COMPLETED else incompleteGoals
+            bucket.append({
                 'goal': goal,
                 'dueDate': goal.dueDate,
                 'daysLeft': goal.daysLeft,
@@ -2025,13 +2034,17 @@ class UserGoal(models.Model):
                 'creditsEarned': goal.creditsEarned,
                 'subCompliance': goal.compliance
             })
-        data.sort(key=itemgetter('dueDate'))
+        completedGoals.sort(key=itemgetter('dueDate'))
+        incompleteGoals.sort(key=itemgetter('dueDate'))
+        # only use completedGoals if there are no incompleteGoals
+        data = incompleteGoals if incompleteGoals else completedGoals
+        # get data for the earliest due goal
         dueDate = data[0]['dueDate'] # earliest
         dueGoal = data[0]['goal']
         daysLeft = data[0]['daysLeft']
         creditsDue = data[0]['creditsDue']
         creditsEarned = data[0]['creditsEarned']
-        if len(data) > 1:
+        if len(data) > 1 and incompleteGoals:
             # compare creditsDue for the two earliest dueDates
             dueDate1 = data[1]['dueDate'] # 2nd-earliest
             creditsDue1 = data[1]['creditsDue']
@@ -2052,6 +2065,8 @@ class UserGoal(models.Model):
         else:
             status = UserGoal.IN_PROGRESS
         # update model instance
+        oldBaseGoal = self.goal
+        self.goal = dueGoal.goal
         self.dueDate = dueDate # earliest
         self.creditsDue = creditsDue
         self.creditsDueMonthly = creditsDue
@@ -2059,14 +2074,13 @@ class UserGoal(models.Model):
         self.status = status
         self.compliance = min([d['subCompliance'] for d in data])
         try:
-            self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
+            self.save(update_fields=('goal','status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
         except IntegrityError as e:
             logger.warning("recomputeCompositeSRCmeGoal IntegrityError: {0}".format(e))
         else:
-            if dueGoal:
+            if self.goal != oldBaseGoal:
                 self.creditTypes.clear()
                 self.setCreditTypes(dueGoal)
-            logger.debug('recompute compositeSRCmeGoal {0} creditsDue: {0.creditsDue}.'.format(self))
         return data
 
 
@@ -2122,17 +2136,22 @@ class UserGoal(models.Model):
                 self.status = UserGoal.COMPLETED
             self.save(update_fields=('creditsDue','creditsDueMonthly', 'creditsEarned','status'))
 
-    def checkUpdate(self, firstGoal, usergoals, userLicenseDict):
+    def checkUpdate(self, usergoals, userLicenseDict):
         """Check and update fields if needed for a composite cmegoal
         Returns: bool True if model instance was updated
         """
         saved = False
-        basegoal = firstGoal.goal
-        if self.goal != basegoal:
-            self.goal = basegoal
+        basegoalids = [ug.goal.pk for ug in usergoals]
+        if self.goal.pk not in basegoalids:
+            # self.goal is stale. Use first ug in usergoals
+            # It will be set to dueGoal by recompute
+            firstGoal = usergoals[0].goal
+            self.goal = firstGoal
             saved = True
         if saved:
             self.save(update_fields=('goal',))
+            self.creditTypes.clear()
+            self.setCreditTypes(firstGoal)
         dest = self.constituentGoals
         curgoalids = set([g.pk for g in dest.all()])
         newgoalids = set([g.pk for g in usergoals])
