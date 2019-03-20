@@ -702,6 +702,14 @@ class Profile(models.Model):
         return ", ".join([d.name for d in self.specialties.all()])
     formatSpecialties.short_description = "Specialties"
 
+    def formatSubSpecialties(self):
+        subspecs = self.subspecialties \
+            .select_related('specialty') \
+            .all() \
+            .order_by('specialty','name')
+        return ", ".join(["{0.specialty.name}/{0.name}".format(d) for d in subspecs])
+    formatSubSpecialties.short_description = "SubSpecialties"
+
     def isNurse(self):
         degrees = self.degrees.all()
         return any([m.isNurse() for m in degrees])
@@ -1034,7 +1042,9 @@ class StateLicense(models.Model):
         unique_together = ('user','state','licenseType','expireDate')
 
     def __str__(self):
-        return u"{0.pk}|{0.licenseType}|{0.state}|{0.expireDate:%Y-%m-%d}".format(self)
+        if self.expireDate:
+            return u"{0.pk}|{0.licenseType}|{0.state}|{0.expireDate:%Y-%m-%d}".format(self)
+        return u"{0.pk}|{0.licenseType}|{0.state}|expireDate not set".format(self)
 
     def isUnInitialized(self):
         return self.licenseNumber == '' or not self.expireDate
