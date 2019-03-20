@@ -130,15 +130,13 @@ def getDataFromDb():
             if not d['planSpecialty'] and profile.specialties.exists():
                 ps = profile.specialties.all().order_by('name')[0]
                 d['planSpecialty'] = ps.name
-            # Overall credits earned (but not necessarily redeemed)
-            overallCreditsEarned = float(OrbitCmeOffer.objects.sumCredits(user, minStartDate, maxEndDate))
+            # sum overall credits
+            overallCreditsRedeemed, overallCreditsUnredeemed = float(OrbitCmeOffer.objects.sumCredits(user, minStartDate, maxEndDate))
+            d['overallCreditsRedeemed'] = overallCreditsRedeemed
+            d['overallCreditsUnredeemed'] = overallCreditsUnredeemed
+            overallCreditsEarned = overallCreditsRedeemed + overallCreditsUnredeemed
             d['overallCreditsEarned'] = overallCreditsEarned
             d['overallArticlesRead'] = overallCreditsEarned/ARTICLE_CREDIT
-            # Overall credits redeemed
-            if UserCmeCredit.objects.filter(user=user).exists():
-                uc = UserCmeCredit.objects.get(user=user)
-                d['overallCreditsRedeemed'] = float(uc.total_credits_earned) # pre-computed
-                d['overallCreditsUnredeemed'] = d['overallCreditsEarned'] - d['overallCreditsRedeemed']
             # extra fields computed for enterprise providers
             if isEnterpriseProvider:
                 licenseDict = StateLicense.objects.partitionByStatusForUser(user)
