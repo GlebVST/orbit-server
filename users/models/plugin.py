@@ -259,16 +259,30 @@ class OrbitCmeOfferManager(models.Manager):
         Returns: Float
         """
         now = timezone.now()
-        filter_kwargs = {
+        # redeemed offers - no filter on expireDate
+        fkw1 = {
+            'redeemed': True,
+            'valid': True,
+            'user': user,
+            'activityDate__gte': startDate,
+            'activityDate__lte': endDate,
+        }
+        qs_redeemed = self.model.objects.filter(**fkw1)
+        # unredeemed offers - filter on expireDate
+        fkw2 = {
+            'redeemed': False,
             'valid': True,
             'user': user,
             'activityDate__gte': startDate,
             'activityDate__lte': endDate,
             'expireDate__gt': now
         }
-        qset = self.model.objects.filter(**filter_kwargs)
-        total = qset.aggregate(credit_sum=Sum('credits'))
-        credit_sum = total['credit_sum']
+        qs_unredeemed = self.model.objects.filter(**fkw2)
+        total_redeemed = qs_redeemed.aggregate(credit_sum=Sum('credits'))
+        credit_redeemed = total_redeemed['credit_sum'] or 0
+        total_unredeemed = qs_unredeemed.aggregate(credit_sum=Sum('credits'))
+        credit_unredeemed = total_unredeemed['credit_sum'] or 0
+        credit_sum = credit_redeemed + credit_unredeemed
         if credit_sum:
             return float(credit_sum)
         return 0
