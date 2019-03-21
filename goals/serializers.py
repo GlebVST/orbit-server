@@ -4,7 +4,6 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 from .models import *
-from common.dateutils import makeAwareDatetime
 from users.models import CreditType, RecAllowedUrl, ARTICLE_CREDIT
 from users.serializers import DocumentReadSerializer, NestedStateLicenseSerializer
 from users.feed_serializers import OrbitCmeOfferSerializer
@@ -300,15 +299,16 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
         license = instance.license
         licenseNumber = validated_data.get('licenseNumber')
         expireDate = validated_data.get('expireDate')
+        if expireDate:
+            expireDate = expireDate.replace(hour=12)
         createNewLicense = False
         updateUserCreditGoals = False
         now = timezone.now()
         # Decide if need to create a new license or edit in-place (e.g. correction)
-        if license.licenseNumber and license.expireDate and expireDate > license.expireDate:
+        if license.licenseNumber and license.expireDate and expireDate and expireDate > license.expireDate:
             tdiff = expireDate - license.expireDate
             if tdiff.days >= 365:
                 createNewLicense = True # create new license instance
-        createNewLicense = False # for now until have code in place for handling renew
         if createNewLicense:
             newLicense = StateLicense.objects.create(
                     user=user,
@@ -317,23 +317,24 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
                     licenseNumber=license.licenseNumber,
                     expireDate=expireDate
                 )
+            logger.info('Created newLicense: {0}'.format(newLicense))
             newUserLicenseGoal = UserGoal.objects.renewLicenseGoal(instance, newLicense)
             if 'documents' in validated_data:
                 docs = validated_data['documents']
                 newUserLicenseGoal.documents.set(docs)
-            ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(instance, newUserLicenseGoal)
+            ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(instance, newUserLicenseGoal, newLicense)
             return newUserLicenseGoal
-        # else
-        if expireDate != license.expireDate:
-            updateUserCreditGoals = True
-        # update license and usergoal in-place
+        # else: update license and usergoal in-place
         license.licenseNumber = licenseNumber
-        license.expireDate = expireDate
+        if expireDate and expireDate != license.expireDate:
+            license.expireDate = expireDate
+            updateUserCreditGoals = True
         license.save()
         # Update usergoal instance
-        instance.dueDate = expireDate
-        instance.save(update_fields=('dueDate',))
-        instance.recompute() # update status/compliance
+        if expireDate and expireDate != instance.dueDate:
+            instance.dueDate = expireDate
+            instance.save(update_fields=('dueDate',))
+            instance.recompute() # update status/compliance
         if 'documents' in validated_data:
             docs = validated_data['documents']
             instance.documents.set(docs)

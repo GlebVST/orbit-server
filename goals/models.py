@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime, timedelta
+from dateutil.relativedelta import *
 from operator import itemgetter
 import math
 import pytz
@@ -40,6 +41,7 @@ logger = logging.getLogger('gen.goals')
 INTERVAL_ERROR = u'Interval in years must be specified for recurring dueDateType'
 DUE_MONTH_ERROR = u'dueMonth must be a valid month in range 1-12'
 DUE_DAY_ERROR = u'dueDay must be a valid day for the selected month in range 1-31'
+ONE_OFF_INTERVAL = 20 # lookback years for ONE_OFF goals
 MARGINAL_COMPLIANT_CUTOFF_DAYS = 30
 SRCME_MARGINAL_COMPLIANT_CUTOFF_DAYS = 90
 ANY_TOPIC = u'Any Topic'
@@ -47,8 +49,11 @@ LICENSES = 'licenses'
 CME_GAP = 'cme_gap'
 GOALS = 'goals'
 
-def makeDueDate(year, month, day, now, advance_if_past=True):
-    """Create dueDate as (year,month,day) and advance to next year if dueDate is < now
+def makeDueDate(year, month, day, now, advance_if_past=False):
+    """Create UTC dueDate as (year,month,day,12)
+    Args:
+        advance_if_past: bool
+          If True: advance to next year if dueDate is < now
     Returns: datetime
     """
     dueDate = makeAwareDatetime(year, month, day, 12)
@@ -1119,7 +1124,6 @@ class UserGoalManager(models.Manager):
         usergoals = [] # newly created
         consgoals = [] # all constituentGoals
         firstGoal = goals[0]
-        goalType = firstGoal.goal.goalType
         basegoalids = [goal.goal.pk for goal in goals]
         # check individual goals
         for goal in goals:
@@ -1173,7 +1177,6 @@ class UserGoalManager(models.Manager):
             filter_kwargs['cmeTag__isnull'] = True
         qs = self.model.objects \
             .filter(**filter_kwargs) \
-            .exclude(status=self.model.EXPIRED) \
             .order_by('-created')
         if qs.exists():
             compositeGoal = qs[0]
@@ -1195,6 +1198,7 @@ class UserGoalManager(models.Manager):
                 )
             for ug in consgoals:
                 compositeGoal.constituentGoals.add(ug)
+            compositeGoal.setCreditTypes(firstGoal)
             logger.info('Created composite UserGoal: {0}'.format(compositeGoal))
             compositeGoal.recompute(userLicenseDict)
             usergoals.append(compositeGoal)
@@ -1286,24 +1290,97 @@ class UserGoalManager(models.Manager):
             else:
                 indiv.append(ug)
         # recompute individual goals first before composite goals
+        userLicenseDict = self.makeUserLicenseDict(user)
         for ug in indiv:
-            ug.recompute()
+            ug.recompute(userLicenseDict)
         for ug in composite:
-            ug.recompute()
+            ug.recompute(userLicenseDict)
 
 
-    def updateCreditGoalsForRenewLicense(self, oldGoal, newGoal):
-        """This is called when a license goal is renewed. Its dependent
-        creditgoals (cme/srcme) are also renewed. Archive the current credit
-        goals dependent on old goal and create new cme/srcme goals for the new usergoal.
-        **
-        TODO: DO NOT RENEW ONE/OFF GOALS!!
-        **
+    def updateCreditGoalsForRenewLicense(self, oldGoal, newGoal, newLicense):
+        """This is called when a license goal is renewed.
+        For the recurring credits goals associated with the licenseGoal:
+          create new individual goals and add them to their respective composite goals.
         Args:
             oldGoal: old user license goal
             newGoal: new user license goal
+            newLicense: new StateLicense
         Returns: list of newly created usergoals
         """
+        user = oldGoal.user
+        licenseGoal = oldGoal.goal.licensegoal # LicenseGoal instance
+        to_renew = set([])
+        creditGoals = []
+        for cmeGoal in licenseGoal.cmegoals.all():
+            basegoal = cmeGoal.goal
+            if basegoal.isOneOff() or basegoal.isRecurAny():
+                # singleton: only 1 usergoal should exist
+                continue
+            creditGoals.append(cmeGoal)
+        for srcmeGoal in licenseGoal.srcmegoals.all():
+            basegoal = srcmeGoal.goal
+            if basegoal.isOneOff() or basegoal.isRecurAny():
+                # singleton: only 1 usergoal should exist
+                continue
+            creditGoals.append(srcmeGoal)
+        for cg in creditGoals:
+            basegoal = cg.goal
+            qset = basegoal.usergoals \
+                .select_related('goal__goalType') \
+                .filter(user=user, is_composite_goal=False)
+            for ug in qset: # UserGoal qset
+                to_renew.add(ug)
+        userLicenseDict = self.makeUserLicenseDict(user)
+        newDueDate = newLicense.expireDate
+        for ug in to_renew:
+            # Does UserGoal already exist
+            basegoal = ug.goal
+            goalType = basegoal.goalType
+            if goalType.name == GoalType.CME:
+                cg = basegoal.cmegoal
+            else:
+                cg = basegoal.srcmegoal
+            filter_kwargs = {
+                'goal': basegoal,
+                'dueDate': newDueDate,
+                'is_composite_goal': False
+            }
+            qs = user.usergoals.filter(**filter_kwargs)
+            if qs.exists():
+                logger.debug('UserGoal {0} already exists'.format(qs[0]))
+                continue
+            # find the composite goal to which ug belongs as a constituent
+            fkw = {
+                'is_composite_goal': True,
+                'constituentGoals': ug,
+            }
+            if ug.cmeTag:
+                fkw['cmeTag'] = ug.cmeTag
+            else:
+                fkw['cmeTag__isnull'] = True
+            cqs = user.usergoals.filter(**fkw)
+            if not cqs.exists():
+                logger.warning('Could not find compositeGoal for UserGoal {0.pk}/{0}'.format(ug))
+                continue
+            compositeGoal = cqs[0]
+            # create new UserGoal with dueDate=newLicense.expireDate
+            usergoal = UserGoal.objects.create(
+                user=user,
+                goal=basegoal,
+                state=cg.state,
+                dueDate=newDueDate,
+                status=UserGoal.IN_PROGRESS,
+                cmeTag=ug.cmeTag,
+                creditsDue=0,
+                creditsDueMonthly=0,
+                creditsEarned=0,
+            )
+            usergoal.setCreditTypes(cg)
+            logger.info('Renewed UserGoal: {0}'.format(usergoal))
+            usergoal.recompute(userLicenseDict)
+            compositeGoal.constituentGoals.add(usergoal)
+            compositeGoal.recompute(userLicenseDict)
+            logger.info('Updated compositeGoal: {0}'.format(compositeGoal))
         return usergoals
 
     def rematchLicenseGoals(self, user):
@@ -1312,7 +1389,7 @@ class UserGoalManager(models.Manager):
         """
         profile = user.profile
         stale = []
-        existing = user.usergoals.select_related('goal').filter(goal__goalType__name=GoalType.LICENSE)
+        existing = user.usergoals.select_related('goal__goalType').filter(goal__goalType__name=GoalType.LICENSE)
         for ug in existing:
             licensegoal = ug.goal.licensegoal
             if not licensegoal.isMatchProfile(profile):
@@ -1323,7 +1400,7 @@ class UserGoalManager(models.Manager):
             logger.info('Removing {0}'.format(ug))
             ug.delete()
         if num_stale:
-            logger.info('Deleted {0} licensegoals for {1}'.format(num_stale, user))
+            logger.info('Deleted {0} user licensegoals for {1}'.format(num_stale, user))
         return num_stale
 
     def rematchCmeGoals(self, user):
@@ -1331,67 +1408,100 @@ class UserGoalManager(models.Manager):
         Returns: int - number of stale goals deleted
         """
         profile = user.profile
-        stale = set([])
+        stale_indv = set([])
+        stale_composite = set([])
         # individual goals
-        existing = user.usergoals.select_related('goal').filter(
+        existing = user.usergoals.select_related('goal__goalType').filter(
                 goal__goalType__name=GoalType.CME,
                 is_composite_goal=False)
         for ug in existing:
             cmegoal = ug.goal.cmegoal
             if not cmegoal.isMatchProfile(profile):
-                stale.add(ug)
+                stale_indv.add(ug)
         # composite cme goals: delete if all constituentGoals are stale
-        existing = user.usergoals.select_related('goal').filter(
+        existing = user.usergoals.select_related('goal__goalType').filter(
                 goal__goalType__name=GoalType.CME,
                 is_composite_goal=True)
         for compositeGoal in existing:
             consgoals = compositeGoal.constituentGoals.all()
-            cons_stale = [ug in stale for ug in consgoals]
+            cons_stale = [ug in stale_indv for ug in consgoals]
             if all(cons_stale):
                 # all of its constituent goals match are stale
-                stale.add(compositeGoal)
-        num_stale = len(stale)
-        # delete stale
-        for ug in stale:
+                stale_composite.add(compositeGoal)
+        num_stale_indv = len(stale_indv)
+        # stale_indv: remove from compositeGoal before deleting
+        for ug in stale_indv:
+            compositeGoals = [cg for cg in ug.compositeGoals.all()]
+            for cg in compositeGoals:
+                cg.remove(ug) # delete the ManyToMany association
+                if cg.goal == ug.goal:
+                    if cg in stale_composite:
+                        logger.info('Removing {0}'.format(ug))
+                        cg.delete()
+                        stale_composite.remove(cg)
+                    else:
+                        cg.updateBaseGoal() # set cg.goal from its remaining constituentGoals
+            # now delete the usergoal
             logger.info('Removing {0}'.format(ug))
             ug.delete()
-        if num_stale:
-            logger.info('Deleted {0} cmegoals for {1}'.format(num_stale, user))
-        return num_stale
+        if num_stale_indv:
+            logger.info('Deleted {0} cmegoals for {1}'.format(num_stale_indv, user))
+        # delete stale composite
+        for ug in stale_composite:
+            logger.info('Removing {0}'.format(ug))
+            ug.constituentGoals.clear() # clear before deleting
+            ug.delete()
+        return num_stale_indv
 
     def rematchSRCmeGoals(self, user):
         """Helper method for rematchGoals
         Returns: int - number of stale goals deleted
         """
         profile = user.profile
-        stale = set([])
+        stale_indv = set([])
+        stale_composite = set([])
         # individual goals
-        existing = user.usergoals.select_related('goal').filter(
+        existing = user.usergoals.select_related('goal__goalType').filter(
                 goal__goalType__name=GoalType.SRCME,
                 is_composite_goal=False)
         for ug in existing:
             cmegoal = ug.goal.srcmegoal
             if not cmegoal.isMatchProfile(profile):
-                stale.add(ug)
+                stale_indv.add(ug)
         # composite cme goals: delete if all constituentGoals are stale
-        existing = user.usergoals.select_related('goal').filter(
+        existing = user.usergoals.select_related('goal__goalType').filter(
                 goal__goalType__name=GoalType.SRCME,
                 is_composite_goal=True)
         for compositeGoal in existing:
             consgoals = compositeGoal.constituentGoals.all()
-            cons_stale = [ug in stale for ug in consgoals]
+            cons_stale = [ug in stale_indv for ug in consgoals]
             if all(cons_stale):
                 # all of its constituent goals match are stale
-                stale.add(compositeGoal)
-        num_stale = len(stale)
-        # delete stale
-        for ug in stale:
+                stale_composite.add(compositeGoal)
+        num_stale_indv = len(stale_indv)
+        # stale_indv: remove from compositeGoal before deleting
+        for ug in stale_indv:
+            compositeGoals = [cg for cg in ug.compositeGoals.all()]
+            for cg in compositeGoals:
+                cg.remove(ug) # delete the ManyToMany association
+                if cg.goal == ug.goal:
+                    if cg in stale_composite:
+                        logger.info('Removing {0}'.format(ug))
+                        cg.delete()
+                        stale_composite.remove(cg)
+                    else:
+                        cg.updateBaseGoal() # set cg.goal from its remaining constituentGoals
+            # now delete the usergoal
             logger.info('Removing {0}'.format(ug))
             ug.delete()
-        if num_stale:
-            logger.info('Deleted {0} srcmegoals for {1}'.format(num_stale, user))
-        return num_stale
-
+        if num_stale_indv:
+            logger.info('Deleted {0} srcmegoals for {1}'.format(num_stale_indv, user))
+        # delete stale composite
+        for ug in stale_composite:
+            logger.info('Removing {0}'.format(ug))
+            ug.constituentGoals.clear() # clear before deleting
+            ug.delete()
+        return num_stale_indv
 
     def rematchGoals(self, user):
         """This should be called when user's profile changes, or when new goals are created (or existing goals inactivated).
@@ -1644,8 +1754,9 @@ class UserGoal(models.Model):
             help_text='Eligible creditTypes that satisfy this goal (used for credit goals).')
     documents = models.ManyToManyField(Document, related_name='usergoals')
     constituentGoals = models.ManyToManyField('self',
+            symmetrical=False,
             blank=True,
-            related_name='constituentGoals',
+            related_name='compositeGoals',
             help_text='Populated for composite goals')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -1744,8 +1855,8 @@ class UserGoal(models.Model):
     def computeStartDateFromDue(self, dueDate):
         """Compute startDate as dueDate - basegoal.interval years"""
         basegoal = self.goal
-        yrs = basegoal.interval if basegoal.interval else 100
-        return dueDate - timedelta(days=365*float(yrs))
+        lookbackYears = basegoal.interval if basegoal.interval else ONE_OFF_INTERVAL
+        return dueDate - relativedelta(years=lookbackYears)
 
     def calcLicenseStatus(self, now):
         """Returns status based on now, expireDate, and daysBeforeDue"""
@@ -1811,7 +1922,7 @@ class UserGoal(models.Model):
         basegoal = self.goal
         goal = basegoal.srcmegoal # SRCmeGoal
         now = timezone.now()
-        if basegoal.usesLicenseDate():
+        if goal.licenseGoal:
             try:
                 userLicense = userLicenseDict[goal.licenseGoal.pk]
             except KeyError:
@@ -1877,7 +1988,7 @@ class UserGoal(models.Model):
         basegoal = self.goal
         goal = basegoal.cmegoal # CmeGoal
         now = timezone.now()
-        if basegoal.usesLicenseDate():
+        if goal.licenseGoal:
             try:
                 userLicense = userLicenseDict[goal.licenseGoal.pk]
             except KeyError:
@@ -2135,6 +2246,14 @@ class UserGoal(models.Model):
             if not compValue and self.needsCompletion():
                 self.status = UserGoal.COMPLETED
             self.save(update_fields=('creditsDue','creditsDueMonthly', 'creditsEarned','status'))
+
+    def updateBaseGoal(self):
+        """Used to set self.goal for compositeGoal
+        It sets it to first of its constituentGoals
+        """
+        usergoals = self.constituentGoals.all().order_by('-dueDate')
+        self.goal = usergoals[0].goal
+        self.save(update_fields=('goal',))
 
     def checkUpdate(self, usergoals, userLicenseDict):
         """Check and update fields if needed for a composite cmegoal
