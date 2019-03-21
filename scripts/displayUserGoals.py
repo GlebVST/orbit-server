@@ -4,9 +4,9 @@ from goals.models import *
 def print_license_goal(ug):
     lic = ug.license
     if lic.expireDate:
-        print('{0.title} expireDate:{1.expireDate:%Y-%m-%d}'.format(ug, lic))
+        print('{0.pk}: {0.title} expireDate:{1.expireDate:%Y-%m-%d}'.format(ug, lic))
     else:
-        print('{0.title} expireDate: *Un-Initialized*'.format(ug, lic))
+        print('{0.pk}: {0.title} expireDate: *Un-Initialized*'.format(ug, lic))
 
 def print_board_goal(ug):
     bg = ug.goal
@@ -14,7 +14,7 @@ def print_board_goal(ug):
     srcgoal = bg.cmegoal
     cmeTag = srcgoal.getTag() # handles mapNullToSpecialty
     print('{0.board}|{0.goal.goalType}|dueDateType:{1}|Lookback: {0.goal.interval} years|{0.credits} credits in {2}'.format(srcgoal, dueDateType, cmeTag))
-    print('  UserGoal: dueDate:{0.dueDate:%Y-%m-%d}|creditsEarned:{0.creditsEarned}|creditsDue:{0.creditsDue} in {0.cmeTag}/{1}'.format(ug, ug.formatCreditTypes()))
+    print('  {0.pk}: status:{0.status}|dueDate:{0.dueDate:%Y-%m-%d}|creditsEarned:{0.creditsEarned}|creditsDue:{0.creditsDue} in {0.cmeTag}/{1}'.format(ug, ug.formatCreditTypes()))
     print(' ')
 
 def print_state_goal(ug):
@@ -33,7 +33,7 @@ def print_state_goal(ug):
         print('{0.state}|{0.goal.goalType}|dueDateType:{1}|{0.credits} credits in {2}'.format(srcgoal, dueDateType, cmeTag))
     else:
         print('{0.state}|{0.goal.goalType}|dueDateType:{1}|Lookback: {0.goal.interval} years|{0.credits} credits in {2}'.format(srcgoal, dueDateType, cmeTag))
-    print('  UserGoal: dueDate:{0.dueDate:%Y-%m-%d}|creditsEarned:{0.creditsEarned}|creditsDue:{0.creditsDue} in {0.cmeTag}/{1}'.format(ug, ug.formatCreditTypes()))
+    print('  {0.pk}: status:{0.status}|dueDate:{0.dueDate:%Y-%m-%d}|creditsEarned:{0.creditsEarned}|creditsDue:{0.creditsDue} in {0.cmeTag}/{1}'.format(ug, ug.formatCreditTypes()))
     print(' ')
 
 def getMembersOfOrg(joinCode):
@@ -86,8 +86,8 @@ def main(user):
         .order_by('dueDate','-creditsDue', 'pk')
     print('Num Composite goals: {0}'.format(len(cugs)))
     for ug in cugs:
-        print("{0.pk} {0}".format(ug))
+        print("{0.pk}: {0}".format(ug))
         for m in ug.constituentGoals.all():
-            print("  {0.pk} {0}".format(m))
+            print("  {0.pk}: {0}".format(m))
         print(' ')
     return ugs
