@@ -44,6 +44,7 @@ DUE_DAY_ERROR = u'dueDay must be a valid day for the selected month in range 1-3
 ONE_OFF_INTERVAL = 20 # lookback years for ONE_OFF goals
 MARGINAL_COMPLIANT_CUTOFF_DAYS = 30
 SRCME_MARGINAL_COMPLIANT_CUTOFF_DAYS = 90
+CREDIT_LEFT_THRESHOLD = 3 # used in recomputeCmeGoal
 ANY_TOPIC = u'Any Topic'
 LICENSES = 'licenses'
 CME_GAP = 'cme_gap'
@@ -2018,8 +2019,8 @@ class UserGoal(models.Model):
             if dueDate >= now:
                 td = dueDate - now
                 daysLeft = td.days
-            if daysLeft <= 30:
-                # all creditsLeft due at this time
+            if daysLeft <= 30 or creditsLeft <= CREDIT_LEFT_THRESHOLD:
+                # do not sub-divide by month. Let dueMonthly = creditsLeft,  status will be set to IN_PROGRESS below.
                 creditsDueMonthly = creditsDue
                 if daysLeft <= 0:
                     compliance = UserGoal.NON_COMPLIANT
@@ -2030,7 +2031,7 @@ class UserGoal(models.Model):
                 monthsLeft = math.floor(daysLeft/30) # take floor to ensure we don't underestimate apm
                 articlesLeft = creditsLeft/ARTICLE_CREDIT
                 apm = round(articlesLeft/monthsLeft) # round to nearest int
-                creditsDueMonthly = apm*ARTICLE_CREDIT # due this month
+                creditsDueMonthly = apm*ARTICLE_CREDIT # due this month (if 0, status will be set to COMPLETED)
                 compliance = UserGoal.COMPLIANT
         #print(' - Tag {0.cmeTag}|creditsLeft: {1} | creditsDue: {2} for goal {3}'.format(self, creditsLeft, creditsDue, goal))
         # update compliance if incomplete info
