@@ -4,7 +4,7 @@ from goals.models import *
 def print_license_goal(ug):
     lic = ug.license
     if lic.expireDate:
-        print('{0.title} expireDate:{1.dueDate:%Y-%m-%d}'.format(ug, lic))
+        print('{0.title} expireDate:{1.expireDate:%Y-%m-%d}'.format(ug, lic))
     else:
         print('{0.title} expireDate: *Un-Initialized*'.format(ug, lic))
 
@@ -79,5 +79,15 @@ def main(user):
     print('Num State goals: {0}'.format(len(state_goals)))
     for ug in state_goals:
         print_state_goal(ug)
-    print(60*'-')
+    # composite goals
+    cugs = user.usergoals \
+        .select_related('goal__goalType','state','cmeTag') \
+        .filter(is_composite_goal=True) \
+        .order_by('dueDate','-creditsDue', 'pk')
+    print('Num Composite goals: {0}'.format(len(cugs)))
+    for ug in cugs:
+        print("{0.pk} {0}".format(ug))
+        for m in ug.constituentGoals.all():
+            print("  {0.pk} {0}".format(m))
+        print(' ')
     return ugs

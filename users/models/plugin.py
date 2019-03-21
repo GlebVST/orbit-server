@@ -255,8 +255,9 @@ class OrbitCmeOfferManager(models.Manager):
         return self.makeOffer(aurl, user, activityDate, expireDate)
 
     def sumCredits(self, user, startDate, endDate):
-        """Total valid offer credits over the given time period for the given user
-        Returns: Float
+        """Compute credit sum over the given time period for the given user for:
+            (redeemed offers, valid, non-expired unredeemed offers)
+        Returns: tuple (credit_sum_redeemed:float, credit_sum_unredeemed:float)
         """
         now = timezone.now()
         # redeemed offers - no filter on expireDate
@@ -279,13 +280,14 @@ class OrbitCmeOfferManager(models.Manager):
         }
         qs_unredeemed = self.model.objects.filter(**fkw2)
         total_redeemed = qs_redeemed.aggregate(credit_sum=Sum('credits'))
-        credit_redeemed = total_redeemed['credit_sum'] or 0
+        credit_sum_redeemed = total_redeemed['credit_sum'] or 0
+        if credit_sum_redeemed:
+            credit_sum_redeemed = float(credit_sum_redeemed)
         total_unredeemed = qs_unredeemed.aggregate(credit_sum=Sum('credits'))
-        credit_unredeemed = total_unredeemed['credit_sum'] or 0
-        credit_sum = credit_redeemed + credit_unredeemed
-        if credit_sum:
-            return float(credit_sum)
-        return 0
+        credit_sum_unredeemed = total_unredeemed['credit_sum'] or 0
+        if credit_sum_unredeemed:
+            credit_sum_unredeemed = float(credit_sum_unredeemed)
+        return (credit_sum_redeemed, credit_sum_unredeemed)
 
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.
