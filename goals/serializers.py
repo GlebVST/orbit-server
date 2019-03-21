@@ -235,6 +235,7 @@ class UserGoalSummarySerializer(serializers.ModelSerializer):
     creditsLeft = serializers.SerializerMethodField()
     creditTypes = serializers.SerializerMethodField()
     license = serializers.SerializerMethodField()
+    displayStatus = serializers.SerializerMethodField()
 
     class Meta:
         model = UserGoal
@@ -248,7 +249,8 @@ class UserGoalSummarySerializer(serializers.ModelSerializer):
             'cmeTag',
             'creditsLeft',
             'creditTypes',
-            'license'
+            'license',
+            'displayStatus'
         )
 
     def get_creditsLeft(self, obj):
@@ -272,7 +274,16 @@ class UserGoalSummarySerializer(serializers.ModelSerializer):
         # else: expect this is a Board/Hospital goal
         return obj.goal.cmegoal.entityName
 
-
+    def get_displayStatus(self, obj):
+        """UI display value for status"""
+        if obj.status == UserGoal.PASTDUE:
+            return 'Overdue'
+        if obj.status == UserGoal.COMPLETED:
+            return 'Completed'
+        # check if goal dueDate is expiring
+        if obj.isExpiring():
+            return 'Expiring'
+        return 'On Track'
 
 class UserLicenseGoalUpdateSerializer(serializers.Serializer):
     licenseNumber = serializers.CharField(max_length=40)

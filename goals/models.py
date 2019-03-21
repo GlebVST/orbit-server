@@ -1807,6 +1807,13 @@ class UserGoal(models.Model):
         # license usergoal
         return '{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}'.format(self)
 
+    def isExpiring(self):
+        now = timezone.now()
+        expiringCutoffDate = now + timedelta(days=UserGoal.EXPIRING_CUTOFF_DAYS)
+        if self.dueDate > now and self.dueDate < expiringCutoffDate:
+            return True
+        return False
+
     def setCreditTypes(self, goal):
         """Copy applicable creditTypes from goal to self based on user's
         profile.degree.
