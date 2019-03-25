@@ -90,10 +90,10 @@ def getDataFromDb():
             enterpriseGroup=enterpriseGroup,
             subscriptionId='',
             subscribed=0,
-            plan_type='',
-            plan_name='',
+            planType='',
+            planName='',
             planSpecialty='',
-            subscription_status='',
+            subscriptionStatus='',
             billingFirstDate='',
             billingStartDate='',
             billingEndDate='',
@@ -114,9 +114,9 @@ def getDataFromDb():
             plan = user_subs.plan # SubscriptionPlan instance
             d['subscribed'] = 1
             d['subscriptionId'] = user_subs.subscriptionId
-            d['plan_type'] = plan.plan_type.name
-            d['plan_name'] = plan.display_name
-            d['subscription_status'] = user_subs.display_status
+            d['planType'] = plan.plan_type.name
+            d['planName'] = plan.display_name
+            d['subscriptionStatus'] = user_subs.display_status
             d['billingFirstDate'] = str(user_subs.billingFirstDate.date())
             d['billingStartDate'] = str(user_subs.billingStartDate.date())
             d['billingEndDate'] = str(user_subs.billingEndDate.date())
@@ -131,7 +131,8 @@ def getDataFromDb():
                 ps = profile.specialties.all().order_by('name')[0]
                 d['planSpecialty'] = ps.name
             # sum overall credits
-            overallCreditsRedeemed, overallCreditsUnredeemed = float(OrbitCmeOffer.objects.sumCredits(user, minStartDate, maxEndDate))
+            creditsTuple = OrbitCmeOffer.objects.sumCredits(user, minStartDate, maxEndDate)
+            overallCreditsRedeemed, overallCreditsUnredeemed = (float(cred) for cred in creditsTuple) 
             d['overallCreditsRedeemed'] = overallCreditsRedeemed
             d['overallCreditsUnredeemed'] = overallCreditsUnredeemed
             overallCreditsEarned = overallCreditsRedeemed + overallCreditsUnredeemed
@@ -384,10 +385,10 @@ class MailchimpApi(EspApiBackend):
         # Subscription fields
         'SUBSCN_ID': 'subscriptionId',
         'SUBSCRIBED': 'subscribed',
-        'PLAN_TYPE': 'plan_type',
-        'PLAN_NAME': 'plan_name',
+        'PLAN_TYPE': 'planType',
+        'PLAN_NAME': 'planName',
         'PLAN_SPECI': 'planSpecialty',
-        'SUBSCN_STA': 'subscription_status',
+        'SUBSCN_STA': 'subscriptionStatus',
         'SUBSCN_FDT': 'billingFirstDate',
         'SUBSCN_SDT': 'billingStartDate',
         'SUBSCN_EDT': 'billingEndDate',
