@@ -778,10 +778,10 @@ class UserSubscriptionManager(models.Manager):
             user: User instance
         Returns: bool
         """
-        # has user ever had a paid subs
+        # has user ever had an active paid subs
         qset = UserSubscription.objects.select_related('plan').filter(user=user).order_by('created')
         for m in qset:
-            if m.plan.isPaid():
+            if m.plan.isPaid() and m.display_status not in (self.model.UI_TRIAL, self.model.UI_TRIAL_CANCELED, self.model.UI_SUSPENDED):
                 return False
         return True
 
