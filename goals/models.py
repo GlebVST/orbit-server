@@ -1434,7 +1434,7 @@ class UserGoalManager(models.Manager):
         for ug in stale_indv:
             compositeGoals = [cg for cg in ug.compositeGoals.all()]
             for cg in compositeGoals:
-                cg.remove(ug) # delete the ManyToMany association
+                cg.constituentGoals.remove(ug) # delete the ManyToMany association
                 if cg.goal == ug.goal:
                     if cg in stale_composite:
                         logger.info('Removing {0}'.format(ug))
@@ -1484,7 +1484,7 @@ class UserGoalManager(models.Manager):
         for ug in stale_indv:
             compositeGoals = [cg for cg in ug.compositeGoals.all()]
             for cg in compositeGoals:
-                cg.remove(ug) # delete the ManyToMany association
+                cg.constituentGoals.remove(ug) # delete the ManyToMany association
                 if cg.goal == ug.goal:
                     if cg in stale_composite:
                         logger.info('Removing {0}'.format(ug))
