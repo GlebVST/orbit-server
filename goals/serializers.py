@@ -10,6 +10,10 @@ from users.feed_serializers import OrbitCmeOfferSerializer
 
 logger = logging.getLogger('gen.gsrl')
 PUB_DATE_FORMAT = '%b %Y'
+OVERDUE = 'Overdue'
+COMPLETED = 'Completed'
+EXPIRING = 'Expiring'
+ON_TRACK = 'On Track'
 
 class GoalTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -227,7 +231,43 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class UserGoalSummarySerializer(serializers.ModelSerializer):
+class UserLicenseGoalSummarySerializer(serializers.ModelSerializer):
+    user = serializers.IntegerField(source='user.id', read_only=True)
+    state = serializers.PrimaryKeyRelatedField(read_only=True)
+    license = serializers.SerializerMethodField()
+    displayStatus = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserGoal
+        fields = (
+            'id',
+            'user',
+            'state',
+            'dueDate',
+            'status',
+            'license',
+            'displayStatus'
+        )
+
+    def get_license(self, obj):
+        license = obj.license
+        ltype = license.licenseType.name
+        if ltype == 'Medical Board':
+            return "{0.state.name} ({0.state.abbrev})".format(obj)
+        return '{0} - {1.state.name} ({1.state.abbrev})'.format(ltype, obj)
+
+    def get_displayStatus(self, obj):
+        """UI display value for status"""
+        if obj.status == UserGoal.PASTDUE:
+            return OVERDUE
+        if obj.status == UserGoal.COMPLETED:
+            return COMPLETED
+        # check if goal dueDate is expiring
+        if obj.isExpiring():
+            return EXPIRING
+        return ON_TRACK
+
+class UserCreditGoalSummarySerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
     state = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -262,28 +302,23 @@ class UserGoalSummarySerializer(serializers.ModelSerializer):
         return [NestedCreditTypeSerializer(m).data for m in qset]
 
     def get_license(self, obj):
-        """Return state/licenseType or board info"""
-        license = obj.license
-        if license:
-            ltype = license.licenseType.name
-            if ltype == 'Medical Board':
-                return "{0.state.name} ({0.state.abbrev})".format(obj)
-            return '{0} {1.name} ({0.state.abbrev})'.format(ltype, obj.state)
+        """Return state info or board info"""
         if obj.state:
+            # state-specifc cme/srcme goal
             return "{0.state.name} ({0.state.abbrev})".format(obj)
-        # else: expect this is a Board/Hospital goal
+        # Board/Hospital cme goal
         return obj.goal.cmegoal.entityName
 
     def get_displayStatus(self, obj):
         """UI display value for status"""
         if obj.status == UserGoal.PASTDUE:
-            return 'Overdue'
+            return OVERDUE
         if obj.status == UserGoal.COMPLETED:
-            return 'Completed'
+            return COMPLETED
         # check if goal dueDate is expiring
         if obj.isExpiring():
-            return 'Expiring'
-        return 'On Track'
+            return EXPIRING
+        return ON_TRACK
 
 class UserLicenseGoalUpdateSerializer(serializers.Serializer):
     licenseNumber = serializers.CharField(max_length=40)
@@ -309,14 +344,14 @@ class UserLicenseGoalUpdateSerializer(serializers.Serializer):
         user = instance.user
         license = instance.license
         licenseNumber = validated_data.get('licenseNumber')
-        expireDate = validated_data.get('expireDate')
+        expireDate = validated_data.get('expireDate', license.expireDate)
         if expireDate:
             expireDate = expireDate.replace(hour=12)
         createNewLicense = False
         updateUserCreditGoals = False
         now = timezone.now()
         # Decide if need to create a new license or edit in-place (e.g. correction)
-        if license.licenseNumber and license.expireDate and expireDate and expireDate > license.expireDate:
+        if license.licenseNumber and license.expireDate and expireDate > license.expireDate:
             tdiff = expireDate - license.expireDate
             if tdiff.days >= 365:
                 createNewLicense = True # create new license instance

@@ -55,22 +55,38 @@ class UserGoalSummary(APIView):
             return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
 
         stateid = request.query_params.get('state', '')
-        gts = GoalType.objects.filter(name__in=[GoalType.CME, GoalType.SRCME])
-        fkwargs = {
+        gts = GoalType.objects.getCreditGoalTypes()
+        # get credit usergoals
+        fkwargs_credit = {
             'valid': True,
             'goal__goalType__in': gts,
             'is_composite_goal': False,
             'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS, UserGoal.COMPLETED]
         }
         if stateid:
-            fkwargs['state_id'] = stateid
-        qset = user.usergoals \
-                .filter(**fkwargs) \
-                .select_related('goal__goalType', 'license__licenseType', 'cmeTag', 'state') \
-                .order_by('status', 'dueDate', 'license', '-creditsDue')
-        s = UserGoalSummarySerializer(qset, many=True)
+            fkwargs_credit['state_id'] = stateid
+        qs_credit_goals = user.usergoals \
+                .filter(**fkwargs_credit) \
+                .select_related('goal__goalType', 'cmeTag', 'state') \
+                .order_by('dueDate', '-creditsDue')
+        s_credit = UserCreditGoalSummarySerializer(qs_credit_goals, many=True)
+        # get license usergoals
+        fkwargs_license = {
+            'valid': True,
+            'goal__goalType__name': GoalType.LICENSE,
+            'is_composite_goal': False,
+            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS, UserGoal.COMPLETED]
+        }
+        if stateid:
+            fkwargs_license['state_id'] = stateid
+        qs_license_goals = user.usergoals \
+                .filter(**fkwargs_license) \
+                .select_related('goal__goalType', 'license__licenseType', 'state') \
+                .order_by('dueDate', 'state')
+        s_license = UserLicenseGoalSummarySerializer(qs_license_goals, many=True)
         context = {
-            'results': s.data
+            'credit_goals': s_credit.data,
+            'licenses': s_license.data
         }
         return Response(context, status=status.HTTP_200_OK)
 
