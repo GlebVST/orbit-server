@@ -17,6 +17,7 @@ from common.appconstants import GROUP_ENTERPRISE_ADMIN, GROUP_ENTERPRISE_MEMBER
 from common.signals import profile_saved
 from .models import *
 from .emailutils import sendPasswordTicketEmail
+from .serializers import NestedHospitalSerializer, NestedResidencySerializer
 
 logger = logging.getLogger('gen.esrl')
 
@@ -40,15 +41,16 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
     group = serializers.PrimaryKeyRelatedField(read_only=True)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-    email = serializers.ReadOnlyField(source='user.email')
-    firstName = serializers.ReadOnlyField(source='user.profile.firstName')
-    lastName = serializers.ReadOnlyField(source='user.profile.lastName')
     pending = serializers.ReadOnlyField()
     inviteDate = serializers.ReadOnlyField()
     degree = serializers.SerializerMethodField()
     joined = serializers.SerializerMethodField()
     groupName = serializers.SerializerMethodField()
     setPasswordEmailSent = serializers.ReadOnlyField()
+    # profile fields
+    email = serializers.ReadOnlyField(source='user.email')
+    firstName = serializers.ReadOnlyField(source='user.profile.firstName')
+    lastName = serializers.ReadOnlyField(source='user.profile.lastName')
 
     def get_degree(self, obj):
         return obj.user.profile.formatDegrees()
@@ -69,9 +71,6 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'group',
             'groupName',
             'user',
-            'firstName',
-            'lastName',
-            'email',
             'pending',
             'degree',
             'is_admin',
@@ -83,9 +82,93 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'snapshotDate',
             'setPasswordEmailSent',
             'created',
-            'modified'
+            'modified',
+            # profile fields
+            'firstName',
+            'lastName',
+            'email',
         )
         read_only_fields = fields
+
+
+class OrgMemberDetailSerializer(serializers.ModelSerializer):
+    organization = serializers.PrimaryKeyRelatedField(read_only=True)
+    group = serializers.PrimaryKeyRelatedField(read_only=True)
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    pending = serializers.ReadOnlyField()
+    inviteDate = serializers.ReadOnlyField()
+    degree = serializers.SerializerMethodField()
+    joined = serializers.SerializerMethodField()
+    groupName = serializers.SerializerMethodField()
+    setPasswordEmailSent = serializers.ReadOnlyField()
+    # extended profile fields
+    email = serializers.ReadOnlyField(source='user.email')
+    firstName = serializers.ReadOnlyField(source='user.profile.firstName')
+    lastName = serializers.ReadOnlyField(source='user.profile.lastName')
+    birthDate = serializers.ReadOnlyField(source='user.profile.birthDate')
+    residencyEndDate = serializers.ReadOnlyField(source='user.profile.residencyEndDate')
+    residency_program = serializers.SerializerMethodField()
+    degrees = serializers.PrimaryKeyRelatedField(source='user.profile.degrees',
+            many=True, read_only=True)
+    specialties = serializers.PrimaryKeyRelatedField(source='user.profile.specialties',
+            many=True, read_only=True)
+    subspecialties = serializers.PrimaryKeyRelatedField(source='user.profile.subspecialties',
+            many=True, read_only=True)
+    hospitals = NestedHospitalSerializer(source='user.profile.hospitals',
+            many=True, read_only=True)
+
+    def get_degree(self, obj):
+        return obj.user.profile.formatDegrees()
+
+    def get_joined(self, obj):
+        return (obj.user.profile.verified and not obj.pending)
+
+    def get_groupName(self, obj):
+        if obj.group:
+            return obj.group.name
+        return ''
+
+    def get_residency_program(self, obj):
+        profile = obj.user.profile
+        if profile.residency_program:
+            s = NestedResidencySerializer(profile.residency_program)
+            return s.data
+        return None
+
+    class Meta:
+        model = OrgMember
+        fields = (
+            'id',
+            'organization',
+            'group',
+            'groupName',
+            'user',
+            'pending',
+            'degree',
+            'is_admin',
+            'compliance',
+            'inviteDate',
+            'removeDate',
+            'joined',
+            'snapshot',
+            'snapshotDate',
+            'setPasswordEmailSent',
+            'created',
+            'modified',
+            # profile fields
+            'firstName',
+            'lastName',
+            'email',
+            'birthDate',
+            'residency_program',
+            'residencyEndDate',
+            'degrees',
+            'specialties',
+            'subspecialties',
+            'hospitals',
+        )
+        read_only_fields = fields
+
 
 class OrgMemberFormSerializer(serializers.Serializer):
     group = serializers.PrimaryKeyRelatedField(

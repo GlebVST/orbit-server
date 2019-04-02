@@ -277,7 +277,7 @@ class OrgMemberCreate(generics.CreateAPIView):
         serializer = self.get_serializer(data=form_data)
         serializer.is_valid(raise_exception=True)
         instance = self.perform_create(serializer)
-        out_serializer = OrgMemberReadSerializer(instance)
+        out_serializer = OrgMemberDetailSerializer(instance)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -307,7 +307,7 @@ class OrgMembersRemove(APIView):
         return Response(context, status=status.HTTP_200_OK)
 
 class OrgMemberDetail(generics.RetrieveAPIView):
-    serializer_class = OrgMemberReadSerializer
+    serializer_class = OrgMemberDetailSerializer
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
     def get_queryset(self):
@@ -361,9 +361,8 @@ class OrgMemberUpdate(generics.UpdateAPIView):
         self.perform_update(in_serializer)
         logInfo(logger, request, 'Updated OrgMember {0.pk}'.format(instance))
         m = OrgMember.objects.get(pk=instance.pk)
-        out_serializer = OrgMemberReadSerializer(m)
+        out_serializer = OrgMemberDetailSerializer(m)
         return Response(out_serializer.data)
-
 
 
 class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
