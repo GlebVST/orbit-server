@@ -18,6 +18,7 @@ from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
+from users.permissions import IsEnterpriseAdmin, IsOwnerOrEnterpriseAdmin
 # app
 from .models import *
 from .serializers import *
@@ -54,35 +55,11 @@ class UserGoalSummary(APIView):
         except User.DoesNotExist:
             return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
 
-        stateid = request.query_params.get('state', '')
-        gts = GoalType.objects.getCreditGoalTypes()
+        stateid = request.query_params.get('state', None)
         # get credit usergoals
-        fkwargs_credit = {
-            'valid': True,
-            'goal__goalType__in': gts,
-            'is_composite_goal': False,
-            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS, UserGoal.COMPLETED]
-        }
-        if stateid:
-            fkwargs_credit['state_id'] = stateid
-        qs_credit_goals = user.usergoals \
-                .filter(**fkwargs_credit) \
-                .select_related('goal__goalType', 'cmeTag', 'state') \
-                .order_by('dueDate', '-creditsDue')
+        qs_license_goals = UserGoal.objects.getLicenseGoalsForUserSummary(user, stateid)
+        qs_credit_goals = UserGoal.objects.getCreditGoalsForUserSummary(user, stateid)
         s_credit = UserCreditGoalSummarySerializer(qs_credit_goals, many=True)
-        # get license usergoals
-        fkwargs_license = {
-            'valid': True,
-            'goal__goalType__name': GoalType.LICENSE,
-            'is_composite_goal': False,
-            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS, UserGoal.COMPLETED]
-        }
-        if stateid:
-            fkwargs_license['state_id'] = stateid
-        qs_license_goals = user.usergoals \
-                .filter(**fkwargs_license) \
-                .select_related('goal__goalType', 'license__licenseType', 'state') \
-                .order_by('dueDate', 'state')
         s_license = UserLicenseGoalSummarySerializer(qs_license_goals, many=True)
         context = {
             'credit_goals': s_credit.data,
@@ -103,20 +80,71 @@ class UserGoalList(generics.ListAPIView):
         qs2 = qs.filter(status=UserGoal.COMPLETED).order_by('-modified')
         return list(qs1) + list(qs2)
 
+
+class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
+    """
+    Create new StateLicense, update profile, and assign/recompute goals for a user.
+    """
+    serializer_class = UserLicenseCreateSerializer
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+
+    def perform_create(self, serializer):
+        """Call serializer to create new StateLicense and update profile.
+        Then, handle new goal assignment.
+        Returns: UserGoal instance for the new usergoal attached to the new license.
+        """
+        form_data = self.request.data
+        # does (state, licenseType) license already exist for user
+        fkw = dict(
+            user=form_data['user'],
+            state=form_data['state'],
+            licenseType=form_data['licenseType']
+        )
+        qs = StateLicense.objects.filter(**fkw).order_by('-expireDate')
+        if qs.exists():
+            sl = qs[0]
+            error_msg = 'Please edit the existing License {0.displayLabel} instead.'.format(sl)
+            logWarning(logger, self.request, error_msg)
+            raise serializers.ValidationError({'state': error_msg}, code='invalid')
+
+        with transaction.atomic():
+            userLicense = serializer.save() # create StateLicense and update user profile
+            userLicenseGoals, userCreditGoals = UserGoal.objects.handleNewStateLicenseForUser(userLicense)
+            for usergoal in userLicenseGoals:
+                if usergoal.license.pk == userLicense.pk:
+                    return usergoal
+
+    def create(self, request, *args, **kwargs):
+        form_data = request.data.copy()
+        serializer = self.get_serializer(data=form_data)
+        serializer.is_valid(raise_exception=True)
+        usergoal = self.perform_create(serializer)
+        user = usergoal.user
+        qs_license_goals = UserGoal.objects.getLicenseGoalsForUserSummary(user)
+        qs_credit_goals = UserGoal.objects.getCreditGoalsForUserSummary(user)
+        s_license = UserLicenseGoalSummarySerializer(qs_license_goals, many=True)
+        s_credit = UserCreditGoalSummarySerializer(qs_credit_goals, many=True)
+        context = {
+            'id': usergoal.pk, # pkeyid of the usergoal attached to the new license
+            'credit_goals': s_credit.data,
+            'licenses': s_license.data
+        }
+        return Response(context, status=status.HTTP_201_CREATED)
+
+
 class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
     """
     Update User License goal
     """
     serializer_class = UserLicenseGoalUpdateSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+    permission_classes = (permissions.IsAuthenticated, IsOwnerOrEnterpriseAdmin, TokenHasReadWriteScope)
 
     def get_queryset(self):
         return UserGoal.objects.select_related('goal', 'license')
 
     def perform_update(self, serializer, format=None):
-        user = self.request.user
         with transaction.atomic():
-            instance = serializer.save(user=user)
+            instance = serializer.save()
         return instance
 
     def update(self, request, *args, **kwargs):

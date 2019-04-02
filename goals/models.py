@@ -337,16 +337,8 @@ class CmeBaseGoal(BaseGoal):
 
 class LicenseGoalManager(models.Manager):
 
-    def getMatchingGoalsForProfile(self, profile):
-        """Find the goals that match the given profile:
-        Returns: list of LicenseGoals.
-        """
-        matchedGoals = []
-        if not profile.degreeSet:
-            return []
-        stateids = list(profile.stateSet.union(profile.deaStateSet))
-        if not stateids:
-            return []
+    def buildBaseQuerySetForMatching(self, profile):
+        """Helper method used by getMatchingGoal methods"""
         profileDegrees = list(profile.degreeSet)
         profileSpecs = list(profile.specialtySet)
         profileSubSpecs = list(profile.subspecialtySet)
@@ -364,7 +356,19 @@ class LicenseGoalManager(models.Manager):
             if profileSubSpecs:
                 Q_subspec = Q(goal__subspecialties__in=profileSubSpecs) | Q(goal__subspecialties=None)
                 Q_goal &= Q_subspec
+        return (base_qs, Q_goal)
 
+    def getMatchingGoalsForProfile(self, profile):
+        """Find the goals that match the given profile:
+        Returns: list of LicenseGoals.
+        """
+        matchedGoals = []
+        if not profile.degreeSet:
+            return []
+        stateids = list(profile.stateSet.union(profile.deaStateSet))
+        if not stateids:
+            return []
+        base_qs, Q_goal = self.buildBaseQuerySetForMatching(profile)
         filter_kwargs = {
             'goal__is_active': True,
             'state__in': stateids
@@ -375,6 +379,24 @@ class LicenseGoalManager(models.Manager):
                 matchedGoals.append(goal)
         return matchedGoals
 
+    def getMatchingGoalsForProfileAndState(self, profile, state):
+        """This is called by assignLicenseGoalsForStateLicense.
+        It finds the matching goals for the given state.
+        Returns: list of LicenseGoals.
+        """
+        matchedGoals = []
+        if not profile.degreeSet:
+            return []
+        base_qs, Q_goal = self.buildBaseQuerySetForMatching(profile)
+        filter_kwargs = {
+            'goal__is_active': True,
+            'state': state
+        }
+        qset = base_qs.filter(Q_goal, **filter_kwargs).order_by('pk')
+        for goal in qset:
+            if goal.isMatchProfile(profile):
+                matchedGoals.append(goal)
+        return matchedGoals
 
 @python_2_unicode_compatible
 class LicenseGoal(models.Model):
@@ -1049,6 +1071,48 @@ class UserGoalManager(models.Manager):
         logger.info('Created UserGoal: {0}'.format(usergoal))
         return usergoal
 
+    def assignLicenseGoalsForStateLicense(self, profile, userLicense):
+        """Assign licensegoal for a user StateLicense added by an
+        enterprise admin.
+        Steps:
+            1. Find matching LicenseGoals based on profile, state
+            2. If UserGoal does not exist for this userLicense: create it
+            3. Update status of usergoal
+        Returns: list of newly created usergoals
+        """
+        user = profile.user
+        goals = LicenseGoal.objects.getMatchingGoalsForProfileAndState(profile, userLicense.state)
+        usergoals = []
+        dueDate = userLicense.expireDate
+        status = self.model.IN_PROGRESS
+        now = timezone.now()
+        for goal in goals:
+            # goal is a LicenseGoal
+            basegoal = goal.goal
+            # does UserGoal for this license already exist
+            qs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense)
+            if qs.exists():
+                usergoal = qs[0]
+            else:
+                # create UserGoal with associated license
+                usergoal = self.model.objects.create(
+                        user=user,
+                        goal=basegoal,
+                        state=goal.state, # State
+                        dueDate=dueDate,
+                        status=status,
+                        license=userLicense
+                    )
+                logger.info('Created UserGoal: {0}'.format(usergoal))
+                usergoals.append(usergoal)
+            # check status
+            status = usergoal.calcLicenseStatus(now)
+            if usergoal.status != status:
+                usergoal.status = status
+                usergoal.save(update_fields=('status',))
+            #print("{0.pk}|{0}".format(usergoal))
+        return usergoals
+
     def assignLicenseGoals(self, profile):
         """Assign License UserGoals and create any uninitialized statelicenses for user as needed
         Steps:
@@ -1525,6 +1589,22 @@ class UserGoalManager(models.Manager):
         usergoals.extend(self.assignSRCmeGoals(profile, userLicenseDict))
         return usergoals
 
+    def handleNewStateLicenseForUser(self, userLicense):
+        """This is called when an enterprise admin creates a new StateLicense
+        for a provider.
+        Returns: (userLicenseGoals, userCreditGoals)
+        """
+        userLicenseGoals = []
+        userCreditGoals = [] # list of newly created goals
+        user = userLicense.user
+        profile = user.profile
+        userLicenseGoals = self.assignLicenseGoalsForStateLicense(profile, userLicense)
+        # create userLicenseDict after assignment of license goals
+        userLicenseDict = self.makeUserLicenseDict(user)
+        userCreditGoals.extend(self.assignCmeGoals(profile, userLicenseDict))
+        userCreditGoals.extend(self.assignSRCmeGoals(profile, userLicenseDict))
+        return (userLicenseGoals, userCreditGoals)
+
     def handleRedeemOfferForUser(self, user, tags):
         """Calls handleRedeemOffer or recompute on eligible usergoals"""
         ama1CreditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
@@ -1682,6 +1762,42 @@ class UserGoalManager(models.Manager):
             },
         }
 
+    def getLicenseGoalsForUserSummary(self, user, stateid=None):
+        """Return non-archived license usergoals for the user and optionally filter by state
+        Returns: UserGoal queryset
+        """
+        fkwargs = {
+            'valid': True,
+            'goal__goalType__name': GoalType.LICENSE,
+            'is_composite_goal': False,
+            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS, UserGoal.COMPLETED]
+        }
+        if stateid:
+            fkwargs['state_id'] = stateid
+        qset = user.usergoals \
+            .filter(**fkwargs) \
+            .select_related('goal__goalType', 'license__licenseType', 'state') \
+            .order_by('dueDate', 'state')
+        return qset
+
+    def getCreditGoalsForUserSummary(self, user, stateid=None):
+        """Return credit usergoals for the user and optionally filter by state
+        Returns: UserGoal queryset
+        """
+        gts = GoalType.objects.getCreditGoalTypes()
+        fkwargs = {
+            'valid': True,
+            'goal__goalType__in': gts,
+            'is_composite_goal': False,
+            'status__in': [UserGoal.PASTDUE, UserGoal.IN_PROGRESS, UserGoal.COMPLETED]
+        }
+        if stateid:
+            fkwargs['state_id'] = stateid
+        qset = user.usergoals \
+            .filter(**fkwargs) \
+            .select_related('goal__goalType', 'cmeTag', 'state') \
+            .order_by('dueDate', '-creditsDue')
+        return qset
 
 @python_2_unicode_compatible
 class UserGoal(models.Model):

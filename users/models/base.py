@@ -956,6 +956,7 @@ class LicenseType(models.Model):
     TYPE_RN = 'RN'
     TYPE_DEA = 'DEA'
     TYPE_MB = 'Medical Board'
+    TYPE_STATE = 'State'
     # fields
     name = models.CharField(max_length=30, unique=True)
     created = models.DateTimeField(auto_now_add=True)
@@ -1053,4 +1054,14 @@ class StateLicense(models.Model):
         """Returns str e.g. California RN License #12345
         """
         label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
+        return label
+
+    @property
+    def displayLabel(self):
+        """Returns str e.g. California RN License #12345 expiring yyyy-mm-dd
+        """
+        if self.expireDate:
+            label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber} expiring {0.expireDate:%Y-%m-%d}".format(self)
+        else:
+            label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
         return label

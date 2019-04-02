@@ -56,6 +56,13 @@ class IsEnterpriseAdmin(permissions.BasePermission):
             return False
         return request.user.groups.filter(name=GROUP_ENTERPRISE_ADMIN).exists()
 
+class IsOwnerOrEnterpriseAdmin(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+            return False
+        is_owner = obj.user.pk == request.user.pk
+        return is_owner or request.user.groups.filter(name=GROUP_ENTERPRISE_ADMIN).exists()
+
 
 class IsOwnerOrAuthenticated(permissions.BasePermission):
     """

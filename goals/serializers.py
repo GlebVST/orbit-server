@@ -4,7 +4,15 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 from .models import *
-from users.models import CreditType, RecAllowedUrl, ARTICLE_CREDIT
+from users.models import (
+    CreditType,
+    RecAllowedUrl,
+    LicenseType,
+    State,
+    LicenseType,
+    StateLicense,
+    User
+)
 from users.serializers import DocumentReadSerializer, NestedStateLicenseSerializer
 from users.feed_serializers import OrbitCmeOfferSerializer
 
@@ -234,8 +242,12 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
 class UserLicenseGoalSummarySerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     state = serializers.PrimaryKeyRelatedField(read_only=True)
-    license = serializers.SerializerMethodField()
     displayStatus = serializers.SerializerMethodField()
+    state_abbrev = serializers.ReadOnlyField(source='state.abbrev')
+    state_name = serializers.ReadOnlyField(source='state.name')
+    licenseNumber = serializers.ReadOnlyField(source='license.licenseNumber')
+    licenseType = serializers.ReadOnlyField(source='license.licenseType.name')
+    licenseTypeId = serializers.ReadOnlyField(source='license.licenseType.id')
 
     class Meta:
         model = UserGoal
@@ -243,18 +255,19 @@ class UserLicenseGoalSummarySerializer(serializers.ModelSerializer):
             'id',
             'user',
             'state',
+            'state_abbrev',
+            'state_name',
             'dueDate',
             'status',
-            'license',
-            'displayStatus'
+            'displayStatus',
+            'licenseNumber',
+            'licenseType',
+            'licenseTypeId',
         )
+        read_only_fields = fields
 
-    def get_license(self, obj):
-        license = obj.license
-        ltype = license.licenseType.name
-        if ltype == 'Medical Board':
-            return "{0.state.name} ({0.state.abbrev})".format(obj)
-        return '{0} - {1.state.name} ({1.state.abbrev})'.format(ltype, obj)
+    def get_licenseNumber(self, obj):
+        return obj.license.licenseNumber
 
     def get_displayStatus(self, obj):
         """UI display value for status"""
@@ -319,6 +332,46 @@ class UserCreditGoalSummarySerializer(serializers.ModelSerializer):
         if obj.isExpiring():
             return EXPIRING
         return ON_TRACK
+
+
+class UserLicenseCreateSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(
+            queryset=User.objects.all())
+    state = serializers.PrimaryKeyRelatedField(
+            queryset=State.objects.all())
+    licenseType = serializers.PrimaryKeyRelatedField(
+            queryset=LicenseType.objects.all())
+    class Meta:
+        model = StateLicense
+        fields = (
+            'id',
+            'user',
+            'state',
+            'licenseType',
+            'licenseNumber',
+            'expireDate'
+        )
+
+    def create(self, validated_data):
+        """Create new StateLicense and update user profile
+        Returns: StateLicense instance
+        """
+        user = validated_data['user']
+        licenseType = validated_data['licenseType']
+        state = validated_data['state']
+        expireDate = validated_data['expireDate']
+        expireDate = expireDate.replace(hour=12)
+        # create StateLicense instance
+        instance = super(UserLicenseCreateSerializer, self).create(validated_data)
+        # update profile
+        profile = user.profile
+        if licenseType.name == LicenseType.TYPE_STATE:
+            profile.states.add(state)
+        elif licenseType.name == LicenseType.TYPE_DEA:
+            profile.deaStates.add(state)
+            profile.hasDEA = 1
+        profile.addOrActivateCmeTags()
+        return instance
 
 class UserLicenseGoalUpdateSerializer(serializers.Serializer):
     licenseNumber = serializers.CharField(max_length=40)
