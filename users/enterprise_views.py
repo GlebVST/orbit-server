@@ -28,7 +28,7 @@ from common.signals import profile_saved
 from .auth0_tools import Auth0Api
 from .models import *
 from .enterprise_serializers import *
-from .serializers import ProfileReadSerializer, UserSubsReadSerializer
+from .serializers import ProfileReadSerializer, ProfileUpdateSerializer, UserSubsReadSerializer
 from .upload_serializers import UploadOrgFileSerializer
 from .permissions import *
 from .emailutils import makeSubject, sendJoinTeamEmail
@@ -173,7 +173,7 @@ class OrgMemberListPagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 1000
 
-class OrgMemberList(generics.ListCreateAPIView):
+class OrgMemberList(generics.ListAPIView):
     queryset = OrgMember.objects.all()
     serializer_class = OrgMemberReadSerializer
     pagination_class = OrgMemberListPagination
@@ -186,12 +186,10 @@ class OrgMemberList(generics.ListCreateAPIView):
             .filter(organization=self.request.user.profile.organization) \
             .order_by(*orderByFields)
 
-    def get_serializer_class(self):
-        """Note: django-rest-swagger call this without a request object so must check for request attr"""
-        if hasattr(self, 'request') and self.request:
-            if self.request.method.upper() == 'GET':
-                return OrgMemberReadSerializer
-        return OrgMemberFormSerializer
+class OrgMemberCreate(generics.CreateAPIView):
+    queryset = OrgMember.objects.all()
+    serializer_class = OrgMemberFormSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
     def perform_create(self, serializer, format=None):
         """If user account for email already exists:
@@ -264,6 +262,13 @@ class OrgMemberList(generics.ListCreateAPIView):
             apiConn = Auth0Api.getConnection(self.request)
             with transaction.atomic():
                 instance = serializer.save(apiConn=apiConn, organization=org, plan=plan) # returns OrgMember instance
+                profile = instance.user.profile
+                profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data)
+                profileUpdateSerializer.is_valid(raise_exception=True)
+                profile = profileUpdateSerializer.save()
+                # emit profile_saved signal for non admin users
+                if profile.allowUserGoals() and not instance.is_admin:
+                    ret = profile_saved.send(sender=profile.__class__, user_id=instance.user.pk)
             logInfo(logger, self.request, 'Created OrgMember {0.pk}'.format(instance))
         return instance
 
@@ -274,6 +279,7 @@ class OrgMemberList(generics.ListCreateAPIView):
         instance = self.perform_create(serializer)
         out_serializer = OrgMemberReadSerializer(instance)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
 
 class OrgMembersRemove(APIView):
     """This view sets `removeDate` field on all OrgMember instances matching passed ids array
@@ -300,16 +306,9 @@ class OrgMembersRemove(APIView):
         context = {'success': True, 'data':updates}
         return Response(context, status=status.HTTP_200_OK)
 
-class OrgMemberDetail(generics.RetrieveUpdateAPIView):
-    serializer_class = OrgMemberFormSerializer
+class OrgMemberDetail(generics.RetrieveAPIView):
+    serializer_class = OrgMemberReadSerializer
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
-
-    def get_serializer_class(self):
-        """Note: django-rest-swagger call this without a request object so must check for request attr"""
-        if hasattr(self, 'request') and self.request:
-            if self.request.method.upper() == 'GET':
-                return OrgMemberReadSerializer
-        return OrgMemberFormSerializer
 
     def get_queryset(self):
         """This ensures that an OrgMember instance can only be updated by
@@ -317,6 +316,18 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         """
         org = self.request.user.profile.organization
         return OrgMember.objects.select_related('organization','group','user__profile').filter(organization=org)
+
+
+class OrgMemberUpdate(generics.UpdateAPIView):
+    serializer_class = OrgMemberFormSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        """This ensures that an OrgMember instance can only be updated by
+        an admin belonging to the same org as the member
+        """
+        org = self.request.user.profile.organization
+        return OrgMember.objects.filter(organization=org)
 
     def perform_update(self, serializer, format=None):
         """If email is given, check that it does not trample on an existing user account"""
@@ -332,6 +343,13 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         apiConn = Auth0Api.getConnection(self.request)
         with transaction.atomic():
             instance = serializer.save(apiConn=apiConn)
+            profile = instance.user.profile
+            profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data)
+            profileUpdateSerializer.is_valid(raise_exception=True)
+            profile = profileUpdateSerializer.save()
+            # emit profile_saved signal for non admin users
+            if profile.allowUserGoals() and not instance.is_admin:
+                ret = profile_saved.send(sender=profile.__class__, user_id=instance.user.pk)
         return instance
 
     def update(self, request, *args, **kwargs):
@@ -345,6 +363,8 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         m = OrgMember.objects.get(pk=instance.pk)
         out_serializer = OrgMemberReadSerializer(m)
         return Response(out_serializer.data)
+
+
 
 class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
     serializer_class = UploadOrgFileSerializer
@@ -546,7 +566,8 @@ class JoinTeam(APIView):
             # transfer user to Enterprise subscription
             user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, m.organization, plan)
             # emit profile_saved signal
-            ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
+            if profile.allowUserGoals() and not m.is_admin:
+                ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
 
         # prepare context
         if not user_subs:

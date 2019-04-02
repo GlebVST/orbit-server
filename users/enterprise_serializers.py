@@ -92,16 +92,45 @@ class OrgMemberFormSerializer(serializers.Serializer):
         queryset=OrgGroup.objects.all(),
         allow_null=True
     )
+    is_admin = serializers.BooleanField(required=False, default=False)
+    password_ticket = serializers.BooleanField(required=False, default=True)
     firstName = serializers.CharField(max_length=30)
     lastName = serializers.CharField(max_length=30)
     email = serializers.EmailField()
+    birthDate = serializers.DateField(required=False)
+    residencyEndDate = serializers.DateField(required=False)
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=Country.objects.all(),
+        allow_null=True
+    )
+    residency_program = serializers.PrimaryKeyRelatedField(
+        queryset=ResidencyProgram.objects.all(),
+        allow_null=True
+    )
     degrees = serializers.PrimaryKeyRelatedField(
         queryset=Degree.objects.all(),
         many=True
     )
-    removeDate = serializers.DateTimeField(required=False, allow_null=True)
-    is_admin = serializers.BooleanField(required=False, default=False)
-    password_ticket = serializers.BooleanField(required=False, default=True)
+    specialties = serializers.PrimaryKeyRelatedField(
+        queryset=PracticeSpecialty.objects.all(),
+        many=True
+    )
+    subspecialties = serializers.PrimaryKeyRelatedField(
+        queryset=SubSpecialty.objects.all(),
+        many=True
+    )
+    states = serializers.PrimaryKeyRelatedField(
+        queryset=State.objects.all(),
+        many=True
+    )
+    deaStates = serializers.PrimaryKeyRelatedField(
+        queryset=State.objects.all(),
+        many=True
+    )
+    hospitals = serializers.PrimaryKeyRelatedField(
+        queryset=Hospital.objects.all(),
+        many=True
+    )
 
     def create(self, validated_data):
         """This expects extra keys in the validated_data:
@@ -124,7 +153,6 @@ class OrgMemberFormSerializer(serializers.Serializer):
         firstName = validated_data['firstName'].strip()
         lastName = validated_data['lastName'].strip()
         email = validated_data['email']
-        degrees = validated_data['degrees']
         is_admin = validated_data.get('is_admin', False)
         password_ticket = validated_data.get('password_ticket', True)
         country_usa = Country.objects.get(code=Country.USA)
@@ -145,8 +173,6 @@ class OrgMemberFormSerializer(serializers.Serializer):
             )
         profile.country = country_usa
         profile.save(update_fields=('country',))
-        if degrees:
-            profile.degrees.set(degrees)
         user = profile.user
         # 3. create local and BT Customer object
         customer = Customer(user=user)
@@ -200,7 +226,6 @@ class OrgMemberFormSerializer(serializers.Serializer):
         lastName = validated_data.get('lastName', profile.lastName)
         email = validated_data.get('email', user.email)
         is_admin = validated_data.get('is_admin', instance.is_admin)
-        removeDate = validated_data.get('removeDate', instance.removeDate)
         password_ticket = validated_data.get('password_ticket', True)
         # check email
         if email != user.email:
@@ -211,39 +236,26 @@ class OrgMemberFormSerializer(serializers.Serializer):
             # update auth0
             verify_email = password_ticket # if True, auth0 will send verification email
             response = apiConn.updateUser(profile.socialId, email, verify_email)
-        # update profile
+        # check if update firstName/lastName
         if firstName != profile.firstName or lastName != profile.lastName:
             profile.firstName = firstName
             profile.lastName = lastName
             profile.save(update_fields=('firstName','lastName'))
             instance.fullname = OrgMember.objects.makeFullName(firstName, lastName)
-        # update primary role aka degrees
-        if 'degrees' in validated_data:
-            vdegs = validated_data['degrees']
-            newDeg = vdegs[0]
-            curDeg = profile.degrees.all()[0] if profile.degrees.exists() else None
-            if vdegs:
-                profile.degrees.set(vdegs)
-            if newDeg != curDeg:
-                logger.info('UpdateOrgMember: User {0} change degree from {1} to {2}.'.format(user, curDeg, newDeg))
-                # emit profile_saved signal
-                ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)
         # update OrgMember and user groups
         if group != instance.group:
             instance.group = group
-        if removeDate != instance.removeDate:
-            instance.removeDate = removeDate
-            logger.info('UpdateOrgMember: remove user {0} on {1}'.format(user, removeDate))
         if is_admin != instance.is_admin:
             instance.is_admin = is_admin
             ga = Group.objects.get(name=GROUP_ENTERPRISE_ADMIN)
+            gm = Group.objects.get(name=GROUP_ENTERPRISE_MEMBER)
             if is_admin:
                 user.groups.add(ga)
+                user.groups.remove(gm)
             else:
                 user.groups.remove(ga)
+                user.groups.add(gm)
         instance.save()
-        if instance.removeDate:
-            UserSubscription.objects.endEnterpriseSubscription(user)
         return instance
 
 
