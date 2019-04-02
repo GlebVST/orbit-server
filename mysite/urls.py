@@ -99,6 +99,7 @@ api_patterns = [
     url(r'^degrees/?$', views.DegreeList.as_view()),
     url(r'^countries/?$', views.CountryList.as_view()),
     url(r'^hospitals/?$', views.HospitalList.as_view()),
+    url(r'^license-types/?$', views.LicenseTypeList.as_view()),
     url(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view()),
     url(r'^residency-programs/?$', views.ResidencyProgramList.as_view()),
     url(r'^licenses/?$', views.UserStateLicenseList.as_view()),

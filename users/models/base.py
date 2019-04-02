@@ -957,6 +957,7 @@ class LicenseType(models.Model):
     TYPE_DEA = 'DEA'
     TYPE_MB = 'Medical Board'
     TYPE_STATE = 'State'
+    TYPE_FLUO = 'Fluoroscopy'
     # fields
     name = models.CharField(max_length=30, unique=True)
     created = models.DateTimeField(auto_now_add=True)

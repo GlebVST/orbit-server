@@ -24,9 +24,9 @@ class NestedHospitalSerializer(serializers.ModelSerializer):
         model = Hospital
         fields = ('id', 'display_name')
 
-class ResidencyProgramSerializer(serializers.ModelSerializer):
+class LicenseTypeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ResidencyProgram
+        model = LicenseType
         fields = ('id', 'name')
 
 class NestedResidencySerializer(serializers.ModelSerializer):
@@ -42,6 +42,11 @@ class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     class Meta:
         model = CmeTag
         fields = ('id', 'name', 'priority', 'description', 'specialties', 'srcme_only', 'instructions')
+
+class ResidencyProgramSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResidencyProgram
+        fields = ('id', 'name')
 
 
 # Used by auth_view to serialize the SA-CME tag
