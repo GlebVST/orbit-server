@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 import pytz
+from datetime import datetime
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
@@ -93,26 +94,60 @@ class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
         Then, handle new goal assignment.
         Returns: UserGoal instance for the new usergoal attached to the new license.
         """
-        form_data = self.request.data
-        # does (state, licenseType) license already exist for user
+        ##form_data = self.request.data
+        form_data = serializer.validated_data
+        expireDate = form_data['expireDate']
+        createNewLicense = False
+        renewLicense = False
         fkw = dict(
+            is_active=True,
             user=form_data['user'],
             state=form_data['state'],
             licenseType=form_data['licenseType']
         )
         qs = StateLicense.objects.filter(**fkw).order_by('-expireDate')
-        if qs.exists():
-            sl = qs[0]
-            error_msg = 'Please edit the existing License {0.displayLabel} instead.'.format(sl)
-            logWarning(logger, self.request, error_msg)
-            raise serializers.ValidationError({'state': error_msg}, code='invalid')
+        if not qs.exists():
+            # Active (state, licenseType) license does not exist for user
+            createNewLicense = True
+        else:
+            # Active (state, licenseType) license exists for user
+            # Decide if need to renew license or edit in-place
+            license = qs[0]
+            if license.isUnInitialized():
+                createNewLicense = False
+            # is license attached to an updateable usergoal
+            ugs = license.usergoals.exclude(status=UserGoal.EXPIRED).order_by('-dueDate')
+            if ugs.exists():
+                usergoal = ugs[0] # context for updateSerializer
+                createNewLicense = False
+                msg = 'Update existing active License: {0.displayLabel}'.format(license)
+                logInfo(logger, self.request, msg)
+            else:
+                # No updateable usergoal.
+                createNewLicense = True
 
         with transaction.atomic():
-            userLicense = serializer.save() # create StateLicense and update user profile
-            userLicenseGoals, userCreditGoals = UserGoal.objects.handleNewStateLicenseForUser(userLicense)
-            for usergoal in userLicenseGoals:
-                if usergoal.license.pk == userLicense.pk:
-                    return usergoal
+            if createNewLicense:
+                # create StateLicense, and update user profile
+                userLicense = serializer.save()
+                userLicenseGoals, userCreditGoals = UserGoal.objects.handleNewStateLicenseForUser(userLicense)
+                for usergoal in userLicenseGoals:
+                    if usergoal.license.pk == userLicense.pk:
+                        return usergoal # goal attached to newLicense
+            else:
+                # execute UserLicenseGoalUpdateSerializer
+                upd_form_data = {
+                    'id': license.pk,
+                    'licenseNumber': self.request.data.get('licenseNumber'),
+                    'expireDate': self.request.data.get('expireDate')
+                }
+                updateSerializer = UserLicenseGoalUpdateSerializer(
+                        instance=license,
+                        data=upd_form_data
+                    )
+                updateSerializer.is_valid(raise_exception=True)
+                usergoal = updateSerializer.save() # renew or edit
+                return usergoal # license usergoal
 
     def create(self, request, *args, **kwargs):
         form_data = request.data.copy()
@@ -134,7 +169,19 @@ class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
 
 class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
     """
-    Update User License goal
+    This expects a license UserGoal id, licenseNumber, and expireDate.
+    Based on the existing license expireDate, and the new expireDate,
+    the UserLicenseGoalUpdateSerializer decides whether to edit-in-place or renew the existing license.
+    If renew (new expireDate represents a license renewal):
+        Create new StateLicense
+        Archive old usergoal
+        Create new usergoal attached to new license
+        Renew any recurring credit goals dependent on license
+    If edit:
+        Edit existing StateLicense in-place
+        Recompute existing license UserGoal
+        Recompute dependent credit goals
+    Response: license UserGoal (either a newly created UserGoal or the existing id passed to endpoint)
     """
     serializer_class = UserLicenseGoalUpdateSerializer
     permission_classes = (permissions.IsAuthenticated, IsOwnerOrEnterpriseAdmin, TokenHasReadWriteScope)
@@ -144,21 +191,36 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
 
     def perform_update(self, serializer, format=None):
         with transaction.atomic():
-            instance = serializer.save()
-        return instance
+            usergoal = serializer.save()
+        return usergoal
 
     def update(self, request, *args, **kwargs):
         """Override method to handle custom input/output data structures"""
         partial = kwargs.pop('partial', False)
-        instance = self.get_object()
+        usergoal = self.get_object() # UserGoal instance retrieved from get_queryset and kwargs[pk]
+        #print('UserGoal from url pk: {0.pk} {0}'.format(usergoal))
+        license = usergoal.license # StateLicense instance
         form_data = request.data.copy()
-        in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
+        in_serializer = self.get_serializer(
+                license,
+                data=form_data,
+                partial=partial)
         in_serializer.is_valid(raise_exception=True)
+        # userLicenseGoal is either:
+        #   same as usergoal (edit-in-place case)
+        #   a new UserGoal instance (renew case)
         userLicenseGoal = self.perform_update(in_serializer)
-        ##instance = UserGoal.objects.get(pk=instance.pk)
-        out_serializer = UserGoalReadSerializer(userLicenseGoal)
-        return Response(out_serializer.data)
-
+        user = userLicenseGoal.user
+        qs_license_goals = UserGoal.objects.getLicenseGoalsForUserSummary(user)
+        qs_credit_goals = UserGoal.objects.getCreditGoalsForUserSummary(user)
+        s_license = UserLicenseGoalSummarySerializer(qs_license_goals, many=True)
+        s_credit = UserCreditGoalSummarySerializer(qs_credit_goals, many=True)
+        context = {
+            'id': userLicenseGoal.pk,
+            'credit_goals': s_credit.data,
+            'licenses': s_license.data
+        }
+        return Response(context)
 
 class GoalRecsList(APIView):
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)

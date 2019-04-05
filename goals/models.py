@@ -1068,7 +1068,7 @@ class UserGoalManager(models.Manager):
         if usergoal.status != status:
             usergoal.status = status
             usergoal.save(update_fields=('status',))
-        logger.info('Created UserGoal: {0}'.format(usergoal))
+        logger.info('renewLicenseGoal created: {0.pk} {0}'.format(usergoal))
         return usergoal
 
     def assignLicenseGoalsForStateLicense(self, profile, userLicense):
@@ -1135,7 +1135,11 @@ class UserGoalManager(models.Manager):
             licenseType = goal.licenseType
             userLicense = None
             # does user license exist with a non-null expireDate
-            qset = user.statelicenses.filter(state=goal.state, licenseType=licenseType, expireDate__isnull=False).order_by('-expireDate')
+            qset = user.statelicenses.filter(
+                    state=goal.state,
+                    licenseType=licenseType,
+                    is_active=True,
+                    expireDate__isnull=False).order_by('-expireDate')
             if qset.exists():
                 userLicense = qset[0]
                 dueDate = userLicense.expireDate
@@ -1144,7 +1148,11 @@ class UserGoalManager(models.Manager):
                 dueDate = now
                 status = self.model.PASTDUE
                 # does uninitialized license already exist
-                qset = user.statelicenses.filter(state=goal.state, licenseType=licenseType, expireDate__isnull=True)
+                qset = user.statelicenses.filter(
+                        state=goal.state,
+                        licenseType=licenseType,
+                        is_active=True,
+                        expireDate__isnull=True).order_by('-created')
                 if qset.exists():
                     userLicense = qset[0]
                 else:
@@ -1334,15 +1342,12 @@ class UserGoalManager(models.Manager):
         user = usergoal.user
         licenseGoal = usergoal.goal.licensegoal # LicenseGoal instance
         to_update = set([])
-        logger.debug('Finding usergoals that depend on LicenseGoal: {0.pk}/{0}'.format(licenseGoal))
         for cmeGoal in licenseGoal.cmegoals.all():
-            logger.debug('cmeGoal: {0.pk}/{0}'.format(cmeGoal))
             basegoal = cmeGoal.goal
             qset = basegoal.usergoals.filter(user=user) # using related_name on UserGoal.goal FK field
             for ug in qset: # UserGoal qset
                 to_update.add(ug)
         for srcmeGoal in licenseGoal.srcmegoals.all():
-            logger.debug('srcmeGoal: {0.pk}/{0}'.format(srcmeGoal))
             basegoal = srcmeGoal.goal
             qset = basegoal.usergoals.filter(user=user) # using related_name on UserGoal.goal FK field
             for ug in qset: # UserGoal qset
@@ -1358,8 +1363,10 @@ class UserGoalManager(models.Manager):
         userLicenseDict = self.makeUserLicenseDict(user)
         for ug in indiv:
             ug.recompute(userLicenseDict)
+            logger.info('Recomputed {0.pk}/{0}'.format(ug))
         for ug in composite:
             ug.recompute(userLicenseDict)
+            logger.info('Recomputed {0.pk}/{0}'.format(ug))
 
 
     def updateCreditGoalsForRenewLicense(self, oldGoal, newGoal, newLicense):
@@ -1397,6 +1404,7 @@ class UserGoalManager(models.Manager):
                 to_renew.add(ug)
         userLicenseDict = self.makeUserLicenseDict(user)
         newDueDate = newLicense.expireDate
+        usergoals = []
         for ug in to_renew:
             # Does UserGoal already exist
             basegoal = ug.goal
@@ -1446,6 +1454,7 @@ class UserGoalManager(models.Manager):
             compositeGoal.constituentGoals.add(usergoal)
             compositeGoal.recompute(userLicenseDict)
             logger.info('Updated compositeGoal: {0}'.format(compositeGoal))
+            usergoals.append(usergoal)
         return usergoals
 
     def rematchLicenseGoals(self, user):

@@ -191,7 +191,6 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
     goalTypeId = serializers.PrimaryKeyRelatedField(source='goal.goalType.id', read_only=True)
     goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
     is_composite_goal = serializers.ReadOnlyField()
-    documents = DocumentReadSerializer(many=True, required=False)
     title = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     extra = serializers.SerializerMethodField()
@@ -231,7 +230,6 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
             'dueDate',
             'status',
             'progress',
-            'documents',
             'extra',
             'created',
             'modified'
@@ -362,7 +360,7 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
         expireDate = validated_data['expireDate']
         expireDate = expireDate.replace(hour=12)
         # create StateLicense instance
-        instance = super(UserLicenseCreateSerializer, self).create(validated_data)
+        license = super(UserLicenseCreateSerializer, self).create(validated_data)
         # update profile
         profile = user.profile
         if licenseType.name == LicenseType.TYPE_STATE:
@@ -371,72 +369,61 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
             profile.deaStates.add(state)
             profile.hasDEA = 1
         profile.addOrActivateCmeTags()
-        return instance
+        return license
 
-class UserLicenseGoalUpdateSerializer(serializers.Serializer):
-    licenseNumber = serializers.CharField(max_length=40)
-    expireDate = serializers.DateTimeField()
-    documents = serializers.PrimaryKeyRelatedField(
-        queryset=Document.objects.all(),
-        many=True,
-        required=False
-    )
+class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
+        model = StateLicense
         fields = (
-            'id',
             'licenseNumber',
             'expireDate',
-            'documents'
         )
 
     def update(self, instance, validated_data):
-        """Update usergoal, and statelicense for this goal,
-        and any user cmegoals that make use of the license expireDate
+        """Renew or edit-in-place the given statelicense and its associated usergoal. This expects pre-validation to check that the user licensegoal is not already archived.
+        Returns: UserGoal instance
         """
-        user = instance.user
-        license = instance.license
-        licenseNumber = validated_data.get('licenseNumber')
+        license = instance
+        usergoal = license.usergoals.exclude(status=UserGoal.EXPIRED).order_by('-dueDate')[0]
+        licenseNumber = validated_data.get('licenseNumber', license.licenseNumber)
         expireDate = validated_data.get('expireDate', license.expireDate)
         if expireDate:
             expireDate = expireDate.replace(hour=12)
-        createNewLicense = False
+        renewLicense = False
         updateUserCreditGoals = False
-        now = timezone.now()
-        # Decide if need to create a new license or edit in-place (e.g. correction)
-        if license.licenseNumber and license.expireDate and expireDate > license.expireDate:
-            tdiff = expireDate - license.expireDate
-            if tdiff.days >= 365:
-                createNewLicense = True # create new license instance
-        if createNewLicense:
+        # Decide if renew license or edit in-place (e.g. correction)
+        if license.isUnInitialized():
+            # An uninitialized license will be edited
+            renewLicense = False
+        elif license.checkExpireDateForRenewal(expireDate):
+            # new expireDate meets cutoff for license renewal
+            renewLicense = True
+        if renewLicense:
             newLicense = StateLicense.objects.create(
-                    user=user,
+                    user=license.user,
                     state=license.state,
                     licenseType=license.licenseType,
                     licenseNumber=license.licenseNumber,
                     expireDate=expireDate
                 )
-            logger.info('Created newLicense: {0}'.format(newLicense))
-            newUserLicenseGoal = UserGoal.objects.renewLicenseGoal(instance, newLicense)
-            if 'documents' in validated_data:
-                docs = validated_data['documents']
-                newUserLicenseGoal.documents.set(docs)
-            ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(instance, newUserLicenseGoal, newLicense)
+            logger.info('Renewed License: {0}'.format(newLicense))
+            newUserLicenseGoal = UserGoal.objects.renewLicenseGoal(usergoal, newLicense)
+            ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(usergoal, newUserLicenseGoal, newLicense)
             return newUserLicenseGoal
         # else: update license and usergoal in-place
+        logger.info('Edit existing license {0.pk}'.format(license))
         license.licenseNumber = licenseNumber
         if expireDate and expireDate != license.expireDate:
             license.expireDate = expireDate
             updateUserCreditGoals = True
         license.save()
         # Update usergoal instance
-        if expireDate and expireDate != instance.dueDate:
-            instance.dueDate = expireDate
-            instance.save(update_fields=('dueDate',))
-            instance.recompute() # update status/compliance
-        if 'documents' in validated_data:
-            docs = validated_data['documents']
-            instance.documents.set(docs)
+        if expireDate and expireDate != usergoal.dueDate:
+            usergoal.dueDate = expireDate
+            usergoal.save(update_fields=('dueDate',))
+            usergoal.recompute() # update status/compliance
+            logger.info('Recomputed usergoal {0.pk}/{0}'.format(usergoal))
         if updateUserCreditGoals:
-            UserGoal.objects.recomputeCreditGoalsForLicense(instance)
-        return instance
+            ugs = UserGoal.objects.recomputeCreditGoalsForLicense(usergoal)
+        return usergoal
