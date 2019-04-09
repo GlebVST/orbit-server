@@ -316,11 +316,11 @@ class BRCmeCreateSerializer(serializers.Serializer):
             if qset.exists():
                 recTag = qset[0].cmeTag
                 qset.delete()
-            # if no more recs for this tag, then refill
-            qs = user.recaurls.filter(cmeTag=recTag)
-            if not qs.exists():
-                num_added = RecAllowedUrl.objects.updateRecsForUser(user, recTag)
-                logger.debug('Refill RecAllowedUrl for {0}/{1}'.format(user, recTag))
+                # if no more recs for this tag, then refill
+                qs = user.recaurls.filter(cmeTag=recTag)
+                if not qs.exists():
+                    num_added = RecAllowedUrl.objects.updateRecsForUser(user, recTag)
+                    logger.debug('Refill RecAllowedUrl for {0}/{1}'.format(user, recTag))
         tags = entry.tags.all()
         # update affected usergoals
         num_ug = UserGoal.objects.handleRedeemOfferForUser(user, tags)
