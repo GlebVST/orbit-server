@@ -198,9 +198,10 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         """Override method to handle custom input/output data structures"""
         partial = kwargs.pop('partial', False)
         usergoal = self.get_object() # UserGoal instance retrieved from get_queryset and kwargs[pk]
-        #print('UserGoal from url pk: {0.pk} {0}'.format(usergoal))
+        logInfo(logger, request, 'UserGoal from url pk: {0.pk} {0}'.format(usergoal))
         license = usergoal.license # StateLicense instance
         form_data = request.data.copy()
+        logInfo(logger, request, str(form_data))
         in_serializer = self.get_serializer(
                 license,
                 data=form_data,

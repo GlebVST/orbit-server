@@ -1039,8 +1039,10 @@ class UserGoalManager(models.Manager):
         """
         userLicenseDict = dict()
         licenseGoalType = GoalType.objects.get(name=GoalType.LICENSE)
-        # get user licensegoals
-        qset = user.usergoals.select_related('goal','license').filter(goal__goalType=licenseGoalType)
+        # get non-archived user licensegoals
+        qset = user.usergoals.select_related('goal','license') \
+                .filter(goal__goalType=licenseGoalType) \
+                .exclude(status=UserGoal.EXPIRED)
         for m in qset:
             userLicenseDict[m.goal.pk] = m.license
         return userLicenseDict
