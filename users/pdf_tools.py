@@ -196,13 +196,15 @@ class MDCertificate(BaseCertificate):
 
         # credits
         self.styleOpenSans.fontSize = 14
+        self.styleOpenSans.leading = 17
         creditText = self.getCreditText()
         paragraph = Paragraph(creditText, self.styleOpenSans)
-        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 53.83 * mm)
+        paragraph.wrapOn(pdfCanvas, (WIDTH - 40) * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 12.2 * mm, 48.83 * mm)
 
         # issued
         self.styleOpenSans.fontSize = 9
+        self.styleOpenSans.leading = 10
         paragraph = Paragraph("Issued: {0}".format(
             DateFormat(self.certificate.created).format(LONG_DATE_FORMAT)), self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
