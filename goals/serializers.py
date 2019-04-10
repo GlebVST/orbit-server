@@ -28,6 +28,12 @@ class GoalTypeSerializer(serializers.ModelSerializer):
         model = GoalType
         fields = ('id', 'name','description')
 
+class LicenseTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LicenseType
+        fields = ('id', 'name')
+
+
 class NestedCreditTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreditType

@@ -42,6 +42,11 @@ class GoalTypeList(generics.ListAPIView):
     serializer_class = GoalTypeSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
+class LicenseTypeList(generics.ListAPIView):
+    queryset = LicenseType.objects.all().order_by('name')
+    serializer_class = LicenseTypeSerializer
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
 class LongPagination(PageNumberPagination):
     page_size = 500
 
