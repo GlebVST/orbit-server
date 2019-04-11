@@ -69,6 +69,7 @@ class LicenseTypeList(generics.ListAPIView):
     queryset = LicenseType.objects.filter(name__in=[LicenseType.TYPE_STATE, LicenseType.TYPE_DEA, LicenseType.TYPE_FLUO]).order_by('name')
     serializer_class = LicenseTypeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    pagination_class = None
 
 class HospitalFilterBackend(BaseFilterBackend):
     def get_schema_fields(self, view):

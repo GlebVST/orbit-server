@@ -33,6 +33,8 @@ from .upload_serializers import UploadOrgFileSerializer
 from .permissions import *
 from .emailutils import makeSubject, sendJoinTeamEmail
 from .dashboard_views import AuditReportMixin
+from goals.serializers import UserLicenseGoalSummarySerializer
+from goals.models import UserGoal
 
 logger = logging.getLogger('api.entpv')
 
@@ -316,6 +318,21 @@ class OrgMemberDetail(generics.RetrieveAPIView):
         """
         org = self.request.user.profile.organization
         return OrgMember.objects.select_related('organization','group','user__profile').filter(organization=org)
+
+class OrgMemberLicenseList(generics.ListAPIView):
+    serializer_class = UserLicenseGoalSummarySerializer
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+
+    def list(self, request, *args, **kwargs):
+        try:
+            member = OrgMember.objects.get(pk=self.kwargs['pk'])
+        except OrgMember.DoesNotExist:
+            return Response([], status=status.HTTP_404_NOT_FOUND)
+
+        queryset = UserGoal.objects.getLicenseGoalsForUserSummary(member.user)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class OrgMemberUpdate(generics.UpdateAPIView):
