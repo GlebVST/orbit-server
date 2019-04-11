@@ -86,6 +86,18 @@ class UserGoalList(generics.ListAPIView):
         qs2 = qs.filter(status=UserGoal.COMPLETED).order_by('-modified')
         return list(qs1) + list(qs2)
 
+class UserLicenseGoalList(generics.ListAPIView):
+    serializer_class = UserLicenseGoalSummarySerializer
+    pagination_class = LongPagination
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+
+    def get_queryset(self):
+        try:
+            user = User.objects.get(pk=self.kwargs['userid'])
+        except User.DoesNotExist:
+            return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
+        return UserGoal.objects.getLicenseGoalsForUserSummary(user)
+
 
 class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
     """
