@@ -106,6 +106,7 @@ class OrgMemberDetailSerializer(serializers.ModelSerializer):
     firstName = serializers.ReadOnlyField(source='user.profile.firstName')
     lastName = serializers.ReadOnlyField(source='user.profile.lastName')
     birthDate = serializers.ReadOnlyField(source='user.profile.birthDate')
+    country = serializers.PrimaryKeyRelatedField(source='user.profile.country', read_only=True)
     residencyEndDate = serializers.ReadOnlyField(source='user.profile.residencyEndDate')
     residency_program = serializers.SerializerMethodField()
     degrees = serializers.PrimaryKeyRelatedField(source='user.profile.degrees',
@@ -159,6 +160,7 @@ class OrgMemberDetailSerializer(serializers.ModelSerializer):
             'firstName',
             'lastName',
             'email',
+            'country',
             'birthDate',
             'residency_program',
             'residencyEndDate',
