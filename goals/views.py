@@ -90,6 +90,10 @@ class UserGoalList(generics.ListAPIView):
 class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
     """
     Create new StateLicense, update profile, and assign/recompute goals for a user.
+    Response: {
+        id: pkeyid of UserGoal (newly created or existing goal edited-in-place)
+        licenses: list of user license goals
+    }
     """
     serializer_class = UserLicenseCreateSerializer
     permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
@@ -161,12 +165,9 @@ class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
         usergoal = self.perform_create(serializer)
         user = usergoal.user
         qs_license_goals = UserGoal.objects.getLicenseGoalsForUserSummary(user)
-        qs_credit_goals = UserGoal.objects.getCreditGoalsForUserSummary(user)
         s_license = UserLicenseGoalSummarySerializer(qs_license_goals, many=True)
-        s_credit = UserCreditGoalSummarySerializer(qs_credit_goals, many=True)
         context = {
             'id': usergoal.pk, # pkeyid of the usergoal attached to the new license
-            'credit_goals': s_credit.data,
             'licenses': s_license.data
         }
         return Response(context, status=status.HTTP_201_CREATED)
@@ -186,7 +187,10 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         Edit existing StateLicense in-place
         Recompute existing license UserGoal
         Recompute dependent credit goals
-    Response: license UserGoal (either a newly created UserGoal or the existing id passed to endpoint)
+    Response: {
+        id: pkeyid of license UserGoal (either a newly created UserGoal or the existing id passed to endpoint)
+        licenses: list of user license goals
+    }
     """
     serializer_class = UserLicenseGoalUpdateSerializer
     permission_classes = (permissions.IsAuthenticated, IsOwnerOrEnterpriseAdmin, TokenHasReadWriteScope)
@@ -218,12 +222,9 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         userLicenseGoal = self.perform_update(in_serializer)
         user = userLicenseGoal.user
         qs_license_goals = UserGoal.objects.getLicenseGoalsForUserSummary(user)
-        qs_credit_goals = UserGoal.objects.getCreditGoalsForUserSummary(user)
         s_license = UserLicenseGoalSummarySerializer(qs_license_goals, many=True)
-        s_credit = UserCreditGoalSummarySerializer(qs_credit_goals, many=True)
         context = {
             'id': userLicenseGoal.pk,
-            'credit_goals': s_credit.data,
             'licenses': s_license.data
         }
         return Response(context)
