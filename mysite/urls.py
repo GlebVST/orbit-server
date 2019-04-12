@@ -138,11 +138,9 @@ api_patterns = [
     # goals
     url(r'^goaltypes/?$', goal_views.GoalTypeList.as_view()),
     url(r'^goals/?$', goal_views.UserGoalList.as_view()),
-    url(r'^goals/license-types?$', goal_views.LicenseTypeList.as_view()),
     url(r'^goals/create-license/?$', goal_views.CreateUserLicenseGoal.as_view()),
     url(r'^goals/update-license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view()),
     url(r'^goals/user-summary/(?P<userid>[0-9]+)/?$', goal_views.UserGoalSummary.as_view()),
-    url(r'^goals/user-licenses/(?P<userid>[0-9]+)/?$', goal_views.UserLicenseGoalList.as_view()),
     url(r'^goals/recs/(?P<pk>[0-9]+)/?$', goal_views.GoalRecsList.as_view()),
 
     # enterprise admin
@@ -151,6 +149,7 @@ api_patterns = [
     url(r'^enterprise/orgmembers/?$', enterprise_views.OrgMemberList.as_view()),
     url(r'^enterprise/orgmembers-create/?$', enterprise_views.OrgMemberCreate.as_view()),
     url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberDetail.as_view()),
+    url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/licenses?$', enterprise_views.OrgMemberLicenseList.as_view()),
     url(r'^enterprise/orgmembers-update/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberUpdate.as_view()),
     url(r'^enterprise/orgmembers-remove/?$', enterprise_views.OrgMembersRemove.as_view()),
     url(r'^enterprise/orgmembers-email-invite/?$', enterprise_views.OrgMembersEmailInvite.as_view()),

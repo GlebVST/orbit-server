@@ -46,6 +46,7 @@ class LicenseTypeList(generics.ListAPIView):
     queryset = LicenseType.objects.all().order_by('name')
     serializer_class = LicenseTypeSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+    pagination_class = None
 
 class LongPagination(PageNumberPagination):
     page_size = 500
@@ -85,19 +86,6 @@ class UserGoalList(generics.ListAPIView):
         qs1 = qs.filter(status__in=[UserGoal.PASTDUE, UserGoal.IN_PROGRESS]).order_by('status', 'goal__goalType__sort_order', 'dueDate', '-modified')
         qs2 = qs.filter(status=UserGoal.COMPLETED).order_by('-modified')
         return list(qs1) + list(qs2)
-
-class UserLicenseGoalList(generics.ListAPIView):
-    serializer_class = UserLicenseGoalSummarySerializer
-    pagination_class = LongPagination
-    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
-
-    def get_queryset(self):
-        try:
-            user = User.objects.get(pk=self.kwargs['userid'])
-        except User.DoesNotExist:
-            return Response({'results': []}, status=status.HTTP_404_NOT_FOUND)
-        return UserGoal.objects.getLicenseGoalsForUserSummary(user)
-
 
 class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
     """
