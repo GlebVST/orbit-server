@@ -11,7 +11,8 @@ from users.models import (
     State,
     LicenseType,
     StateLicense,
-    User
+    User,
+    OrgMember
 )
 from users.serializers import DocumentReadSerializer, NestedStateLicenseSerializer
 from users.feed_serializers import OrbitCmeOfferSerializer
@@ -433,3 +434,76 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
         if updateUserCreditGoals:
             ugs = UserGoal.objects.recomputeCreditGoalsForLicense(usergoal)
         return usergoal
+
+
+class UserLicenseGoalRemoveSerializer(serializers.Serializer):
+    ids = serializers.PrimaryKeyRelatedField(
+        queryset=UserGoal.objects.select_related('license').filter(license__isnull=False),
+        many=True
+    )
+    class Meta:
+        fields = ('ids',)
+
+    def updateSnapshot(self, orgmember):
+        userdata = {} # null, plus key for each stateid in user's profile
+        gts = GoalType.objects.getCreditGoalTypes()
+        fkwargs = {
+            'valid': True,
+            'goal__goalType__in': gts,
+            'is_composite_goal': False,
+        }
+        u = orgmember.user
+        profile = u.profile
+        stateids = profile.stateSet
+        sl_qset = StateLicense.objects.getLatestSetForUser(u)
+        userdata[None] = UserGoal.objects.compute_userdata_for_admin_view(u, fkwargs, sl_qset)
+        for stateid in stateids:
+            userdata[stateid] = UserGoal.objects.compute_userdata_for_admin_view(u, fkwargs, sl_qset, stateid)
+        now = timezone.now()
+        orgmember.snapshot = userdata
+        orgmember.snapshotDate = now
+        orgmember.save(update_fields=('snapshot', 'snapshotDate'))
+
+    def save(self):
+        """This should be called inside a transaction, and for the
+        usergoals of a single user only.
+        Steps:
+        1. Inactivate the associated user StateLicense instances
+        2. Update user profile and rematchGoals (via ProfileUpdateSerializer)
+        3. Update orgmember snapshot for this user
+        """
+        from users.serializers import ProfileUpdateSerializer
+        usergoals = self.validated_data['ids']
+        user = usergoals[0].user
+        profile = user.profile
+        stateSet = set([s.pk for s in profile.states.all()])
+        deaStateSet = set([s.pk for s in profile.deaStates.all()])
+        # inactivate licenses
+        now = timezone.now()
+        for ug in usergoals:
+            license = ug.license
+            state = license.state
+            logger.info('Inactivate {0}'.format(license))
+            license.inactivate(now)
+            if license.licenseType.name == LicenseType.TYPE_STATE:
+                stateSet.discard(state.pk)
+            elif license.licenseType.name == LicenseType.TYPE_DEA:
+                deaStateSet.discard(state.pk)
+        hasDEA = 1 if len(deaStateSet) else 0
+        # update profile (and rematchGoals via signal)
+        form_data = {
+                'states': list(stateSet),
+                'deaStates': list(deaStateSet),
+                'hasDEA': hasDEA
+            }
+        logger.info('Update profile: {0}'.format(profile))
+        profileUpdSer = ProfileUpdateSerializer(instance=profile, data=form_data, partial=True)
+        profileUpdSer.is_valid(raise_exception=True)
+        profile = profileUpdSer.save()
+        # update snapshot
+        orgmqs = OrgMember.objects.filter(user=user, pending=False, removeDate__isnull=True).order_by('-created')
+        if orgmqs.exists():
+            orgm = orgmqs[0] # OrgMember instance
+            self.updateSnapshot(orgm)
+        qs_license_goals = UserGoal.objects.getLicenseGoalsForUserSummary(user)
+        return qs_license_goals

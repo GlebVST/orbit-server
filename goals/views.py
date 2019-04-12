@@ -229,6 +229,41 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         }
         return Response(context)
 
+class RemoveUserLicenseGoals(APIView):
+    """This view removes one or more user licensegoals on all usergoal ids passed in the array.
+    Example JSON in the POST data:
+        {"ids": [1, 23, 94]}
+    """
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+    def post(self, request, *args, **kwargs):
+        ids = request.data.get('ids', [])
+        logInfo(logger, self.request, 'Remove license usergoals: {}'.format(ids))
+        # validate: all ids must be valid user license goals
+        usergoals = UserGoal.objects.filter(license__isnull=False, pk__in=ids)
+        if usergoals.count() != len(ids):
+            error_msg = 'One or more ids is invalid for this operation'
+            raise serializers.ValidationError({'ids': error_msg}, code='invalid')
+        vqs = usergoals.values_list('user', flat=True).distinct()
+        if len(vqs) > 1:
+            error_msg = 'Multiple distinct users not permitted for this operation.'
+            raise serializers.ValidationError({'ids': error_msg}, code='invalid')
+        user = vqs[0]
+        if user.profile.organization != request.user.profile.organization:
+            error_msg = 'Organization of administrator does not match organization of the license owner.'
+            raise serializers.ValidationError({'ids': error_msg}, code='invalid')
+        # Serializer will:
+        #  - inactivate the selected licenses
+        #  - update user profile (remove states and/or deaStates) and rematchGoals
+        #  - recompute snapshot for user
+        with transaction.atomic():
+            qs_license_goals = UserLicenseGoalRemoveSerializer(request.data)
+        s_license = UserLicenseGoalSummarySerializer(qs_license_goals, many=True)
+        context = {
+            'licenses': s_license.data
+        }
+        return Response(context)
+
+
 class GoalRecsList(APIView):
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
