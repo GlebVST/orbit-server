@@ -1513,8 +1513,8 @@ class UserGoalManager(models.Manager):
                 if cg.goal == ug.goal:
                     if cg in stale_composite:
                         logger.info('Removing {0}'.format(ug))
-                        cg.delete()
-                        stale_composite.remove(cg)
+                        stale_composite.remove(cg) # remove from set
+                        cg.delete() # delete after removing instance from set
                     else:
                         cg.updateBaseGoal() # set cg.goal from its remaining constituentGoals
             # now delete the usergoal
@@ -1563,8 +1563,8 @@ class UserGoalManager(models.Manager):
                 if cg.goal == ug.goal:
                     if cg in stale_composite:
                         logger.info('Removing {0}'.format(ug))
-                        cg.delete()
                         stale_composite.remove(cg)
+                        cg.delete() # delete after removing instance from set
                     else:
                         cg.updateBaseGoal() # set cg.goal from its remaining constituentGoals
             # now delete the usergoal
