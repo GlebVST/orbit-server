@@ -542,7 +542,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             state_license = user.statelicenses.all()[0]
             certClass = NurseCertificate
         # list of dicts: one for each tag having non-zero credits in date range
-        auditData = Entry.objects.newPrepareDataForAuditReport(user, startdt, enddt)
+        auditData = Entry.objects.prepareDataForAuditReport(user, startdt, enddt)
         certificatesByTag = {} # tag.pk => Certificate instance
         satag = CmeTag.objects.get(name=CMETAG_SACME)
         saCmeTotal = 0  # credit sum for SA-CME tag

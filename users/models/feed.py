@@ -130,7 +130,7 @@ class CreditType(models.Model):
 
 class EntryManager(models.Manager):
 
-    def newPrepareDataForAuditReport(self, user, startDate, endDate):
+    def prepareDataForAuditReport(self, user, startDate, endDate):
         """For the given user and activityDate range, group user entries by tag,
         compute credit_sum, and format entries for inclusion in audit report.
         Args:
@@ -192,6 +192,7 @@ class EntryManager(models.Manager):
                     'authority': m.getCertifyingAuthority(),
                     'tags': m.formatTags(), # no extra hit to db b/c of prefetch_related on ManyToManyField
                     'activity': m.formatActivity(),
+                    'url': m.formatUrl(),
                     'referenceId': m.getCertDocReferenceId() # makes use of m.cert_docs attr added by the Prefetch clause
                 }
                 entryData.append(ed)
@@ -204,7 +205,7 @@ class EntryManager(models.Manager):
             })
         return data
 
-    def prepareDataForAuditReport(self, user, startDate, endDate):
+    def oldprepareDataForAuditReport(self, user, startDate, endDate):
         """
         Filter entries by user and activityDate range, and order by activityDate desc.
         Partition the qset into:
@@ -420,11 +421,14 @@ class Entry(models.Model):
         return 0
 
     def formatActivity(self):
-        """format for audit report"""
-        if self.entryType.name == ENTRYTYPE_SRCME:
-            return self.description
+        """activity for audit report"""
+        return self.description
+
+    def formatUrl(self):
+        """url for audit report"""
         if self.entryType.name == ENTRYTYPE_BRCME:
-            return self.brcme.formatActivity()
+            return self.brcme.url
+        return ''
 
     def getCertDocReferenceId(self):
         """This expects attr cert_docs:list from prefetch_related.
@@ -622,9 +626,7 @@ class BrowserCme(models.Model):
         return self.url
 
     def formatActivity(self):
-        res = urlparse(self.url)
-        #logger.info('BrowserCME formatActivity: ' + res.netloc + ' - ' + self.entry.description)
-        return res.netloc + ' - ' + self.entry.description
+        return self.entry.description
 
 # A Story is broadcast to many users.
 # The launch_url must be customized to include the user id when sending
