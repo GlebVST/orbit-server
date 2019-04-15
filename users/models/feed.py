@@ -192,7 +192,6 @@ class EntryManager(models.Manager):
                     'authority': m.getCertifyingAuthority(),
                     'tags': m.formatTags(), # no extra hit to db b/c of prefetch_related on ManyToManyField
                     'activity': m.formatActivity(),
-                    'url': m.formatUrl(),
                     'referenceId': m.getCertDocReferenceId() # makes use of m.cert_docs attr added by the Prefetch clause
                 }
                 entryData.append(ed)
@@ -422,13 +421,10 @@ class Entry(models.Model):
 
     def formatActivity(self):
         """activity for audit report"""
-        return self.description
-
-    def formatUrl(self):
-        """url for audit report"""
+        if self.entryType.name == ENTRYTYPE_SRCME:
+            return self.description
         if self.entryType.name == ENTRYTYPE_BRCME:
-            return self.brcme.url
-        return ''
+            return self.brcme.formatActivity()
 
     def getCertDocReferenceId(self):
         """This expects attr cert_docs:list from prefetch_related.
@@ -626,7 +622,8 @@ class BrowserCme(models.Model):
         return self.url
 
     def formatActivity(self):
-        return self.entry.description
+        res = urlparse(self.url)
+        return res.netloc + ' - ' + self.entry.description
 
 # A Story is broadcast to many users.
 # The launch_url must be customized to include the user id when sending
