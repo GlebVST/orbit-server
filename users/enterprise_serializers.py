@@ -182,8 +182,8 @@ class OrgMemberFormSerializer(serializers.Serializer):
     firstName = serializers.CharField(max_length=30)
     lastName = serializers.CharField(max_length=30)
     email = serializers.EmailField()
-    birthDate = serializers.DateField(required=False)
-    residencyEndDate = serializers.DateField(required=False)
+    birthDate = serializers.DateField(required=False, allow_null=True)
+    residencyEndDate = serializers.DateField(required=False, allow_null=True)
     country = serializers.PrimaryKeyRelatedField(
         queryset=Country.objects.all(),
         allow_null=True

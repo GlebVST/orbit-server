@@ -193,6 +193,8 @@ class ProfileInitialUpdateSerializer(serializers.ModelSerializer):
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
+    birthDate = serializers.DateField(required=False, allow_null=True)
+    residencyEndDate = serializers.DateField(required=False, allow_null=True)
     country = serializers.PrimaryKeyRelatedField(
         queryset=Country.objects.all(),
         allow_null=True
