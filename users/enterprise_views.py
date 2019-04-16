@@ -361,7 +361,7 @@ class OrgMemberUpdate(generics.UpdateAPIView):
         with transaction.atomic():
             instance = serializer.save(apiConn=apiConn)
             profile = instance.user.profile
-            profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data)
+            profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data, partial=self.partial)
             profileUpdateSerializer.is_valid(raise_exception=True)
             profile = profileUpdateSerializer.save()
             # emit profile_saved signal for non admin users
@@ -371,6 +371,7 @@ class OrgMemberUpdate(generics.UpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
+        self.partial = partial
         instance = self.get_object()
         form_data = request.data.copy()
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
