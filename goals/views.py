@@ -247,7 +247,7 @@ class RemoveUserLicenseGoals(APIView):
         if len(vqs) > 1:
             error_msg = 'Multiple distinct users not permitted for this operation.'
             raise serializers.ValidationError({'ids': error_msg}, code='invalid')
-        user = vqs[0]
+        user = User.objects.get(pk=vqs[0]) # license owner
         if user.profile.organization != request.user.profile.organization:
             error_msg = 'Organization of administrator does not match organization of the license owner.'
             raise serializers.ValidationError({'ids': error_msg}, code='invalid')
