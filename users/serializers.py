@@ -199,6 +199,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     )
     residency_program = serializers.PrimaryKeyRelatedField(
         queryset=ResidencyProgram.objects.all(),
+        required=False,
         allow_null=True
     )
     degrees = serializers.PrimaryKeyRelatedField(
