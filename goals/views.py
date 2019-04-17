@@ -261,7 +261,7 @@ class RemoveUserLicenseGoals(APIView):
         #  - update user profile (remove states and/or deaStates) and rematchGoals
         #  - recompute snapshot for user
         with transaction.atomic():
-            ser = UserLicenseGoalRemoveSerializer(request.data)
+            ser = UserLicenseGoalRemoveSerializer(data=request.data)
             ser.is_valid(raise_exception=True)
             inactivated_licenses = ser.save()
             logInfo(logger, request, 'Inactivated {0} licenses'.format(len(inactivated_licenses)))
