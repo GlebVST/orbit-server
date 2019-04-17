@@ -242,7 +242,7 @@ class RemoveUserLicenseGoals(APIView):
     permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
     def post(self, request, *args, **kwargs):
         ids = request.data.get('ids', [])
-        logInfo(logger, self.request, 'Remove license usergoals: {}'.format(ids))
+        logInfo(logger, request, 'Remove license usergoals: {}'.format(ids))
         # validate: all ids must be valid user license goals
         usergoals = UserGoal.objects.filter(license__isnull=False, pk__in=ids)
         if usergoals.count() != len(ids):
@@ -261,7 +261,11 @@ class RemoveUserLicenseGoals(APIView):
         #  - update user profile (remove states and/or deaStates) and rematchGoals
         #  - recompute snapshot for user
         with transaction.atomic():
-            qs_license_goals = UserLicenseGoalRemoveSerializer(request.data)
+            ser = UserLicenseGoalRemoveSerializer(request.data)
+            ser.is_valid(raise_exception=True)
+            inactivated_licenses = ser.save()
+            logInfo(logger, request, 'Inactivated {0} licenses'.format(len(inactivated_licenses)))
+        qs_license_goals = UserGoal.objects.getLicenseGoalsForUserSummary(user)
         s_license = UserLicenseGoalSummarySerializer(qs_license_goals, many=True)
         context = {
             'licenses': s_license.data

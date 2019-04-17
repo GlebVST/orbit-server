@@ -480,12 +480,14 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
         stateSet = set([s.pk for s in profile.states.all()])
         deaStateSet = set([s.pk for s in profile.deaStates.all()])
         # inactivate licenses
+        licenses = []
         now = timezone.now()
         for ug in usergoals:
             license = ug.license
             state = license.state
             logger.info('Inactivate {0}'.format(license))
             license.inactivate(now)
+            licenses.append(license)
             if license.licenseType.name == LicenseType.TYPE_STATE:
                 stateSet.discard(state.pk)
             elif license.licenseType.name == LicenseType.TYPE_DEA:
@@ -506,5 +508,4 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
         if orgmqs.exists():
             orgm = orgmqs[0] # OrgMember instance
             self.updateSnapshot(orgm)
-        qs_license_goals = UserGoal.objects.getLicenseGoalsForUserSummary(user)
-        return qs_license_goals
+        return licenses # list of inactivated licenses
