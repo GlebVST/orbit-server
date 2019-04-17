@@ -139,10 +139,14 @@ class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
             if createNewLicense:
                 # create StateLicense, and update user profile
                 userLicense = serializer.save()
+                msg = "Created newLicense: {0.pk}|{0.displayLabel}".format(userLicense)
+                logInfo(logger, self.request, msg)
                 userLicenseGoals, userCreditGoals = UserGoal.objects.handleNewStateLicenseForUser(userLicense)
                 for usergoal in userLicenseGoals:
                     if usergoal.license.pk == userLicense.pk:
                         return usergoal # goal attached to newLicense
+                if not userLicenseGoals:
+                    raise ValueError('A user licenseGoal for the new license was not found.')
             else:
                 # execute UserLicenseGoalUpdateSerializer
                 upd_form_data = {
@@ -160,6 +164,7 @@ class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         form_data = request.data.copy()
+        logInfo(logger, request, str(form_data))
         serializer = self.get_serializer(data=form_data)
         serializer.is_valid(raise_exception=True)
         usergoal = self.perform_create(serializer)

@@ -364,8 +364,9 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
         user = validated_data['user']
         licenseType = validated_data['licenseType']
         state = validated_data['state']
-        expireDate = validated_data['expireDate']
-        expireDate = expireDate.replace(hour=12)
+        expireDate = validated_data.get('expireDate', None)
+        if expireDate:
+            expireDate = expireDate.replace(hour=12)
         # create StateLicense instance
         license = super(UserLicenseCreateSerializer, self).create(validated_data)
         # update profile

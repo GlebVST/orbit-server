@@ -1085,9 +1085,13 @@ class UserGoalManager(models.Manager):
         user = profile.user
         goals = LicenseGoal.objects.getMatchingGoalsForProfileAndState(profile, userLicense.state)
         usergoals = []
-        dueDate = userLicense.expireDate
-        status = self.model.IN_PROGRESS
         now = timezone.now()
+        if userLicense.expireDate:
+            dueDate = userLicense.expireDate
+            status = self.model.IN_PROGRESS
+        else:
+            dueDate = now
+            status = self.model.PASTDUE
         for goal in goals:
             # goal is a LicenseGoal
             basegoal = goal.goal
@@ -1095,6 +1099,7 @@ class UserGoalManager(models.Manager):
             qs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense)
             if qs.exists():
                 usergoal = qs[0]
+                logger.info('UserGoal already exists: {0} with license {1.pk}'.format(usergoal, userLicense))
             else:
                 # create UserGoal with associated license
                 usergoal = self.model.objects.create(
@@ -1105,8 +1110,8 @@ class UserGoalManager(models.Manager):
                         status=status,
                         license=userLicense
                     )
-                logger.info('Created UserGoal: {0}'.format(usergoal))
-                usergoals.append(usergoal)
+                logger.info('Created UserGoal: {0} with license {1.pk}'.format(usergoal, userLicense))
+            usergoals.append(usergoal)
             # check status
             status = usergoal.calcLicenseStatus(now)
             if usergoal.status != status:
