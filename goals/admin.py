@@ -145,7 +145,7 @@ class SRCmeGoalInline(admin.StackedInline):
 
 class SRCmeBaseGoalAdmin(admin.ModelAdmin):
     list_display = ('id', 'getState', 'getTag', 'getCredits', 'interval', 'formatDegrees', 'formatSpecialties', 'fmtDueDateType', 'getDueMMDD')
-    list_filter = ('dueDateType', 'srcmegoal__state')
+    list_filter = ('srcmegoal__deaType', 'dueDateType', 'srcmegoal__state')
     ordering = ('-modified',)
     inlines = (
         SRCmeGoalInline,
@@ -283,6 +283,7 @@ class CmeBaseGoalAdmin(admin.ModelAdmin):
     list_display = ('id', 'getEntityType', 'getEntityName', 'getTag', 'getCredits', 'interval', 'fmtDueDateType', 'getDueMMDD', 'formatDegrees', 'formatSpecialties')
     list_filter = (
         'cmegoal__entityType',
+        'cmegoal__deaType',
         'dueDateType',
         'cmegoal__board',
         'cmegoal__state',

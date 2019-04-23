@@ -96,6 +96,14 @@ class OrgAdmin(admin.ModelAdmin):
             return p.name
         return ''
 
+class OrgAggAdmin(admin.ModelAdmin):
+    list_display = ('id', 'organization', 'day', 'users_invited', 'users_active', 'users_inactive', 'licenses_expired', 'licenses_expiring',
+            'cme_gap_expired', 'cme_gap_expiring')
+    list_filter = ('organization',)
+    ordering = ('-day',)
+    date_hierarchy = 'day'
+
+
 class OrgFileAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created', 'orgfile_actions')
     readonly_fields = ('orgfile_actions',)
@@ -622,6 +630,7 @@ admin_site.register(Hospital, HospitalAdmin)
 admin_site.register(InvitationDiscount, InvitationDiscountAdmin)
 admin_site.register(LicenseType, LicenseTypeAdmin)
 admin_site.register(Organization, OrgAdmin)
+admin_site.register(OrgAgg, OrgAggAdmin)
 admin_site.register(OrgFile, OrgFileAdmin)
 admin_site.register(OrgMember, OrgMemberAdmin)
 admin_site.register(Profile, ProfileAdmin)

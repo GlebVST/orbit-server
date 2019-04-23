@@ -28,10 +28,8 @@ class Command(BaseCommand):
             'goal__goalType__in': gts,
             'is_composite_goal': False,
         }
-        orgs = Organization.objects.all().order_by('id')
+        orgs = Organization.objects.filter(activateGoals=True).order_by('id')
         for org in orgs:
-            if not org.activateGoals:
-                continue
             if not org.orgmembers.exists():
                 continue
             logger.info('Compute user snapshot for org: {0}'.format(org))
@@ -48,10 +46,11 @@ class Command(BaseCommand):
                 m.snapshot = userdata
                 m.snapshotDate = now
                 m.save(update_fields=('snapshot', 'snapshotDate'))
-                total_cme_gap_expired += userdata['expired'][CME_GAP]
-                total_licenses_expired += userdata['expired'][LICENSES]
-                total_cme_gap_expiring += userdata['expiring'][CME_GAP]
-                total_licenses_expiring += userdata['expiring'][LICENSES]
+                udata = userdata[None] # counting over all states
+                total_cme_gap_expired += udata['expired'][CME_GAP]
+                total_licenses_expired += udata['expired'][LICENSES]
+                total_cme_gap_expiring += udata['expiring'][CME_GAP]
+                total_licenses_expiring += udata['expiring'][LICENSES]
             # update OrgAgg
             today = timezone.now().date()
             qs = OrgAgg.objects.filter(organization=org, day=today)
