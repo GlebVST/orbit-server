@@ -214,6 +214,7 @@ class OrgMemberCreate(generics.CreateAPIView):
             raise serializers.ValidationError({'email': error_msg}, code='invalid')
             return
         # check group
+        orggroup = None
         groupid = self.request.data.get('group', None)
         if groupid:
             # verify that group.org = req_user's org
@@ -252,7 +253,7 @@ class OrgMemberCreate(generics.CreateAPIView):
                     raise serializers.ValidationError({'email': error_msg}, code='invalid')
             else:
                 # create pending OrgMember
-                instance = OrgMember.objects.createMember(org, user.profile, pending=True)
+                instance = OrgMember.objects.createMember(org, orggroup, user.profile, pending=True)
                 logInfo(logger, self.request, 'Created pending OrgMember {0}'.format(instance))
             # send JoinTeam email
             try:
