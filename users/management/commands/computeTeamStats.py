@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.db.models import Q, Subquery
 from django.utils import timezone
-from users.models import Organization, OrgMember, Profile, Degree, Entry
+from users.models import Organization, OrgMember, OrgAgg, Profile, Degree, Entry
 
 logger = logging.getLogger('mgmt.orgstat')
 
@@ -82,3 +82,6 @@ class Command(BaseCommand):
             org.providerStat = providerStat
             org.save(update_fields=('providerStat',))
             logger.info('Updated org {0}'.format(org))
+            # update OrgAgg user stats
+            orgAgg = OrgAgg.objects.compute_user_stats(org)
+            logger.info('Saved OrgAgg {0.pk} {0.day}'.format(orgAgg))

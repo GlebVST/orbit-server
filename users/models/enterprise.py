@@ -1,9 +1,11 @@
 from __future__ import unicode_literals
 import logging
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import JSONField
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
@@ -240,3 +242,76 @@ class OrgMember(models.Model):
         elif profile.verified and not self.pending:
             return OrgMember.STATUS_ACTIVE
         return OrgMember.STATUS_INVITED
+
+
+class OrgAggManager(models.Manager):
+    def compute_user_stats(self, org):
+        """Compute user stats for org and today
+        Create or update OrgAgg instance for (org, today)
+        """
+        today = timezone.now().date()
+        members = org.orgmembers.filter(pending=False)
+        stats = {
+            OrgMember.STATUS_ACTIVE: 0,
+            OrgMember.STATUS_INVITED: 0,
+            OrgMember.STATUS_REMOVED: 0
+        }
+        for m in members:
+            entStatus = m.getEnterpriseStatus()
+            stats[entStatus] += 1
+        qs = OrgAgg.objects.filter(organization=org, day=today)
+        if qs.exists():
+            orgagg = qs[0]
+            orgagg.users_invited = stats[OrgMember.STATUS_INVITED]
+            orgagg.users_active = stats[OrgMember.STATUS_ACTIVE]
+            orgagg.users_inactive = stats[OrgMember.STATUS_REMOVED]
+            orgagg.save()
+        else:
+            orgagg = OrgAgg.objects.create(
+                organization=org,
+                day=today,
+                users_invited=stats[OrgMember.STATUS_INVITED],
+                users_active=stats[OrgMember.STATUS_ACTIVE],
+                users_inactive=stats[OrgMember.STATUS_REMOVED]
+            )
+        return orgagg
+
+@python_2_unicode_compatible
+class OrgAgg(models.Model):
+    organization = models.ForeignKey(Organization,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='orgaggs'
+    )
+    day = models.DateField()
+    cme_gap_expired = models.IntegerField(validators=[MinValueValidator(0)],
+        default=0,
+        help_text='Sum of user cme gaps for expired goals. Calculated on a specific day')
+    cme_gap_expiring = models.IntegerField(validators=[MinValueValidator(0)],
+        default=0,
+        help_text='Sum of user cme gaps for expiring goals. Calculated on a specific day')
+    licenses_expired = models.IntegerField(validators=[MinValueValidator(0)],
+        default=0,
+        help_text='Number of expired user licenses. Calculated on a specific day')
+    licenses_expiring = models.IntegerField(validators=[MinValueValidator(0)],
+        default=0,
+        help_text='Number of expiring user licenses. Calculated on a specific day')
+    users_invited = models.IntegerField(validators=[MinValueValidator(0)],
+        default=0,
+        help_text='Number of invited users. Calculated on a specific day')
+    users_active = models.IntegerField(validators=[MinValueValidator(0)],
+        default=0,
+        help_text='Number of active users - accepted invitation. Calculated on a specific day')
+    users_inactive = models.IntegerField(validators=[MinValueValidator(0)],
+        default=0,
+        help_text='Number of removed users. Calculated on a specific day')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = OrgAggManager()
+
+    class Meta:
+        unique_together = ('organization', 'day')
+        verbose_name_plural = 'Enterprise Aggregate Stats'
+
+    def __str__(self):
+        return "{0.day}".format(self)
