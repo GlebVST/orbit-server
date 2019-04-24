@@ -551,11 +551,15 @@ class OrgAggStats(APIView):
             message = context['error'] + ': ' + start + ' - ' + end
             logWarning(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        #print('Original: {0} - {1}'.format(startdt, enddt))
         user = request.user
         org = user.profile.organization
         # get latest OrgAgg entry for org
         oaLatest = OrgAgg.objects.filter(organization=org).order_by('-day')[0]
         latestDay = oaLatest.day
+        if (enddt.date() > latestDay):
+            enddt = enddt.replace(year=latestDay.year, month=latestDay.month, day=latestDay.day)
+            #print('Set enddt to: {0}'.format(enddt))
         # make list of (year, month, lastday) in date range
         date_per_month = [dt for dt in rrule(MONTHLY, dtstart=startdt, until=enddt)] # exactly 1 date per month
         lastdt_per_month = [dt + relativedelta(day=31) for dt in date_per_month] # last day of the month per month
