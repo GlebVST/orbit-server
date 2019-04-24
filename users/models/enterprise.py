@@ -226,9 +226,6 @@ class OrgMember(models.Model):
         unique_together = ('organization', 'user')
         verbose_name_plural = 'Enterprise Members'
 
-    def __str__(self):
-        return '{0.user}/{0.organization}'.format(self)
-
     def getEnterpriseStatus(self):
         """Return one of:
         STATUS_ACTIVE
@@ -236,12 +233,20 @@ class OrgMember(models.Model):
         STATUS_REMOVED
         for self
         """
-        profile = self.user.profile
         if self.removeDate:
             return OrgMember.STATUS_REMOVED
-        elif profile.verified and not self.pending:
+        profile = self.user.profile
+        if profile.verified and not self.pending:
             return OrgMember.STATUS_ACTIVE
         return OrgMember.STATUS_INVITED
+
+    @property
+    def enterpriseStatus(self):
+        return self.getEnterpriseStatus()
+
+    def __str__(self):
+        return '{0.user}|{0.organization}|{0.enterpriseStatus}'.format(self)
+
 
 
 class OrgAggManager(models.Manager):
@@ -250,7 +255,7 @@ class OrgAggManager(models.Manager):
         Create or update OrgAgg instance for (org, today)
         """
         today = timezone.now().date()
-        members = org.orgmembers.filter(pending=False)
+        members = org.orgmembers.all()
         stats = {
             OrgMember.STATUS_ACTIVE: 0,
             OrgMember.STATUS_INVITED: 0,
@@ -314,4 +319,4 @@ class OrgAgg(models.Model):
         verbose_name_plural = 'Enterprise Aggregate Stats'
 
     def __str__(self):
-        return "{0.day}".format(self)
+        return "{0.organization.code}|{0.day}|invited:{0.users_invited}|active:{0.users_active}|removed:{0.users_inactive}".format(self)
