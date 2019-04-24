@@ -373,3 +373,20 @@ class OrbitCmeOfferAggSerializer(serializers.ModelSerializer):
             'value'
         )
         read_only_fields = fields
+
+
+class OrgAggSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrgAgg
+        fields = (
+            'id',
+            'day',
+            'users_active',
+            'users_inactive',
+            'users_invited',
+            'licenses_expired',
+            'licenses_expiring',
+            'cme_gap_expired',
+            'cme_gap_expiring'
+        )
+        read_only_fields = fields
