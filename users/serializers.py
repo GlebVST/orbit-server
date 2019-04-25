@@ -226,6 +226,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     )
     fluoroscopyStates = serializers.PrimaryKeyRelatedField(
         queryset=State.objects.all(),
+        required=False,
         many=True,
     )
     hospitals = serializers.PrimaryKeyRelatedField(
