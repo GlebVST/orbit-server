@@ -78,6 +78,8 @@ class CmeTagManager(models.Manager):
 
 @python_2_unicode_compatible
 class CmeTag(models.Model):
+    FLUOROSCOPY = 'Fluoroscopy'
+    # fields
     name= models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
     priority = models.IntegerField(
         default=0,
@@ -574,6 +576,7 @@ class Profile(models.Model):
         choices=((0, 'No'), (1, 'Yes')),
         help_text='Does user have DEA registration. Value is 0, 1 or null for unset')
     deaStates = models.ManyToManyField(State, blank=True, related_name='dea_profiles')
+    fluoroscopyStates = models.ManyToManyField(State, blank=True, related_name='fluoroscopy_profiles')
     hospitals = models.ManyToManyField(Hospital, blank=True, related_name='profiles')
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
@@ -774,6 +777,7 @@ class Profile(models.Model):
             states: state.cmeTags
             deaStates: state.deaTags
             state.doTags if DO degree
+            fluoroscopyStates: add FLUOROSCOPY tag
         Returns: set of CmeTag instances
         """
         satag = CmeTag.objects.get(name=CMETAG_SACME)
@@ -808,6 +812,9 @@ class Profile(models.Model):
             if is_do:
                 for t in state.doTags.all():
                     add_tags.add(t)
+        if self.fluoroscopyStates.exists():
+            fluotag = CmeTag.objects.get(name=CmeTag.FLUOROSCOPY)
+            add_tags.add(fluotag)
         # Process add_tags
         for t in add_tags:
             # tag may exist from a previous assignment
@@ -856,6 +863,11 @@ class Profile(models.Model):
     def deaStateSet(self):
         """Used in goal matching calculations"""
         return set([m.pk for m in self.deaStates.all()])
+
+    @cached_property
+    def fluoroscopyStateSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.fluoroscopyStates.all()])
 
     @cached_property
     def hospitalSet(self):
@@ -956,6 +968,8 @@ class LicenseType(models.Model):
     TYPE_RN = 'RN'
     TYPE_DEA = 'DEA'
     TYPE_MB = 'Medical Board'
+    TYPE_STATE = 'State'
+    TYPE_FLUO = 'Fluoroscopy'
     # fields
     name = models.CharField(max_length=30, unique=True)
     created = models.DateTimeField(auto_now_add=True)
@@ -966,7 +980,10 @@ class LicenseType(models.Model):
 
 class StateLicenseManager(models.Manager):
     def getLatestLicenseForUser(self, user, licenseTypeName):
-        qset = user.statelicenses.filter(licenseType__name=licenseTypeName).order_by('-expireDate')
+        qset = user.statelicenses \
+            .select_related('licenseType') \
+            .filter(licenseType__name=licenseTypeName, is_active=True) \
+            .order_by('-expireDate')
         if qset.exists():
             return qset[0]
         return None
@@ -979,7 +996,9 @@ class StateLicenseManager(models.Manager):
         Ref: https://stackoverflow.com/questions/20582966/django-order-by-filter-with-distinct
         Returns: queryset
         """
-        return StateLicense.objects.filter(user=user).order_by('licenseType_id', 'state_id', '-expireDate').distinct('licenseType','state')
+        return StateLicense.objects.filter(user=user, is_active=True) \
+            .order_by('licenseType_id', 'state_id', '-expireDate') \
+            .distinct('licenseType','state')
 
     def partitionByStatusForUser(self, user):
         """Get the latest set of licenses for the given user, and partition them
@@ -1013,6 +1032,7 @@ class StateLicenseManager(models.Manager):
 
 class StateLicense(models.Model):
     EXPIRING_CUTOFF_DAYS = 90 # expireDate cutoff for expiring goals (match UserGoal const)
+    MIN_INTERVAL_DAYS = 365 # mininum license interval for renewal
     EXPIRED = 'EXPIRED'
     EXPIRING = 'EXPIRING'
     COMPLETED = 'COMPLETED'
@@ -1034,12 +1054,16 @@ class StateLicense(models.Model):
     licenseNumber = models.CharField(max_length=40, blank=True, default='',
             help_text='License number')
     expireDate = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True,
+            help_text='Set to false when license is inactivated')
+    removeDate = models.DateTimeField(null=True, blank=True,
+            help_text='Set when license is in-activated')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = StateLicenseManager()
 
     class Meta:
-        unique_together = ('user','state','licenseType','expireDate')
+        unique_together = ('user','state','licenseType','expireDate', 'is_active')
 
     def __str__(self):
         if self.expireDate:
@@ -1054,3 +1078,30 @@ class StateLicense(models.Model):
         """
         label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
         return label
+
+    @property
+    def displayLabel(self):
+        """Returns str e.g. California RN License #12345 expiring yyyy-mm-dd
+        """
+        if self.expireDate:
+            label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber} expiring {0.expireDate:%Y-%m-%d}".format(self)
+        else:
+            label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
+        return label
+
+    def inactivate(self, removeDate=None):
+        if not removeDate:
+            removeDate = timezone.now()
+        self.is_active = False
+        self.removeDate = removeDate
+        self.save()
+
+    def checkExpireDateForRenewal(self, expireDate):
+        """Returns True if expireDate is more than cutoff days from self.expireDate
+        else return False
+        """
+        if self.expireDate and expireDate > self.expireDate:
+            tdiff = expireDate - self.expireDate
+            if tdiff.days >= StateLicense.MIN_INTERVAL_DAYS:
+                return True
+        return False

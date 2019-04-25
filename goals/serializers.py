@@ -4,17 +4,36 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 from .models import *
-from users.models import CreditType, RecAllowedUrl, ARTICLE_CREDIT
+from users.models import (
+    CreditType,
+    RecAllowedUrl,
+    LicenseType,
+    State,
+    LicenseType,
+    StateLicense,
+    User,
+    OrgMember
+)
 from users.serializers import DocumentReadSerializer, NestedStateLicenseSerializer
 from users.feed_serializers import OrbitCmeOfferSerializer
 
 logger = logging.getLogger('gen.gsrl')
 PUB_DATE_FORMAT = '%b %Y'
+OVERDUE = 'Overdue'
+COMPLETED = 'Completed'
+EXPIRING = 'Expiring'
+ON_TRACK = 'On Track'
 
 class GoalTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = GoalType
         fields = ('id', 'name','description')
+
+class LicenseTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LicenseType
+        fields = ('id', 'name')
+
 
 class NestedCreditTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -179,7 +198,6 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
     goalTypeId = serializers.PrimaryKeyRelatedField(source='goal.goalType.id', read_only=True)
     goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
     is_composite_goal = serializers.ReadOnlyField()
-    documents = DocumentReadSerializer(many=True, required=False)
     title = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     extra = serializers.SerializerMethodField()
@@ -219,7 +237,6 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
             'dueDate',
             'status',
             'progress',
-            'documents',
             'extra',
             'created',
             'modified'
@@ -227,7 +244,48 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class UserGoalSummarySerializer(serializers.ModelSerializer):
+class UserLicenseGoalSummarySerializer(serializers.ModelSerializer):
+    user = serializers.IntegerField(source='user.id', read_only=True)
+    state = serializers.PrimaryKeyRelatedField(read_only=True)
+    displayStatus = serializers.SerializerMethodField()
+    state_abbrev = serializers.ReadOnlyField(source='state.abbrev')
+    state_name = serializers.ReadOnlyField(source='state.name')
+    licenseNumber = serializers.ReadOnlyField(source='license.licenseNumber')
+    licenseType = serializers.ReadOnlyField(source='license.licenseType.name')
+    licenseTypeId = serializers.ReadOnlyField(source='license.licenseType.id')
+
+    class Meta:
+        model = UserGoal
+        fields = (
+            'id',
+            'user',
+            'state',
+            'state_abbrev',
+            'state_name',
+            'dueDate',
+            'status',
+            'displayStatus',
+            'licenseNumber',
+            'licenseType',
+            'licenseTypeId',
+        )
+        read_only_fields = fields
+
+    def get_licenseNumber(self, obj):
+        return obj.license.licenseNumber
+
+    def get_displayStatus(self, obj):
+        """UI display value for status"""
+        if obj.status == UserGoal.PASTDUE:
+            return OVERDUE
+        if obj.status == UserGoal.COMPLETED:
+            return COMPLETED
+        # check if goal dueDate is expiring
+        if obj.isExpiring():
+            return EXPIRING
+        return ON_TRACK
+
+class UserCreditGoalSummarySerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
     state = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -262,93 +320,202 @@ class UserGoalSummarySerializer(serializers.ModelSerializer):
         return [NestedCreditTypeSerializer(m).data for m in qset]
 
     def get_license(self, obj):
-        """Return state/licenseType or board info"""
-        license = obj.license
-        if license:
-            ltype = license.licenseType.name
-            if ltype == 'Medical Board':
-                return "{0.state.name} ({0.state.abbrev})".format(obj)
-            return '{0} {1.name} ({0.state.abbrev})'.format(ltype, obj.state)
+        """Return state info or board info"""
         if obj.state:
+            # state-specifc cme/srcme goal
             return "{0.state.name} ({0.state.abbrev})".format(obj)
-        # else: expect this is a Board/Hospital goal
+        # Board/Hospital cme goal
         return obj.goal.cmegoal.entityName
 
     def get_displayStatus(self, obj):
         """UI display value for status"""
         if obj.status == UserGoal.PASTDUE:
-            return 'Overdue'
+            return OVERDUE
         if obj.status == UserGoal.COMPLETED:
-            return 'Completed'
+            return COMPLETED
         # check if goal dueDate is expiring
         if obj.isExpiring():
-            return 'Expiring'
-        return 'On Track'
+            return EXPIRING
+        return ON_TRACK
 
-class UserLicenseGoalUpdateSerializer(serializers.Serializer):
-    licenseNumber = serializers.CharField(max_length=40)
-    expireDate = serializers.DateTimeField()
-    documents = serializers.PrimaryKeyRelatedField(
-        queryset=Document.objects.all(),
-        many=True,
-        required=False
-    )
 
+class UserLicenseCreateSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(
+            queryset=User.objects.all())
+    state = serializers.PrimaryKeyRelatedField(
+            queryset=State.objects.all())
+    licenseType = serializers.PrimaryKeyRelatedField(
+            queryset=LicenseType.objects.all())
     class Meta:
+        model = StateLicense
         fields = (
             'id',
+            'user',
+            'state',
+            'licenseType',
+            'licenseNumber',
+            'expireDate'
+        )
+
+    def create(self, validated_data):
+        """Create new StateLicense and update user profile
+        Returns: StateLicense instance
+        """
+        user = validated_data['user']
+        licenseType = validated_data['licenseType']
+        state = validated_data['state']
+        expireDate = validated_data.get('expireDate', None)
+        if expireDate:
+            expireDate = expireDate.replace(hour=12)
+        # create StateLicense instance
+        license = super(UserLicenseCreateSerializer, self).create(validated_data)
+        # update profile
+        profile = user.profile
+        if licenseType.name == LicenseType.TYPE_STATE:
+            profile.states.add(state)
+        elif licenseType.name == LicenseType.TYPE_DEA:
+            profile.deaStates.add(state)
+            profile.hasDEA = 1
+        elif licenseType.name == LicenseType.TYPE_FLUO:
+            profile.fluoroscopyStates.add(state)
+        profile.addOrActivateCmeTags()
+        return license
+
+class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = StateLicense
+        fields = (
             'licenseNumber',
             'expireDate',
-            'documents'
         )
 
     def update(self, instance, validated_data):
-        """Update usergoal, and statelicense for this goal,
-        and any user cmegoals that make use of the license expireDate
+        """Renew or edit-in-place the given statelicense and its associated usergoal. This expects pre-validation to check that the user licensegoal is not already archived.
+        Returns: UserGoal instance
         """
-        user = instance.user
-        license = instance.license
-        licenseNumber = validated_data.get('licenseNumber')
-        expireDate = validated_data.get('expireDate')
+        license = instance
+        usergoal = license.usergoals.exclude(status=UserGoal.EXPIRED).order_by('-dueDate')[0]
+        licenseNumber = validated_data.get('licenseNumber', license.licenseNumber)
+        expireDate = validated_data.get('expireDate', license.expireDate)
         if expireDate:
             expireDate = expireDate.replace(hour=12)
-        createNewLicense = False
+        renewLicense = False
         updateUserCreditGoals = False
-        now = timezone.now()
-        # Decide if need to create a new license or edit in-place (e.g. correction)
-        if license.licenseNumber and license.expireDate and expireDate and expireDate > license.expireDate:
-            tdiff = expireDate - license.expireDate
-            if tdiff.days >= 365:
-                createNewLicense = True # create new license instance
-        if createNewLicense:
+        # Decide if renew license or edit in-place (e.g. correction)
+        if license.isUnInitialized():
+            # An uninitialized license will be edited
+            renewLicense = False
+        elif license.checkExpireDateForRenewal(expireDate):
+            # new expireDate meets cutoff for license renewal
+            renewLicense = True
+        if renewLicense:
             newLicense = StateLicense.objects.create(
-                    user=user,
+                    user=license.user,
                     state=license.state,
                     licenseType=license.licenseType,
                     licenseNumber=license.licenseNumber,
                     expireDate=expireDate
                 )
-            logger.info('Created newLicense: {0}'.format(newLicense))
-            newUserLicenseGoal = UserGoal.objects.renewLicenseGoal(instance, newLicense)
-            if 'documents' in validated_data:
-                docs = validated_data['documents']
-                newUserLicenseGoal.documents.set(docs)
-            ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(instance, newUserLicenseGoal, newLicense)
+            logger.info('Renewed License: {0}'.format(newLicense))
+            newUserLicenseGoal = UserGoal.objects.renewLicenseGoal(usergoal, newLicense)
+            ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(usergoal, newUserLicenseGoal, newLicense)
             return newUserLicenseGoal
         # else: update license and usergoal in-place
+        logger.info('Edit existing license {0.pk}'.format(license))
         license.licenseNumber = licenseNumber
         if expireDate and expireDate != license.expireDate:
             license.expireDate = expireDate
             updateUserCreditGoals = True
         license.save()
         # Update usergoal instance
-        if expireDate and expireDate != instance.dueDate:
-            instance.dueDate = expireDate
-            instance.save(update_fields=('dueDate',))
-            instance.recompute() # update status/compliance
-        if 'documents' in validated_data:
-            docs = validated_data['documents']
-            instance.documents.set(docs)
+        if expireDate and expireDate != usergoal.dueDate:
+            usergoal.dueDate = expireDate
+            usergoal.save(update_fields=('dueDate',))
+            usergoal.recompute() # update status/compliance
+            logger.info('Recomputed usergoal {0.pk}/{0}'.format(usergoal))
         if updateUserCreditGoals:
-            UserGoal.objects.recomputeCreditGoalsForLicense(instance)
-        return instance
+            ugs = UserGoal.objects.recomputeCreditGoalsForLicense(usergoal)
+        return usergoal
+
+
+class UserLicenseGoalRemoveSerializer(serializers.Serializer):
+    ids = serializers.PrimaryKeyRelatedField(
+        queryset=UserGoal.objects.select_related('license').filter(license__isnull=False),
+        many=True
+    )
+    class Meta:
+        fields = ('ids',)
+
+    def updateSnapshot(self, orgmember):
+        userdata = {} # null, plus key for each stateid in user's profile
+        gts = GoalType.objects.getCreditGoalTypes()
+        fkwargs = {
+            'valid': True,
+            'goal__goalType__in': gts,
+            'is_composite_goal': False,
+        }
+        u = orgmember.user
+        profile = u.profile
+        stateids = profile.stateSet
+        sl_qset = StateLicense.objects.getLatestSetForUser(u)
+        userdata[None] = UserGoal.objects.compute_userdata_for_admin_view(u, fkwargs, sl_qset)
+        for stateid in stateids:
+            userdata[stateid] = UserGoal.objects.compute_userdata_for_admin_view(u, fkwargs, sl_qset, stateid)
+        now = timezone.now()
+        orgmember.snapshot = userdata
+        orgmember.snapshotDate = now
+        orgmember.save(update_fields=('snapshot', 'snapshotDate'))
+
+    def save(self):
+        """This should be called inside a transaction, and for the license
+        usergoals of a single user only.
+        Steps:
+        1. Inactivate the associated user StateLicense instances and delete the usergoals.
+        2. Update user profile and rematchGoals (via ProfileUpdateSerializer)
+        3. Update orgmember snapshot for this user
+        """
+        from users.serializers import ProfileUpdateSerializer
+        usergoals = self.validated_data['ids']
+        user = usergoals[0].user
+        profile = user.profile
+        stateSet = set([s.pk for s in profile.states.all()])
+        deaStateSet = set([s.pk for s in profile.deaStates.all()])
+        fluoStateSet = set([s.pk for s in profile.fluoroscopyStates.all()])
+        # inactivate licenses
+        licenses = []
+        now = timezone.now()
+        for ug in usergoals:
+            license = ug.license
+            lt = license.licenseType
+            state = license.state
+            logger.info('Inactivate {0}'.format(license))
+            license.inactivate(now)
+            licenses.append(license)
+            if lt.name == LicenseType.TYPE_STATE:
+                stateSet.discard(state.pk)
+            elif lt.name == LicenseType.TYPE_DEA:
+                deaStateSet.discard(state.pk)
+            elif lt.name == LicenseType.TYPE_FLUO:
+                fluoStateSet.discard(state.pk)
+            # delete the license usergoal
+            logger.info('Deleting license usergoal {0.pk}|{0}'.format(ug))
+            ug.delete()
+        hasDEA = 1 if len(deaStateSet) else 0
+        # update profile (and rematchGoals via signal)
+        form_data = {
+                'states': list(stateSet),
+                'deaStates': list(deaStateSet),
+                'hasDEA': hasDEA,
+                'fluorsocopyStates': list(fluoStateSet),
+            }
+        logger.info('Update profile: {0}'.format(profile))
+        profileUpdSer = ProfileUpdateSerializer(instance=profile, data=form_data, partial=True)
+        profileUpdSer.is_valid(raise_exception=True)
+        profile = profileUpdSer.save()
+        # update snapshot
+        orgmqs = OrgMember.objects.filter(user=user, pending=False, removeDate__isnull=True).order_by('-created')
+        if orgmqs.exists():
+            orgm = orgmqs[0] # OrgMember instance
+            self.updateSnapshot(orgm)
+        return licenses # list of inactivated licenses

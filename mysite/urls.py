@@ -99,6 +99,7 @@ api_patterns = [
     url(r'^degrees/?$', views.DegreeList.as_view()),
     url(r'^countries/?$', views.CountryList.as_view()),
     url(r'^hospitals/?$', views.HospitalList.as_view()),
+    url(r'^license-types/?$', views.LicenseTypeList.as_view()),
     url(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view()),
     url(r'^residency-programs/?$', views.ResidencyProgramList.as_view()),
     url(r'^licenses/?$', views.UserStateLicenseList.as_view()),
@@ -137,7 +138,9 @@ api_patterns = [
     # goals
     url(r'^goaltypes/?$', goal_views.GoalTypeList.as_view()),
     url(r'^goals/?$', goal_views.UserGoalList.as_view()),
-    url(r'^goals/license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view()),
+    url(r'^goals/create-license/?$', goal_views.CreateUserLicenseGoal.as_view()),
+    url(r'^goals/update-license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view()),
+    url(r'^goals/remove-licenses/?$', goal_views.RemoveUserLicenseGoals.as_view()),
     url(r'^goals/user-summary/(?P<userid>[0-9]+)/?$', goal_views.UserGoalSummary.as_view()),
     url(r'^goals/recs/(?P<pk>[0-9]+)/?$', goal_views.GoalRecsList.as_view()),
 
@@ -145,13 +148,17 @@ api_patterns = [
     url(r'^enterprise/orggroups/?$', enterprise_views.OrgGroupList.as_view()),
     url(r'^enterprise/orggroups/(?P<pk>[0-9]+)/?$', enterprise_views.OrgGroupDetail.as_view()),
     url(r'^enterprise/orgmembers/?$', enterprise_views.OrgMemberList.as_view()),
+    url(r'^enterprise/orgmembers-create/?$', enterprise_views.OrgMemberCreate.as_view()),
     url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberDetail.as_view()),
+    url(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/licenses?$', enterprise_views.OrgMemberLicenseList.as_view()),
+    url(r'^enterprise/orgmembers-update/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberUpdate.as_view()),
     url(r'^enterprise/orgmembers-remove/?$', enterprise_views.OrgMembersRemove.as_view()),
     url(r'^enterprise/orgmembers-email-invite/?$', enterprise_views.OrgMembersEmailInvite.as_view()),
     url(r'^enterprise/orgmembers-restore/?$', enterprise_views.OrgMembersRestore.as_view()),
     url(r'^enterprise/orgmembers-audit-report/(?P<memberId>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.EnterpriseMemberAuditReport.as_view()),
     url(r'^enterprise/upload-roster/?$', enterprise_views.UploadRoster.as_view()),
     url(r'^enterprise/team-stats/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.TeamStats.as_view()),
+    url(r'^enterprise/orgagg-stats/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.OrgAggStats.as_view()),
     url(r'^enterprise/join-team/?$', enterprise_views.JoinTeam.as_view()),
 ]
 if settings.ENV_TYPE != settings.ENV_PROD:

@@ -280,8 +280,6 @@ class BRCmeCreateSerializer(serializers.Serializer):
         if planEffect:
             if not planText:
                 planText = BrowserCme.objects.getDefaultPlanText(user)
-        else:
-            planEffect, planText = BrowserCme.objects.randPlanChange(user)
         entry = Entry.objects.create(
             entryType=etype,
             sponsor=offer.sponsor,

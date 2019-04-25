@@ -1,6 +1,7 @@
 import calendar
 import coreapi
 from datetime import datetime, timedelta
+from dateutil.rrule import rrule, MONTHLY
 from hashids import Hashids
 import logging
 from operator import itemgetter
@@ -28,11 +29,13 @@ from common.signals import profile_saved
 from .auth0_tools import Auth0Api
 from .models import *
 from .enterprise_serializers import *
-from .serializers import ProfileReadSerializer, UserSubsReadSerializer
+from .serializers import ProfileReadSerializer, ProfileUpdateSerializer, UserSubsReadSerializer
 from .upload_serializers import UploadOrgFileSerializer
 from .permissions import *
 from .emailutils import makeSubject, sendJoinTeamEmail
 from .dashboard_views import AuditReportMixin
+from goals.serializers import UserLicenseGoalSummarySerializer
+from goals.models import UserGoal
 
 logger = logging.getLogger('api.entpv')
 
@@ -173,7 +176,7 @@ class OrgMemberListPagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 1000
 
-class OrgMemberList(generics.ListCreateAPIView):
+class OrgMemberList(generics.ListAPIView):
     queryset = OrgMember.objects.all()
     serializer_class = OrgMemberReadSerializer
     pagination_class = OrgMemberListPagination
@@ -186,12 +189,10 @@ class OrgMemberList(generics.ListCreateAPIView):
             .filter(organization=self.request.user.profile.organization) \
             .order_by(*orderByFields)
 
-    def get_serializer_class(self):
-        """Note: django-rest-swagger call this without a request object so must check for request attr"""
-        if hasattr(self, 'request') and self.request:
-            if self.request.method.upper() == 'GET':
-                return OrgMemberReadSerializer
-        return OrgMemberFormSerializer
+class OrgMemberCreate(generics.CreateAPIView):
+    queryset = OrgMember.objects.all()
+    serializer_class = OrgMemberFormSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
     def perform_create(self, serializer, format=None):
         """If user account for email already exists:
@@ -214,6 +215,7 @@ class OrgMemberList(generics.ListCreateAPIView):
             raise serializers.ValidationError({'email': error_msg}, code='invalid')
             return
         # check group
+        orggroup = None
         groupid = self.request.data.get('group', None)
         if groupid:
             # verify that group.org = req_user's org
@@ -252,7 +254,7 @@ class OrgMemberList(generics.ListCreateAPIView):
                     raise serializers.ValidationError({'email': error_msg}, code='invalid')
             else:
                 # create pending OrgMember
-                instance = OrgMember.objects.createMember(org, user.profile, pending=True)
+                instance = OrgMember.objects.createMember(org, orggroup, user.profile, pending=True)
                 logInfo(logger, self.request, 'Created pending OrgMember {0}'.format(instance))
             # send JoinTeam email
             try:
@@ -264,6 +266,13 @@ class OrgMemberList(generics.ListCreateAPIView):
             apiConn = Auth0Api.getConnection(self.request)
             with transaction.atomic():
                 instance = serializer.save(apiConn=apiConn, organization=org, plan=plan) # returns OrgMember instance
+                profile = instance.user.profile
+                profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data)
+                profileUpdateSerializer.is_valid(raise_exception=True)
+                profile = profileUpdateSerializer.save()
+                # emit profile_saved signal for non admin users
+                if profile.allowUserGoals() and not instance.is_admin:
+                    ret = profile_saved.send(sender=profile.__class__, user_id=instance.user.pk)
             logInfo(logger, self.request, 'Created OrgMember {0.pk}'.format(instance))
         return instance
 
@@ -272,8 +281,9 @@ class OrgMemberList(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=form_data)
         serializer.is_valid(raise_exception=True)
         instance = self.perform_create(serializer)
-        out_serializer = OrgMemberReadSerializer(instance)
+        out_serializer = OrgMemberDetailSerializer(instance)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+
 
 class OrgMembersRemove(APIView):
     """This view sets `removeDate` field on all OrgMember instances matching passed ids array
@@ -300,16 +310,9 @@ class OrgMembersRemove(APIView):
         context = {'success': True, 'data':updates}
         return Response(context, status=status.HTTP_200_OK)
 
-class OrgMemberDetail(generics.RetrieveUpdateAPIView):
-    serializer_class = OrgMemberFormSerializer
+class OrgMemberDetail(generics.RetrieveAPIView):
+    serializer_class = OrgMemberDetailSerializer
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
-
-    def get_serializer_class(self):
-        """Note: django-rest-swagger call this without a request object so must check for request attr"""
-        if hasattr(self, 'request') and self.request:
-            if self.request.method.upper() == 'GET':
-                return OrgMemberReadSerializer
-        return OrgMemberFormSerializer
 
     def get_queryset(self):
         """This ensures that an OrgMember instance can only be updated by
@@ -317,6 +320,33 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         """
         org = self.request.user.profile.organization
         return OrgMember.objects.select_related('organization','group','user__profile').filter(organization=org)
+
+class OrgMemberLicenseList(generics.ListAPIView):
+    serializer_class = UserLicenseGoalSummarySerializer
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+
+    def list(self, request, *args, **kwargs):
+        try:
+            member = OrgMember.objects.get(pk=self.kwargs['pk'])
+        except OrgMember.DoesNotExist:
+            return Response([], status=status.HTTP_404_NOT_FOUND)
+
+        queryset = UserGoal.objects.getLicenseGoalsForUserSummary(member.user)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class OrgMemberUpdate(generics.UpdateAPIView):
+    serializer_class = OrgMemberFormSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        """This ensures that an OrgMember instance can only be updated by
+        an admin belonging to the same org as the member
+        """
+        org = self.request.user.profile.organization
+        return OrgMember.objects.filter(organization=org)
 
     def perform_update(self, serializer, format=None):
         """If email is given, check that it does not trample on an existing user account"""
@@ -332,10 +362,18 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         apiConn = Auth0Api.getConnection(self.request)
         with transaction.atomic():
             instance = serializer.save(apiConn=apiConn)
+            profile = instance.user.profile
+            profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data, partial=self.partial)
+            profileUpdateSerializer.is_valid(raise_exception=True)
+            profile = profileUpdateSerializer.save()
+            # emit profile_saved signal for non admin users
+            if profile.allowUserGoals() and not instance.is_admin:
+                ret = profile_saved.send(sender=profile.__class__, user_id=instance.user.pk)
         return instance
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
+        self.partial = partial
         instance = self.get_object()
         form_data = request.data.copy()
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
@@ -343,8 +381,9 @@ class OrgMemberDetail(generics.RetrieveUpdateAPIView):
         self.perform_update(in_serializer)
         logInfo(logger, request, 'Updated OrgMember {0.pk}'.format(instance))
         m = OrgMember.objects.get(pk=instance.pk)
-        out_serializer = OrgMemberReadSerializer(m)
+        out_serializer = OrgMemberDetailSerializer(m)
         return Response(out_serializer.data)
+
 
 class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
     serializer_class = UploadOrgFileSerializer
@@ -499,6 +538,48 @@ class TeamStats(APIView):
         }
         return Response(context, status=status.HTTP_200_OK)
 
+class OrgAggStats(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    def get(self, request, start, end):
+        try:
+            startdt = datetime.utcfromtimestamp(int(start))
+            enddt = datetime.utcfromtimestamp(int(end))
+        except ValueError:
+            context = {
+                'error': 'Invalid date parameters'
+            }
+            message = context['error'] + ': ' + start + ' - ' + end
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        #print('Original: {0} - {1}'.format(startdt, enddt))
+        user = request.user
+        org = user.profile.organization
+        # get latest OrgAgg entry for org
+        oaLatest = OrgAgg.objects.filter(organization=org).order_by('-day')[0]
+        latestDay = oaLatest.day
+        if (enddt.date() > latestDay):
+            enddt = enddt.replace(year=latestDay.year, month=latestDay.month, day=latestDay.day)
+            #print('Set enddt to: {0}'.format(enddt))
+        # make list of (year, month, lastday) in date range
+        date_per_month = [dt for dt in rrule(MONTHLY, dtstart=startdt, until=enddt)] # exactly 1 date per month
+        lastdt_per_month = [dt + relativedelta(day=31) for dt in date_per_month] # last day of the month per month
+        lastday_per_month = [dt.date() for dt in lastdt_per_month] # date objects
+        max_day = lastday_per_month[-1]
+        if max_day.year == latestDay.year and max_day.month == latestDay.month:
+            # discard and replace with the latest available day
+            md = lastday_per_month.pop()
+            lastday_per_month.append(latestDay)
+        elif max_day.year == latestDay.year and max_day.month < latestDay.month:
+            lastday_per_month.append(latestDay) # append lastest available day
+        #print(lastday_per_month)
+        # get OrgAgg queryset for dates in lastday_per_month
+        qs = OrgAgg.objects.filter(organization=org, day__in=lastday_per_month).order_by('day')
+        s = OrgAggSerializer(qs, many=True)
+        context = {
+            'results': s.data
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
 #
 # This endpoint is called when an invited existing user clicks the link in their JoinTeam email.
 # The user should have been invited via the sendJoinTeamEmail managemment cmd.
@@ -546,7 +627,8 @@ class JoinTeam(APIView):
             # transfer user to Enterprise subscription
             user_subs = UserSubscription.objects.activateEnterpriseSubscription(user, m.organization, plan)
             # emit profile_saved signal
-            ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
+            if profile.allowUserGoals() and not m.is_admin:
+                ret = profile_saved.send(sender=user.profile.__class__, user_id=user.pk)
 
         # prepare context
         if not user_subs:

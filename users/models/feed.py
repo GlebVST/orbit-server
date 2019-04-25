@@ -130,7 +130,7 @@ class CreditType(models.Model):
 
 class EntryManager(models.Manager):
 
-    def newPrepareDataForAuditReport(self, user, startDate, endDate):
+    def prepareDataForAuditReport(self, user, startDate, endDate):
         """For the given user and activityDate range, group user entries by tag,
         compute credit_sum, and format entries for inclusion in audit report.
         Args:
@@ -204,7 +204,7 @@ class EntryManager(models.Manager):
             })
         return data
 
-    def prepareDataForAuditReport(self, user, startDate, endDate):
+    def oldprepareDataForAuditReport(self, user, startDate, endDate):
         """
         Filter entries by user and activityDate range, and order by activityDate desc.
         Partition the qset into:
@@ -420,7 +420,7 @@ class Entry(models.Model):
         return 0
 
     def formatActivity(self):
-        """format for audit report"""
+        """activity for audit report"""
         if self.entryType.name == ENTRYTYPE_SRCME:
             return self.description
         if self.entryType.name == ENTRYTYPE_BRCME:
@@ -623,7 +623,6 @@ class BrowserCme(models.Model):
 
     def formatActivity(self):
         res = urlparse(self.url)
-        #logger.info('BrowserCME formatActivity: ' + res.netloc + ' - ' + self.entry.description)
         return res.netloc + ' - ' + self.entry.description
 
 # A Story is broadcast to many users.

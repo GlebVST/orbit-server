@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.db.models import Q, Subquery
 from django.utils import timezone
-from users.models import Organization, OrgMember, Profile, Degree, Entry
+from users.models import Organization, OrgMember, OrgAgg, Profile, Degree, Entry
 
 logger = logging.getLogger('mgmt.orgstat')
 
@@ -55,8 +55,9 @@ class Command(BaseCommand):
             # Per request of Ram: do not filter by profile.verified. Even if false, should still be included in the count.
             profiles = Profile.objects.filter(user__in=Subquery(members.values('user'))).only('user','degrees').prefetch_related('degrees')
             for profile in profiles:
-                d = profile.degrees.all()[0]
-                providerStat[d.abbrev]['count'] += 1
+                if profile.degrees.exists():
+                    d = profile.degrees.all()[0]
+                    providerStat[d.abbrev]['count'] += 1
             # get datetime of end of last month
             cutoffDate = datetime(now.year, now.month, 1, 23, 59, 59, tzinfo=pytz.utc) - relativedelta(days=1)
             # members existing at that time
@@ -67,8 +68,9 @@ class Command(BaseCommand):
             )
             profiles = Profile.objects.filter(user__in=Subquery(members.values('user'))).only('user','degrees').prefetch_related('degrees')
             for profile in profiles:
-                d = profile.degrees.all()[0]
-                providerStat[d.abbrev]['lastCount'] += 1
+                if profile.degrees.exists(): # need this check otherwise get IndexError on next line if profile has no degrees
+                    d = profile.degrees.all()[0]
+                    providerStat[d.abbrev]['lastCount'] += 1
             # calculate diff percentage
             for abbrev in providerStat:
                 count = providerStat[abbrev]['count']
@@ -82,3 +84,6 @@ class Command(BaseCommand):
             org.providerStat = providerStat
             org.save(update_fields=('providerStat',))
             logger.info('Updated org {0}'.format(org))
+            # update OrgAgg user stats
+            orgAgg = OrgAgg.objects.compute_user_stats(org)
+            logger.info('Saved OrgAgg {0.pk} {0.day}'.format(orgAgg))

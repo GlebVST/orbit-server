@@ -64,6 +64,12 @@ class DegreeList(generics.ListAPIView):
     serializer_class = DegreeSerializer
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
+# LicenseType - list only
+class LicenseTypeList(generics.ListAPIView):
+    queryset = LicenseType.objects.filter(name__in=[LicenseType.TYPE_STATE, LicenseType.TYPE_DEA, LicenseType.TYPE_FLUO]).order_by('name')
+    serializer_class = LicenseTypeSerializer
+    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    pagination_class = None
 
 class HospitalFilterBackend(BaseFilterBackend):
     def get_schema_fields(self, view):
@@ -135,6 +141,11 @@ class ProfileUpdate(generics.UpdateAPIView):
     queryset = Profile.objects.all().select_related('country')
     serializer_class = ProfileUpdateSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
+
+    def perform_update(self, serializer, format=None):
+        with transaction.atomic():
+            instance = serializer.save()
+        return instance
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -348,7 +359,6 @@ class UserStateLicenseDetail(generics.RetrieveUpdateAPIView):
         instance = serializer.save(user=user)
         return instance
 
-# TODO: client should pass user in order to allow request.user to be different from document.user
 class CreateDocument(LogValidationErrorMixin, generics.CreateAPIView):
     serializer_class = UploadDocumentSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]

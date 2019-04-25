@@ -13,7 +13,7 @@ from users.enterprise_serializers import (
     OrgMemberFormSerializer,
     OrgGroupSerializer,
 )
-from users.emailutils import sendPasswordTicketEmail
+from users.emailutils import getHostname, sendPasswordTicketEmail
 from users.models import (
     User,
     Country,
@@ -404,7 +404,7 @@ class ProviderCsvImport(CsvImport):
     def sendPasswordTicketEmails(self, org, auth0):
         # Send password ticket emails for all members of the organisations who
         # don't have a `setPasswordEmailSent` flag set yet
-        redirect_url = 'https://{0}{1}'.format(settings.SERVER_HOSTNAME, settings.UI_LINK_LOGIN)
+        redirect_url = 'https://{0}{1}'.format(getHostname(), settings.UI_LINK_LOGIN)
         user_tickets = []
         qset = OrgMember.objects.filter(organization=org, setPasswordEmailSent=False).order_by('id')
 

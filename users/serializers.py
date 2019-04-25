@@ -24,9 +24,9 @@ class NestedHospitalSerializer(serializers.ModelSerializer):
         model = Hospital
         fields = ('id', 'display_name')
 
-class ResidencyProgramSerializer(serializers.ModelSerializer):
+class LicenseTypeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ResidencyProgram
+        model = LicenseType
         fields = ('id', 'name')
 
 class NestedResidencySerializer(serializers.ModelSerializer):
@@ -42,6 +42,11 @@ class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     class Meta:
         model = CmeTag
         fields = ('id', 'name', 'priority', 'description', 'specialties', 'srcme_only', 'instructions')
+
+class ResidencyProgramSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResidencyProgram
+        fields = ('id', 'name')
 
 
 # Used by auth_view to serialize the SA-CME tag
@@ -188,12 +193,15 @@ class ProfileInitialUpdateSerializer(serializers.ModelSerializer):
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
+    birthDate = serializers.DateField(required=False, allow_null=True)
+    residencyEndDate = serializers.DateField(required=False, allow_null=True)
     country = serializers.PrimaryKeyRelatedField(
         queryset=Country.objects.all(),
         allow_null=True
     )
     residency_program = serializers.PrimaryKeyRelatedField(
         queryset=ResidencyProgram.objects.all(),
+        required=False,
         allow_null=True
     )
     degrees = serializers.PrimaryKeyRelatedField(
@@ -215,6 +223,10 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     deaStates = serializers.PrimaryKeyRelatedField(
         queryset=State.objects.all(),
         many=True
+    )
+    fluoroscopyStates = serializers.PrimaryKeyRelatedField(
+        queryset=State.objects.all(),
+        many=True,
     )
     hospitals = serializers.PrimaryKeyRelatedField(
         queryset=Hospital.objects.all(),
@@ -255,6 +267,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'states',
             'hasDEA',
             'deaStates',
+            'fluoroscopyStates',
             'hospitals',
             'verified',
             'accessedTour',
