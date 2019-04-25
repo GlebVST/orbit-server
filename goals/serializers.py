@@ -376,6 +376,8 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
         elif licenseType.name == LicenseType.TYPE_DEA:
             profile.deaStates.add(state)
             profile.hasDEA = 1
+        elif licenseType.name == LicenseType.TYPE_FLUO:
+            profile.fluoroscopyStates.add(state)
         profile.addOrActivateCmeTags()
         return license
 
@@ -466,10 +468,10 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
         orgmember.save(update_fields=('snapshot', 'snapshotDate'))
 
     def save(self):
-        """This should be called inside a transaction, and for the
+        """This should be called inside a transaction, and for the license
         usergoals of a single user only.
         Steps:
-        1. Inactivate the associated user StateLicense instances
+        1. Inactivate the associated user StateLicense instances and delete the usergoals.
         2. Update user profile and rematchGoals (via ProfileUpdateSerializer)
         3. Update orgmember snapshot for this user
         """
@@ -479,25 +481,33 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
         profile = user.profile
         stateSet = set([s.pk for s in profile.states.all()])
         deaStateSet = set([s.pk for s in profile.deaStates.all()])
+        fluoStateSet = set([s.pk for s in profile.fluoroscopyStates.all()])
         # inactivate licenses
         licenses = []
         now = timezone.now()
         for ug in usergoals:
             license = ug.license
+            lt = license.licenseType
             state = license.state
             logger.info('Inactivate {0}'.format(license))
             license.inactivate(now)
             licenses.append(license)
-            if license.licenseType.name == LicenseType.TYPE_STATE:
+            if lt.name == LicenseType.TYPE_STATE:
                 stateSet.discard(state.pk)
-            elif license.licenseType.name == LicenseType.TYPE_DEA:
+            elif lt.name == LicenseType.TYPE_DEA:
                 deaStateSet.discard(state.pk)
+            elif lt.name == LicenseType.TYPE_FLUO:
+                fluoStateSet.discard(state.pk)
+            # delete the license usergoal
+            logger.info('Deleting license usergoal {0.pk}|{0}'.format(ug))
+            ug.delete()
         hasDEA = 1 if len(deaStateSet) else 0
         # update profile (and rematchGoals via signal)
         form_data = {
                 'states': list(stateSet),
                 'deaStates': list(deaStateSet),
-                'hasDEA': hasDEA
+                'hasDEA': hasDEA,
+                'fluorsocopyStates': list(fluoStateSet),
             }
         logger.info('Update profile: {0}'.format(profile))
         profileUpdSer = ProfileUpdateSerializer(instance=profile, data=form_data, partial=True)

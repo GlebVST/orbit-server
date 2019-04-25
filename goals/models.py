@@ -441,12 +441,17 @@ class LicenseGoal(models.Model):
         Returns: bool
         """
         basegoal = self.goal
+        ltname = self.licenseType.name
         # check state match (use state_id b/c it is direct attr on self)
-        if self.licenseType.name == LicenseType.TYPE_STATE and not self.state_id in profile.stateSet:
+        if ltname == LicenseType.TYPE_STATE and not self.state_id in profile.stateSet:
             return False
-        if self.licenseType.name == LicenseType.TYPE_DEA:
+        if ltname == LicenseType.TYPE_DEA:
             # check DEA state match
             if not self.state_id in profile.deaStateSet:
+                return False
+        if ltname == LicenseType.TYPE_FLUO:
+            # check fluoroscopy state match
+            if not self.state_id in profile.fluoroscopyStateSet:
                 return False
         # check basegoal
         if not basegoal.isMatchProfile(profile):
@@ -755,6 +760,9 @@ class CmeGoal(models.Model):
             return False
         # check tag
         if self.cmeTag:
+            if self.cmeTag.name == CmeTag.FLUOROSCOPY:
+                if self.state and self.state_id not in profile.fluoroscopyStateSet:
+                    return False # cmegoal does not apply
             return self.cmeTag.pk in profile.activeCmeTagSet
         return True
 
@@ -1144,7 +1152,10 @@ class UserGoalManager(models.Manager):
             qs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense)
             if qs.exists():
                 usergoal = qs[0]
-                logger.info('UserGoal already exists: {0.pk}|{0} with license {1.pk}'.format(usergoal, userLicense))
+                usergoal.dueDate = dueDate
+                usergoal.status = status
+                usergoal.save(update_fields=('dueDate','status'))
+                logger.info('Updated existing license usergoal: {0.pk}|{0} with license {1.pk}'.format(usergoal, userLicense))
             else:
                 # create UserGoal with associated license
                 usergoal = self.model.objects.create(

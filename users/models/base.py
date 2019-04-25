@@ -78,6 +78,8 @@ class CmeTagManager(models.Manager):
 
 @python_2_unicode_compatible
 class CmeTag(models.Model):
+    FLUOROSCOPY = 'Fluoroscopy'
+    # fields
     name= models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
     priority = models.IntegerField(
         default=0,
@@ -574,6 +576,7 @@ class Profile(models.Model):
         choices=((0, 'No'), (1, 'Yes')),
         help_text='Does user have DEA registration. Value is 0, 1 or null for unset')
     deaStates = models.ManyToManyField(State, blank=True, related_name='dea_profiles')
+    fluoroscopyStates = models.ManyToManyField(State, blank=True, related_name='fluoroscopy_profiles')
     hospitals = models.ManyToManyField(Hospital, blank=True, related_name='profiles')
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
@@ -774,6 +777,7 @@ class Profile(models.Model):
             states: state.cmeTags
             deaStates: state.deaTags
             state.doTags if DO degree
+            fluoroscopyStates: add FLUOROSCOPY tag
         Returns: set of CmeTag instances
         """
         satag = CmeTag.objects.get(name=CMETAG_SACME)
@@ -808,6 +812,9 @@ class Profile(models.Model):
             if is_do:
                 for t in state.doTags.all():
                     add_tags.add(t)
+        if self.fluoroscopyStates.exists():
+            fluotag = CmeTag.objects.get(name=CmeTag.FLUOROSCOPY)
+            add_tags.add(fluotag)
         # Process add_tags
         for t in add_tags:
             # tag may exist from a previous assignment
@@ -856,6 +863,11 @@ class Profile(models.Model):
     def deaStateSet(self):
         """Used in goal matching calculations"""
         return set([m.pk for m in self.deaStates.all()])
+
+    @cached_property
+    def fluoroscopyStateSet(self):
+        """Used in goal matching calculations"""
+        return set([m.pk for m in self.fluoroscopyStates.all()])
 
     @cached_property
     def hospitalSet(self):
