@@ -497,6 +497,30 @@ class OrgMembersRestore(APIView):
 
 class TeamStats(APIView):
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def getOrgAggStats(self, org, startdt, enddt):
+        oaLatest = OrgAgg.objects.filter(organization=org).order_by('-day')[0]
+        latestDay = oaLatest.day
+        if (enddt.date() > latestDay):
+            enddt = enddt.replace(year=latestDay.year, month=latestDay.month, day=latestDay.day)
+            #print('Set enddt to: {0}'.format(enddt))
+        # make list of (year, month, lastday) in date range
+        date_per_month = [dt for dt in rrule(MONTHLY, dtstart=startdt, until=enddt)] # exactly 1 date per month
+        lastdt_per_month = [dt + relativedelta(day=31) for dt in date_per_month] # last day of the month per month
+        lastday_per_month = [dt.date() for dt in lastdt_per_month] # date objects
+        max_day = lastday_per_month[-1]
+        if max_day.year == latestDay.year and max_day.month == latestDay.month:
+            # discard and replace with the latest available day
+            md = lastday_per_month.pop()
+            lastday_per_month.append(latestDay)
+        elif max_day.year == latestDay.year and max_day.month < latestDay.month:
+            lastday_per_month.append(latestDay) # append lastest available day
+        #print(lastday_per_month)
+        # get OrgAgg queryset for dates in lastday_per_month
+        qs = OrgAgg.objects.filter(organization=org, day__in=lastday_per_month).order_by('day')
+        oa_ser = OrgAggSerializer(qs, many=True)
+        return oa_ser.data
+
     def get(self, request, start, end):
         try:
             startdt = datetime.utcfromtimestamp(int(start))
@@ -529,54 +553,15 @@ class TeamStats(APIView):
                 'diff': d['diff']
                 })
         providers.sort(key=itemgetter('count'), reverse=True)
+        # finally: get latest OrgAgg entry for org
+        orgAggData = self.getOrgAggStats(org, startdt, enddt)
         context = {
             'organization': org.name,
             'totalCredits': float(org.credits),
             'totalCreditsStartDate': totalCreditsStartDate,
             'providers': providers,
-            'articlesRead': s.data
-        }
-        return Response(context, status=status.HTTP_200_OK)
-
-class OrgAggStats(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
-    def get(self, request, start, end):
-        try:
-            startdt = datetime.utcfromtimestamp(int(start))
-            enddt = datetime.utcfromtimestamp(int(end))
-        except ValueError:
-            context = {
-                'error': 'Invalid date parameters'
-            }
-            message = context['error'] + ': ' + start + ' - ' + end
-            logWarning(logger, request, message)
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        #print('Original: {0} - {1}'.format(startdt, enddt))
-        user = request.user
-        org = user.profile.organization
-        # get latest OrgAgg entry for org
-        oaLatest = OrgAgg.objects.filter(organization=org).order_by('-day')[0]
-        latestDay = oaLatest.day
-        if (enddt.date() > latestDay):
-            enddt = enddt.replace(year=latestDay.year, month=latestDay.month, day=latestDay.day)
-            #print('Set enddt to: {0}'.format(enddt))
-        # make list of (year, month, lastday) in date range
-        date_per_month = [dt for dt in rrule(MONTHLY, dtstart=startdt, until=enddt)] # exactly 1 date per month
-        lastdt_per_month = [dt + relativedelta(day=31) for dt in date_per_month] # last day of the month per month
-        lastday_per_month = [dt.date() for dt in lastdt_per_month] # date objects
-        max_day = lastday_per_month[-1]
-        if max_day.year == latestDay.year and max_day.month == latestDay.month:
-            # discard and replace with the latest available day
-            md = lastday_per_month.pop()
-            lastday_per_month.append(latestDay)
-        elif max_day.year == latestDay.year and max_day.month < latestDay.month:
-            lastday_per_month.append(latestDay) # append lastest available day
-        #print(lastday_per_month)
-        # get OrgAgg queryset for dates in lastday_per_month
-        qs = OrgAgg.objects.filter(organization=org, day__in=lastday_per_month).order_by('day')
-        s = OrgAggSerializer(qs, many=True)
-        context = {
-            'results': s.data
+            'articlesRead': s.data,
+            'orgAgg': orgAggData
         }
         return Response(context, status=status.HTTP_200_OK)
 
