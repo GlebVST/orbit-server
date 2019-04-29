@@ -246,6 +246,7 @@ class UserGoalReadSerializer(serializers.ModelSerializer):
 
 class UserLicenseGoalSummarySerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
+    goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
     state = serializers.PrimaryKeyRelatedField(read_only=True)
     displayStatus = serializers.SerializerMethodField()
     state_abbrev = serializers.ReadOnlyField(source='state.abbrev')
@@ -259,6 +260,7 @@ class UserLicenseGoalSummarySerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'user',
+            'goalType',
             'state',
             'state_abbrev',
             'state_name',
