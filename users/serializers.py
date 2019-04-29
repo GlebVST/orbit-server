@@ -383,6 +383,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
     hospitals = NestedHospitalSerializer(many=True, read_only=True)
     states = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     deaStates = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    fluoroscopyStates = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
     profileComplete = serializers.SerializerMethodField()
@@ -437,6 +438,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
             'states',
             'hasDEA',
             'deaStates',
+            'fluoroscopyStates',
             'hospitals',
             'verified',
             'accessedTour',
