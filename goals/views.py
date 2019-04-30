@@ -204,6 +204,10 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         return UserGoal.objects.select_related('goal', 'license')
 
     def perform_update(self, serializer, format=None):
+        ug = self.get_object() # UserGoal instance from url pk
+        if ug.status == UserGoal.EXPIRED:
+            error_msg = 'This license has already been renewed. Please refresh to remove stale data.'
+            raise serializers.ValidationError({'pk': error_msg}, code='invalid')
         with transaction.atomic():
             usergoal = serializer.save()
         return usergoal
@@ -212,7 +216,11 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         """Override method to handle custom input/output data structures"""
         partial = kwargs.pop('partial', False)
         usergoal = self.get_object() # UserGoal instance retrieved from get_queryset and kwargs[pk]
-        logInfo(logger, request, 'UserGoal from url pk: {0.pk} {0}'.format(usergoal))
+        msg = 'UserGoal from url pk: {0.pk} {0} status:{0.status}'.format(usergoal)
+        if usergoal.status == UserGoal.EXPIRED:
+            logWarning(logger, request, msg)
+        else:
+            logInfo(logger, request, msg)
         license = usergoal.license # StateLicense instance
         form_data = request.data.copy()
         logInfo(logger, request, str(form_data))
@@ -228,8 +236,11 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         user = userLicenseGoal.user
         qs_license_goals = UserGoal.objects.getLicenseGoalsForUserSummary(user)
         s_license = UserLicenseGoalSummarySerializer(qs_license_goals, many=True)
+        qs_credit_goals = UserGoal.objects.getCreditGoalsForUserSummary(user)
+        s_credit = UserCreditGoalSummarySerializer(qs_credit_goals, many=True)
         context = {
             'id': userLicenseGoal.pk,
+            'credit_goals': s_credit.data,
             'licenses': s_license.data
         }
         return Response(context)
