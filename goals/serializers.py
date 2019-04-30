@@ -403,10 +403,10 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
         if expireDate:
             expireDate = expireDate.replace(hour=12)
         renewLicense = False
-        updateUserCreditGoals = False
         # Decide if renew license or edit in-place (e.g. correction)
         if license.isUnInitialized():
             # An uninitialized license will be edited
+            logger.info('License {0.pk} is uninitialized. Edit in-place'.format(license))
             renewLicense = False
         elif license.checkExpireDateForRenewal(expireDate):
             # new expireDate meets cutoff for license renewal
@@ -428,7 +428,6 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
         license.licenseNumber = licenseNumber
         if expireDate and expireDate != license.expireDate:
             license.expireDate = expireDate
-            updateUserCreditGoals = True
         license.save()
         # Update usergoal instance
         if expireDate and expireDate != usergoal.dueDate:
@@ -436,7 +435,7 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
             usergoal.save(update_fields=('dueDate',))
             usergoal.recompute() # update status/compliance
             logger.info('Recomputed usergoal {0.pk}/{0}'.format(usergoal))
-        if updateUserCreditGoals:
+            # recompute dependent creditgoals since we changed the dueDate of the licensegoal
             ugs = UserGoal.objects.recomputeCreditGoalsForLicense(usergoal)
         return usergoal
 
