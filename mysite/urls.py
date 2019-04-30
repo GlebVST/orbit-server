@@ -57,6 +57,7 @@ ac_patterns = [
     url(r'^cmetag-autocomplete/$', ac_views.CmeTagAutocomplete.as_view(), name='cmetag-autocomplete'),
     url(r'^statename-autocomplete/$', ac_views.StateNameAutocomplete.as_view(), name='statename-autocomplete'),
     url(r'^hospital-autocomplete/$', ac_views.HospitalAutocomplete.as_view(), name='hospital-autocomplete'),
+    url(r'^aurl-autocomplete/$', ac_views.AllowedUrlAutocomplete.as_view(), name='aurl-autocomplete'),
     url(r'^licensegoal-autocomplete/$', goal_ac_views.LicenseGoalAutocomplete.as_view(), name='licensegoal-autocomplete'),
 ]
 

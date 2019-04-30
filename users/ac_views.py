@@ -1,6 +1,6 @@
 """Autocomplete views: used by autocomplete widget in the admin interface"""
 from dal import autocomplete
-from .models import User, CmeTag, State, Hospital
+from .models import User, CmeTag, State, Hospital, AllowedUrl
 
 class UserEmailAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
@@ -36,4 +36,13 @@ class HospitalAutocomplete(autocomplete.Select2QuerySetView):
         qs = Hospital.objects.all().order_by('display_name')
         if self.q:
             qs = qs.filter(display_name__icontains=self.q)
+        return qs
+
+class AllowedUrlAutocomplete(autocomplete.Select2QuerySetView):
+    def get_queryset(self):
+        if not self.request.user.is_authenticated():
+            return AllowedUrl.objects.none()
+        qs = AllowedUrl.objects.only('pk','url').order_by('url')
+        if self.q:
+            qs = qs.filter(url__startswith=self.q)
         return qs

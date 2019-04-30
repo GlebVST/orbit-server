@@ -7,7 +7,7 @@ from django.db.models import Count
 from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
-from common.ac_filters import UserFilter, StateFilter
+from common.ac_filters import UserFilter, StateFilter, AllowedUrlFilter
 from common.dateutils import fmtLocalDatetime
 from .models import *
 from django.utils.html import format_html
@@ -577,11 +577,59 @@ class ActivityLogAdmin(admin.ModelAdmin):
     def url(self, obj):
         return str(obj.activity_set.url)
 
+class RecAllowedUrlForm(forms.ModelForm):
+    class Meta:
+        model = RecAllowedUrl
+        fields = ('__all__')
+        widgets = {
+            'user': autocomplete.ModelSelect2(
+                url='useremail-autocomplete',
+                attrs={
+                    'data-placeholder': 'User',
+                    'data-minimum-input-length': 2,
+                }
+            ),
+            'url': autocomplete.ModelSelect2(
+                url='aurl-autocomplete',
+                attrs={
+                    'data-placeholder': 'Url',
+                    'data-minimum-input-length': 8,
+                }
+            ),
+            'cmeTag': autocomplete.ModelSelect2(
+                url='cmetag-autocomplete',
+                attrs={
+                    'data-placeholder': 'CmeTag',
+                    'data-minimum-input-length': 1,
+                }
+            ),
+        }
+
+    def clean(self):
+        cleaned_data = super(RecAllowedUrlForm, self).clean()
+        user = cleaned_data.get('user')
+        aurl = cleaned_data.get('url')
+        #print('Checking {0} for {1}'.format(user, aurl))
+        now = timezone.now()
+        startdate = now - timedelta(days=OFFER_LOOKBACK_DAYS)
+        filter_kwargs = dict(
+            user=user,
+            url=aurl,
+            redeemed=True,
+            valid=True,
+            activityDate__gte=startdate,
+        )
+        if OrbitCmeOffer.objects.filter(**filter_kwargs).exists():
+            # user has redeemed this url within OFFER_LOOKBACK_DAYS
+            self.add_error('url', 'User has already redeemed this url')
+
 class RecAllowedUrlAdmin(admin.ModelAdmin):
     list_display = ('id','user','cmeTag','url', 'offerid')
-    raw_id_fields = ('url', 'offer')
+    list_select_related = True
+    raw_id_fields = ('offer',)
     list_filter = (UserFilter, 'cmeTag')
-    ordering = ('cmeTag','user')
+    ordering = ('user', 'url')
+    form = RecAllowedUrlForm
 
     def offerid(self, obj):
         return obj.offer.pk if obj.offer else None
