@@ -684,11 +684,6 @@ class Profile(models.Model):
                 total += 1
                 if self.subspecialties.exists():
                     filled += 1
-        # DEA
-        if self.hasDEA == 1:
-            total += 1
-            if self.deaStates.exists():
-                filled += 1
         # single-value fields
         keys = ('country','birthDate','affiliationText','interestText','npiNumber','residency_program', 'residencyEndDate')
         total += len(keys)
@@ -799,13 +794,14 @@ class Profile(models.Model):
             for t in state.cmeTags.all():
                 add_tags.add(t)
             # deaTags
+            hasDEA = len(self.deaStateSet) > 0
             dcts = StateDeatag.objects.filter(state=state)
             for dct in dcts:
                 if dct.dea_in_state:
                     # user must have DEA license in this state
                     if state.pk in self.deaStateSet:
                         add_tags.add(dct.tag)
-                elif self.hasDEA is True:
+                elif hasDEA:
                     # user has DEA license in some state
                     add_tags.add(dct.tag)
             # doTags

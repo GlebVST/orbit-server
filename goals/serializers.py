@@ -377,7 +377,6 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
             profile.states.add(state)
         elif licenseType.name == LicenseType.TYPE_DEA:
             profile.deaStates.add(state)
-            profile.hasDEA = 1
         elif licenseType.name == LicenseType.TYPE_FLUO:
             profile.fluoroscopyStates.add(state)
         profile.addOrActivateCmeTags()
@@ -502,12 +501,10 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
             # delete the license usergoal
             logger.info('Deleting license usergoal {0.pk}|{0}'.format(ug))
             ug.delete()
-        hasDEA = 1 if len(deaStateSet) else 0
         # update profile (and rematchGoals via signal)
         form_data = {
                 'states': list(stateSet),
                 'deaStates': list(deaStateSet),
-                'hasDEA': hasDEA,
                 'fluorsocopyStates': list(fluoStateSet),
             }
         logger.info('Update profile: {0}'.format(profile))

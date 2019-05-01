@@ -266,7 +266,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'specialties',
             'subspecialties',
             'states',
-            'hasDEA',
             'deaStates',
             'fluoroscopyStates',
             'hospitals',
@@ -300,10 +299,6 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         curDeaStates = set([m for m in instance.deaStates.all()])
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
-        # if user unchecked DEA box, then clear deaStates
-        if instance.deaStates.exists() and not instance.hasDEA:
-            logger.info('User {0} : clear deaStates'.format(user))
-            instance.deaStates.clear()
         add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
         del_tags = set([]) # tags to be removed or deactivated
         fieldName = 'degrees'
@@ -436,7 +431,6 @@ class ProfileReadSerializer(serializers.ModelSerializer):
             'specialties',
             'subspecialties',
             'states',
-            'hasDEA',
             'deaStates',
             'fluoroscopyStates',
             'hospitals',
