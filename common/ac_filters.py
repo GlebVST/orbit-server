@@ -29,3 +29,7 @@ class LicenseGoalFilter(AutocompleteFilter):
     field_name = 'licenseGoal'
     autocomplete_url = 'licensegoal-autocomplete'
 
+class AllowedUrlFilter(AutocompleteFilter):
+    title = 'AllowedUrl'
+    field_name = 'url'
+    autocomplete_url = 'aurl-autocomplete'

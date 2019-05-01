@@ -23,7 +23,7 @@ from django.utils import timezone
 
 logger = logging.getLogger('gen.esp')
 
-def getDataFromDb():
+def getDataFromDb(listData):
     """Fetches and combines data from Profile, UserSubscription models
     Returns list of dicts with keys that are used as the values in SYNC_FIELD_MAP_ESP_TO_LOCAL
     """
@@ -33,6 +33,7 @@ def getDataFromDb():
     maxEndDate = now + timedelta(days=1)
     calStartDate = datetime(now.year, 1, 1, tzinfo=pytz.utc)
     calEndDate = datetime(now.year+1, 1, 1, tzinfo=pytz.utc)
+    todayDate = datetime.today()
     fkwCmeGap = {
         'valid': True,
         'goal__goalType__in': GoalType.objects.getCreditGoalTypes(),
@@ -46,6 +47,10 @@ def getDataFromDb():
     fkwExpiring['status'] = UserGoal.IN_PROGRESS
     profiles = Profile.objects.select_related('organization').all().order_by('user_id')
     data= []
+    currentTotalExpiredCmeGap = 0
+    currentTotalExpiringCmeGap = 0
+    currentTotalNumProviders = 0
+
     for profile in profiles:
         user = profile.user
         orgName = ''
@@ -106,8 +111,15 @@ def getDataFromDb():
             expiringLicenses=0,
             completedLicenses=0,
             expiredCmeGap=0,
-            expiringCmeGap=0
+            expiringCmeGap=0,
+            totalExpiredCmeGap=0,
+            totalExpiringCmeGap=0,
+            totalNumProviders=0,
+            totalExpiredCmeGapPercentChange=0,
+            totalExpiringCmeGapPercentChange=0,
+            totalNumProvidersPercentChange=0
         )
+        
         # Note: if user only signed up but never created a subscription, then user_subs is None
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         if user_subs:
@@ -144,11 +156,34 @@ def getDataFromDb():
                 d['expiredLicenses'] = len(licenseDict[StateLicense.EXPIRED])
                 d['expiringLicenses'] = len(licenseDict[StateLicense.EXPIRING])
                 d['completedLicenses'] = len(licenseDict[StateLicense.COMPLETED])
-                cmeGap, numGoals = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpired)
+                cmeGap, numGoals, numNonState = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpired)
                 d['expiredCmeGap'] = cmeGap
-                cmeGap, numGoals = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpiring)
+                cmeGap, numGoals, numNonState = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpiring)
                 d['expiringCmeGap'] = cmeGap
+
+                currentTotalExpiredCmeGap += d['expiredCmeGap']
+                currentTotalExpiringCmeGap += d['expiringCmeGap']
+                currentTotalNumProviders += 1
         data.append(d)
+
+    oldTotalExpiredCmeGap = currentTotalExpiredCmeGap
+    oldTotalExpiringCmeGap = currentTotalExpiringCmeGap
+    oldTotalNumProviders = currentTotalNumProviders
+
+    for contact in listData:
+        if contact["merge_fields"]["TOT_PROVID"] != "":
+            oldTotalNumProviders = contact["merge_fields"]["TOT_PROVID"]
+            oldTotalExpiredCmeGap = contact["merge_fields"]["TOT_EXPRD"]
+            oldTotalExpiringCmeGap = contact["merge_fields"]["TOT_EXPRNG"]
+            break;
+
+    for entry in data:
+        entry['totalExpiredCmeGap'] = currentTotalExpiredCmeGap
+        entry['totalExpiringCmeGap'] = currentTotalExpiringCmeGap
+        entry['totalNumProviders'] = currentTotalNumProviders
+        percentChange = (currentTotalExpiredCmeGap - oldTotalExpiredCmeGap) * 100.0 / oldTotalExpiredCmeGap
+        entry['totalExpiredCmeGapPercentChange'] = percentChange
+
     return data
 
 
@@ -191,6 +226,7 @@ class EspApiBackend(object):
     SYNC_FIELD_MAP_ESP_TO_LOCAL = {} # ESP Fieldnames in ESP's terminology mapped to local fields, in local terminology. See MailchimpApi for example.
     MANDATORY_FIELDS_ESP = [] # Which fields are required by the ESP, in ESP's terminology.
 
+    #LIST_DATA = []
 
     def __init__(self, timeout = 30, headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}):
 
@@ -202,6 +238,7 @@ class EspApiBackend(object):
         self.toUpdate = []
         self.toRemove = []
         self.incompleteData = []
+        self.listData = []
 
         if self.ESP_NAME == "":
             self._notImplementedError(name="ESP_NAME", hint="This may be 'Mailchimp', 'SendGrid', etc.")  
@@ -284,7 +321,7 @@ class EspApiBackend(object):
                 sync_map_values=self.SYNC_FIELD_MAP_ESP_TO_LOCAL.keys())
         local_user_profiles_by_local_lookup = self._buildDataDict(
                 #master_source=Profile.objects.all().values(),
-                master_source=getDataFromDb(),
+                master_source=getDataFromDb(self.listData),
                 lookup_fieldname=self.LOOKUP_FIELD_LOCAL,
                 sync_map_values=self.SYNC_FIELD_MAP_ESP_TO_LOCAL.values(),
                 xform_map=self.SYNC_FIELD_MAP_LOCAL_TO_ESP)
@@ -379,20 +416,20 @@ class MailchimpApi(EspApiBackend):
         'FNAME':'firstName',
         'LNAME':'lastName',
         'ORGANIZAT': 'organization',
-        'DEGREE': 'degree',
+        #'DEGREE': 'degree',
         'BIRTHDAY': 'birthmmdd',
         'INVITE_ID': 'inviteId',
         # Subscription fields
-        'SUBSCN_ID': 'subscriptionId',
+        #'SUBSCN_ID': 'subscriptionId',
         'SUBSCRIBED': 'subscribed',
-        'PLAN_TYPE': 'planType',
-        'PLAN_NAME': 'planName',
+        #'PLAN_TYPE': 'planType',
+        #'PLAN_NAME': 'planName',
         'PLAN_SPECI': 'planSpecialty',
         'SUBSCN_STA': 'subscriptionStatus',
-        'SUBSCN_FDT': 'billingFirstDate',
-        'SUBSCN_SDT': 'billingStartDate',
-        'SUBSCN_EDT': 'billingEndDate',
-        'SUBSCN_CYC': 'billingCycle',
+        #'SUBSCN_FDT': 'billingFirstDate',
+        #'SUBSCN_SDT': 'billingStartDate',
+        #'SUBSCN_EDT': 'billingEndDate',
+        #'SUBSCN_CYC': 'billingCycle',
         # Enterprise-related fields
         'IS_ENT_ADM': 'isEnterpriseAdmin',
         'IS_ENT_PRO': 'isEnterpriseProvider',
@@ -453,6 +490,8 @@ class MailchimpApi(EspApiBackend):
     # Mailchimp supplies default: ADDRESS, BIRTHDAY, FNAME, LNAME, PHONE. DEFAULT_MERGE_FIELDS specifies which of those we care to sync.
     DEFAULT_MERGE_FIELDS = ["FNAME", "LNAME", "BIRTHDAY"]
     ALL_MERGE_FIELDS = DEFAULT_MERGE_FIELDS + list(CUSTOM_FIELDS.keys())
+    
+    #MAILCHIMP_LIST_DATA = []
 
     def __init__(self):
 
@@ -482,7 +521,7 @@ class MailchimpApi(EspApiBackend):
         else:
             list_id = None
 
-        url = '%slists' % (self.BASE_URL)
+        url = '%slists/?count=20&offset=0' % (self.BASE_URL)
         results = requests.get(url, auth=self.auth, headers=self.headers, timeout=self.timeout)
 
         if results.status_code != 200:
@@ -531,6 +570,17 @@ class MailchimpApi(EspApiBackend):
             i = merge_fields.index(mf)
             field_name = merge_fields[i]["name"]
             existing_merge_fields.append(field_name)
+
+        url = '%slists/%s/members' % (self.BASE_URL, list_id)
+        results = requests.get(url, auth=self.auth, headers=self.headers, timeout=self.timeout)
+
+        if results.status_code != 200:
+            error_message = self._buildErrorMessge(results.status_code, results.text)
+            raise ValueError(error_message)
+
+        results_json = results.json()
+
+        self.listData = results_json["members"]
 
         return existing_merge_fields
 
@@ -637,9 +687,6 @@ class MailchimpApi(EspApiBackend):
         path = '/lists/%s/members/%s/' % (list_id, email_hash)
 
         data = self._buildEspContactPayload(contact_dict=contact_dict, status=status)
-        #if (email_address == "asdf@asdf.com" or email_address == u'asdf@asdf.com'):
-        #    print "laker: ", contact_dict
-        #    print data
         batch_operations_list.append({"method" : "PUT", "path" : path, "body": json.dumps(data)})
         return batch_operations_list
 
@@ -688,13 +735,11 @@ class MailchimpApi(EspApiBackend):
                     batch_operations_list = self._addToBatchOperationsList(batch_operations_list, k, v)
 
                     #if k == "asdf@asdf.com" or k == u'asdf@asdf.com':
-                    #    print "export: ", k, v
                     #    v.update({'email_address' : u'logicalmath333@yahoo.com'})
                     #    batch_operations_list = self._addToBatchOperationsList(batch_operations_list, u'logicalmath333@yahoo.com', v)
                     #    list_of_emails_tmp.append(k)
 
         #list_of_emails_tmp.sort()
-        #print "tmp: ", list_of_emails_tmp
 
         # If you delete a contact in Mailchimp, you cannot add that email address again programatically without them confirming via email.
         # Better to keep the contact and mark as 'cleaned' or 'unsubscribed'
@@ -704,8 +749,6 @@ class MailchimpApi(EspApiBackend):
 
         batch_results = self._createBatchOperation(batch_operations_list)
         batch_id = batch_results.json()['id']
-
-        print "batch_id: ", batch_id
 
         if batch_id:
             return True

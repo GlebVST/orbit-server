@@ -57,6 +57,7 @@ ac_patterns = [
     url(r'^cmetag-autocomplete/$', ac_views.CmeTagAutocomplete.as_view(), name='cmetag-autocomplete'),
     url(r'^statename-autocomplete/$', ac_views.StateNameAutocomplete.as_view(), name='statename-autocomplete'),
     url(r'^hospital-autocomplete/$', ac_views.HospitalAutocomplete.as_view(), name='hospital-autocomplete'),
+    url(r'^aurl-autocomplete/$', ac_views.AllowedUrlAutocomplete.as_view(), name='aurl-autocomplete'),
     url(r'^licensegoal-autocomplete/$', goal_ac_views.LicenseGoalAutocomplete.as_view(), name='licensegoal-autocomplete'),
 ]
 
@@ -140,6 +141,7 @@ api_patterns = [
     url(r'^goals/?$', goal_views.UserGoalList.as_view()),
     url(r'^goals/create-license/?$', goal_views.CreateUserLicenseGoal.as_view()),
     url(r'^goals/update-license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view()),
+    url(r'^goals/admin-update-license/(?P<pk>[0-9]+)/?$', goal_views.AdminUpdateUserLicenseGoal.as_view()),
     url(r'^goals/remove-licenses/?$', goal_views.RemoveUserLicenseGoals.as_view()),
     url(r'^goals/user-summary/(?P<userid>[0-9]+)/?$', goal_views.UserGoalSummary.as_view()),
     url(r'^goals/recs/(?P<pk>[0-9]+)/?$', goal_views.GoalRecsList.as_view()),

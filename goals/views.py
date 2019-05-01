@@ -204,6 +204,13 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         return UserGoal.objects.select_related('goal', 'license')
 
     def perform_update(self, serializer, format=None):
+        ug = self.get_object() # UserGoal instance from url pk
+        if ug.status == UserGoal.EXPIRED:
+            error_msg = 'This license has already been renewed. Please refresh to remove stale data.'
+            raise serializers.ValidationError({'id': error_msg}, code='invalid')
+        if ug.user != self.request.user:
+            error_msg = 'This license does not belong to the user.'
+            raise serializers.ValidationError({'id': error_msg}, code='invalid')
         with transaction.atomic():
             usergoal = serializer.save()
         return usergoal
@@ -212,7 +219,79 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
         """Override method to handle custom input/output data structures"""
         partial = kwargs.pop('partial', False)
         usergoal = self.get_object() # UserGoal instance retrieved from get_queryset and kwargs[pk]
-        logInfo(logger, request, 'UserGoal from url pk: {0.pk} {0}'.format(usergoal))
+        msg = 'UserGoal from url pk: {0.pk} {0} status:{0.status}'.format(usergoal)
+        if usergoal.status == UserGoal.EXPIRED:
+            logWarning(logger, request, msg)
+        else:
+            logInfo(logger, request, msg)
+        license = usergoal.license # StateLicense instance
+        form_data = request.data.copy()
+        logInfo(logger, request, str(form_data))
+        in_serializer = self.get_serializer(
+                license,
+                data=form_data,
+                partial=partial)
+        in_serializer.is_valid(raise_exception=True)
+        # userLicenseGoal is either:
+        #   same as usergoal (edit-in-place case)
+        #   a new UserGoal instance (renew case)
+        userLicenseGoal = self.perform_update(in_serializer)
+        user = userLicenseGoal.user
+        # return updated goal list
+        qs = UserGoal.objects.filter(user=user, valid=True).select_related('goal__goalType', 'license', 'cmeTag')
+        qs1 = qs.filter(status__in=[UserGoal.PASTDUE, UserGoal.IN_PROGRESS]).order_by('status', 'goal__goalType__sort_order', 'dueDate', '-modified')
+        qs2 = qs.filter(status=UserGoal.COMPLETED).order_by('-modified')
+        goals = list(qs1) + list(qs2)
+        s = UserGoalReadSerializer(goals, many=True)
+        context = {
+            'id': userLicenseGoal.pk,
+            'goals': s.data,
+        }
+        return Response(context)
+
+class AdminUpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
+    """
+    This expects a license UserGoal id, licenseNumber, and expireDate.
+    Based on the existing license expireDate, and the new expireDate,
+    the UserLicenseGoalUpdateSerializer decides whether to edit-in-place or renew the existing license.
+    If renew (new expireDate represents a license renewal):
+        Create new StateLicense
+        Archive old usergoal
+        Create new usergoal attached to new license
+        Renew any recurring credit goals dependent on license
+    If edit:
+        Edit existing StateLicense in-place
+        Recompute existing license UserGoal
+        Recompute dependent credit goals
+    Response: {
+        id: pkeyid of license UserGoal (either a newly created UserGoal or the existing id passed to endpoint)
+        licenses: list of user license goals
+    }
+    """
+    serializer_class = UserLicenseGoalUpdateSerializer
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+
+    def get_queryset(self):
+        return UserGoal.objects.select_related('goal', 'license')
+
+    def perform_update(self, serializer, format=None):
+        ug = self.get_object() # UserGoal instance from url pk
+        if ug.status == UserGoal.EXPIRED:
+            error_msg = 'This license has already been renewed. Please refresh to remove stale data.'
+            raise serializers.ValidationError({'pk': error_msg}, code='invalid')
+        with transaction.atomic():
+            usergoal = serializer.save()
+        return usergoal
+
+    def update(self, request, *args, **kwargs):
+        """Override method to handle custom input/output data structures"""
+        partial = kwargs.pop('partial', False)
+        usergoal = self.get_object() # UserGoal instance retrieved from get_queryset and kwargs[pk]
+        msg = 'UserGoal from url pk: {0.pk} {0} status:{0.status}'.format(usergoal)
+        if usergoal.status == UserGoal.EXPIRED:
+            logWarning(logger, request, msg)
+        else:
+            logInfo(logger, request, msg)
         license = usergoal.license # StateLicense instance
         form_data = request.data.copy()
         logInfo(logger, request, str(form_data))
@@ -233,6 +312,8 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
             'licenses': s_license.data
         }
         return Response(context)
+
+
 
 class RemoveUserLicenseGoals(APIView):
     """This view removes one or more user licensegoals on all usergoal ids passed in the array.
@@ -291,7 +372,7 @@ class GoalRecsList(APIView):
                 qset = user.recaurls \
                     .select_related('offer', 'url__eligible_site') \
                     .filter(cmeTag=usergoal.cmeTag) \
-                    .order_by('offer','id')
+                    .order_by('offer','-url__numOffers', 'id')
                 s = RecAllowedUrlReadSerializer(qset[:3], many=True)
                 results = s.data
             else:
