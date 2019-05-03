@@ -203,7 +203,7 @@ class ProfileAdmin(admin.ModelAdmin):
     )
     list_select_related = ('organization',)
     list_filter = ('verified','npiType', 'organization')
-    search_fields = ['npiNumber', 'lastName']
+    search_fields = ['user__email', 'npiNumber', 'lastName']
     filter_horizontal = (
         'specialties',
         'subspecialties',
@@ -274,12 +274,28 @@ class EntryAdmin(admin.ModelAdmin):
         pass
 
 
+class ArticleTypeInline(admin.TabularInline):
+    model = ArticleType
+
 class EligibleSiteAdmin(admin.ModelAdmin):
-    list_display = ('id', 'domain_name', 'domain_title', 'page_title_suffix', 'needs_ad_block', 'issn', 'electronic_issn')
+    list_display = ('id', 'domain_name', 'domain_title', 'page_title_suffix', 'issn', 'formatArticleTypes')
     list_filter = ('needs_ad_block', 'all_specialties', 'is_unlisted', 'verify_journal')
     ordering = ('domain_name',)
     filter_horizontal = ('specialties',)
+    inlines = [
+        ArticleTypeInline,
+    ]
 
+    def formatArticleTypes(self, obj):
+        qs = obj.articletypes.all()
+        ats = []
+        for m in qs:
+            if m.is_allowed:
+                ats.append("<b>{0.name}</b>".format(m))
+            else:
+                ats.append(m.name)
+        return ','.join(ats)
+    formatArticleTypes.allow_tags = True
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')
