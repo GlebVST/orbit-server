@@ -47,6 +47,28 @@ class AllowedHost(models.Model):
         return self.hostname
 
 @python_2_unicode_compatible
+class ArticleType(models.Model):
+    id = models.AutoField(primary_key=True)
+    eligible_site = models.ForeignKey(EligibleSite,
+        on_delete=models.CASCADE,
+        related_name='articletypes',
+        db_index=True)
+    name = models.CharField(max_length=40, help_text='e.g. Abstract')
+    is_allowed = models.BooleanField(default=False, help_text='Check box if this ArticleType is allowed')
+    created = models.DateTimeField(auto_now_add=True, blank=True)
+    modified = models.DateTimeField(auto_now=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_articletype'
+        unique_together = ('eligible_site', 'name')
+        ordering = ('-is_allowed', 'name')
+
+    def __str__(self):
+        return '{0.eligible_site}|{0.name}|{0.is_allowed}'.format(self)
+
+
+@python_2_unicode_compatible
 class HostPattern(models.Model):
     id = models.AutoField(primary_key=True)
     host = models.ForeignKey(AllowedHost,

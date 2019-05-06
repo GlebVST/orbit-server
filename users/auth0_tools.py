@@ -92,6 +92,8 @@ class Auth0Api(object):
         cur_total += data['length']
         while (cur_total < num_total):
             list_kwargs['page'] += 1
+            # throttle
+            time.sleep(0.5) # to prevent Auth0Error: 429: Global limit has been reached
             data = self.conn.users.list(**list_kwargs)
             users.extend(data['users'])
             cur_total += data['length']
