@@ -19,10 +19,6 @@ from users.feed_serializers import OrbitCmeOfferSerializer
 
 logger = logging.getLogger('gen.gsrl')
 PUB_DATE_FORMAT = '%b %Y'
-OVERDUE = 'Overdue'
-COMPLETED = 'Completed'
-EXPIRING = 'Expiring'
-ON_TRACK = 'On Track'
 
 class GoalTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -248,7 +244,7 @@ class UserLicenseGoalSummarySerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
     state = serializers.PrimaryKeyRelatedField(read_only=True)
-    displayStatus = serializers.SerializerMethodField()
+    displayStatus = serializers.ReadOnlyField(source='displayStatus')
     state_abbrev = serializers.ReadOnlyField(source='state.abbrev')
     state_name = serializers.ReadOnlyField(source='state.name')
     licenseNumber = serializers.ReadOnlyField(source='license.licenseNumber')
@@ -276,26 +272,16 @@ class UserLicenseGoalSummarySerializer(serializers.ModelSerializer):
     def get_licenseNumber(self, obj):
         return obj.license.licenseNumber
 
-    def get_displayStatus(self, obj):
-        """UI display value for status"""
-        if obj.status == UserGoal.PASTDUE:
-            return OVERDUE
-        if obj.status == UserGoal.COMPLETED:
-            return COMPLETED
-        # check if goal dueDate is expiring
-        if obj.isExpiring():
-            return EXPIRING
-        return ON_TRACK
 
 class UserCreditGoalSummarySerializer(serializers.ModelSerializer):
     user = serializers.IntegerField(source='user.id', read_only=True)
     goalType = serializers.StringRelatedField(source='goal.goalType.name', read_only=True)
     state = serializers.PrimaryKeyRelatedField(read_only=True)
     cmeTag = serializers.ReadOnlyField(source='cmeTag.name')
+    displayStatus = serializers.ReadOnlyField(source='displayStatus')
     creditsLeft = serializers.SerializerMethodField()
     creditTypes = serializers.SerializerMethodField()
     license = serializers.SerializerMethodField()
-    displayStatus = serializers.SerializerMethodField()
 
     class Meta:
         model = UserGoal
@@ -329,17 +315,6 @@ class UserCreditGoalSummarySerializer(serializers.ModelSerializer):
         # Board/Hospital cme goal
         return obj.goal.cmegoal.entityName
 
-    def get_displayStatus(self, obj):
-        """UI display value for status"""
-        if obj.status == UserGoal.PASTDUE:
-            return OVERDUE
-        if obj.status == UserGoal.COMPLETED:
-            return COMPLETED
-        # check if goal dueDate is expiring
-        if obj.isExpiring():
-            return EXPIRING
-        return ON_TRACK
-
 
 class UserLicenseCreateSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(
@@ -348,6 +323,8 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
             queryset=State.objects.all())
     licenseType = serializers.PrimaryKeyRelatedField(
             queryset=LicenseType.objects.all())
+    modifiedBy = serializers.PrimaryKeyRelatedField(
+            queryset=User.objects.all())
     class Meta:
         model = StateLicense
         fields = (
@@ -356,7 +333,8 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
             'state',
             'licenseType',
             'licenseNumber',
-            'expireDate'
+            'expireDate',
+            'modifiedBy'
         )
 
     def create(self, validated_data):
@@ -384,11 +362,14 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
 
 class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
 
+    modifiedBy = serializers.PrimaryKeyRelatedField(
+            queryset=User.objects.all())
     class Meta:
         model = StateLicense
         fields = (
             'licenseNumber',
             'expireDate',
+            'modifiedBy',
         )
 
     def update(self, instance, validated_data):
@@ -416,7 +397,8 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
                     state=license.state,
                     licenseType=license.licenseType,
                     licenseNumber=license.licenseNumber,
-                    expireDate=expireDate
+                    expireDate=expireDate,
+                    modifiedBy=validated_data['modifiedBy']
                 )
             logger.info('Renewed License: {0}'.format(newLicense))
             newUserLicenseGoal = UserGoal.objects.renewLicenseGoal(usergoal, newLicense)
@@ -425,6 +407,7 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
         # else: update license and usergoal in-place
         logger.info('Edit existing license {0.pk}'.format(license))
         license.licenseNumber = licenseNumber
+        license.modifiedBy = validated_data['modifiedBy']
         if expireDate and expireDate != license.expireDate:
             license.expireDate = expireDate
         license.save()
@@ -444,8 +427,10 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
         queryset=UserGoal.objects.select_related('license').filter(license__isnull=False),
         many=True
     )
+    modifiedBy = serializers.PrimaryKeyRelatedField(
+            queryset=User.objects.all())
     class Meta:
-        fields = ('ids',)
+        fields = ('ids', 'modifiedBy')
 
     def updateSnapshot(self, orgmember):
         userdata = {} # null, plus key for each stateid in user's profile
@@ -490,7 +475,7 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
             lt = license.licenseType
             state = license.state
             logger.info('Inactivate {0}'.format(license))
-            license.inactivate(now)
+            license.inactivate(now, validated_data['modifiedBy'])
             licenses.append(license)
             if lt.name == LicenseType.TYPE_STATE:
                 stateSet.discard(state.pk)

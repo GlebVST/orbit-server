@@ -103,7 +103,6 @@ class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
         Then, handle new goal assignment.
         Returns: UserGoal instance for the new usergoal attached to the new license.
         """
-        ##form_data = self.request.data
         form_data = serializer.validated_data
         expireDate = form_data['expireDate']
         createNewLicense = False
@@ -164,6 +163,7 @@ class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         form_data = request.data.copy()
+        form_data['modifiedBy'] = request.user
         logInfo(logger, request, str(form_data))
         serializer = self.get_serializer(data=form_data)
         serializer.is_valid(raise_exception=True)
@@ -226,6 +226,7 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
             logInfo(logger, request, msg)
         license = usergoal.license # StateLicense instance
         form_data = request.data.copy()
+        form_data['modifiedBy'] = request.user
         logInfo(logger, request, str(form_data))
         in_serializer = self.get_serializer(
                 license,
@@ -294,6 +295,7 @@ class AdminUpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView
             logInfo(logger, request, msg)
         license = usergoal.license # StateLicense instance
         form_data = request.data.copy()
+        form_data['modifiedBy'] = request.user
         logInfo(logger, request, str(form_data))
         in_serializer = self.get_serializer(
                 license,
@@ -342,7 +344,9 @@ class RemoveUserLicenseGoals(APIView):
         #  - update user profile (remove states and/or deaStates) and rematchGoals
         #  - recompute snapshot for user
         with transaction.atomic():
-            ser = UserLicenseGoalRemoveSerializer(data=request.data)
+            form_data = request.data.copy()
+            form_data['modifiedBy'] = request.user
+            ser = UserLicenseGoalRemoveSerializer(data=form_data)
             ser.is_valid(raise_exception=True)
             inactivated_licenses = ser.save()
             logInfo(logger, request, 'Inactivated {0} licenses'.format(len(inactivated_licenses)))

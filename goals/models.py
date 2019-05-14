@@ -1886,6 +1886,11 @@ class UserGoal(models.Model):
         (EXPIRED, 'Expired'),
         (NEW, 'New - uninitialized')
     )
+    # labels for displayStatus
+    OVERDUE_LABEL = 'Overdue'
+    COMPLETED_LABEL = 'Completed'
+    EXPIRING_LABEL = 'Expiring'
+    ON_TRACK_LABEL = 'On Track'
     NON_COMPLIANT = 0
     MARGINAL_COMPLIANT = 1
     INCOMPLETE_PROFILE = 2
@@ -2002,6 +2007,25 @@ class UserGoal(models.Model):
             return 'Any'
         return s
 
+    def isExpiring(self):
+        now = timezone.now()
+        expiringCutoffDate = now + timedelta(days=UserGoal.EXPIRING_CUTOFF_DAYS)
+        if self.dueDate > now and self.dueDate < expiringCutoffDate:
+            return True
+        return False
+
+    @property
+    def displayStatus(self):
+        """UI display value for status"""
+        if self.status == UserGoal.PASTDUE:
+            return UserGoal.OVERDUE_LABEL
+        if self.status == UserGoal.COMPLETED:
+            return UserGoal.COMPLETED_LABEL
+        # check if goal dueDate is expiring
+        if self.isExpiring():
+            return UserGoal.EXPIRING_LABEL
+        return UserGoal.ON_TRACK_LABEL
+
     def __str__(self):
         gtype = self.goal.goalType.name
         if gtype == GoalType.CME or gtype == GoalType.SRCME:
@@ -2011,14 +2035,7 @@ class UserGoal(models.Model):
                 src = self.goal.cmegoal.board
             return '{0.goal.goalType}|{1}|{2}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.creditsDue} in {3}'.format(self, src, dueDateType, self.formatCreditTypes())
         # license usergoal
-        return '{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}'.format(self)
-
-    def isExpiring(self):
-        now = timezone.now()
-        expiringCutoffDate = now + timedelta(days=UserGoal.EXPIRING_CUTOFF_DAYS)
-        if self.dueDate > now and self.dueDate < expiringCutoffDate:
-            return True
-        return False
+        return '{0.goal.goalType}|{0.title}|{0.dueDate:%Y-%m-%d}|{0.displayStatus}'.format(self)
 
     def setCreditTypes(self, goal):
         """Copy applicable creditTypes from goal to self based on user's
