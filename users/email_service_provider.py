@@ -17,7 +17,8 @@ from users.models import (
         OrbitCmeOffer,
         OrgMember,
         StateLicense,
-        OrgAgg
+        OrgAgg,
+        SubscriptionPlan
     )
 from goals.models import UserGoal, GoalType
 from django.utils import timezone
@@ -120,7 +121,17 @@ def getDataFromDb(listData):
             totalExpiringCmeGapPercentChange=0,
             totalNumProvidersPercentChange=0
         )
-        
+       
+        qs = SubscriptionPlan.objects.filter(planId=profile.planId)
+
+        if len(qs) > 0:
+            d['planType'] = qs[0].plan_type.name
+            d['planName'] = qs[0].display_name
+
+        if not d['planSpecialty'] and profile.specialties.exists():
+            ps = profile.specialties.all().order_by('name')[0]
+            d['planSpecialty'] = ps.name
+
         # Note: if user only signed up but never created a subscription, then user_subs is None
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         if user_subs:
@@ -440,7 +451,7 @@ class MailchimpApi(EspApiBackend):
         #'SUBSCN_ID': 'subscriptionId',
         'SUBSCRIBED': 'subscribed',
         #'PLAN_TYPE': 'planType',
-        #'PLAN_NAME': 'planName',
+        'PLAN_NAME': 'planName',
         'PLAN_SPECI': 'planSpecialty',
         'SUBSCN_STA': 'subscriptionStatus',
         #'SUBSCN_FDT': 'billingFirstDate',
