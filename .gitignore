@@ -1,9 +1,14 @@
 *.pyc
+*.py.1
+*.py.old
+*.py.working
+*.csv
 db.sqlite3
 .env
 .env-*
 req.txt
 logs/*.log
+logs/*.log.*
 admin_scripts/*.log
 admin_scripts/backup_ec2.py
 admin_scripts/new_backup_ec2.py

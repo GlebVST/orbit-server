@@ -322,14 +322,28 @@ class SignupEmailPromoManager(models.Manager):
 @python_2_unicode_compatible
 class SignupEmailPromo(models.Model):
     email = models.EmailField(unique=True)
-    first_year_price = models.DecimalField(max_digits=5, decimal_places=2, help_text='First year promotional price')
+    first_year_discount = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='First billingCycle promotional discount (price and discount should not be specified together)')
+    first_year_price = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='First billingCycle promotional price (price and discount should not be specified together)')
     display_label = models.CharField(max_length=60, blank=True, default='',
             help_text='Display label shown to the user in the discount screen')
     created = models.DateTimeField(auto_now_add=True)
     objects = SignupEmailPromoManager()
 
     def __str__(self):
-        return '{0.email}|{0.first_year_price}'.format(self)
+        if self.first_year_price:
+            return '{0.email}|price:{0.first_year_price}'.format(self)
+        else:
+            return '{0.email}|discount:{0.first_year_discount}'.format(self)
 
 
 # An invitee is given the invitee-discount once for the first billing cycle.
@@ -1188,18 +1202,30 @@ class UserSubscriptionManager(models.Manager):
             })
         return discounts
 
-    def calcInitialChargeAmountForUserInTrial(self, user_subs):
-        """Calculate initial charge amount for user currently in UI_TRIAL for their first Bt subscription.
+    def calcInitialChargeAmountForUserInTrial(self, user_subs, new_plan=None):
+        """Calculate initial charge amount for user for their first Bt subscription.
+        Args:
+            user_subs: UserSubscription instance
+            new_plan: SubscriptionPlan/None.  If given, the owed is initialized from new_plan's price. Use case: user is in trial on a basic plan, and wants to upgrade to new_plan for the first billingCycle.
         Returns: Decimal
         """
         user = user_subs.user
-        plan = user_subs.plan
+        if new_plan:
+            plan = new_plan
+        else:
+            plan = user_subs.plan
         owed = plan.discountPrice
-        # If user's email exists in SignupEmailPromo then it overrides any other discounts
+        # Check for SignupEmailPromo: it overrides any other discounts
         promo = SignupEmailPromo.objects.get_casei(user.email)
         if promo:
-            owed = promo.first_year_price
-            return owed
+            if promo.first_year_price:
+                owed = promo.first_year_price
+                return owed
+            else:
+                owed -= promo.first_year_discount
+                if owed < 0:
+                    owed = Decimal(0)
+                return owed
         # else check for other signup discounts
         discounts = self.getDiscountsForNewSubscription(user)
         for d in discounts:
@@ -1245,13 +1271,21 @@ class UserSubscriptionManager(models.Manager):
             inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
         allow_signup = UserSubscription.objects.allowSignupDiscount(user)
         if allow_signup:
-            # If user's email exists in SignupEmailPromo then it overrides any other discounts
+            # Check for SignupEmailPromo: it overrides any other discounts
             promo = SignupEmailPromo.objects.get_casei(user.email)
             if promo:
-                subs_price = promo.first_year_price
-                baseDiscount = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
-                discount_amount = plan.discountPrice - subs_price
+                if promo.first_year_price:
+                    subs_price = promo.first_year_price
+                    discount_amount = plan.discountPrice - subs_price
+                else:
+                    discount_amount = promo.first_year_discount
+                    subs_price -= discount_amount
+                    if subs_price < 0:
+                        subs_price = Decimal('0')
+                        discount_amount = plan.discountPrice
+                        logger.warning('SignupEmailPromo first_year_discount: {0.first_year_discount} exceeds plan price {1.discountPrice}.'.format(promo, plan))
                 # Add discounts:add key to subs_params
+                baseDiscount = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
                 subs_params['discounts'] = {
                     'add': [
                         {
@@ -1396,24 +1430,16 @@ class UserSubscriptionManager(models.Manager):
             self.updateSubscriptionFromBt(user_subs, bt_subs)
         user = user_subs.user
         if user_subs.display_status in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
+            # user will start their first billingCycle on new_plan
+            # this handles checking for is_invitee/is_convertee state
             return self.switchTrialToActive(user_subs, payment_token, new_plan)
         # Get base-discount (must exist in Braintree)
         baseDiscount = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
         discountAmount = 0
         now = timezone.now()
-        if user_subs.status == UserSubscription.EXPIRED:
+        if user_subs.status in (UserSubscription.EXPIRED, UserSubscription.CANCELED):
             # user_subs is already in a terminal state
             discountAmount = 0
-        elif user_subs.status == UserSubscription.CANCELED:
-            # This method expects the user_subs to be canceled already
-            if user_subs.display_status == UserSubscription.UI_TRIAL_CANCELED:
-                # user can still get signup discounts
-                discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
-                for d in discounts:
-                    discountAmount += d['discount'].amount
-                logger.debug('discount: {0}'.format(discountAmount))
-            else:
-                discountAmount = 0
         else:
             # user has an active bt subscription that must be canceled
             # Calculate discountAmount based on daysLeft in user_subs

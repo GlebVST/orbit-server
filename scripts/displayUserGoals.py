@@ -4,9 +4,9 @@ from goals.models import *
 def print_license_goal(ug):
     lic = ug.license
     if lic.expireDate:
-        print('{0.pk}: {0.title} expireDate:{1.expireDate:%Y-%m-%d}'.format(ug, lic))
+        print('{0.pk}: {0.title}|{0.displayStatus} expireDate:{1.expireDate:%Y-%m-%d}'.format(ug, lic))
     else:
-        print('{0.pk}: {0.title} expireDate: *Un-Initialized*'.format(ug, lic))
+        print('{0.pk}: {0.title}|{0.displayStatus} expireDate: *Un-Initialized*'.format(ug, lic))
 
 def print_board_goal(ug):
     bg = ug.goal
