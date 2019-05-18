@@ -150,9 +150,12 @@ class SignupDiscountList(APIView):
             promo = SignupEmailPromo.objects.get_casei(user.email)
             if promo:
                 # this overrides any other discount
-                plan = SubscriptionPlan.objects.get(planId=profile.planId)
                 d = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
-                discount_amount = plan.discountPrice - promo.first_year_price
+                if promo.first_year_price:
+                    plan = SubscriptionPlan.objects.get(planId=profile.planId)
+                    discount_amount = plan.discountPrice - promo.first_year_price
+                else:
+                    discount_amount = promo.first_year_discount
                 data = [{
                     'discountId': d.discountId,
                     'amount': discount_amount,
@@ -578,10 +581,7 @@ class UpgradePlanAmount(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         starterStatus = (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.UI_ENTERPRISE_CANCELED, UserSubscription.UI_SUSPENDED)
         if user_subs.display_status in starterStatus:
-            owed = new_plan.discountPrice
-            discounts = UserSubscription.objects.getDiscountsForNewSubscription(user)
-            for d in discounts:
-                owed -= d['discount'].amount
+            owed = UserSubscription.objects.calcInitialChargeAmountForUserInTrial(user_subs, new_plan)
             can_upgrade = True
             message = ''
             if user_subs.status == UserSubscription.UI_SUSPENDED:

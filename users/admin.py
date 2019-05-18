@@ -329,10 +329,7 @@ class SignupEmailPromoForm(forms.ModelForm):
 
     class Meta:
         model = SignupEmailPromo
-        exclude = (
-            'created',
-            'modified'
-        )
+        fields = ('__all__')
 
     def clean_email(self):
         self.cleaned_data['email'] = self.cleaned_data['email'].lower()
@@ -343,10 +340,16 @@ class SignupEmailPromoForm(forms.ModelForm):
         v = cleaned_data['email']
         if v and SignupEmailPromo.objects.filter(email=v).exists():
             self.add_error('email', 'Case-insensitive email address already exists for this email.')
+        fyp = cleaned_data['first_year_price']
+        fyd = cleaned_data['first_year_discount']
+        if fyp and fyd:
+            self.add_error('first_year_discount', 'Specify either first_year_price or first_year_discount.')
+        if not fyp and not fyd:
+            self.add_error('first_year_discount', 'Specify either first_year_price or first_year_discount.')
 
 class SignupEmailPromoAdmin(admin.ModelAdmin):
-    list_display = ('id','email','first_year_price','display_label', 'created')
-    ordering = ('email',)
+    list_display = ('id','email','first_year_price','first_year_discount', 'display_label', 'created')
+    ordering = ('-created',)
     form = SignupEmailPromoForm
 
 class InvitationDiscountAdmin(admin.ModelAdmin):

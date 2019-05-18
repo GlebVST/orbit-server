@@ -215,7 +215,8 @@ class OrgMemberFormSerializer(serializers.Serializer):
     )
     fluoroscopyStates = serializers.PrimaryKeyRelatedField(
         queryset=State.objects.all(),
-        many=True
+        many=True,
+        required=False
     )
     hospitals = serializers.PrimaryKeyRelatedField(
         queryset=Hospital.objects.all(),

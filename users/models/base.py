@@ -1054,6 +1054,14 @@ class StateLicense(models.Model):
             help_text='Set to false when license is inactivated')
     removeDate = models.DateTimeField(null=True, blank=True,
             help_text='Set when license is in-activated')
+    modifiedBy = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        related_name='modstatelicenses',
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text='User who created or last modified this row'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = StateLicenseManager()
@@ -1085,11 +1093,10 @@ class StateLicense(models.Model):
             label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
         return label
 
-    def inactivate(self, removeDate=None):
-        if not removeDate:
-            removeDate = timezone.now()
+    def inactivate(self, removeDate, modifiedBy):
         self.is_active = False
         self.removeDate = removeDate
+        self.modifiedBy = modifiedBy
         self.save()
 
     def checkExpireDateForRenewal(self, expireDate):

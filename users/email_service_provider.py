@@ -16,7 +16,9 @@ from users.models import (
         UserCmeCredit,
         OrbitCmeOffer,
         OrgMember,
-        StateLicense
+        StateLicense,
+        OrgAgg,
+        SubscriptionPlan
     )
 from goals.models import UserGoal, GoalType
 from django.utils import timezone
@@ -119,7 +121,17 @@ def getDataFromDb(listData):
             totalExpiringCmeGapPercentChange=0,
             totalNumProvidersPercentChange=0
         )
-        
+       
+        qs = SubscriptionPlan.objects.filter(planId=profile.planId)
+
+        if len(qs) > 0:
+            d['planType'] = qs[0].plan_type.name
+            d['planName'] = qs[0].display_name
+
+        if not d['planSpecialty'] and profile.specialties.exists():
+            ps = profile.specialties.all().order_by('name')[0]
+            d['planSpecialty'] = ps.name
+
         # Note: if user only signed up but never created a subscription, then user_subs is None
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         if user_subs:
@@ -161,28 +173,44 @@ def getDataFromDb(listData):
                 cmeGap, numGoals, numNonState = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpiring)
                 d['expiringCmeGap'] = cmeGap
 
-                currentTotalExpiredCmeGap += d['expiredCmeGap']
-                currentTotalExpiringCmeGap += d['expiringCmeGap']
-                currentTotalNumProviders += 1
+                #currentTotalExpiredCmeGap += d['expiredCmeGap']
+                #currentTotalExpiringCmeGap += d['expiringCmeGap']
+                #currentTotalNumProviders += 1
+
+                today = timezone.now().date()
+                # if today is monday
+                if today.weekday() == 0:
+                    todayQs = OrgAgg.objects.filter(organization=profile.organization, day=today)
+                    if todayQs.exists():
+                        todayOrgagg = todayQs[0]
+                        d['totalExpiredCmeGap'] = todayOrgagg.cme_gap_expired
+                        d['totalExpiringCmeGap'] = todayOrgagg.cme_gap_expiring
+                        d['totalNumProviders'] = todayOrgagg.users_invited + todayOrgagg.users_active
+
+                    lastMonday = today - timedelta(days=7)
+                    #print("lastMonday: ", lastMonday)
+                    lastMondayQs = OrgAgg.objects.filter(organization=profile.organization, day=today)
+                    if lastMondayQs.exists():
+                        lastMondayOrgagg = lastMondayQs[0]
+                        lastCmeGapExpired = lastMondayOrgagg.cme_gap_expired
+                        lastCmeGapExpiring = lastMondayOrgagg.cme_gap_expiring
+                        lastNumProviders = lastMondayOrgagg.users_invited + lastMondayOrgagg.users_active
+                        if lastCmeGapExpired != 0:
+                            d['totalExpiredCmeGapPercentChange'] = \
+                                (d['totalExpiredCmeGap'] - lastMondayOrgagg.cme_gap_expired)/lastCmeGapExpired
+                        elif lastCmeGapExpired == 0 and d['totalExpiredCmeGap'] == 0:
+                            d['totalExpiredCmeGapPercentChange'] = 0
+                        if lastCmeGapExpiring != 0:
+                            d['totalExpiringCmeGapPercentChange'] = \
+                                (d['totalExpiringCmeGap'] - lastMondayOrgagg.cme_gap_expiring)/lastCmeGapExpiring
+                        elif lastCmeGapExpiring == 0 and d['totalExpiringCmeGap'] == 0:
+                            d['totalExpiringCmeGapPercentChange'] = 0
+                        if lastNumProviders != 0:
+                            d['totalNumProvidersPercentChange'] = \
+                                (d['totalNumProviders'] - lastNumProviders)/lastNumProviders
+                        elif lastNumProviders == 0 and d['totalNumProviders'] == 0:
+                            d['totalNumProvidersPercentChange'] = 0
         data.append(d)
-
-    oldTotalExpiredCmeGap = currentTotalExpiredCmeGap
-    oldTotalExpiringCmeGap = currentTotalExpiringCmeGap
-    oldTotalNumProviders = currentTotalNumProviders
-
-    for contact in listData:
-        if contact["merge_fields"]["TOT_PROVID"] != "":
-            oldTotalNumProviders = contact["merge_fields"]["TOT_PROVID"]
-            oldTotalExpiredCmeGap = contact["merge_fields"]["TOT_EXPRD"]
-            oldTotalExpiringCmeGap = contact["merge_fields"]["TOT_EXPRNG"]
-            break;
-
-    for entry in data:
-        entry['totalExpiredCmeGap'] = currentTotalExpiredCmeGap
-        entry['totalExpiringCmeGap'] = currentTotalExpiringCmeGap
-        entry['totalNumProviders'] = currentTotalNumProviders
-        percentChange = (currentTotalExpiredCmeGap - oldTotalExpiredCmeGap) * 100.0 / oldTotalExpiredCmeGap
-        entry['totalExpiredCmeGapPercentChange'] = percentChange
 
     return data
 
@@ -423,7 +451,7 @@ class MailchimpApi(EspApiBackend):
         #'SUBSCN_ID': 'subscriptionId',
         'SUBSCRIBED': 'subscribed',
         #'PLAN_TYPE': 'planType',
-        #'PLAN_NAME': 'planName',
+        'PLAN_NAME': 'planName',
         'PLAN_SPECI': 'planSpecialty',
         'SUBSCN_STA': 'subscriptionStatus',
         #'SUBSCN_FDT': 'billingFirstDate',
@@ -440,6 +468,12 @@ class MailchimpApi(EspApiBackend):
         'COMPLT_LIC': 'completedLicenses',
         'EXPRD_GAP': 'expiredCmeGap',
         'EXPRNG_GAP': 'expiringCmeGap',
+        'TOT_EXPRD': 'totalExpiredCmeGap',
+        'TOT_EXPRNG': 'totalExpiringCmeGap',
+        'TOT_PROVID': 'totalNumProviders',
+        'EXPRD_PCT': 'totalExpiredCmeGapPercentChange',
+        'EXPRNG_PCT': 'totalExpiringCmeGapPercentChange',
+        'PROVID_PCT': 'totalNumProvidersPercentChange', 
         # Credit-related fields
         'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
@@ -480,6 +514,12 @@ class MailchimpApi(EspApiBackend):
         'COMPLT_LIC': {'type': 'number'},
         'EXPRD_GAP': {'type': 'number'},
         'EXPRNG_GAP': {'type': 'number'},
+        'TOT_EXPRD': {'type': 'number'},
+        'TOT_EXPRNG': {'type': 'number'},
+        'TOT_PROVID': {'type': 'number'},
+        'EXPRD_PCT': {'type': 'number'},
+        'EXPRNG_PCT': {'type': 'number'},
+        'PROVID_PCT': {'type': 'number'},
         # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
