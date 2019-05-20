@@ -128,6 +128,9 @@ def getDataFromDb(listData):
             d['planType'] = qs[0].plan_type.name
             d['planName'] = qs[0].display_name
 
+        # Place the plan specialty code outside of user_subs so that
+        # even the users that abandoned cart have a plan specialty
+        # associated with them
         if not d['planSpecialty'] and profile.specialties.exists():
             ps = profile.specialties.all().order_by('name')[0]
             d['planSpecialty'] = ps.name
@@ -151,9 +154,6 @@ def getDataFromDb(listData):
                     d['planSpecialty'] = plan.plan_key.specialty.name
                 elif plan.plan_key.degree: # for NP/PA/etc
                     d['planSpecialty'] = plan.plan_key.degree.abbrev
-            if not d['planSpecialty'] and profile.specialties.exists():
-                ps = profile.specialties.all().order_by('name')[0]
-                d['planSpecialty'] = ps.name
             # sum overall credits
             creditsTuple = OrbitCmeOffer.objects.sumCredits(user, minStartDate, maxEndDate)
             overallCreditsRedeemed, overallCreditsUnredeemed = (float(cred) for cred in creditsTuple) 
