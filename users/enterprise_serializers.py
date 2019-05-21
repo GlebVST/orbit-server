@@ -106,6 +106,7 @@ class OrgMemberDetailSerializer(serializers.ModelSerializer):
     firstName = serializers.ReadOnlyField(source='user.profile.firstName')
     lastName = serializers.ReadOnlyField(source='user.profile.lastName')
     birthDate = serializers.ReadOnlyField(source='user.profile.birthDate')
+    npiNumber = serializers.ReadOnlyField(source='user.profile.npiNumber')
     country = serializers.PrimaryKeyRelatedField(source='user.profile.country', read_only=True)
     residencyEndDate = serializers.ReadOnlyField(source='user.profile.residencyEndDate')
     residency_program = serializers.SerializerMethodField()
@@ -162,6 +163,7 @@ class OrgMemberDetailSerializer(serializers.ModelSerializer):
             'email',
             'country',
             'birthDate',
+            'npiNumber',
             'residency_program',
             'residencyEndDate',
             'degrees',
@@ -181,6 +183,7 @@ class OrgMemberFormSerializer(serializers.Serializer):
     password_ticket = serializers.BooleanField(required=False, default=True)
     firstName = serializers.CharField(max_length=30)
     lastName = serializers.CharField(max_length=30)
+    npiNumber = serializers.CharField(max_length=20, required=False)
     email = serializers.EmailField()
     birthDate = serializers.DateField(required=False, allow_null=True)
     residencyEndDate = serializers.DateField(required=False, allow_null=True)

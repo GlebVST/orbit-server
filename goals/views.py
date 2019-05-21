@@ -151,7 +151,8 @@ class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
                 upd_form_data = {
                     'id': license.pk,
                     'licenseNumber': self.request.data.get('licenseNumber'),
-                    'expireDate': self.request.data.get('expireDate')
+                    'expireDate': self.request.data.get('expireDate'),
+                    'modifiedBy': self.request.user.pk
                 }
                 updateSerializer = UserLicenseGoalUpdateSerializer(
                         instance=license,
