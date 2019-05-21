@@ -328,7 +328,6 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = StateLicense
         fields = (
-            'id',
             'user',
             'state',
             'licenseType',
