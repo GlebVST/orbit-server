@@ -7,7 +7,7 @@ from users.models import *
 from goals.models import UserGoal
 from goals.serializers import UserLicenseCreateSerializer, UserLicenseGoalUpdateSerializer
 
-logger = logging.getLogger('users.updsl')
+logger = logging.getLogger('gen.updsl')
 
 STATE_LICENSE_FIELD_NAMES = (
     'NPI',
@@ -94,7 +94,7 @@ class LicenseUpdater:
                 if sl.licenseNumber == d['licenseNumber']:
                     userLicenseData[lkey] = cls.LICENSE_EXISTS
                 else:
-                    msg = 'License Number in file: {licenseNumber} does not match license in db'.format(**d)
+                    msg = 'License Number in file: {0[licenseNumber]} does not match DB license {1.pk}'.format(d, sl)
                     logger.warning(msg)
                     print(msg)
                     userLicenseData[lkey] = cls.EDIT_LICENSE_NUMBER
@@ -116,14 +116,14 @@ class LicenseUpdater:
             if not qs.exists():
                 # Active (state, licenseType) license does not exist for user
                 createNewLicense = True
-                msg = '  Active {0.name} {1.abbrev} license not found for {2}'.format(d['state'], ltype, user)
+                msg = '  Active {0.abbrev} {1.name} license not found for {2}'.format(d['state'], ltype, user)
                 logger.info(msg)
                 print(msg)
             else:
                 # Active (state, licenseType) license exists for user
                 # Decide if need to renew license or edit in-place
                 license = qs[0]
-                print('  Found license: {0.displayLabel}'.format(license))
+                #print('  Found license: {0.pk}'.format(license))
                 if license.isUnInitialized():
                     createNewLicense = False
                 # is license attached to an updateable usergoal
@@ -133,33 +133,34 @@ class LicenseUpdater:
                 else:
                     # No updateable usergoal.
                     createNewLicense = True
-                    msg = '   No updateable UserGoal! Create new license'
+                    msg = '   No updateable UserGoal! Create new {0.abbrev} {1.name} license for {2}'.format(d['state'], ltype, user)
+                    logger.warning(msg)
                     print(msg)
-                if createNewLicense:
-                    form_data = {
-                        'user': user.pk,
-                        'state': d['state'].pk,
-                        'licenseType': ltype.pk,
-                        'licenseNumber': d['licenseNumber'],
-                        'expireDate': d['expireDate'],
-                        'modifiedBy': self.admin_user.pk
-                    }
-                    serializer = UserLicenseCreateSerializer(form_data)
-                    userLicenseData[lkey] = cls.CREATE_NEW_LICENSE
-                else:
-                    msg = '  Update existing active License: {0.displayLabel}'.format(license)
-                    logger.info(msg)
-                    upd_form_data = {
-                        'id': license.pk,
-                        'licenseNumber': d['licenseNumber'],
-                        'expireDate': d['expireDate'],
-                        'modifiedBy': self.admin_user.pk
-                    }
-                    serializer = UserLicenseGoalUpdateSerializer(
-                            instance=license,
-                            data=upd_form_data
-                        )
-                    userLicenseData[lkey] = cls.UPDATE_LICENSE
+            if createNewLicense:
+                form_data = {
+                    'user': user.pk,
+                    'state': d['state'].pk,
+                    'licenseType': ltype.pk,
+                    'licenseNumber': d['licenseNumber'],
+                    'expireDate': d['expireDate'],
+                    'modifiedBy': self.admin_user.pk
+                }
+                serializer = UserLicenseCreateSerializer(data=form_data)
+                userLicenseData[lkey] = cls.CREATE_NEW_LICENSE
+            else:
+                msg = '  Update existing active License: {0.pk}'.format(license)
+                logger.info(msg)
+                upd_form_data = {
+                    'id': license.pk,
+                    'licenseNumber': d['licenseNumber'],
+                    'expireDate': d['expireDate'],
+                    'modifiedBy': self.admin_user.pk
+                }
+                serializer = UserLicenseGoalUpdateSerializer(
+                        instance=license,
+                        data=upd_form_data
+                    )
+                userLicenseData[lkey] = cls.UPDATE_LICENSE
             if self.dry_run:
                 continue # skip db transaction
             with transaction.atomic():
@@ -197,8 +198,17 @@ class LicenseUpdater:
             lastName = d['Last Name'].strip()
             if not lastName:
                 continue
-            state = self.stateDict[d[stateKey].strip().upper()]
-            expireDate = dparse(d['Expiration Date'].strip())
+            try:
+                state = self.stateDict[d[stateKey].strip().upper()]
+            except KeyError:
+                logger.warning('Invalid state: {0}'.format(d[stateKey]))
+                continue
+            try:
+                expireDate = dparse(d['Expiration Date'].strip())
+            except ValueError, e:
+                logger.warning('Invalid date: {0}'.format(d['Expiration Date']))
+                continue
+            # mapped dict
             md = {
                 'npiNumber': d['NPI'].strip(),
                 'firstName': d['First Name'].strip(),
