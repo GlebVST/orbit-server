@@ -346,7 +346,7 @@ LOGGING = {
             'formatter': 'verbose',
             'filename': os.path.join(LOG_DIR, 'general.log'),
             'maxBytes': 2**18,
-            'backupCount':5
+            'backupCount': 7
         },
         'req_rotfile': {
             'level': 'DEBUG',
@@ -354,7 +354,7 @@ LOGGING = {
             'formatter': 'req_fmt',
             'filename': os.path.join(LOG_DIR, 'requests.log'),
             'maxBytes': 2**18,
-            'backupCount':5
+            'backupCount':7
         },
         'mgmt_rotfile': {
             'level': 'DEBUG',
@@ -362,7 +362,7 @@ LOGGING = {
             'formatter': 'verbose',
             'filename': os.path.join(LOG_DIR, 'mgmt.log'),
             'maxBytes': 2**18,
-            'backupCount':3
+            'backupCount':7
         },
     },
     'loggers': {
