@@ -32,7 +32,7 @@ def handleTriage(ugs):
             logger.info(msg)
         else:
             hopeless.append(ug)
-            msg = 'Multiple Licenses found for {0.user} usergoal {1.pk}|{1}'.format(ltype, ug)
+            msg = 'Multiple {0} Licenses found for usergoal {1.pk}|{1.user}|{1}'.format(ltype, ug)
             print(msg)
             logger.warning(msg)
     return hopeless

@@ -801,7 +801,7 @@ class CmeGoal(models.Model):
             return now
         if basegoal.isOneOff():
             if self.state:
-                if not userLicense or userLicense.isUnInitialized():
+                if not userLicense or not userLicense.expireDate:
                     return now
                 else:
                     return userLicense.expireDate
@@ -810,7 +810,7 @@ class CmeGoal(models.Model):
             dueDate = makeDueDate(dueYear, self.dueMonth, self.dueDay, now)
             return dueDate
         if basegoal.usesLicenseDate():
-            if not userLicense or userLicense.isUnInitialized():
+            if not userLicense or not userLicense.expireDate:
                 return now
             else:
                 return userLicense.expireDate
@@ -1047,7 +1047,7 @@ class SRCmeGoal(models.Model):
             return now
         if basegoal.isOneOff():
             if self.state:
-                if not userLicense or userLicense.isUnInitialized():
+                if not userLicense or not userLicense.expireDate:
                     return now
                 else:
                     return userLicense.expireDate
@@ -1056,7 +1056,7 @@ class SRCmeGoal(models.Model):
             dueDate = makeDueDate(dueYear, self.dueMonth, self.dueDay, now)
             return dueDate
         if basegoal.usesLicenseDate():
-            if not userLicense or userLicense.isUnInitialized():
+            if not userLicense or not userLicense.expireDate:
                 return now
             else:
                 return userLicense.expireDate
