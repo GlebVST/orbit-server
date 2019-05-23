@@ -363,7 +363,7 @@ class SignupEmailPromoForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super(SignupEmailPromoForm, self).clean()
-        v = cleaned_data['email']
+        v = cleaned_data.get('email', '')
         if v and SignupEmailPromo.objects.filter(email=v).exists():
             self.add_error('email', 'Case-insensitive email address already exists for this email.')
         fyp = cleaned_data['first_year_price']
