@@ -753,6 +753,7 @@ class Profile(models.Model):
         Args:
             plan_key: SubscriptionPlanKey instance
         """
+        from .subscription import SubscriptionPlan
         self.degrees.add(plan_key.degree)
         if plan_key.specialty:
             ps = plan_key.specialty
