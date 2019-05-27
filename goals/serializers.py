@@ -401,7 +401,7 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
                 )
             logger.info('Renewed License: {0}'.format(newLicense))
             newUserLicenseGoal = UserGoal.objects.renewLicenseGoal(usergoal, newLicense)
-            ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(usergoal, newUserLicenseGoal, newLicense)
+            ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(usergoal, newUserLicenseGoal)
             return newUserLicenseGoal
         # else: update license and usergoal in-place
         logger.info('Edit existing license {0.pk}'.format(license))

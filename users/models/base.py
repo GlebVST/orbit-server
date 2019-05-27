@@ -753,6 +753,7 @@ class Profile(models.Model):
         Args:
             plan_key: SubscriptionPlanKey instance
         """
+        from .subscription import SubscriptionPlan
         self.degrees.add(plan_key.degree)
         if plan_key.specialty:
             ps = plan_key.specialty
@@ -764,6 +765,12 @@ class Profile(models.Model):
             if self.isPhysician() and ps.name in SACME_SPECIALTIES:
                 satag = CmeTag.objects.get(name=CMETAG_SACME)
                 pct = ProfileCmetag.objects.create(tag=satag, profile=self, is_active=True)
+        # 2019-05-26: add any default tags by plan (used for fluoro plans).
+        plan = SubscriptionPlan.objects.get(planId=self.planId)
+        for t in plan.cmeTags.all():
+            if not ProfileCmetag.objects.filter(tag=t, profile=self).exists():
+                pct = ProfileCmetag.objects.create(tag=t, profile=self, is_active=True)
+                logger.info('Add {0} tag from plan for {0.profile}'.format(pct))
 
     def addOrActivateCmeTags(self):
         """Used to add/activate relevant cmeTags based on:

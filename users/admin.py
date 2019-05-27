@@ -363,7 +363,7 @@ class SignupEmailPromoForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super(SignupEmailPromoForm, self).clean()
-        v = cleaned_data['email']
+        v = cleaned_data.get('email', '')
         if v and SignupEmailPromo.objects.filter(email=v).exists():
             self.add_error('email', 'Case-insensitive email address already exists for this email.')
         fyp = cleaned_data['first_year_price']
@@ -454,11 +454,13 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'organization',
         'maxCmeYear',
         'billingCycleMonths',
-        'maxCmeMonth'
+        'maxCmeMonth',
+        'formatTags'
     )
     list_select_related = True
     list_filter = ('active', 'plan_type', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
+    filter_horizontal = ('cmeTags',)
     form = PlanForm
     fieldsets = (
         (None, {
@@ -468,12 +470,16 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('price', 'discountPrice')
         }),
         ('CME', {
-            'fields': ('maxCmeYear','maxCmeMonth',)
+            'fields': ('maxCmeYear','maxCmeMonth','cmeTags')
         }),
         ('Other', {
             'fields': ('trialDays','billingCycleMonths','active',)
         })
     )
+
+    def get_queryset(self, request):
+        qs = super(SubscriptionPlanAdmin, self).get_queryset(request)
+        return qs.prefetch_related('cmeTags')
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
