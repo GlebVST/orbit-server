@@ -18,6 +18,7 @@ from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from .base import (
     ACTIVE_OFFDATE,
+    CmeTag,
     Organization,
     Degree,
     PracticeSpecialty
@@ -723,6 +724,11 @@ class SubscriptionPlan(models.Model):
         related_name='plans',
         help_text='Used to assign an enterprise plan to a particular Organization'
     )
+    cmeTags = models.ManyToManyField(CmeTag,
+        blank=True,
+        related_name='plans',
+        help_text='cmeTags to be added to profile for users on this plan'
+    )
     upgrade_plan = models.ForeignKey('self',
         null=True,
         blank=True,
@@ -767,6 +773,10 @@ class SubscriptionPlan(models.Model):
     def isLimitedCmeRate(self):
         """True if this is an limited CME rate plan, else False"""
         return self.maxCmeMonth > 0
+
+    def formatTags(self):
+        return ", ".join([t.name for t in self.cmeTags.all()])
+    formatTags.short_description = "cmeTags"
 
     def isEnterprise(self):
         return self.plan_type.name == SubscriptionPlanType.ENTERPRISE
