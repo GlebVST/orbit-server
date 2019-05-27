@@ -37,6 +37,9 @@ class Command(BaseCommand):
                         logger.info('Card expiry alert email to {0.email} sent.'.format(user))
                 continue
             paymentToken = pm['token']
+            if not m.next_plan:
+                logger.error('completeDowngradeSubs: next_plan not set on UserSubscription {0.pk}|{0}'.format(m))
+                continue
             (result, new_user_subs) = UserSubscription.objects.completeDowngrade(m, paymentToken)
             if result.is_success:
                 logger.info('Downgrade complete for User {0.email} with new user_subs: {1}'.format(user, new_user_subs))
