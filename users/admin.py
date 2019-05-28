@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 from django import forms
 from django.contrib import admin
-from django.db.models import Count
+from django.db.models import Count, Q, Subquery
 from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
@@ -104,11 +104,37 @@ class OrgAggAdmin(admin.ModelAdmin):
     date_hierarchy = 'day'
 
 
+class OrgFileForm(forms.ModelForm):
+    class Meta:
+        model = OrgFile
+        fields = ('user','organization','document','csvfile','name','content_type', 'processed')
+
+    def clean(self):
+        """Check the user is an admin for the given org"""
+        cleaned_data = super(OrgFileForm, self).clean()
+        user = cleaned_data.get('user')
+        org = cleaned_data.get('organization')
+        qs = OrgMember.objects.filter(organization=org, is_admin=True, user=user)
+        if not qs.exists():
+            self.add_error('user', 'This user is not an administrator of the selected Organization: {0.code}'.format(org))
+
+
 class OrgFileAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'user', 'name', 'document', 'csvfile', 'created', 'orgfile_actions')
     readonly_fields = ('orgfile_actions',)
     list_select_related = True
     ordering = ('-created',)
+    form = OrgFileForm
+
+    class Media:
+        pass
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Limit choice of user"""
+        if db_field.name == 'user':
+            admin_users = OrgMember.objects.filter(is_admin=True, removeDate__isnull=True)
+            kwargs['queryset'] = User.objects.filter(pk__in=Subquery(admin_users.values('user'))).order_by('email')
+        return super(OrgFileAdmin, self).formfield_for_foreignkey(db_field, request, **kwargs)
 
     def get_urls(self):
         urls = super(OrgFileAdmin, self).get_urls()
@@ -123,7 +149,7 @@ class OrgFileAdmin(admin.ModelAdmin):
 
     def orgfile_actions(self, obj):
         return format_html(
-            '<a class="button" href="{}">Validate File</a>',
+            '<a class="button" href="{}">Import New Users</a>',
             reverse('admin:orgfile-process', args=[obj.pk]),
         )
     orgfile_actions.short_description = 'Account Actions'
@@ -337,7 +363,7 @@ class SignupEmailPromoForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super(SignupEmailPromoForm, self).clean()
-        v = cleaned_data['email']
+        v = cleaned_data.get('email', '')
         if v and SignupEmailPromo.objects.filter(email=v).exists():
             self.add_error('email', 'Case-insensitive email address already exists for this email.')
         fyp = cleaned_data['first_year_price']
@@ -428,11 +454,13 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'organization',
         'maxCmeYear',
         'billingCycleMonths',
-        'maxCmeMonth'
+        'maxCmeMonth',
+        'formatTags'
     )
     list_select_related = True
     list_filter = ('active', 'plan_type', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
+    filter_horizontal = ('cmeTags',)
     form = PlanForm
     fieldsets = (
         (None, {
@@ -442,12 +470,16 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('price', 'discountPrice')
         }),
         ('CME', {
-            'fields': ('maxCmeYear','maxCmeMonth',)
+            'fields': ('maxCmeYear','maxCmeMonth','cmeTags')
         }),
         ('Other', {
             'fields': ('trialDays','billingCycleMonths','active',)
         })
     )
+
+    def get_queryset(self, request):
+        qs = super(SubscriptionPlanAdmin, self).get_queryset(request)
+        return qs.prefetch_related('cmeTags')
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',

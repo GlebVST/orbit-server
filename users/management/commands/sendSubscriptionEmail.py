@@ -26,7 +26,7 @@ class Command(BaseCommand):
                 #UserSubscription.UI_ACTIVE_DOWNGRADE, # TODO: once we have appropriate email message for this case
             )
         qset = UserSubscription.objects.select_related('plan', 'plan__plan_type').filter(
-            plan__plan_type=SubscriptionPlanType.BRAINTREE,
+            plan__plan_type__name=SubscriptionPlanType.BRAINTREE,
             display_status__in=f_status,
             billingEndDate__lte=cutoffDate
             ).order_by('billingEndDate')

@@ -415,7 +415,7 @@ class RecAllowedUrlManager(models.Manager):
         if num_recs <= 0:
             return 0
         num_created = 0
-        # exclude_offers: of the given tag redeemed by user since OFFER_LOOKBACK_DAYS. This is used as a subquery below
+        # exclude_offers redeemed by user since OFFER_LOOKBACK_DAYS. This is used as a subquery below
         now = timezone.now()
         startdate = now - timedelta(days=OFFER_LOOKBACK_DAYS)
         filter_kwargs = dict(
@@ -423,7 +423,6 @@ class RecAllowedUrlManager(models.Manager):
             redeemed=True,
             valid=True,
             activityDate__gte=startdate,
-            tags=tag
         )
         Q_offer_setid = Q(url__set_id='')
         # redeemed offers whose aurl.set_id is blank

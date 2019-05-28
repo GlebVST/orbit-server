@@ -278,6 +278,7 @@ class OrgMemberCreate(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         form_data = request.data.copy()
+        logInfo(logger, request, str(form_data))
         serializer = self.get_serializer(data=form_data)
         serializer.is_valid(raise_exception=True)
         instance = self.perform_create(serializer)
@@ -376,6 +377,7 @@ class OrgMemberUpdate(generics.UpdateAPIView):
         self.partial = partial
         instance = self.get_object()
         form_data = request.data.copy()
+        logInfo(logger, request, str(form_data))
         in_serializer = self.get_serializer(instance, data=form_data, partial=partial)
         in_serializer.is_valid(raise_exception=True)
         self.perform_update(in_serializer)
