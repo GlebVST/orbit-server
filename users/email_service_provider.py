@@ -97,9 +97,10 @@ def getDataFromDb(listData):
             enterpriseGroup=enterpriseGroup,
             subscriptionId='',
             subscribed=0,
-            planType='',
-            planName='',
+            #planType='',
+            #planName='',
             planSpecialty='',
+            planMedicalType='',
             subscriptionStatus='',
             billingFirstDate='',
             billingStartDate='',
@@ -125,8 +126,13 @@ def getDataFromDb(listData):
         qs = SubscriptionPlan.objects.filter(planId=profile.planId)
 
         if len(qs) > 0:
-            d['planType'] = qs[0].plan_type.name
-            d['planName'] = qs[0].display_name
+            # planType and planName are not useful in determining
+            # if a user has a radiology plan or PA plan
+            #d['planType'] = qs[0].plan_type.name
+            #d['planName'] = qs[0].display_name
+
+            # we need this so we know if a user has a PA plan
+            d['planMedicalType'] = qs[0].name.split()[0]
 
         # Place the plan specialty code outside of user_subs so that
         # even the users that abandoned cart have a plan specialty
@@ -141,8 +147,8 @@ def getDataFromDb(listData):
             plan = user_subs.plan # SubscriptionPlan instance
             d['subscribed'] = 1
             d['subscriptionId'] = user_subs.subscriptionId
-            d['planType'] = plan.plan_type.name
-            d['planName'] = plan.display_name
+            #d['planType'] = plan.plan_type.name
+            #d['planName'] = plan.display_name
             d['subscriptionStatus'] = user_subs.display_status
             d['billingFirstDate'] = str(user_subs.billingFirstDate.date())
             d['billingStartDate'] = str(user_subs.billingStartDate.date())
@@ -451,7 +457,8 @@ class MailchimpApi(EspApiBackend):
         #'SUBSCN_ID': 'subscriptionId',
         'SUBSCRIBED': 'subscribed',
         #'PLAN_TYPE': 'planType',
-        'PLAN_NAME': 'planName',
+        #'PLAN_NAME': 'planName',
+        'PLN_MED_SP': 'planMedicalType',
         'PLAN_SPECI': 'planSpecialty',
         'SUBSCN_STA': 'subscriptionStatus',
         #'SUBSCN_FDT': 'billingFirstDate',
@@ -496,8 +503,9 @@ class MailchimpApi(EspApiBackend):
         'INVITE_ID': {'type':'text'},
         'SUBSCN_ID': {'type':'text'},
         'SUBSCRIBED': {'type':'number'},
-        'PLAN_TYPE': {'type':'text'},
-        'PLAN_NAME': {'type':'text'},
+        #'PLAN_TYPE': {'type':'text'},
+        #'PLAN_NAME': {'type':'text'},
+        'PLN_MED_SP': {'type': 'text'},
         'PLAN_SPECI': {'type':'text'},
         'SUBSCN_STA': {'type':'text'},
         'SUBSCN_FDT': {'type':'date'},

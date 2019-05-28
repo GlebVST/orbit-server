@@ -1876,11 +1876,14 @@ class UserSubscriptionManager(models.Manager):
         }
         result = braintree.Subscription.create(subs_params)
         if result.is_success:
+            profile = user.profile
+            profile.planId = new_plan.planId
+            profile.save(update_fields=('planId',))
             logger.info('completeDowngrade result: {0.is_success}'.format(result))
             new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
             return (result, new_user_subs)
         else:
-            logger.warning('completeDowngrade result: {0.is_success}'.format(result))
+            logger.error('completeDowngrade result: {0.is_success} for user {1} to plan {2}'.format(result, user, new_plan))
             return (result, None)
 
 

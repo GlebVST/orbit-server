@@ -770,7 +770,7 @@ class Profile(models.Model):
         for t in plan.cmeTags.all():
             if not ProfileCmetag.objects.filter(tag=t, profile=self).exists():
                 pct = ProfileCmetag.objects.create(tag=t, profile=self, is_active=True)
-                logger.info('Add {0} tag from plan for {0.profile}'.format(pct))
+                logger.info('Add {0} tag from plan for userid {0.profile.pk}'.format(pct))
 
     def addOrActivateCmeTags(self):
         """Used to add/activate relevant cmeTags based on:
