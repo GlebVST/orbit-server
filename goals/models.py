@@ -2201,6 +2201,7 @@ class UserGoal(models.Model):
             self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
         except IntegrityError as e:
             logger.exception("recomputeSRCmeGoal IntegrityError: {0}".format(e))
+            raise
         else:
             logger.debug('recompute {0} creditsDue: {0.creditsDue}.'.format(self))
 
@@ -2273,6 +2274,7 @@ class UserGoal(models.Model):
             self.save(update_fields=('status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
         except IntegrityError as e:
             logger.exception("recomputeCmeGoal IntegrityError: {0}".format(e))
+            raise
         else:
             logger.debug('recompute {0} creditsDue: {0.creditsDue} Monthly: {0.creditsDueMonthly}.'.format(self))
 
@@ -2342,6 +2344,7 @@ class UserGoal(models.Model):
             self.save(update_fields=('goal','status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
         except IntegrityError as e:
             logger.exception("recomputeCompositeCmeGoal IntegrityError: {0}".format(e))
+            raise
         else:
             if self.goal != oldBaseGoal:
                 self.creditTypes.clear()
@@ -2410,6 +2413,7 @@ class UserGoal(models.Model):
             self.save(update_fields=('goal','status', 'dueDate', 'compliance','creditsDue','creditsDueMonthly','creditsEarned'))
         except IntegrityError as e:
             logger.warning("recomputeCompositeSRCmeGoal IntegrityError: {0}".format(e))
+            raise
         else:
             if self.goal != oldBaseGoal:
                 self.creditTypes.clear()

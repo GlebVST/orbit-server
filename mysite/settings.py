@@ -57,6 +57,10 @@ MANAGERS = [
     ('Faria Chowdhury',     'faria.chowdhury@gmail.com'),
     ('Naoki Eto',   'logicalmath333@gmail.com')
 ]
+DEV_EMAILS = [
+    'faria@orbitcme.com',
+    'logicalmath333@gmail.com',
+]
 
 # Note: This value should match the X_FORWARDED_HOST in the nginx conf file.
 SERVER_HOSTNAME = get_environment_variable('ORBIT_SERVER_HOSTNAME')  # e.g. test1.orbitcme.com
@@ -409,6 +413,7 @@ FEEDBACK_RECIPIENT_EMAIL = 'feedback@orbitcme.com'
 SUPPORT_EMAIL = 'support@orbitcme.com'
 SALES_EMAIL = 'sales@orbitcme.com'
 #SALES_EMAIL = 'faria@orbitcme.com'
+FOUNDER_EMAIL = 'ram@orbitcme.com'
 
 HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
 DOCUMENT_HASHIDS_SALT = 'random AlVkkUk2Z14FCTXu1pC32pUYm3T6uYSEYZY9ZtOLVNEJ'

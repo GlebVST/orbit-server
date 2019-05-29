@@ -176,6 +176,29 @@ class OrgMemberManager(models.Manager):
                 logger.warning(error_msg)
         return member
 
+    def listMembersOfOrg(self, org):
+        """Org member list
+        List columns: NPINumber, FirstName, LastName, Email, Status
+        Returns: tuple (fieldnames, results)
+            fieldnames: tuple of column names
+            results: list of dicts ordered by last name, firstname, id
+        """
+        fieldnames = ('NPINumber', 'First Name', 'Last Name', 'Email', 'Status')
+        data = []
+        qs = self.model.objects.select_related('user__profile') \
+            .filter(organization=org, is_admin=False) \
+            .order_by('user__profile__lastName', 'user__profile__firstName', 'pk')
+        for m in qs:
+            user = m.user; profile = user.profile
+            data.append({
+                'NPINumber': profile.npiNumber,
+                'First Name': profile.firstName,
+                'Last Name': profile.lastName,
+                'Email': user.email,
+                'Status': m.enterpriseStatus
+            })
+        return (fieldnames, data)
+
 @python_2_unicode_compatible
 class OrgMember(models.Model):
     STATUS_ACTIVE = 'Active'
