@@ -1,23 +1,19 @@
 import logging
-import csv
-import StringIO
 from datetime import datetime, timedelta
-import io
 import pytz
 from smtplib import SMTPException
-from django.core.mail import EmailMessage
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.db.models import Subquery
 from django.template.loader import get_template
 from django.utils import timezone
 from users.models import User, Profile, Entry, BrowserCme, Organization, OrgMember
+from users.emailutils import makeCsvForAttachment, sendEmailWithAttachment
 
 logger = logging.getLogger('mgmt.orgacr')
 
 # Accepted date format for command-line arguments startdate, enddate
 DATE_FORMAT = '%Y-%m-%d'
-DEV_EMAILS = ['faria@orbitcme.com', 'logicalmath333@gmail.com']
 outputFields = (
     'Status',
     'Group',
@@ -164,14 +160,8 @@ class Command(BaseCommand):
             d['Article'] = m.url
             d['ArticleTags'] = m.entry.formatTags()
             results.append(d)
-        # write results to file
-        #output = io.StringIO() # TODO: use in py3
-        output = io.BytesIO()
-        writer = csv.DictWriter(output, delimiter=',', fieldnames=outputFields)
-        writer.writeheader()
-        for row in results:
-            writer.writerow(row)
-        cf = output.getvalue() # to be used as attachment for EmailMessage
+        # write results to contentfile
+        cf = makeCsvForAttachment(outputFields, results)
         startReportDate = startDate
         endReportDate = endDate
         # string formatted dates for subject line and attachment file names
@@ -179,39 +169,32 @@ class Command(BaseCommand):
         endRds = endReportDate.strftime('%b%d%Y')
         startSubjRds = startReportDate.strftime('%b/%d/%Y')
         endSubjRds = endReportDate.strftime('%b/%d/%Y')
-        # create EmailMessage
+        # set email recipients
         from_email = settings.EMAIL_FROM
+        cc_emails = []
         if settings.ENV_TYPE == settings.ENV_PROD:
-            to_emails = ['ram@orbitcme.com']
-            cc_emails = ['ram@orbitcme.com']
-            bcc_emails = DEV_EMAILS
+            to_emails = [settings.FOUNDER_EMAIL,]
+            bcc_emails = [settings.DEV_EMAILS[0],]
         else:
             # internal testing
-            to_emails = DEV_EMAILS
-            cc_emails = []
+            to_emails = [settings.DEV_EMAILS[0],]
             bcc_emails = []
         subject = "Orbit Activity Report for {0.name} ({1}-{2})".format(org, startSubjRds, endSubjRds)
-        reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
-        #
+        reportFileName = 'orbit-activity-{0}-{1}.csv'.format(startRds, endRds)
         # data for context
-        #
         ctx = {
             'organization': org,
             'startDate': startDate,
             'endDate': endDate,
         }
         message = get_template('email/org_activity_report.html').render(ctx)
-        msg = EmailMessage(
-                subject,
-                message,
-                to=to_emails,
-                cc=cc_emails,
-                bcc=bcc_emails,
-                from_email=from_email)
-        msg.content_subtype = 'html'
-        msg.attach(reportFileName, cf, 'application/octet-stream')
         try:
-            msg.send()
+            sendEmailWithAttachment(subject,
+                message,
+                cf,
+                reportFileName,
+                from_email,
+                to_emails, cc_emails, bcc_emails)
         except SMTPException as e:
             logger.exception('makeOrgActivityReport send email failed')
         else:

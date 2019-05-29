@@ -1,7 +1,9 @@
+import logging
 from dateutil.relativedelta import *
 from datetime import timedelta
-import logging
+import csv
 import premailer
+import io
 from io import StringIO
 from operator import itemgetter
 from django.conf import settings
@@ -581,3 +583,30 @@ def sendJoinTeamEmail(user, org, send_message=True):
         return msg.send() # 0 or 1
     else:
         return msg
+
+def makeCsvForAttachment(fieldnames, data):
+    """"Return object to be used as attachment for EmailMessage"""
+    #output = io.StringIO() # TODO: use in py3
+    output = io.BytesIO()
+    writer = csv.DictWriter(output, delimiter=',', fieldnames=fieldnames)
+    writer.writeheader()
+    for row in data:
+        writer.writerow(row)
+    cf = output.getvalue() # to be used as attachment for EmailMessage
+    return cf
+
+def sendEmailWithAttachment(subject, message, attachment, attachmentFileName, from_email, to_emails, cc_emails=None, bcc_emails=None):
+    if not cc_emails:
+        cc_emails  = []
+    if not bcc_emails:
+        bcc_emails = []
+    msg = EmailMessage(
+            subject,
+            message,
+            to=to_emails,
+            cc=cc_emails,
+            bcc=bcc_emails,
+            from_email=from_email)
+    msg.content_subtype = 'html'
+    msg.attach(attachmentFileName, attachment, 'application/octet-stream')
+    msg.send()
