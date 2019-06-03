@@ -829,7 +829,7 @@ class UserSubscriptionManager(models.Manager):
             existingUserCredit.plan_credits = plan_credits
             existingUserCredit.save()
 
-    def refreshUserCmeCreditByCurrentPlan(self, user):
+    def reloadUserCmeCreditByCurrentPlan(self, user):
         subscription = self.getLatestSubscription(user=user)
         self.setUserCmeCreditByPlan(user, subscription.plan)
 
