@@ -869,7 +869,7 @@ class CancelSubscription(APIView):
     This view expects a JSON object in the POST data:
     {"subscription-id": BT subscriptionid to cancel}
     If the subscription Id is valid:
-        If the subscription is in UI_TRIAL:
+        If the subscription is in UI_TRIAL or as-yet-uncanceled UI_SUSPENDED:
             call terminalCancelBtSubscription
         If the subscription is in UI_ACTIVE:
             call makeActiveCanceled
@@ -897,17 +897,17 @@ class CancelSubscription(APIView):
             message = context['message'] + ' BT subscriptionId: {0}'.format(subscriptionId)
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        # check current status
-        if user_subs.display_status not in (UserSubscription.UI_ACTIVE, UserSubscription.UI_TRIAL):
+        # check if current bt status is already in a terminal state
+        if user_subs.status not in (UserSubscription.CANCELED, UserSubscription.EXPIRED):
             context = {
                 'success': False,
-                'message': 'UserSubscription status is already: ' + user_subs.display_status
+                'message': 'UserSubscription {0.subscriptionId} is already in status: {0.status}.' + user_subs.status
             }
-            logError(logger, request, context['message'])
+            logWarning(logger, request, context['message'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # proceed with cancel
         try:
-            if user_subs.display_status == UserSubscription.UI_TRIAL:
+            if (user_subs.display_status == UserSubscription.UI_TRIAL) or (user_subs.display_status == UserSubscription.UI_SUSPENDED):
                 result = UserSubscription.objects.terminalCancelBtSubscription(user_subs)
             else:
                 result = UserSubscription.objects.makeActiveCanceled(user_subs)
