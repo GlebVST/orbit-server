@@ -682,3 +682,17 @@ class EnterpriseMemberAuditReport(AuditReportMixin, APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
         return self.generateUserReport(target_user, startdt, enddt, request)
+
+
+class OrgMemberRoster(APIView):
+    """The response data is written to a csv file by the UI and downloadable by the enterprise admin user
+    """
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+
+    def get(self, request):
+        org = self.request.user.profile.organization
+        fieldnames, data = OrgMember.objects.listMembersOfOrg(org)
+        context = {
+            'results': data
+        }
+        return Response(context, status=status.HTTP_200_OK)

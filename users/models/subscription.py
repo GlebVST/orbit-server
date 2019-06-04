@@ -342,7 +342,7 @@ class SignupEmailPromo(models.Model):
 
     def __str__(self):
         if self.first_year_price:
-            return '{0.email}|price:{0.first_year_price}'.format(self)
+            return '{0.email}|final_price:{0.first_year_price}'.format(self)
         else:
             return '{0.email}|discount:{0.first_year_discount}'.format(self)
 
