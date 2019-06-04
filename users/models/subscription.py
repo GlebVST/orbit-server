@@ -1661,9 +1661,12 @@ class UserSubscriptionManager(models.Manager):
             if not cancel_result.is_success:
                 logger.warning('SwitchTrialToActive: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
                 return (cancel_result, user_subs)
-        # Create new subscription. Returns (result, new_user_subs)
-        return self.createBtSubscription(user, plan, subs_params)
-
+        # Create new subscription
+        result, new_user_subs = self.createBtSubscription(user, plan, subs_params)
+        # Above method reloads plan_credits but we need to deduct what the user already earned in Trial.
+        uc = UserCmeCredit.objects.get(user=user)
+        uc.deduct_already_earned()
+        return (result, new_user_subs)
 
     def startActivePaidPlan(self, user_subs, payment_token, new_plan):
         """Switch user from their current free plan to their first active paid plan. This is called either by the ActivatePaidSubscription view (via the ActivatePaidUserSubsSerializer) or by switchTrialToActive manager method above.
@@ -2289,4 +2292,26 @@ class UserCmeCredit(models.Model):
                 self.boost_credits -= credits
             # update total_credits_earned
             self.total_credits_earned += credits
-        return self
+            self.save()
+
+    def deduct_already_earned(self):
+        """This is called by switchTrialToActive to deduct credits already earned.
+        Note: user may switch to a plan with a lower plan_credits amount than
+        what they already earned during the Trial period in the old plan. In this
+        case, plan_credits is just set to 0 (not negative).
+        """
+        if not self.total_credits_earned:
+            return
+        credits = self.total_credits_earned
+        if self.plan_credits >= credits:
+            self.plan_credits -= credits
+            self.save()
+            logger.info('deduct_already_earned: {0.total_credits_earned} credits from plan_credits {0.plan_credits} for {0.user}'.format(self))
+            return
+        # user used up their allotted plan_credits in their Trial period
+        self.plan_credits = 0
+        logger.info('User {0.user} already earned {0.total_credits_earned} credits in Trial. Set plan_credits to 0.'.format(self))
+        diff = credit - self.plan_credits
+        if self.boost_credits >= diff:
+            self.boost_credits -= diff
+        self.save()

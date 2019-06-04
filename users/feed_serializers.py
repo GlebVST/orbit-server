@@ -259,9 +259,8 @@ class BRCmeCreateSerializer(serializers.Serializer):
             # normally user won't see this message as UI should prevent from redeeming CME's when credit limit reached
             raise serializers.ValidationError({'message': "Can't add more Orbit CME - credit limit reached"}, code='invalid')
         else:
-            userCredits.deduct(offer.credits)
             logger.info('Redeeming Orbit CME of {0.credits} cr. - user {1.id} updated credit limit ({2.plan_credits}|{2.boost_credits})'.format(offer, user, userCredits))
-            userCredits.save()
+            userCredits.deduct(offer.credits) # saves model instance
 
         planText = validated_data.get('planText')
         if planText is None:
