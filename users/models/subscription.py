@@ -25,6 +25,7 @@ from .base import (
 )
 from .feed import BrowserCme
 from common.appconstants import (
+    MAX_URL_LENGTH,
     GROUP_ENTERPRISE_MEMBER,
     GROUP_ENTERPRISE_ADMIN,
     ALL_PERMS,
@@ -570,6 +571,7 @@ class SubscriptionPlanKey(models.Model):
         db_index=True,
         related_name='plan_keys'
     )
+    video_url = models.URLField(max_length=MAX_URL_LENGTH, blank=True, default='')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -792,7 +794,7 @@ class SubscriptionPlan(models.Model):
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
 class UserSubscriptionManager(models.Manager):
     def getLatestSubscription(self, user):
-        qset = UserSubscription.objects.select_related('plan').filter(user=user).order_by('-created')
+        qset = UserSubscription.objects.select_related('plan', 'plan__plan_type', 'plan__plan_key').filter(user=user).order_by('-created')
         if qset.exists():
             return qset[0]
 

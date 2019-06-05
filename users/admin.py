@@ -389,7 +389,7 @@ class SubscriptionPlanTypeAdmin(admin.ModelAdmin):
     list_display = ('id','name', 'needs_payment_method')
 
 class SubscriptionPlanKeyAdmin(admin.ModelAdmin):
-    list_display = ('id','name','degree','specialty','description','use_free_plan', 'created')
+    list_display = ('id','name','degree','specialty','description','use_free_plan', 'video_url', 'created')
     list_select_related = True
     list_filter = ('use_free_plan', 'degree','specialty')
     ordering = ('-created',)

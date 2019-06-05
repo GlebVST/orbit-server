@@ -557,6 +557,7 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
     bt_status = serializers.ReadOnlyField(source='status')
     needs_payment_method = serializers.BooleanField(source='plan.plan_type.needs_payment_method')
+    video_url = serializers.ReadOnlyField(source='plan.plan_key.video_url')
 
     def get_display_name(self, obj):
         """If enterprise plan or display_status is UI_ENTERPRISE_CANCELED: return org name.
@@ -589,6 +590,7 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
             'billingEndDate',
             'needs_payment_method',
             'next_plan',
+            'video_url',
             'created',
             'modified'
         )
