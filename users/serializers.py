@@ -302,7 +302,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
         newFluoroStates = instance.fluoroscopyStates.all()
-        logger.info('fluoroscopyStates: {0}'.format(",".join([m.abbrev for m in newFluoroStates]))
+        logger.info('fluoroscopyStates: {0}'.format(",".join([m.abbrev for m in newFluoroStates])))
         fieldName = 'fluoroscopyStates'
         if fieldName in validated_data:
             newfs = set([m.pk for m in validated_data[fieldName]])
