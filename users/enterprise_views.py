@@ -270,10 +270,7 @@ class OrgMemberCreate(generics.CreateAPIView):
                 profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data)
                 profileUpdateSerializer.is_valid(raise_exception=True)
                 profile = profileUpdateSerializer.save() # this emits profile_saved signal
-            logInfo(logger, self.request, 'Created OrgMember {0.pk}'.format(instance))
-            profile = instance.user.profile
-            fluoStates = [m.abbrev for m in profile.fluoroscopyStates.all()]
-            logInfo(logger, self.request, 'OrgMember fluoroscopyStates: {0}'.format(",".join(fluoStates)))
+            logInfo(logger, self.request, 'Created OrgMemberId: {0.pk} for userid: {0.user.pk}'.format(instance))
         return instance
 
     def create(self, request, *args, **kwargs):

@@ -365,7 +365,7 @@ class LicenseGoalManager(models.Manager):
         matchedGoals = []
         if not profile.degreeSet:
             return []
-        stateids = list(profile.stateSet.union(profile.deaStateSet))
+        stateids = list(profile.stateSet.union(profile.deaStateSet).union(profile.fluoroscopyStateSet))
         if not stateids:
             return []
         base_qs, Q_goal = self.buildBaseQuerySetForMatching(profile)

@@ -291,7 +291,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         Emit profile_saved signal for enterprise members at the end.
         """
         user = instance.user
-        logger.info(str(validated_data))
+        #logger.info(str(validated_data))
         # get current data before updating the instance
         curDegs = set([m for m in instance.degrees.all()])
         curSpecs = set([m for m in instance.specialties.all()])
@@ -301,13 +301,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         curFluoroStates = set([m for m in instance.fluoroscopyStates.all()])
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
-        newFluoroStates = instance.fluoroscopyStates.all()
-        logger.info('fluoroscopyStates: {0}'.format(",".join([m.abbrev for m in newFluoroStates])))
-        fieldName = 'fluoroscopyStates'
-        if fieldName in validated_data:
-            newfs = set([m.pk for m in validated_data[fieldName]])
-            if newfs != instance.fluoroscopyStateSet:
-                logger.warning('Form data fluoroscopyStates not saved to profile!')
+        #newFluoroStates = ",".join([m.abbrev for m in instance.fluoroscopyStates.all()])
+        #logger.info('User {0.pk} fluoroscopyStates: {0}'.format(user, newFluoroStates))
 
         add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
         del_tags = set([]) # tags to be removed or deactivated
