@@ -298,9 +298,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         curSubSpecs = set([m for m in instance.subspecialties.all()])
         curStates = set([m for m in instance.states.all()])
         curDeaStates = set([m for m in instance.deaStates.all()])
+        curFluoroStates = set([m for m in instance.fluoroscopyStates.all()])
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
-        logger.info('fluoroscopyStateSet: {0}'.format(instance.fluoroscopyStateSet))
+        newFluoroStates = instance.fluoroscopyStates.all()
+        logger.info('fluoroscopyStates: {0}'.format(",".join([m.abbrev for m in newFluoroStates]))
         fieldName = 'fluoroscopyStates'
         if fieldName in validated_data:
             newfs = set([m.pk for m in validated_data[fieldName]])

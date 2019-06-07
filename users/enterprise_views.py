@@ -269,11 +269,11 @@ class OrgMemberCreate(generics.CreateAPIView):
                 profile = instance.user.profile
                 profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data)
                 profileUpdateSerializer.is_valid(raise_exception=True)
-                profile = profileUpdateSerializer.save()
-                # emit profile_saved signal for non admin users
-                if profile.allowUserGoals() and not instance.is_admin:
-                    ret = profile_saved.send(sender=profile.__class__, user_id=instance.user.pk)
+                profile = profileUpdateSerializer.save() # this emits profile_saved signal
             logInfo(logger, self.request, 'Created OrgMember {0.pk}'.format(instance))
+            profile = instance.user.profile
+            fluoStates = [m.abbrev for m in profile.fluoroscopyStates.all()]
+            logInfo(logger, self.request, 'OrgMember fluoroscopyStates: {0}'.format(",".join(fluoStates)))
         return instance
 
     def create(self, request, *args, **kwargs):
