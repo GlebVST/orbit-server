@@ -376,6 +376,7 @@ class SignupEmailPromoForm(forms.ModelForm):
 class SignupEmailPromoAdmin(admin.ModelAdmin):
     list_display = ('id','email','first_year_price','first_year_discount', 'display_label', 'created')
     ordering = ('-created',)
+    search_fields = ['email',]
     form = SignupEmailPromoForm
 
 class InvitationDiscountAdmin(admin.ModelAdmin):
