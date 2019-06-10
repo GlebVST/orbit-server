@@ -42,17 +42,30 @@ class Command(BaseCommand):
             f.close()
             num_created = 0
             for d in raw_data:
-                email = d['email address']
+                email = d['email address'].lower()
                 if not email:
                     continue
                 if d['type'] not in (DISCOUNT, FINAL_PRICE):
                     msg = "Invalid type for {email address}: {type}".format(**d)
                     self.stdout.write(msg)
                     return # exit
+                promo_label = d['display_label']
+                if not promo_label:
+                    promo_label = DEFAULT_DISPLAY_LABEL
+                dollar_value = Decimal(d['dollar_value'])
                 # check if promo already exists for this email (casei)
                 sep = SignupEmailPromo.objects.get_casei(email)
                 if sep:
-                    msg = 'SignupEmailPromo already exists for {0}. Skip to next line.'.format(sep)
+                    if sep.display_label != promo_label:
+                        sep.display_label = promo_label
+                    if d['type'] == DISCOUNT:
+                        sep.first_year_discount = dollar_value
+                        sep.first_year_price = None
+                    elif d['type'] == FINAL_PRICE:
+                        sep.first_year_price = dollar_value
+                        sep.first_year_discount = None
+                    sep.save()
+                    msg = 'Updated existing SignupEmailPromo: {0}.'.format(sep)
                     logger.info(msg)
                     self.stdout.write(msg)
                     continue
@@ -60,22 +73,19 @@ class Command(BaseCommand):
                 qs = UserSubscription.objects.select_related('user').filter(user__email__iexact=email).order_by('-created')
                 if qs.exists():
                     us = qs[0]
-                    msg = '! UserSubscription already exists for {0.user}|{0}. Skip to next line.'.format(us)
-                    logger.info(msg)
-                    self.stdout.write(msg)
-                    continue
+                    if us.display_status != UserSubscription.UI_TRIAL_CANCELED:
+                        msg = '! UserSubscription already exists for {0.user}|{0} with status: {0.display_status}. Skip to next line.'.format(us)
+                        logger.info(msg)
+                        self.stdout.write(msg)
+                        continue
                 # create model instance
-                promo_label = d['display_label']
-                if not promo_label:
-                    promo_label = DEFAULT_DISPLAY_LABEL
-                dollar_value = Decimal(d['dollar_value'])
                 if d['type'] == DISCOUNT:
                     sep = SignupEmailPromo.objects.create(email=email, first_year_discount=dollar_value, display_label=promo_label)
                 else:
                     sep = SignupEmailPromo.objects.create(email=email, first_year_price=dollar_value, display_label=promo_label)
                 msg = "Created SignupEmailPromo {0}".format(sep)
                 logger.info(msg)
-                self.stdout.write(msg)
+                ##self.stdout.write(msg)
                 num_created += 1
             msg = "Total number of entries created: {0}".format(num_created)
             logger.info(msg)
