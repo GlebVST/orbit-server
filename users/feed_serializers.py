@@ -308,7 +308,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
         )
         # set redeemed flag on offer
         offer.redeemed = True
-        offer.save()
+        offer.save(update_fields=('redeemed',))
         # remove url from recommended aurls for user if exist
         if user.recaurls.exists():
             qset = user.recaurls.filter(url=aurl)
@@ -323,11 +323,8 @@ class BRCmeCreateSerializer(serializers.Serializer):
         tags = entry.tags.all()
         # update affected usergoals
         num_ug = UserGoal.objects.handleRedeemOfferForUser(user, tags)
-        if user.profile.isPhysician(): # exclude PA/etc since their tags might not be relevant
-            # associate tag with AllowedUrl instance if not already in set
-            for tag in tags:
-                if tag.name != CMETAG_SACME:
-                    aurl.cmeTags.add(tag) # add if not in set
+        # sync entry.tags with offer.tags (used for article recs to filter out already-read urls for a given tag)
+        offer.setTagsFromRedeem(tags)
         return instance
 
 # Serializer for Update BrowserCme entry
@@ -376,6 +373,12 @@ class BRCmeUpdateSerializer(serializers.Serializer):
                 entry.tags.set(vtags)
             else:
                 entry.tags.set([])
+            try:
+                offer = OrbitCmeOffer.objects.get(pk=instance.offerId)
+            except OrbitCmeOffer.DoesNotExist:
+                logger.warning('update brcme entry: offer does not exist for id: {0.offerId}'.format(instance))
+            else:
+                offer.setTagsFromRedeem(vtags)
             # recompute affected usergoals for newlyAdded tags
             # for delTags: a complete goal may revert back to in_progress
             # but this will be handled by the recompute cron
