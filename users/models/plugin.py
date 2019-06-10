@@ -359,9 +359,9 @@ class OrbitCmeOffer(models.Model):
     def __str__(self):
         return self.url.url
 
-    def formatSuggestedTags(self):
+    def formatTags(self):
         return ", ".join([t.name for t in self.tags.all()])
-    formatSuggestedTags.short_description = "suggestedTags"
+    formatTags.short_description = "Tags"
 
     def assignCmeTags(self):
         """Assign tags based on: eligible_site, url, and user"""
@@ -378,6 +378,12 @@ class OrbitCmeOffer(models.Model):
         if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
             self.tags.add(CmeTag.objects.get(name=CMETAG_SACME))
 
+    def setTagsFromRedeem(self, tags):
+        """Called by redeem offer serializer to sync offer.tags with the given tags:
+        Args:
+            tags: CmeTag queryset from an entry
+        """
+        self.tags.set(tags)
 
 # OrbitCmeOffer stats per org
 @python_2_unicode_compatible

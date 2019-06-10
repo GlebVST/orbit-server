@@ -39,10 +39,10 @@ class Command(BaseCommand):
         now = timezone.now()
         startDate = org.creditStartDate
         endDate = now + timedelta(days=1)
-        # omit pending members since they have not joined yet
+        # omit pending members since they have not joined yet, and omit admin users
         orgmembers = OrgMember.objects \
                 .select_related('user__profile') \
-                .filter(organization=org, pending=False)
+                .filter(organization=org, pending=False, is_admin=False)
         data = []
         for m in orgmembers:
             user = m.user; profile = user.profile

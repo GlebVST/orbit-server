@@ -226,7 +226,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     )
     fluoroscopyStates = serializers.PrimaryKeyRelatedField(
         queryset=State.objects.all(),
-        required=False,
+        #required=False,
         many=True,
     )
     hospitals = serializers.PrimaryKeyRelatedField(
@@ -291,14 +291,19 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         Emit profile_saved signal for enterprise members at the end.
         """
         user = instance.user
+        #logger.info(str(validated_data))
         # get current data before updating the instance
         curDegs = set([m for m in instance.degrees.all()])
         curSpecs = set([m for m in instance.specialties.all()])
         curSubSpecs = set([m for m in instance.subspecialties.all()])
         curStates = set([m for m in instance.states.all()])
         curDeaStates = set([m for m in instance.deaStates.all()])
+        curFluoroStates = set([m for m in instance.fluoroscopyStates.all()])
         # update the instance
         instance = super(ProfileUpdateSerializer, self).update(instance, validated_data)
+        #newFluoroStates = ",".join([m.abbrev for m in instance.fluoroscopyStates.all()])
+        #logger.info('User {0.pk} fluoroscopyStates: {0}'.format(user, newFluoroStates))
+
         add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
         del_tags = set([]) # tags to be removed or deactivated
         fieldName = 'degrees'
@@ -557,6 +562,7 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
     bt_status = serializers.ReadOnlyField(source='status')
     needs_payment_method = serializers.BooleanField(source='plan.plan_type.needs_payment_method')
+    video_url = serializers.ReadOnlyField(source='plan.plan_key.video_url')
 
     def get_display_name(self, obj):
         """If enterprise plan or display_status is UI_ENTERPRISE_CANCELED: return org name.
@@ -589,6 +595,7 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
             'billingEndDate',
             'needs_payment_method',
             'next_plan',
+            'video_url',
             'created',
             'modified'
         )

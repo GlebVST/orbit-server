@@ -25,6 +25,7 @@ from .base import (
 )
 from .feed import BrowserCme
 from common.appconstants import (
+    MAX_URL_LENGTH,
     GROUP_ENTERPRISE_MEMBER,
     GROUP_ENTERPRISE_ADMIN,
     ALL_PERMS,
@@ -342,7 +343,7 @@ class SignupEmailPromo(models.Model):
 
     def __str__(self):
         if self.first_year_price:
-            return '{0.email}|price:{0.first_year_price}'.format(self)
+            return '{0.email}|final_price:{0.first_year_price}'.format(self)
         else:
             return '{0.email}|discount:{0.first_year_discount}'.format(self)
 
@@ -570,6 +571,7 @@ class SubscriptionPlanKey(models.Model):
         db_index=True,
         related_name='plan_keys'
     )
+    video_url = models.URLField(max_length=MAX_URL_LENGTH, blank=True, default='')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -792,7 +794,7 @@ class SubscriptionPlan(models.Model):
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
 class UserSubscriptionManager(models.Manager):
     def getLatestSubscription(self, user):
-        qset = UserSubscription.objects.select_related('plan').filter(user=user).order_by('-created')
+        qset = UserSubscription.objects.select_related('plan', 'plan__plan_type', 'plan__plan_key').filter(user=user).order_by('-created')
         if qset.exists():
             return qset[0]
 
@@ -829,7 +831,7 @@ class UserSubscriptionManager(models.Manager):
             existingUserCredit.plan_credits = plan_credits
             existingUserCredit.save()
 
-    def refreshUserCmeCreditByCurrentPlan(self, user):
+    def reloadUserCmeCreditByCurrentPlan(self, user):
         subscription = self.getLatestSubscription(user=user)
         self.setUserCmeCreditByPlan(user, subscription.plan)
 
@@ -1608,7 +1610,7 @@ class UserSubscriptionManager(models.Manager):
                 user_subs.display_status = self.model.UI_TRIAL_CANCELED
                 # reset billingEndDate because it was set to billingStartDate + billingCycleMonths by createBtSubscription
                 user_subs.billingEndDate = user_subs.billingStartDate
-            elif old_display_status != self.model.UI_SUSPENDED:  # leave UI_SUSPENDED as is to preserve this info
+            else:
                 user_subs.display_status = self.model.UI_EXPIRED
             user_subs.billingEndDate = now
             user_subs.save()
@@ -1661,9 +1663,12 @@ class UserSubscriptionManager(models.Manager):
             if not cancel_result.is_success:
                 logger.warning('SwitchTrialToActive: Cancel old subscription failed for {0.subscriptionId} with message: {1.message}'.format(user_subs, cancel_result))
                 return (cancel_result, user_subs)
-        # Create new subscription. Returns (result, new_user_subs)
-        return self.createBtSubscription(user, plan, subs_params)
-
+        # Create new subscription
+        result, new_user_subs = self.createBtSubscription(user, plan, subs_params)
+        # Above method reloads plan_credits but we need to deduct what the user already earned in Trial.
+        uc = UserCmeCredit.objects.get(user=user)
+        uc.deduct_already_earned()
+        return (result, new_user_subs)
 
     def startActivePaidPlan(self, user_subs, payment_token, new_plan):
         """Switch user from their current free plan to their first active paid plan. This is called either by the ActivatePaidSubscription view (via the ActivatePaidUserSubsSerializer) or by switchTrialToActive manager method above.
@@ -2289,4 +2294,26 @@ class UserCmeCredit(models.Model):
                 self.boost_credits -= credits
             # update total_credits_earned
             self.total_credits_earned += credits
-        return self
+            self.save()
+
+    def deduct_already_earned(self):
+        """This is called by switchTrialToActive to deduct credits already earned.
+        Note: user may switch to a plan with a lower plan_credits amount than
+        what they already earned during the Trial period in the old plan. In this
+        case, plan_credits is just set to 0 (not negative).
+        """
+        if not self.total_credits_earned:
+            return
+        credits = self.total_credits_earned
+        if self.plan_credits >= credits:
+            self.plan_credits -= credits
+            self.save()
+            logger.info('deduct_already_earned: {0.total_credits_earned} credits from plan_credits {0.plan_credits} for {0.user}'.format(self))
+            return
+        # user used up their allotted plan_credits in their Trial period
+        self.plan_credits = 0
+        logger.info('User {0.user} already earned {0.total_credits_earned} credits in Trial. Set plan_credits to 0.'.format(self))
+        diff = credit - self.plan_credits
+        if self.boost_credits >= diff:
+            self.boost_credits -= diff
+        self.save()

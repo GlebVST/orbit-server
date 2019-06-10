@@ -177,7 +177,8 @@ class OrgMemberManager(models.Manager):
         return member
 
     def listMembersOfOrg(self, org):
-        """Org member list
+        """Org member roster of providers (including removed providers).
+        Admin users are excluded.
         List columns: NPINumber, FirstName, LastName, Email, Status
         Returns: tuple (fieldnames, results)
             fieldnames: tuple of column names

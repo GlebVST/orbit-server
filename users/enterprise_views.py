@@ -269,11 +269,8 @@ class OrgMemberCreate(generics.CreateAPIView):
                 profile = instance.user.profile
                 profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data)
                 profileUpdateSerializer.is_valid(raise_exception=True)
-                profile = profileUpdateSerializer.save()
-                # emit profile_saved signal for non admin users
-                if profile.allowUserGoals() and not instance.is_admin:
-                    ret = profile_saved.send(sender=profile.__class__, user_id=instance.user.pk)
-            logInfo(logger, self.request, 'Created OrgMember {0.pk}'.format(instance))
+                profile = profileUpdateSerializer.save() # this emits profile_saved signal
+            logInfo(logger, self.request, 'Created OrgMemberId: {0.pk} for userid: {0.user.pk}'.format(instance))
         return instance
 
     def create(self, request, *args, **kwargs):
@@ -682,3 +679,17 @@ class EnterpriseMemberAuditReport(AuditReportMixin, APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
         return self.generateUserReport(target_user, startdt, enddt, request)
+
+
+class OrgMemberRoster(APIView):
+    """The response data is written to a csv file by the UI and downloadable by the enterprise admin user
+    """
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+
+    def get(self, request):
+        org = self.request.user.profile.organization
+        fieldnames, data = OrgMember.objects.listMembersOfOrg(org)
+        context = {
+            'results': data
+        }
+        return Response(context, status=status.HTTP_200_OK)
