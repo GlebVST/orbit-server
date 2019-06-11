@@ -898,7 +898,7 @@ class CancelSubscription(APIView):
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # check if current bt status is already in a terminal state
-        if user_subs.status not in (UserSubscription.CANCELED, UserSubscription.EXPIRED):
+        if user_subs.status in (UserSubscription.CANCELED, UserSubscription.EXPIRED):
             context = {
                 'success': False,
                 'message': 'UserSubscription {0.subscriptionId} is already in status: {0.status}.' + user_subs.status
