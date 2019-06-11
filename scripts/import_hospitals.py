@@ -195,7 +195,7 @@ def main():
         website = d['WEBSITE'].strip()
         try:
             state = states_by_abbrev[state_abbrev]
-        except KeyError, e:
+        except KeyError as e:
             print('KeyError: {0}'.format(str(e)))
             continue
         else:

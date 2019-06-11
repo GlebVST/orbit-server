@@ -88,7 +88,7 @@ class Command(BaseCommand):
             logger.info('BatchPayout {0.pk}/{0} amount {0.amount}'.format(bp))
             try:
                 (recvd_sender_batch_id, payout_batch_id, batch_status) = paypalApi.makePayout(sender_batch_id, bp.email_subject, items)
-            except ValueError, e:
+            except ValueError as e:
                 logger.exception('makePayout error: {0}'.format(e))
                 bp.delete()
             else:

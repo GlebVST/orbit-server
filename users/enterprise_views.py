@@ -259,7 +259,7 @@ class OrgMemberCreate(generics.CreateAPIView):
             # send JoinTeam email
             try:
                 msg = sendJoinTeamEmail(user, org, send_message=True)
-            except SMTPException, e:
+            except SMTPException:
                 logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.id}.'.format(instance))
         else:
             # create new user account and send password ticket email
@@ -396,7 +396,7 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         instance = serializer.save(user=user, organization=org)
         try:
             fileData = instance.document.read()
-        except Exception, e:
+        except Exception as e:
             logError(logger, self.request, 'UploadRoster readFile Exception: {0}'.format(e))
             raise serializers.ValidationError('readFile Exception')
         else:
@@ -447,7 +447,7 @@ class OrgMembersEmailInvite(APIView):
                     sendJoinTeamEmail(member.user, member.organization, send_message=True)
                     # add small delay here to prevent potential spamming alerts?
                     sleep(0.2)
-                except SMTPException, e:
+                except SMTPException as e:
                     logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
                 else:
                     member.inviteDate = timezone.now()
@@ -488,7 +488,7 @@ class OrgMembersRestore(APIView):
             # so ask them to join organisation
             try:
                 sendJoinTeamEmail(member.user, member.organization, send_message=True)
-            except SMTPException, e:
+            except SMTPException as e:
                 logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
         context = {'success': True, 'data': updates}
         return Response(context, status=status.HTTP_200_OK)

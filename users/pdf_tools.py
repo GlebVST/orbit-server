@@ -82,9 +82,9 @@ class BaseCertificate(object):
                 writer = PdfFileWriter()
                 writer.addPage(mergedPage)
                 writer.write(output)
-        except IOError, e:
+        except IOError:
             logger.exception('makeCmeCertificate IOError')
-        except Exception, e:
+        except Exception as e:
             logger.exception('makeCmeCertificate exception')
         finally:
             return output.getvalue() # return empty str if no write

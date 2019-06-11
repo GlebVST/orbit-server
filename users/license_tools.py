@@ -71,7 +71,9 @@ class LicenseUpdater:
                 }
                 qs = Profile.objects.filter(**fkwargs)
                 if not qs.exists():
-                    print('! No user found: {firstName} {lastName} {NPINumber}'.format(**d))
+                    msg = '! No user found: {firstName} {lastName} {npiNumber}'.format(**d)
+                    print(msg)
+                    logger.warning(msg)
                     continue
                 profile = qs[0]
                 self.profileDict[key] = profile
@@ -205,7 +207,7 @@ class LicenseUpdater:
                 continue
             try:
                 expireDate = dparse(d['Expiration Date'].strip())
-            except ValueError, e:
+            except ValueError:
                 logger.warning('Invalid date: {0}'.format(d['Expiration Date']))
                 continue
             # mapped dict
@@ -241,7 +243,7 @@ class LicenseUpdater:
             data = self.mapRawDataToModelFields(fileType, raw_data)
             ltype = data[0]['licenseType']
             success = self.processData(ltype, data)
-        except IOError, e:
+        except IOError as e:
             print(str(e))
         else:
             return success

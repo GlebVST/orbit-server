@@ -76,7 +76,7 @@ class UploadDocumentSerializer(serializers.Serializer):
                     im.save(memory_file, plain_ext, quality=90)
                     # calculate md5sum of thumb
                     thumbMd5 = hashlib.md5(memory_file.getvalue()).hexdigest()
-            except IOError, e:
+            except IOError as e:
                 logger.exception('UploadDocument: Image open failed.')
             else:
                 set_id = newUuid()

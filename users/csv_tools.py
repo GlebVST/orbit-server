@@ -92,7 +92,7 @@ class CsvImport():
                 continue
             try: 
                 output.append(dparse(tv))
-            except ValueError, e:
+            except ValueError as e:
                 error_msg = "Invalid {0} at row {1}: {2}".format(fieldName, index, v)
                 raise ValueError(error_msg)
         return output
@@ -221,7 +221,7 @@ class ProviderCsvImport(CsvImport):
                 if d['Birthdate']:
                     try:
                         d['Birthdate'] = dparse(d['Birthdate'])
-                    except ValueError, e:
+                    except ValueError as e:
                         self.throwValueError('Birthdate', pos, d['Birthdate'])
 
                 # Multi-value fields
@@ -384,15 +384,15 @@ class ProviderCsvImport(CsvImport):
             self.print_out('Num new users: {0}'.format(num_new))
             self.print_out('Num users created: {0}'.format(len(created)))
             return True
-        except SMTPException, e:
+        except SMTPException as e:
             error_msg = "SMTPException: {0}".format(e)
             self.print_out(error_msg, True)
             return False
-        except csv.Error, e:
+        except csv.Error as e:
             error_msg = "CsvError: {0}".format(e)
             self.print_out(error_msg, True)
             return False
-        except ValueError, e:
+        except ValueError as e:
             error_msg = "ValueError: {0}".format(e)
             self.print_out(error_msg, True)
             return False

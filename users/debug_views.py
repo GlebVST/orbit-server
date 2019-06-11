@@ -484,7 +484,7 @@ class EmailSetPassword(APIView):
                 # so for such users we send a join-team email again
                 try:
                     sendJoinTeamEmail(orgmember.user, orgmember.organization, send_message=True)
-                except SMTPException, e:
+                except SMTPException as e:
                     logger.warn('sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(orgmember))
             elif not orgmember.user.profile.verified:
                 # unverified users with with non-pending state are thos recently invited and never actually joined Orbit
