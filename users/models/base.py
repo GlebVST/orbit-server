@@ -185,18 +185,6 @@ class StateDeatag(models.Model):
 
 class HospitalManager(models.Manager):
 
-    def find_st_group(self, name):
-        uname = name.upper()
-        if uname.endswith("'S"):
-            uname.strip("'S")
-        if uname in self.model.ST_GROUPS:
-            return uname
-        if uname.endswith('S'):
-            uname = uname[0:-1]
-            if uname in self.model.ST_GROUPS:
-                return uname
-        return None
-
     def search_filter(self, search_term, base_qs=None):
         """Returns a queryset that filters for the given search_term
         """
@@ -218,49 +206,12 @@ class HospitalManager(models.Manager):
             base_qs = self.model.objects.select_related('state')
         qs_all = base_qs.annotate(
                 search=SearchVector('name','city', 'state__name', 'state__abbrev')).all()
-        qset = None
-        L = search_term.split(); f = L[0].upper(); num_tokens = len(L)
-        if (num_tokens > 1) and (f == 'ST' or f == 'ST.'):
-            key = self.find_st_group(L[1])
-            if key:
-                name_list = self.model.ST_GROUPS[key]
-                if num_tokens > 2:
-                    rest = ' ' + u' '.join(L[2:])
-                else:
-                    rest = ''
-                Q_list = [Q(search=name+rest) for name in name_list]
-                Q_combined = reduce(lambda x,y: x|y, Q_list)
-                qset = qs_all.filter(Q_combined)
-        if not qset:
-            qset = qs_all.filter(search=search_term)
+        qset = qs_all.filter(search=search_term)
         return qset.order_by('name','city')
 
 
 @python_2_unicode_compatible
 class Hospital(models.Model):
-    ST_GROUPS = {
-        u'AGNES': (u'ST AGNES', u'ST. AGNES'),
-        u'ALEXIUS': (u'ST ALEXIUS', u'ST. ALEXIUS'),
-        u'ANTHONY': (u'ST ANTHONY', u"ST. ANTHONY'S", u"ST ANTHONY'S", u'ST. ANTHONY', u'ST ANTHONYS'),
-        u'BERNARD': (u'ST. BERNARD', u'ST. BERNARDINE', u'ST BERNARD', u'ST. BERNARDS'),
-        u'CATHERINE': (u'ST CATHERINE', u"ST CATHERINE'S", u'ST. CATHERINE'),
-        u'CHARLES': (u'ST CHARLES', u'ST. CHARLES'),
-        u'CLAIR': (u'ST CLAIR', u'ST. CLAIRE'),
-        u'CLARE': (u'ST. CLARE', u'ST CLARES'),
-        u'CLOUD': (u'ST CLOUD', u'ST. CLOUD'),
-        u'DAVID': (u"ST. DAVID'S", u'ST DAVIDS', u"ST DAVID'S"),
-        u'ELIZABETH': (u'ST. ELIZABETH', u"ST. ELIZABETH'S", u'ST ELIZABETH', u'ST ELIZABETHS'),
-        u'FRANCIS': (u'ST. FRANCIS', u'ST FRANCIS'),
-        u'JAMES': (u'ST JAMES', u'ST. JAMES'),
-        u'JOHN': (u'ST. JOHN', u'ST JOHN', u"ST. JOHN'S", u"ST JOHN'S", u'ST JOHNS'),
-        u'JOSEPH': (u"ST. JOSEPH'S", u"ST JOSEPH'S", u'ST JOSEPH', u'ST. JOSEPH', u'ST JOSEPHS'),
-        u'LOUIS': (u'ST. LOUIS', u'ST. LOUISE'),
-        u'LUKE': (u'ST. LUKE', u"ST. LUKES'S", u'ST LUKE', u"ST LUKE'S", u'ST LUKES', u"ST. LUKE'S", u'ST. LUKES'),
-        u'MARK': (u"ST. MARK'S", u'ST. MARKS'),
-        u'MARY': (u'ST MARYS', u"ST MARY'S", u'ST MARY', u'ST. MARY', u"ST. MARY'S"),
-        u'PETER': (u'ST PETERSBURG', u'ST PETERS', u"ST. PETER'S"),
-        u'VINCENT': (u'ST VINCENT', u"ST. VINCENT'S", u"ST VINCENT'S", u'ST. VINCENT'),
-    }
     state = models.ForeignKey(State,
         on_delete=models.CASCADE,
         related_name='hospitals',
@@ -581,7 +532,6 @@ class Profile(models.Model):
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
-    # TODO: drop these cmeStartDate/EndDate? these are goal-specific
     cmeStartDate = models.DateTimeField(null=True, blank=True, help_text='Start date for CME requirements calculation')
     cmeEndDate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
     affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')
@@ -593,12 +543,12 @@ class Profile(models.Model):
         return '{0.firstName} {0.lastName}'.format(self)
 
     def getFullName(self):
-        return u"{0} {1}".format(self.firstName, self.lastName)
+        return "{0} {1}".format(self.firstName, self.lastName)
 
     def getFullNameAndDegree(self):
         degrees = self.degrees.all()
         degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
-        return u"{0} {1}, {2}".format(self.firstName, self.lastName, degree_str)
+        return "{0} {1}, {2}".format(self.firstName, self.lastName, degree_str)
 
     def isEnterpriseAdmin(self):
         """Returns True if self.user.groups contains GROUP_ENTERPRISE_ADMIN, else False
@@ -1078,8 +1028,8 @@ class StateLicense(models.Model):
 
     def __str__(self):
         if self.expireDate:
-            return u"{0.pk}|{0.licenseType}|{0.state}|{0.expireDate:%Y-%m-%d}".format(self)
-        return u"{0.pk}|{0.licenseType}|{0.state}|expireDate not set".format(self)
+            return "{0.pk}|{0.licenseType}|{0.state}|{0.expireDate:%Y-%m-%d}".format(self)
+        return "{0.pk}|{0.licenseType}|{0.state}|expireDate not set".format(self)
 
     def isUnInitialized(self):
         return self.licenseNumber == '' or not self.expireDate
@@ -1087,7 +1037,7 @@ class StateLicense(models.Model):
     def getLabelForCertificate(self):
         """Returns str e.g. California RN License #12345
         """
-        label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
+        label = "{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
         return label
 
     @property
@@ -1095,9 +1045,9 @@ class StateLicense(models.Model):
         """Returns str e.g. California RN License #12345 expiring yyyy-mm-dd
         """
         if self.expireDate:
-            label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber} expiring {0.expireDate:%Y-%m-%d}".format(self)
+            label = "{0.state.name} {0.licenseType.name} License #{0.licenseNumber} expiring {0.expireDate:%Y-%m-%d}".format(self)
         else:
-            label = u"{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
+            label = "{0.state.name} {0.licenseType.name} License #{0.licenseNumber}".format(self)
         return label
 
     def inactivate(self, removeDate, modifiedBy):

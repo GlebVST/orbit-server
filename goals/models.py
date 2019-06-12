@@ -38,14 +38,14 @@ from users.models import (
 
 logger = logging.getLogger('gen.goals')
 
-INTERVAL_ERROR = u'Interval in years must be specified for recurring dueDateType'
-DUE_MONTH_ERROR = u'dueMonth must be a valid month in range 1-12'
-DUE_DAY_ERROR = u'dueDay must be a valid day for the selected month in range 1-31'
+INTERVAL_ERROR = 'Interval in years must be specified for recurring dueDateType'
+DUE_MONTH_ERROR = 'dueMonth must be a valid month in range 1-12'
+DUE_DAY_ERROR = 'dueDay must be a valid day for the selected month in range 1-31'
 ONE_OFF_INTERVAL = 20 # lookback years for ONE_OFF goals
 MARGINAL_COMPLIANT_CUTOFF_DAYS = 30
 SRCME_MARGINAL_COMPLIANT_CUTOFF_DAYS = 90
 CREDIT_LEFT_THRESHOLD = 3 # used in recomputeCmeGoal
-ANY_TOPIC = u'Any Topic'
+ANY_TOPIC = 'Any Topic'
 LICENSES = 'licenses'
 CME_GAP = 'cme_gap'
 GOALS = 'goals'
@@ -119,11 +119,11 @@ class BaseGoal(models.Model):
     RECUR_ANY = 2
     RECUR_BIRTH_DATE = 3
     RECUR_LICENSE_DATE = 4
-    ONE_OFF_LABEL =  u'One-off. Due immediately'
-    RECUR_MMDD_LABEL = u'Recurring. Due on fixed MM/DD'
-    RECUR_ANY_LABEL = u'Recurring. Due at any time counting back over interval'
-    RECUR_BIRTH_DATE_LABEL = u'Recurring. Due on user birth date'
-    RECUR_LICENSE_DATE_LABEL =  u'Recurring. Due on license expiration date'
+    ONE_OFF_LABEL =  'One-off. Due immediately'
+    RECUR_MMDD_LABEL = 'Recurring. Due on fixed MM/DD'
+    RECUR_ANY_LABEL = 'Recurring. Due at any time counting back over interval'
+    RECUR_BIRTH_DATE_LABEL = 'Recurring. Due on user birth date'
+    RECUR_LICENSE_DATE_LABEL =  'Recurring. Due on license expiration date'
     DUEDATE_TYPE_CHOICES = (
         (ONE_OFF, ONE_OFF_LABEL),
         (RECUR_MMDD, RECUR_MMDD_LABEL),
@@ -184,34 +184,34 @@ class BaseGoal(models.Model):
 
     def formatDueDateType(self):
         if self.dueDateType == BaseGoal.ONE_OFF:
-            return u'One-off'
+            return 'One-off'
         if self.dueDateType == BaseGoal.RECUR_MMDD:
-            return u'Fixed MM/DD'
+            return 'Fixed MM/DD'
         if self.dueDateType == BaseGoal.RECUR_ANY:
-            return u'Any time'
+            return 'Any time'
         if self.dueDateType == BaseGoal.RECUR_LICENSE_DATE:
-            return u'License expireDate'
-        return u'Birthdate'
+            return 'License expireDate'
+        return 'Birthdate'
 
     @cached_property
     def formatDegrees(self):
         if self.degrees.exists():
-            return u", ".join([d.abbrev for d in self.degrees.all()])
-        return u'Any'
+            return ", ".join([d.abbrev for d in self.degrees.all()])
+        return 'Any'
     formatDegrees.short_description = "Primary Roles"
 
     @cached_property
     def formatSpecialties(self):
         if self.specialties.exists():
             return ", ".join([d.name for d in self.specialties.all()])
-        return u'Any'
+        return 'Any'
     formatSpecialties.short_description = "Specialties"
 
     @cached_property
     def formatSubSpecialties(self):
         if self.subspecialties.exists():
             return ", ".join([d.name for d in self.subspecialties.all()])
-        return u'Any'
+        return 'Any'
     formatSubSpecialties.short_description = "Sub-Specialties"
 
     def degreeSet(self):
@@ -706,8 +706,8 @@ class CmeGoal(models.Model):
     def __str__(self):
         tag = self.cmeTag
         if not tag:
-            tag = u'Specialty' if self.mapNullTagToSpecialty else ANY_TOPIC
-        return u"{0.entityType}|{0.entityName}|{0.credits} credits in {1}".format(self, tag)
+            tag = 'Specialty' if self.mapNullTagToSpecialty else ANY_TOPIC
+        return "{0.entityType}|{0.entityName}|{0.credits} credits in {1}".format(self, tag)
 
     @cached_property
     def dueMMDD(self):
@@ -723,8 +723,8 @@ class CmeGoal(models.Model):
         if self.cmeTag:
             return self.cmeTag
         if self.mapNullTagToSpecialty:
-            return u'(Specialty)'
-        return  u'(General)'
+            return '(Specialty)'
+        return '(General)'
 
     def formatCreditTypes(self):
         """Returns string of comma separated CreditType abbrev values"""
@@ -978,7 +978,7 @@ class SRCmeGoal(models.Model):
     objects = SRCmeGoalManager()
 
     def __str__(self):
-        return u"{0.state}|{0.cmeTag}".format(self)
+        return "{0.state}|{0.cmeTag}".format(self)
 
     @cached_property
     def valid(self):
@@ -1994,7 +1994,7 @@ class UserGoal(models.Model):
         if self.state:
             return self.state
         if self.is_composite_goal:
-            return u'Composite'
+            return 'Composite'
         return ''
 
     def formatCreditTypes(self):

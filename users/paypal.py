@@ -22,12 +22,12 @@ class PayPalApi(object):
 
     def getToken(self):
         """Example data response
-        {u'access_token': u'A21AAHE0YoqnAAlTXKezDwkn_...',
-        u'app_id': u'APP-80W284485P519543T',
-        u'expires_in': 32400,
-        u'nonce': u'2017-10-20T03:24:08ZQRiQax34Js9m37LpWe5APjjNALSoFn6ZTu0amIg9meY',
-        u'scope': u'https://api.paypal.com/v1/payments/.* openid https://uri.paypal.com/payments/payouts',
-        u'token_type': u'Bearer'
+        {'access_token': 'A21AAHE0YoqnAAlTXKezDwkn_...',
+        'app_id': 'APP-80W284485P519543T',
+        'expires_in': 32400,
+        'nonce': '2017-10-20T03:24:08ZQRiQax34Js9m37LpWe5APjjNALSoFn6ZTu0amIg9meY',
+        'scope': 'https://api.paypal.com/v1/payments/.* openid https://uri.paypal.com/payments/payouts',
+        'token_type': 'Bearer'
         }
         """
         payload = {'grant_type': 'client_credentials'}
@@ -125,39 +125,39 @@ class PayPalApi(object):
         """Request status of a batch payout
         Example response:
         {
-            u'batch_header':
-                {u'amount': {u'currency': u'USD', u'value': u'5.25'},
-                u'batch_status': u'SUCCESS',
-                u'fees': {u'currency': u'USD', u'value': u'0.25'},
-                u'payout_batch_id': u'6TVQTDH65LSNN',
-                u'sender_batch_header': {u'email_subject': u'Another payout attempt',
-                                        u'sender_batch_id': u'201710202102'},
-                u'time_completed': u'2017-10-20T21:03:22Z',
-                u'time_created': u'2017-10-20T21:02:57Z'
+            'batch_header':
+                {'amount': {'currency': 'USD', 'value': '5.25'},
+                'batch_status': 'SUCCESS',
+                'fees': {'currency': 'USD', 'value': '0.25'},
+                'payout_batch_id': '6TVQTDH65LSNN',
+                'sender_batch_header': {'email_subject': 'Another payout attempt',
+                                        'sender_batch_id': '201710202102'},
+                'time_completed': '2017-10-20T21:03:22Z',
+                'time_created': '2017-10-20T21:02:57Z'
             },
-            u'items': [
-                {u'links': [
+            'items': [
+                {'links': [
                     {
-                        u'encType': u'application/json',
-                        u'href': u'https://api.sandbox.paypal.com/v1/payments/payouts-item/R2WM3CAEQ336G';,
-                        u'method': u'GET',
-                        u'rel': u'item'
+                        'encType': 'application/json',
+                        'href': 'https://api.sandbox.paypal.com/v1/payments/payouts-item/R2WM3CAEQ336G';,
+                        'method': 'GET',
+                        'rel': 'item'
                     }
                 ],
-                u'payout_batch_id': u'6TVQTDH65LSNN',
-                u'payout_item': {
-                    u'amount': {u'currency': u'USD', u'value': u'5.25'},
-                    u'note': u'Thank you',
-                    u'receiver': u'faria.chowdhury-buyer-1@gmail.com',
-                    u'recipient_type': u'EMAIL',
-                    u'sender_item_id': u'201710202102:1'
+                'payout_batch_id': '6TVQTDH65LSNN',
+                'payout_item': {
+                    'amount': {'currency': 'USD', 'value': '5.25'},
+                    'note': 'Thank yo',
+                    'receiver': 'faria.chowdhury-buyer-1@gmail.com',
+                    'recipient_type': 'EMAIL',
+                    'sender_item_id': '201710202102:1'
                 },
-                u'payout_item_fee': {u'currency': u'USD', u'value': u'0.25'},
-                u'payout_item_id': u'R2WM3CAEQ336G',
-                u'time_processed': u'2017-10-20T21:03:15Z',
-                u'transaction_id': u'3DL34442EM6673237',   -- key does not exist for failed transactions
-                u'transaction_status': u'SUCCESS',
-                u'errors': {u'details, u'message', u'name'} -- key exists in case of errors
+                'payout_item_fee': {'currency': 'USD', 'value': '0.25'},
+                'payout_item_id': 'R2WM3CAEQ336G',
+                'time_processed': '2017-10-20T21:03:15Z',
+                'transaction_id': '3DL34442EM6673237',   -- key does not exist for failed transactions
+                'transaction_status': 'SUCCESS',
+                'errors': {'details, 'message', 'name'} -- key exists in case of errors
                 }
             ],
         }

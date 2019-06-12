@@ -782,9 +782,9 @@ class MailchimpApi(EspApiBackend):
                             v.update({dateKey : formattedDateVal})
                     batch_operations_list = self._addToBatchOperationsList(batch_operations_list, k, v)
 
-                    #if k == "asdf@asdf.com" or k == u'asdf@asdf.com':
-                    #    v.update({'email_address' : u'logicalmath333@yahoo.com'})
-                    #    batch_operations_list = self._addToBatchOperationsList(batch_operations_list, u'logicalmath333@yahoo.com', v)
+                    #if k == "asdf@asdf.com":
+                    #    v.update({'email_address' : 'logicalmath333@yahoo.com'})
+                    #    batch_operations_list = self._addToBatchOperationsList(batch_operations_list, 'logicalmath333@yahoo.com', v)
                     #    list_of_emails_tmp.append(k)
 
         #list_of_emails_tmp.sort()

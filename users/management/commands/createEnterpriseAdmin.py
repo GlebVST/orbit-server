@@ -70,6 +70,6 @@ class Command(BaseCommand):
         ser.is_valid(raise_exception=True)
         with transaction.atomic():
             orgmember = ser.save(organization=org, apiConn=api, plan=plan)
-            msg = u"Created Enterprise Admin: {0} with plan: {1}".format(orgmember, plan)
+            msg = "Created Enterprise Admin: {0} with plan: {1}".format(orgmember, plan)
             logger.info(msg)
             self.stdout.write(msg)

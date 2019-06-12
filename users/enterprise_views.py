@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import calendar
 import coreapi
 from datetime import datetime, timedelta
@@ -354,7 +355,7 @@ class OrgMemberUpdate(generics.UpdateAPIView):
         if email and m.user.email != email:
             qset = User.objects.filter(email__iexact=email).exclude(pk=m.user.pk)
             if qset.exists():
-                error_msg = u'The email {0} belongs to another user account.'.format(email)
+                error_msg = 'The email {0} belongs to another user account.'.format(email)
                 logWarning(logger, self.request, error_msg)
                 raise serializers.ValidationError({'email': error_msg}, code='invalid')
         apiConn = Auth0Api.getConnection(self.request)

@@ -161,7 +161,7 @@ class TagsMixin(object):
         """
         #pprint(form_data) # <type 'dict'>
         tags = form_data.get('tags', '')
-        if type(tags) == type(u'') and ',' in tags:
+        if type(tags) == type('') and ',' in tags:
             tag_ids = tags.split(",") # convert "1,2" to [1,2]
             form_data['tags'] = tag_ids
 

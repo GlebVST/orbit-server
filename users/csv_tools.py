@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import logging
 import csv
 from time import sleep
@@ -324,7 +325,7 @@ class ProviderCsvImport(CsvImport):
                     if d['residencyProgramEndDates'] and d['residencyProgramEndDates'][0]:
                         profile.residencyEndDate = d['residencyProgramEndDates'][0]
 
-                    msg = u"Created User/Profile records: {FirstName} {LastName}, {Email}".format(**d)
+                    msg = "Created User/Profile records: {FirstName} {LastName}, {Email}".format(**d)
                     self.print_out(msg)
 
                     num_state_licenses = 0
@@ -415,9 +416,9 @@ class ProviderCsvImport(CsvImport):
             self.print_out(tickets_msg)
             ticket_url = auth0.change_password_ticket(profile.socialId, redirect_url)
 
-            sending_msg = u"Sending password-ticket email for User: {0}: {1}...".format(user, ticket_url)
+            sending_msg = "Sending password-ticket email for User: {0}: {1}...".format(user, ticket_url)
             # TODO remove this dangerous ticket exposure when we are sure this works and no need to try out users
-            self.print_out(sending_msg)
+            #self.print_out(sending_msg)
 
             msg = sendPasswordTicketEmail(orgmember, ticket_url, send_message=False)
             # send email and update flag if success

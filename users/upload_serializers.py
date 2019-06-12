@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 from cStringIO import StringIO
 from hashids import Hashids
 import os
@@ -141,7 +142,7 @@ class UploadOrgFileSerializer(serializers.Serializer):
         if not fileName:
             fileName = defaultFileName
         try:
-            logger.debug(u'UploadOrgFile filename: {0}'.format(fileName))
+            logger.debug('UploadOrgFile filename: {0}'.format(fileName))
         except UnicodeDecodeError:
             fileName = defaultFileName
         instance = OrgFile.objects.create(

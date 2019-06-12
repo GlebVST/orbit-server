@@ -76,8 +76,8 @@ class EmailSubscriptionReceipt(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # else prepare context for email
         subs_trans = qset[0]
-        plan_name = u'Orbit ' + user_subs.plan.name
-        subject = u'Your receipt for annual subscription to {0}'.format(plan_name)
+        plan_name = 'Orbit ' + user_subs.plan.name
+        subject = 'Your receipt for annual subscription to {0}'.format(plan_name)
         from_email = settings.SUPPORT_EMAIL
         ctx = {
             'profile': user.profile,
@@ -127,7 +127,7 @@ class EmailSubscriptionPaymentFailure(APIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # else prepare context for email
         subs_trans = qset[0]
-        subject = u'Your Orbit Invoice Payment Failed [#{0.transactionId}]'.format(subs_trans)
+        subject = 'Your Orbit Invoice Payment Failed [#{0.transactionId}]'.format(subs_trans)
         from_email = settings.SUPPORT_EMAIL
         username = None
         if user.profile.firstName:

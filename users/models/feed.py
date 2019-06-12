@@ -98,7 +98,7 @@ class CreditTypeManager(models.Manager):
 
 @python_2_unicode_compatible
 class CreditType(models.Model):
-    AMA_PRA_1 = AMA_PRA_CATEGORY_LABEL + u'1 Credit'
+    AMA_PRA_1 = AMA_PRA_CATEGORY_LABEL + '1 Credit'
     # fields
     name = models.CharField(max_length=40, unique=True,
             help_text='Name used in UI form. Must be unique')
@@ -395,19 +395,19 @@ class Entry(models.Model):
     def formatTags(self):
         """Returns a comma-separated string of self.tags ordered by tag name"""
         names = [t.name for t in self.tags.all()]  # should use default ordering on CmeTag model
-        return u', '.join(names)
+        return ', '.join(names)
     formatTags.short_description = "CmeTags"
 
     def formatNonSATags(self):
         """Returns a comma-separated string of self.tags ordered by tag name excluding SA-CME"""
         names = [t.name for t in self.tags.all() if t.name != CMETAG_SACME]  # should use default ordering on CmeTag model
-        return u', '.join(names)
+        return ', '.join(names)
 
     def formatCreditType(self):
         """format for audit report"""
         if self.creditType:
             return self.creditType.auditname
-        return u''
+        return ''
 
     def getCredits(self):
         """Returns credit:Decimal value"""
@@ -433,7 +433,7 @@ class Entry(models.Model):
         """
         if self.cert_docs:
             return self.cert_docs[0].referenceId
-        return u''
+        return ''
 
     def getCertifyingAuthority(self):
         """If sponsor, use sponsor name, else
@@ -579,9 +579,9 @@ class BrowserCme(models.Model):
         (RESPONSE_NO, 'No change'),
         (RESPONSE_YES, 'Change')
     )
-    DIFFERENTIAL_DIAGNOSIS = u'Differential diagnosis'
-    TREATMENT_PLAN = u'Treatment plan'
-    DIAGNOSTIC_TEST = u'Diagnostic tests'
+    DIFFERENTIAL_DIAGNOSIS = 'Differential diagnosis'
+    TREATMENT_PLAN = 'Treatment plan'
+    DIAGNOSTIC_TEST = 'Diagnostic tests'
     entry = models.OneToOneField(Entry,
         on_delete=models.CASCADE,
         related_name='brcme',

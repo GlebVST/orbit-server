@@ -179,7 +179,7 @@ class Command(BaseCommand):
                     add_tags = profile.addOrActivateCmeTags()
                     # emit profile_saved signal
                     #ret = profile_saved.send(sender=profile.__class__, user_id=user.pk)
-                msg = u"Created OrgMember: {0.pk}|{0}".format(orgmember)
+                msg = "Created OrgMember: {0.pk}|{0}".format(orgmember)
                 logger.info(msg)
                 self.stdout.write(msg)
             # change-password-tickets
@@ -201,7 +201,7 @@ class Command(BaseCommand):
                 for orgmember, ticket_url in user_tickets:
                     user = orgmember.user
                     profile = user.profile
-                    self.stdout.write(u"Processing User: {0}...".format(user))
+                    self.stdout.write("Processing User: {0}...".format(user))
                     msg = sendPasswordTicketEmail(orgmember, ticket_url, send_message=False)
                     num_sent = connection.send([msg,])
                     if num_sent == 1:
