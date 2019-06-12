@@ -35,11 +35,11 @@ logger = logging.getLogger('mgmt.csv')
 
 class CsvDialect(csv.Dialect):
     """Describe the usual properties of Excel-generated CSV files."""
-    delimiter = ';'
-    quotechar = '"'
+    delimiter = str(';')
+    quotechar = str('"')
     doublequote = True
     skipinitialspace = False
-    lineterminator = '\r\n'
+    lineterminator = str('\r\n')
     quoting = csv.QUOTE_MINIMAL
 csv.register_dialect("csv", CsvDialect)
 
