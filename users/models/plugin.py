@@ -447,15 +447,15 @@ class RecAllowedUrlManager(models.Manager):
         aurls_blank_setid = AllowedUrl.objects \
                 .select_related('host') \
                 .filter(Q_setid, **aurl_kwargs) \
-                .exclude(pk__in=Subquery(offers_blank_setid.values('pk'))) \
-                .order_by('-numOffers', '-created')
+                .exclude(pk__in=Subquery(offers_blank_setid.values('url'))) \
+                .order_by('-created')
         # This query gets distinct AllowedUrls with non-blank set_id for the given tag and excludes
         # any urls with the same set_id as those contained in exclude_offers
         aurls_setid = AllowedUrl.objects \
                 .select_related('host') \
                 .filter(~Q_setid, **aurl_kwargs) \
                 .exclude(set_id__in=Subquery(offers_setid.values('url__set_id').distinct())) \
-                .order_by('-numOffers', '-created')
+                .order_by('-created')
         # evaluate aurls_blank_setid first
         for aurl in aurls_blank_setid:
             m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)

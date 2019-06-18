@@ -366,7 +366,7 @@ class SubSpecialty(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.name
+        return "{0.name} in {0.specialty}".format(self)
 
     def formatTags(self):
         return ", ".join([t.name for t in self.cmeTags.all()])
@@ -1065,3 +1065,12 @@ class StateLicense(models.Model):
             if tdiff.days >= StateLicense.MIN_INTERVAL_DAYS:
                 return True
         return False
+
+    def isDateMatch(self, dt):
+        """Args:
+            dt: datetime object
+        Returns: bool True if self.expireDate.date == dt.date
+        """
+        if not self.expireDate:
+            return False
+        return self.expireDate.date() == dt.date()
