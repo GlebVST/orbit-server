@@ -77,7 +77,7 @@ PLAN_TEXT_CHOICES = (
     BrowserCme.TREATMENT_PLAN,
     BrowserCme.DIAGNOSTIC_TEST
 )
-J = u': American Journal of Roentgenology'
+J = ': American Journal of Roentgenology'
 
 def cleanDescription(d):
     d2 = d
@@ -353,7 +353,7 @@ class Command(BaseCommand):
         planTextOther = ctx['planTextOther']
         nonEmptyPlanTextOther = []
         for text in planTextOther:
-            if text != u'':
+            if text != '':
                 nonEmptyPlanTextOther.append(text)
         otherPleaseExplainAdd = '' if (len(nonEmptyPlanTextOther) == 0) else nonEmptyPlanTextOther[0]
         columnD = ['', '', 'If yes, how?', 'Differential diagnosis - ' + planChangeDiffDiag,

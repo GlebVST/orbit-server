@@ -1346,9 +1346,9 @@ class UserSubscriptionManager(models.Manager):
                         affiliate=affl, # Affiliate instance
                         amount=afp_amount
                     )
-            except Exception, e:
+            except Exception as e:
                 # catch all and return user_subs since we need the db transaction to commit since bt_subs was successfully created
-                logger.error("createBtSubscription Exception after bt_subs was created: {0}".format(e))
+                logger.exception("createBtSubscription Exception after bt_subs was created: {0}".format(e))
         return (result, user_subs)
 
     def createBtSubscriptionWithTestAmount(self, user, plan, subs_params):

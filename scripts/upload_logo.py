@@ -35,7 +35,7 @@ def upload_file(s3, bucketName, fpath):
         )
         print('Status: {0}'.format(response['ResponseMetadata']['HTTPStatusCode']))
         print('ETag: {0}'.format(response['ETag']))
-    except IOError, e:
+    except IOError as e:
         print(str(e))
     else:
         obj = s3.Object(bucketName, LOGOS_FOLDER+fileName)

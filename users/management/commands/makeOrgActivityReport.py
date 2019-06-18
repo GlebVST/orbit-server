@@ -43,8 +43,8 @@ IGNORE_USERS = (
 )
 
 STRIP_CHARS = (
-    u': American Journal of Roentgenology',
-    u'The Radiology Assistant'
+    ': American Journal of Roentgenology',
+    'The Radiology Assistant'
 )
 
 def cleanDescription(d):

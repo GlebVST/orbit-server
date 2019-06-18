@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import calendar
 import coreapi
 from datetime import datetime, timedelta
@@ -259,7 +260,7 @@ class OrgMemberCreate(generics.CreateAPIView):
             # send JoinTeam email
             try:
                 msg = sendJoinTeamEmail(user, org, send_message=True)
-            except SMTPException, e:
+            except SMTPException:
                 logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.id}.'.format(instance))
         else:
             # create new user account and send password ticket email
@@ -354,7 +355,7 @@ class OrgMemberUpdate(generics.UpdateAPIView):
         if email and m.user.email != email:
             qset = User.objects.filter(email__iexact=email).exclude(pk=m.user.pk)
             if qset.exists():
-                error_msg = u'The email {0} belongs to another user account.'.format(email)
+                error_msg = 'The email {0} belongs to another user account.'.format(email)
                 logWarning(logger, self.request, error_msg)
                 raise serializers.ValidationError({'email': error_msg}, code='invalid')
         apiConn = Auth0Api.getConnection(self.request)
@@ -396,7 +397,7 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         instance = serializer.save(user=user, organization=org)
         try:
             fileData = instance.document.read()
-        except Exception, e:
+        except Exception as e:
             logError(logger, self.request, 'UploadRoster readFile Exception: {0}'.format(e))
             raise serializers.ValidationError('readFile Exception')
         else:
@@ -447,7 +448,7 @@ class OrgMembersEmailInvite(APIView):
                     sendJoinTeamEmail(member.user, member.organization, send_message=True)
                     # add small delay here to prevent potential spamming alerts?
                     sleep(0.2)
-                except SMTPException, e:
+                except SMTPException as e:
                     logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
                 else:
                     member.inviteDate = timezone.now()
@@ -488,7 +489,7 @@ class OrgMembersRestore(APIView):
             # so ask them to join organisation
             try:
                 sendJoinTeamEmail(member.user, member.organization, send_message=True)
-            except SMTPException, e:
+            except SMTPException as e:
                 logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
         context = {'success': True, 'data': updates}
         return Response(context, status=status.HTTP_200_OK)

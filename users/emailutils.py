@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import logging
 from dateutil.relativedelta import *
 from datetime import timedelta
@@ -14,10 +15,10 @@ from common.dateutils import LOCAL_TZ, fmtLocalDatetime
 from .models import *
 from pprint import pprint
 
-ROCKET_ICON = u'\U0001F680'
+ROCKET_ICON = '\U0001F680'
 REPLY_TO = settings.SUPPORT_EMAIL
 
-TEST_ONLY_PREFIX = u'[test-only] '
+TEST_ONLY_PREFIX = '[test-only] '
 
 def makeSubject(subject):
     if settings.ENV_TYPE != settings.ENV_PROD:
@@ -100,8 +101,8 @@ def sendFirstSubsInvoiceEmail(user, user_subs, payment_method, subs_trans=None):
     """
     from_email = settings.SUPPORT_EMAIL
     plan = user_subs.plan
-    plan_name = u'Orbit ' + plan.display_name
-    subject = makeSubject(u'Your invoice for subscription to {0}'.format(plan_name))
+    plan_name = 'Orbit ' + plan.display_name
+    subject = makeSubject('Your invoice for subscription to {0}'.format(plan_name))
     card = Customer.objects.formatCard(payment_method)
     if subs_trans:
         billingAmount = subs_trans.amount
@@ -149,8 +150,8 @@ def sendUpgradePlanInvoiceEmail(user, user_subs, payment_method, subs_trans):
     """
     from_email = settings.SUPPORT_EMAIL
     plan = user_subs.plan
-    plan_name = u'Orbit ' + plan.display_name
-    subject = makeSubject(u'Your invoice for subscription to {0}'.format(plan_name))
+    plan_name = 'Orbit ' + plan.display_name
+    subject = makeSubject('Your invoice for subscription to {0}'.format(plan_name))
     card = Customer.objects.formatCard(payment_method)
     billingAmount = subs_trans.amount
     nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
@@ -187,8 +188,8 @@ def sendReceiptEmail(user, user_subs, subs_trans):
     Can raise SMTPException
     """
     from_email = settings.SUPPORT_EMAIL
-    plan_name = u'Orbit ' + user_subs.plan.display_name
-    subject = makeSubject(u'Your receipt for subscription to {0}'.format(plan_name))
+    plan_name = 'Orbit ' + user_subs.plan.display_name
+    subject = makeSubject('Your receipt for subscription to {0}'.format(plan_name))
     ctx = {
         'profile': user.profile,
         'subscription': user_subs,
@@ -207,7 +208,7 @@ def sendPaymentFailureEmail(user, subs_trans):
     Can raise SMTPException
     """
     from_email = settings.SUPPORT_EMAIL
-    subject = makeSubject(u'Your Orbit Invoice Payment Failed [#{0.transactionId}]'.format(subs_trans))
+    subject = makeSubject('Your Orbit Invoice Payment Failed [#{0.transactionId}]'.format(subs_trans))
     username = None
     if user.profile.firstName:
         username = user.profile.firstName
@@ -233,7 +234,7 @@ def sendBoostPurchaseEmail(user, boost_purchase):
     Can raise SMTPException
     """
     from_email = settings.SUPPORT_EMAIL
-    subject = makeSubject(u'Your Orbit Boost purchase')
+    subject = makeSubject('Your Orbit Boost purchase')
     ctx = {
         'profile': user.profile,
         'boost_purchase': boost_purchase,
@@ -270,8 +271,8 @@ def sendAfflConsolationEmail(affl, start_monyear):
     addressee = affl.user.profile.firstName
     if not addressee:
         addressee = 'Greetings'
-    subject = makeSubject(u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear))
-    subject_with_icon = u"{0} {1}".format(ROCKET_ICON, subject)
+    subject = makeSubject("{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear))
+    subject_with_icon = "{0} {1}".format(ROCKET_ICON, subject)
     encoded_subject = subject_with_icon.encode('utf-8')
     #print(encoded_subject)
     # get affiliateId(s) for this Affiliate
@@ -310,9 +311,9 @@ def sendAfflEarningsStatementEmail(batchPayout, affl, afp_data):
     addressee = affl.user.profile.firstName
     if not addressee:
         addressee = 'Greetings'
-    subject = makeSubject(u"{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear))
-    subject_with_icon = u"{0} {1}".format(ROCKET_ICON, subject)
-    encoded_subject = subject_with_icon.encode('utf-8')
+    subject = makeSubject("{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear))
+    subject_with_icon = "{0} {1}".format(ROCKET_ICON, subject)
+    encoded_subject = subject_with_icon.encode('utf-8') # TODO: may not need this in py3
     #print(encoded_subject)
     # get affiliateId(s) for this Affiliate
     affIds = AffiliateDetail.objects.filter(affiliate=affl).values_list('affiliateId', flat=True).order_by('affiliateId')
@@ -370,7 +371,7 @@ def sendAffiliateReportEmail(total_by_affl, email_to):
     """
     from_email = settings.EMAIL_FROM
     now = timezone.now()
-    subject = makeSubject(u'Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(LOCAL_TZ)))
+    subject = makeSubject('Associate Payout Report - {0:%b %d %Y}'.format(now.astimezone(LOCAL_TZ)))
     data = []
     grandTotal = 0
     totalUsers = 0
@@ -412,7 +413,7 @@ def sendCardExpiredAlertEmail(user_subs, payment_method):
     from_email = settings.EMAIL_FROM
     user = user_subs.user
     email_to = user.email
-    subject = makeSubject(u'Heads up! Your Orbit payment method has expired')
+    subject = makeSubject('Heads up! Your Orbit payment method has expired')
     nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
     ctx = {
         'profile': user.profile,
@@ -454,7 +455,7 @@ def sendRenewalReminderEmail(user_subs, payment_method, extra_data):
     from_email = settings.EMAIL_FROM
     user = user_subs.user
     email_to = user.email
-    subject = makeSubject(u'Your Orbit subscription renewal')
+    subject = makeSubject('Your Orbit subscription renewal')
     nextBillingDate = user_subs.billingEndDate + timedelta(days=1)
     card = Customer.objects.formatCard(payment_method)
     card['needs_update'] = card['expiration_date'] <= nextBillingDate
@@ -496,7 +497,7 @@ def sendCancelReminderEmail(user_subs, payment_method, extra_data):
     from_email = settings.EMAIL_FROM
     user = user_subs.user
     email_to = user.email
-    subject = makeSubject(u'Your Orbit subscription cancellation')
+    subject = makeSubject('Your Orbit subscription cancellation')
     ctx = {
         'profile': user.profile,
         'subscription': user_subs,
@@ -536,7 +537,7 @@ def sendPasswordTicketEmail(orgmember, ticket_url, send_message=True):
 
     """
     from_email = settings.SUPPORT_EMAIL
-    subject = makeSubject(u'Welcome to Orbit! Please set your password')
+    subject = makeSubject('Welcome to Orbit! Please set your password')
     user = orgmember.user
     ctx = {
         'org': orgmember.organization,
@@ -563,7 +564,7 @@ def sendJoinTeamEmail(user, org, send_message=True):
     Can raise SMTPException
     """
     from_email = settings.SUPPORT_EMAIL
-    subject = makeSubject(u'Invitation to join Orbit Enterprise')
+    subject = makeSubject('Invitation to join Orbit Enterprise')
     ctx = {
         'user': user,
         'org': org,

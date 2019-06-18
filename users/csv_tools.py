@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import logging
 import csv
 from time import sleep
@@ -34,11 +35,11 @@ logger = logging.getLogger('mgmt.csv')
 
 class CsvDialect(csv.Dialect):
     """Describe the usual properties of Excel-generated CSV files."""
-    delimiter = ';'
-    quotechar = '"'
+    delimiter = str(';')
+    quotechar = str('"')
     doublequote = True
     skipinitialspace = False
-    lineterminator = '\r\n'
+    lineterminator = str('\r\n')
     quoting = csv.QUOTE_MINIMAL
 csv.register_dialect("csv", CsvDialect)
 
@@ -92,7 +93,7 @@ class CsvImport():
                 continue
             try: 
                 output.append(dparse(tv))
-            except ValueError, e:
+            except ValueError as e:
                 error_msg = "Invalid {0} at row {1}: {2}".format(fieldName, index, v)
                 raise ValueError(error_msg)
         return output
@@ -221,7 +222,7 @@ class ProviderCsvImport(CsvImport):
                 if d['Birthdate']:
                     try:
                         d['Birthdate'] = dparse(d['Birthdate'])
-                    except ValueError, e:
+                    except ValueError as e:
                         self.throwValueError('Birthdate', pos, d['Birthdate'])
 
                 # Multi-value fields
@@ -324,7 +325,7 @@ class ProviderCsvImport(CsvImport):
                     if d['residencyProgramEndDates'] and d['residencyProgramEndDates'][0]:
                         profile.residencyEndDate = d['residencyProgramEndDates'][0]
 
-                    msg = u"Created User/Profile records: {FirstName} {LastName}, {Email}".format(**d)
+                    msg = "Created User/Profile records: {FirstName} {LastName}, {Email}".format(**d)
                     self.print_out(msg)
 
                     num_state_licenses = 0
@@ -384,15 +385,15 @@ class ProviderCsvImport(CsvImport):
             self.print_out('Num new users: {0}'.format(num_new))
             self.print_out('Num users created: {0}'.format(len(created)))
             return True
-        except SMTPException, e:
+        except SMTPException as e:
             error_msg = "SMTPException: {0}".format(e)
             self.print_out(error_msg, True)
             return False
-        except csv.Error, e:
+        except csv.Error as e:
             error_msg = "CsvError: {0}".format(e)
             self.print_out(error_msg, True)
             return False
-        except ValueError, e:
+        except ValueError as e:
             error_msg = "ValueError: {0}".format(e)
             self.print_out(error_msg, True)
             return False
@@ -415,9 +416,9 @@ class ProviderCsvImport(CsvImport):
             self.print_out(tickets_msg)
             ticket_url = auth0.change_password_ticket(profile.socialId, redirect_url)
 
-            sending_msg = u"Sending password-ticket email for User: {0}: {1}...".format(user, ticket_url)
+            sending_msg = "Sending password-ticket email for User: {0}: {1}...".format(user, ticket_url)
             # TODO remove this dangerous ticket exposure when we are sure this works and no need to try out users
-            self.print_out(sending_msg)
+            #self.print_out(sending_msg)
 
             msg = sendPasswordTicketEmail(orgmember, ticket_url, send_message=False)
             # send email and update flag if success

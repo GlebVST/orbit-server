@@ -387,7 +387,7 @@ class NewSubscription(generics.CreateAPIView):
             Customer.objects.makeSureNoMultipleMethods(customer)
             try:
                 result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
-            except ValueError, e:
+            except ValueError as e:
                 context = {
                     'success': False,
                     'message': str(e)
@@ -501,7 +501,7 @@ class ActivatePaidSubscription(generics.CreateAPIView):
         Customer.objects.makeSureNoMultipleMethods(customer)
         try:
             result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
-        except ValueError, e:
+        except ValueError as e:
             context = {
                 'success': False,
                 'message': str(e)
@@ -716,7 +716,7 @@ class UpgradePlan(generics.CreateAPIView):
                 message = context['message'] + ' customerId: {0.customerId}'.format(customer)
                 logError(logger, request, message)
                 return Response(context, status=status.HTTP_400_BAD_REQUEST)
-            except ValueError, e:
+            except ValueError as e:
                 context = {
                     'success': False,
                     'message': str(e)
@@ -989,7 +989,7 @@ class ResumeSubscription(APIView):
             message = 'ResumeSubscription: BT Subscription not found for subscriptionId: {0.subscriptionId}'.format(user_subs)
             logException(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError, e:
+        except ValueError as e:
             context = {
                 'success': False,
                 'message': str(e)
@@ -1062,7 +1062,7 @@ class CmeBoostPurchase(generics.CreateAPIView):
             Customer.objects.makeSureNoMultipleMethods(customer)
             try:
                 result = Customer.objects.addOrUpdatePaymentMethod(customer, payment_nonce)
-            except ValueError, e:
+            except ValueError as e:
                 context = {
                     'success': False,
                     'message': str(e)

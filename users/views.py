@@ -284,7 +284,7 @@ class UserEmailUpdate(generics.UpdateAPIView):
             # Check that email does not trample on an existing user account
             qset = User.objects.filter(email__iexact=email).exclude(pk=user.pk)
             if qset.exists():
-                error_msg = u'The email {0} belongs to another user account.'.format(email)
+                error_msg = 'The email {0} belongs to another user account.'.format(email)
                 logWarning(logger, self.request, error_msg)
                 raise serializers.ValidationError({'email': error_msg}, code='invalid')
             apiConn = Auth0Api.getConnection(self.request)

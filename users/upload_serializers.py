@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 from cStringIO import StringIO
 from hashids import Hashids
 import os
@@ -76,7 +77,7 @@ class UploadDocumentSerializer(serializers.Serializer):
                     im.save(memory_file, plain_ext, quality=90)
                     # calculate md5sum of thumb
                     thumbMd5 = hashlib.md5(memory_file.getvalue()).hexdigest()
-            except IOError, e:
+            except IOError as e:
                 logger.exception('UploadDocument: Image open failed.')
             else:
                 set_id = newUuid()
@@ -141,7 +142,7 @@ class UploadOrgFileSerializer(serializers.Serializer):
         if not fileName:
             fileName = defaultFileName
         try:
-            logger.debug(u'UploadOrgFile filename: {0}'.format(fileName))
+            logger.debug('UploadOrgFile filename: {0}'.format(fileName))
         except UnicodeDecodeError:
             fileName = defaultFileName
         instance = OrgFile.objects.create(

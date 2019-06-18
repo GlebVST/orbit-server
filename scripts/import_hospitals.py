@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import csv
 from collections import defaultdict
 from django.db.models import Q
@@ -5,52 +6,7 @@ from users.models import Country, State, Hospital
 from pprint import pprint
 from operator import itemgetter
 
-APOSTROPHE = u"\u2019"
-GROUP_NAMES = (
-        u'AGNES',
-        u'ALBANS',
-        u'ALEXIUS',
-        u'ALOISIUS',
-        u'ANDREWS',
-        u'ANTHONY',
-        u'BERNARD',
-        u'CATHERINE',
-        u'CHARLES',
-        u'CHRISTOPHER',
-        u'CLAIR',
-        u'CLARE',
-        u'CLOUD',
-        u'CROIX',
-        u'DAVID',
-        u'DOMINIC-JACKSON',
-        u'ELIAS',
-        u'ELIZABETH',
-        u'FRANCIS',
-        u'GABRIEL',
-        u'HELENA',
-        u'JAMES',
-        u'JOHN',
-        u'JOSEPH',
-        u'JUDE',
-        u'LANDRY',
-        u'LOUIS',
-        u'LUCIE',
-        u'LUKE',
-        u'MARGARET',
-        u'MARK',
-        u'MARTIN',
-        u'MARY',
-        u'NICHOLAS',
-        u'PATRICK',
-        u'PETER',
-        u'ROSE',
-        u'SIMON',
-        u'TAMMANY',
-        u'THERESA',
-        u'THOMAS',
-        u'VINCENT'
-)
-
+APOSTROPHE = "\u2019"
 
 def clean_name(name):
     n2 = name.decode('utf_8')
@@ -147,31 +103,6 @@ def find_dups():
     print('len dups: {0}'.format(len(dups)))
 
 
-def collate_st_groups():
-    """Collate names beginning with ST or ST. into groups
-    Returns:dict key = name, value = list of collated names
-    """
-    groups = defaultdict(set)
-    qs = Hospital.objects.filter(Q(name__startswith='ST')|Q(name__startswith='ST.')).order_by('name')
-    for m in qs:
-        L = m.name.split()
-        st_name = L[1]
-        part = u' '.join([L[0], L[1]]) # e.g. ST. MARYS
-        for g_name in GROUP_NAMES:
-            if g_name in st_name:
-                groups[g_name].add(part)
-    filtered_groups = dict()
-    for g_name in sorted(groups):
-        parts = groups[g_name]
-        num_parts = len(parts)
-        if num_parts > 1:
-            print(g_name)
-            for part in parts:
-                print(" {0}".format(part))
-            filtered_groups[g_name] = parts
-    return filtered_groups
-
-
 def main():
     f = open('./scripts/US_hospitals.csv', 'rb')
     reader = csv.DictReader(f)
@@ -195,7 +126,7 @@ def main():
         website = d['WEBSITE'].strip()
         try:
             state = states_by_abbrev[state_abbrev]
-        except KeyError, e:
+        except KeyError as e:
             print('KeyError: {0}'.format(str(e)))
             continue
         else:

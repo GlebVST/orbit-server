@@ -88,7 +88,7 @@ class OrgGroup(models.Model):
 class OrgMemberManager(models.Manager):
 
     def makeFullName(self, firstName, lastName):
-        return u"{0} {1}".format(firstName.upper(), lastName.upper())
+        return "{0} {1}".format(firstName.upper(), lastName.upper())
 
     def createMember(self, org, group, profile, is_admin=False, pending=False):
         """Create new OrgMember instance.
@@ -169,7 +169,7 @@ class OrgMemberManager(models.Manager):
                 member.inviteDate = timezone.now()
                 member.save(update_fields=('setPasswordEmailSent','inviteDate'))
         except SMTPException as e:
-            error_msg = u'sendPasswordTicketEmail failed for org member {0.fullname}. ticket_url={1}'.format(member, ticket_url)
+            error_msg = 'sendPasswordTicketEmail failed for org member {0.fullname}. ticket_url={1}'.format(member, ticket_url)
             if settings.ENV_TYPE == settings.ENV_PROD:
                 logger.exception(error_msg)
             else:
