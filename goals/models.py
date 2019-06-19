@@ -1744,26 +1744,28 @@ class UserGoalManager(models.Manager):
                 - valid: True,
                 - goal__goalType__in: credit goaltypes
                 - is_composite_goal: False
-        Returns: tuple (cme_gap: float, num_goals: int, num_non_state:int)
+        Returns: tuple (cme_gap: float, num_goals: int)
+         where cme_gap is the max cme_gap over the queryset
         """
         cme_gap = 0
         num_goals = 0
-        non_state_goals = set([])
+        #non_state_goals = set([])
         usergoals = user.usergoals \
             .select_related('goal__goalType') \
             .filter(**fkwargs) \
-            .order_by('-creditsDue')
+            .order_by('-creditsDue') # order by creditsDue max
         if usergoals.exists():
-            cme_gap = float(usergoals[0].creditsDue)
+            cme_gap = float(usergoals[0].creditsDue) # max gap
             num_goals = usergoals.count()
-            for ug in usergoals:
-                bg = ug.goal
-                gtype = bg.goalType.name
-                cg = bg.cmegoal if gtype == GoalType.CME else bg.srcmegoal
-                if not cg.state:
-                    non_state_goals.add(bg.pk)
-        num_non_state = len(non_state_goals)
-        return (cme_gap, num_goals, num_non_state)
+        #    for ug in usergoals:
+        #        bg = ug.goal
+        #        gtype = bg.goalType.name
+        #        cg = bg.cmegoal if gtype == GoalType.CME else bg.srcmegoal
+        #        if not cg.state:
+        #            non_state_goals.add(bg.pk)
+        ##num_non_state = len(non_state_goals)
+        ##return (cme_gap, num_goals, num_non_state)
+        return (cme_gap, num_goals)
 
     def compute_userdata_for_admin_view(self, user, fkwargs, sl_qset, stateid=None):
         """Args:
@@ -1798,7 +1800,7 @@ class UserGoalManager(models.Manager):
         fkw['status'] = UserGoal.PASTDUE
         if stateid:
             fkw['state'] = stateid
-        expired_cme_gap, expired_num_goals, expired_num_other = self.calcMaxCmeGapForUser(user, fkw)
+        expired_cme_gap, expired_num_goals = self.calcMaxCmeGapForUser(user, fkw)
         # compute max cme gap for expiring goals (over all entityTypes)
         fkw = fkwargs.copy()
         fkw['dueDate__lte'] = expiringCutoffDate
@@ -1806,25 +1808,17 @@ class UserGoalManager(models.Manager):
         fkw['status'] = UserGoal.IN_PROGRESS
         if stateid:
             fkw['state'] = stateid
-        expiring_cme_gap, expiring_num_goals, expiring_num_other = self.calcMaxCmeGapForUser(user, fkw)
-        if stateid:
-            total_other = 0 # do not count non-state goals
-        else:
-            # calculate num of distinct non-state (other) basegoals
-            fkw = fkwargs.copy()
-            fkw['state__isnull'] = True
-            qs = user.usergoals.filter(**fkw).values_list('goal', flat=True).distinct()
-            total_other = qs.count()
+        expiring_cme_gap, expiring_num_goals = self.calcMaxCmeGapForUser(user, fkw)
         # return dict for userdata
         return {
-            'total': total_licenses + total_other,
+            'total': total_licenses,
             'expired': {
-                LICENSES: expired_num_licenses + expired_num_other,
+                LICENSES: expired_num_licenses,
                 GOALS: expired_num_goals,
                 CME_GAP: expired_cme_gap,
             },
             'expiring': {
-                LICENSES: expiring_num_licenses + expiring_num_other,
+                LICENSES: expiring_num_licenses,
                 GOALS: expiring_num_goals,
                 CME_GAP: expiring_cme_gap,
             },
