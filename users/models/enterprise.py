@@ -75,6 +75,8 @@ class OrgGroup(models.Model):
     )
     name = models.CharField(max_length=100,
             help_text='Uppercase first and last name for search')
+    include_in_reports = models.BooleanField(default=True,
+            help_text='Set to False if this group should be excluded from stats and reports')
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -242,6 +244,8 @@ class OrgMember(models.Model):
             help_text='A snapshot of the goals status for this user. It is computed by a management command run periodically.')
     snapshotDate = models.DateTimeField(null=True, blank=True,
             help_text='Timestamp of the snapshot generation')
+    numArticlesRead30 = models.PositiveIntegerField(default=0, blank=True,
+            help_text='Number of articles read over the past 30 days. This is computed by a managment command.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = OrgMemberManager()

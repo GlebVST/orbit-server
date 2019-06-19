@@ -174,9 +174,9 @@ def getDataFromDb(listData):
                 d['expiredLicenses'] = len(licenseDict[StateLicense.EXPIRED])
                 d['expiringLicenses'] = len(licenseDict[StateLicense.EXPIRING])
                 d['completedLicenses'] = len(licenseDict[StateLicense.COMPLETED])
-                cmeGap, numGoals, numNonState = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpired)
+                cmeGap, numGoals = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpired)
                 d['expiredCmeGap'] = cmeGap
-                cmeGap, numGoals, numNonState = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpiring)
+                cmeGap, numGoals = UserGoal.objects.calcMaxCmeGapForUser(user, fkwExpiring)
                 d['expiringCmeGap'] = cmeGap
 
                 #currentTotalExpiredCmeGap += d['expiredCmeGap']

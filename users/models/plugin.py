@@ -311,6 +311,16 @@ class OrbitCmeOfferManager(models.Manager):
             credit_sum_unredeemed = float(credit_sum_unredeemed)
         return (credit_sum_redeemed, credit_sum_unredeemed)
 
+    def sumArticlesRead(self, user, startDate, endDate):
+        """Calls sumCredits for the given args
+        Returns: int sum(redeemed + unredeemed)/ARTICLE_CREDIT
+        """
+        creditsTuple = self.sumCredits(user, minStartDate, maxEndDate)
+        creditsRedeemed, creditsUnredeemed = (float(cred) for cred in creditsTuple)
+        creditsEarned = creditsRedeemed + creditsUnredeemed
+        numArticlesRead = int(creditsEarned/ARTICLE_CREDIT)
+        return numArticlesRead
+
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.
 @python_2_unicode_compatible

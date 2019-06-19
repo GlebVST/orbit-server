@@ -3,11 +3,20 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.utils import timezone
-from users.models import User, Profile, Organization, OrgMember, OrgAgg, StateLicense
+from users.models import (
+        User,
+        Profile,
+        Organization,
+        OrbitCmeOffer,
+        OrgMember,
+        OrgAgg,
+        StateLicense
+    )
 from goals.models import *
 
 logger = logging.getLogger('mgmt.goals')
 
+ARTICLE_LOOKBACK = 30 # number of days in time window
 class Command(BaseCommand):
     help = "Recompute OrgMember snapshot data."
 
@@ -42,10 +51,14 @@ class Command(BaseCommand):
             total_licenses_expiring = 0
             for m in members:
                 now = timezone.now()
+                minStartDate = now - timedelta(days=ARTICLE_LOOKBACK)
+                maxEndDate = now + timedelta(days=1)
                 userdata = self.handleUser(m.user, fkwargs)
                 m.snapshot = userdata
                 m.snapshotDate = now
-                m.save(update_fields=('snapshot', 'snapshotDate'))
+                # compute articles read over time window
+                m.numArticlesRead30 = OrbitCmeOffer.objects.sumArticlesRead(m.user, minStartDate, maxEndDate)
+                m.save(update_fields=('numArticlesRead30', 'snapshot', 'snapshotDate'))
                 udata = userdata[None] # counting over all states
                 total_cme_gap_expired += udata['expired'][CME_GAP]
                 total_licenses_expired += udata['expired'][LICENSES]
