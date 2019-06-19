@@ -46,6 +46,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
     degree = serializers.SerializerMethodField()
     joined = serializers.SerializerMethodField()
     groupName = serializers.SerializerMethodField()
+    includeGroupInStats = serializers.SerializerMethodField()
     setPasswordEmailSent = serializers.ReadOnlyField()
     # profile fields
     email = serializers.ReadOnlyField(source='user.email')
@@ -63,6 +64,11 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             return obj.group.name
         return ''
 
+    def get_includeGroupInStats(self, obj):
+        if obj.group:
+            return obj.group.include_in_reports
+        return False
+
     class Meta:
         model = OrgMember
         fields = (
@@ -70,6 +76,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'organization',
             'group',
             'groupName',
+            'includeGroupInStats',
             'user',
             'pending',
             'degree',
@@ -80,6 +87,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'joined',
             'snapshot',
             'snapshotDate',
+            'numArticlesRead30',
             'setPasswordEmailSent',
             'created',
             'modified',
