@@ -875,6 +875,7 @@ class UserSubscriptionManager(models.Manager):
         allowed_codes = []
         is_brcme_month_limit = False
         is_unlimited_cme = False
+        is_trial_cme_limit = False
         remaining_credits = 0
         plan_credits = 0
         boost_credits = 0
@@ -916,6 +917,10 @@ class UserSubscriptionManager(models.Manager):
             if credits_earned < settings.MIN_CME_CREDIT_FOR_REFERRAL:
                 discard_codes.add(PERM_ALLOW_INVITE)
 
+            if user_subs.display_status == UserSubscription.UI_TRIAL and userCredits and userCredits.total_credits_earned >= settings.MAX_TRIAL_CME_CREDIT:
+                is_trial_cme_limit = True
+
+
         allowed_codes = set(allowed_codes)
         for codename in discard_codes:
             allowed_codes.discard(codename) # remove from set if exist
@@ -927,6 +932,7 @@ class UserSubscriptionManager(models.Manager):
             'permissions': perms,
             'credits' : {
                 'monthly_limit': is_brcme_month_limit,
+                'trial_limit': is_trial_cme_limit,
                 'unlimited': is_unlimited_cme,
                 'plan_credits': plan_credits,
                 'boost_credits': boost_credits
