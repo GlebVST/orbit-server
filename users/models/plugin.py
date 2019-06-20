@@ -318,7 +318,7 @@ class OrbitCmeOfferManager(models.Manager):
             creditsRedeemed: float
         )
         """
-        creditsTuple = self.sumCredits(user, minStartDate, maxEndDate)
+        creditsTuple = self.sumCredits(user, startDate, endDate)
         creditsRedeemed, creditsUnredeemed = (float(cred) for cred in creditsTuple)
         creditsEarned = creditsRedeemed + creditsUnredeemed
         numArticlesRead = int(creditsEarned/ARTICLE_CREDIT)
