@@ -48,6 +48,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
     groupName = serializers.SerializerMethodField()
     includeGroupInStats = serializers.SerializerMethodField()
     setPasswordEmailSent = serializers.ReadOnlyField()
+    cmeRedeemed30 = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     # profile fields
     email = serializers.ReadOnlyField(source='user.email')
     firstName = serializers.ReadOnlyField(source='user.profile.firstName')
@@ -88,6 +89,7 @@ class OrgMemberReadSerializer(serializers.ModelSerializer):
             'snapshot',
             'snapshotDate',
             'numArticlesRead30',
+            'cmeRedeemed30',
             'setPasswordEmailSent',
             'created',
             'modified',
@@ -109,6 +111,7 @@ class OrgMemberDetailSerializer(serializers.ModelSerializer):
     joined = serializers.SerializerMethodField()
     groupName = serializers.SerializerMethodField()
     setPasswordEmailSent = serializers.ReadOnlyField()
+    cmeRedeemed30 = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     # extended profile fields
     email = serializers.ReadOnlyField(source='user.email')
     firstName = serializers.ReadOnlyField(source='user.profile.firstName')
@@ -162,6 +165,8 @@ class OrgMemberDetailSerializer(serializers.ModelSerializer):
             'joined',
             'snapshot',
             'snapshotDate',
+            'numArticlesRead30',
+            'cmeRedeemed30',
             'setPasswordEmailSent',
             'created',
             'modified',

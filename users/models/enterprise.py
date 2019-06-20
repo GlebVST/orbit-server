@@ -246,6 +246,9 @@ class OrgMember(models.Model):
             help_text='Timestamp of the snapshot generation')
     numArticlesRead30 = models.PositiveIntegerField(default=0, blank=True,
             help_text='Number of articles read over the past 30 days. This is computed by a managment command.')
+    cmeRedeemed30 = models.DecimalField(max_digits=6, decimal_places=2,
+            default=0, blank=True,
+            help_text='Sum of Orbit-CME credits redeemed over the past 30 days. This is computed by a managment command.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = OrgMemberManager()

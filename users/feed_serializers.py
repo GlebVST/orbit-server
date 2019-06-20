@@ -111,23 +111,6 @@ class BRCmeSubSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-# intended to be used by SerializerMethodField on EntrySerializer
-class StoryCmeSubSerializer(serializers.ModelSerializer):
-    story = serializers.PrimaryKeyRelatedField(read_only=True)
-    credits = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=False, read_only=True)
-    url = serializers.ReadOnlyField()
-    title = serializers.ReadOnlyField()
-
-    class Meta:
-        model = StoryCme
-        fields = (
-            'story',
-            'credits',
-            'url',
-            'title'
-        )
-
-
 
 class CreateSRCmeOutSerializer(serializers.ModelSerializer):
     """Serializer for the response returned for create srcme entry"""
@@ -181,8 +164,6 @@ class EntryReadSerializer(serializers.ModelSerializer):
             s = BRCmeSubSerializer(obj.brcme)
         elif etype == ENTRYTYPE_SRCME:
             s = SRCmeSubSerializer(obj.srcme)
-        elif etype == ENTRYTYPE_STORY_CME:
-            s = StoryCmeSubSerializer(obj.storycme)
         else:
             s = NotificationSubSerializer(obj.notification)
         return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>

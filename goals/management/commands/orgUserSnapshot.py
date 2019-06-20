@@ -57,8 +57,8 @@ class Command(BaseCommand):
                 m.snapshot = userdata
                 m.snapshotDate = now
                 # compute articles read over time window
-                m.numArticlesRead30 = OrbitCmeOffer.objects.sumArticlesRead(m.user, minStartDate, maxEndDate)
-                m.save(update_fields=('numArticlesRead30', 'snapshot', 'snapshotDate'))
+                m.numArticlesRead30, m.cmeRedeemed30 = OrbitCmeOffer.objects.sumArticlesRead(m.user, minStartDate, maxEndDate)
+                m.save(update_fields=('numArticlesRead30', 'cmeRedeemed30', 'snapshot', 'snapshotDate'))
                 udata = userdata[None] # counting over all states
                 total_cme_gap_expired += udata['expired'][CME_GAP]
                 total_licenses_expired += udata['expired'][LICENSES]

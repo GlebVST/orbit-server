@@ -174,7 +174,7 @@ class OrgFileAdmin(admin.ModelAdmin):
         return HttpResponseRedirect(url)
 
 class OrgMemberAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'group', 'user', 'fullname', 'compliance', 'is_admin', 'created', 'pending', 'removeDate')
+    list_display = ('id', 'organization', 'group', 'user', 'fullname', 'is_admin', 'pending', 'numArticlesRead30', 'removeDate')
     list_select_related = True
     list_filter = ('is_admin', 'pending', 'setPasswordEmailSent', 'organization', UserFilter)
     raw_id_fields = ('orgfiles',)
