@@ -364,10 +364,7 @@ class OrgMemberUpdate(generics.UpdateAPIView):
             profile = instance.user.profile
             profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data, partial=self.partial)
             profileUpdateSerializer.is_valid(raise_exception=True)
-            profile = profileUpdateSerializer.save()
-            # emit profile_saved signal for non admin users
-            if profile.allowUserGoals() and not instance.is_admin:
-                ret = profile_saved.send(sender=profile.__class__, user_id=instance.user.pk)
+            profile = profileUpdateSerializer.save() # emails profile_saved signal
         return instance
 
     def update(self, request, *args, **kwargs):

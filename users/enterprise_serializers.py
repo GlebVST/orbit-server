@@ -192,11 +192,11 @@ class OrgMemberFormSerializer(serializers.Serializer):
         queryset=OrgGroup.objects.all(),
         allow_null=True
     )
-    is_admin = serializers.BooleanField(required=False, default=False)
+    is_admin = serializers.BooleanField()
     password_ticket = serializers.BooleanField(required=False, default=True)
     firstName = serializers.CharField(max_length=30)
     lastName = serializers.CharField(max_length=30)
-    npiNumber = serializers.CharField(max_length=20, required=False)
+    npiNumber = serializers.CharField(max_length=20, allow_blank=True)
     email = serializers.EmailField()
     birthDate = serializers.DateField(required=False, allow_null=True)
     residencyEndDate = serializers.DateField(required=False, allow_null=True)
@@ -358,9 +358,14 @@ class OrgMemberFormSerializer(serializers.Serializer):
             if is_admin:
                 user.groups.add(ga)
                 user.groups.remove(gm)
+                logger.info('UpdateOrgMember: switch user {0.pk}|{0} from provider to admin'.format(user))
+                ugs = user.usergoals.all()
+                if ugs.exists():
+                    ugs.delete()
             else:
                 user.groups.remove(ga)
                 user.groups.add(gm)
+                logger.info('UpdateOrgMember: switch user {0.pk}|{0} from admin to provider.'.format(user))
         instance.save()
         return instance
 
