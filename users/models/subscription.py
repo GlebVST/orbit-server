@@ -905,6 +905,9 @@ class UserSubscriptionManager(models.Manager):
             boost_credits = userCredits.boost_credits
         if user_subs:
             qset, is_brcme_month_limit = self.getPermissions(user_subs) # Permission queryset
+            if boost_credits > 0:
+                # positive Boost always override a speed limit
+                is_brcme_month_limit = False
             allowed_codes.extend([p.codename for p in qset])
             if remaining_credits <= 0 or is_brcme_month_limit:
                 # if reached cme credit limit or at monthly speed limit, disallow post of brcme (e.g. disallow redeem offer)
