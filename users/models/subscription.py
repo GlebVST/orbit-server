@@ -2200,7 +2200,7 @@ class CmeBoostPurchaseManager(models.Manager):
             return
         # Execute Braintree API method for sale: https://developers.braintreepayments.com/reference/request/transaction/sale/python
         result = braintree.Transaction.sale({
-            "amount": boost.price,
+            "amount": boost.price * boost.credits,
             "payment_method_token": payment_token,
             "options": {
                 "submit_for_settlement": True
