@@ -272,8 +272,9 @@ def sendAfflConsolationEmail(affl, start_monyear):
     if not addressee:
         addressee = 'Greetings'
     subject = makeSubject("{0}, here's your Orbit Associate Program statement for {1}".format(addressee, start_monyear))
-    subject_with_icon = "{0} {1}".format(ROCKET_ICON, subject)
-    encoded_subject = subject_with_icon.encode('utf-8')
+    encoded_subject = subject
+    #subject_with_icon = "{0} {1}".format(ROCKET_ICON, subject)
+    #encoded_subject = subject_with_icon.encode('utf-8') # do we need this in py3?
     #print(encoded_subject)
     # get affiliateId(s) for this Affiliate
     data = AffiliateDetail.objects.filter(affiliate=affl).values('affiliateId').order_by('affiliateId')
@@ -587,8 +588,7 @@ def sendJoinTeamEmail(user, org, send_message=True):
 
 def makeCsvForAttachment(fieldnames, data):
     """"Return object to be used as attachment for EmailMessage"""
-    #output = io.StringIO() # TODO: use in py3
-    output = io.BytesIO()
+    output = StringIO()
     writer = csv.DictWriter(output, delimiter=',', fieldnames=fieldnames)
     writer.writeheader()
     for row in data:

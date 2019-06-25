@@ -1,6 +1,6 @@
 import logging
 import csv
-from cStringIO import StringIO
+from io import StringIO
 from dateutil.parser import parse as dparse
 from django.db import transaction
 from django.db.models import Subquery

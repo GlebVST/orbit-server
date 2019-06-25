@@ -1,5 +1,5 @@
 from __future__ import unicode_literals
-from cStringIO import StringIO
+from io import StringIO
 from hashids import Hashids
 import os
 import hashlib

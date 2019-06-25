@@ -32,8 +32,6 @@ django-storages==1.7.1
 djangorestframework==3.8.2
 docutils==0.14
 enum34==1.1.6
-functools32==3.2.3.post2
-futures==3.2.0
 fuzzywuzzy==0.17.0
 hashids==1.2.0
 idna==2.7
@@ -60,8 +58,7 @@ prompt-toolkit==1.0.15
 psycopg2==2.7.4
 ptyprocess==0.6.0
 pycparser==2.18
-Pygments==2.2.0
-pygraphviz==1.5
+Pygments==2.4.2
 pyparsing==2.2.0
 PyPDF2==1.26.0
 python-dateutil==2.8.0
@@ -76,7 +73,6 @@ scandir==1.9.0
 simplegeneric==0.8.1
 simplejson==3.13.2
 six==1.11.0
-subprocess32==3.2.7
 traitlets==4.3.2
 typing==3.6.4
 uritemplate==3.0.0

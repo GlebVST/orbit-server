@@ -1,7 +1,7 @@
 import coreapi
 from datetime import datetime
 import logging
-from urlparse import urlparse
+from urllib.parse import urlparse
 from smtplib import SMTPException
 from django.conf import settings
 from django.core.mail import EmailMessage
