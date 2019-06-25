@@ -2,6 +2,7 @@ import logging
 import coreapi
 import premailer
 from io import StringIO
+import simplejson as json
 from smtplib import SMTPException
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -9,7 +10,6 @@ from django.core.mail import EmailMessage
 from django.template.loader import get_template
 from rest_framework.filters import BaseFilterBackend
 from rest_framework import generics, permissions, status
-from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
@@ -597,11 +597,13 @@ class CreateAuditReport(CertificateMixin, APIView):
         """
         user = profile.user
         reportName = profile.getFullNameAndDegree()
+        profile_specs = [ps.name for ps in profile.specialties.all()]
         # report_data: JSON used by the UI to generate the HTML report
         report_data = {
             'saCredits': saCmeTotal,
             'otherCredits': otherCmeTotal,
-            'dataByTag': auditData
+            'dataByTag': auditData,
+            'profileSpecialties': profile_specs
         }
         # create AuditReport instance
         report = AuditReport(
@@ -611,7 +613,7 @@ class CreateAuditReport(CertificateMixin, APIView):
             endDate = enddt,
             saCredits = saCmeTotal,
             otherCredits = otherCmeTotal,
-            data=JSONRenderer().render(report_data)
+            data=json.dumps(report_data)
         )
         report.save()
         hashgen = Hashids(salt=settings.REPORT_HASHIDS_SALT, min_length=10)

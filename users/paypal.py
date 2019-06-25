@@ -1,6 +1,6 @@
 import logging
 import requests
-import json
+import simplejson as json
 from datetime import timedelta
 from pprint import pprint
 from django.utils import timezone
