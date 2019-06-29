@@ -1,7 +1,7 @@
 import copy
 import os
 import string
-import StringIO
+import io
 import logging
 from glob import glob
 
@@ -47,7 +47,7 @@ class BaseCertificate(object):
         """
         self.certificate = certificate
         # overlayBuffer is overlaid on the template certificate.
-        self.overlayBuffer = StringIO.StringIO()
+        self.overlayBuffer = io.BytesIO()
         self.tplfileName = None
         # common styles
         addMapping('OpenSans-Light', 0, 0, 'OpenSans-Light')
@@ -66,7 +66,7 @@ class BaseCertificate(object):
     """
         tplfilePath = os.path.join(settings.PDF_TEMPLATES_DIR, self.tplfileName)
         blankfilePath = os.path.join(settings.PDF_TEMPLATES_DIR, BLANK_FILE)
-        output = StringIO.StringIO()
+        output = io.BytesIO()
         try:
             overlayReader = PdfFileReader(self.overlayBuffer, strict=False)
             with open(tplfilePath, 'rb') as f_tpl, open(blankfilePath, 'rb') as f_blank:

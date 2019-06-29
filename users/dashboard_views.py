@@ -2,6 +2,7 @@ import calendar
 from datetime import datetime
 from hashids import Hashids
 import logging
+import simplejson as json
 from operator import itemgetter
 import pytz
 from django.conf import settings
@@ -9,7 +10,6 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from rest_framework import generics, exceptions, permissions, status, serializers
-from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
@@ -521,7 +521,7 @@ class AuditReportMixin(CertificateMixin):
             endDate = enddt,
             saCredits = saCmeTotal,
             otherCredits = otherCmeTotal,
-            data=JSONRenderer().render(report_data)
+            data=json.dumps(report_data)
         )
         report.save()
         hashgen = Hashids(salt=settings.REPORT_HASHIDS_SALT, min_length=10)

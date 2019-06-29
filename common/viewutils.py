@@ -1,7 +1,7 @@
 """Common utility functions"""
 import hashlib
 import uuid
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 
 def getUrlLastPart(url):

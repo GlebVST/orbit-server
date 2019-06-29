@@ -7,7 +7,7 @@ from datetime import datetime
 from dateutil.relativedelta import *
 import pytz
 import random
-from urlparse import urlparse
+from urllib.parse import urlparse
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import JSONField

@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 import pytz
 import hashlib
 import inspect
-import requests, json
+import requests
+import simplejson as json
 from django.conf import settings
 from users.models import (
         ARTICLE_CREDIT,

@@ -1,6 +1,5 @@
 from datetime import timedelta
 from decimal import Decimal
-from cStringIO import StringIO
 from hashids import Hashids
 import os
 import braintree

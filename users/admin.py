@@ -16,7 +16,7 @@ from django.http import HttpResponseRedirect
 from django.conf.urls import url
 from django.contrib import messages
 from users.csv_tools import ProviderCsvImport
-from cStringIO import StringIO
+from io import StringIO
 
 class AuthImpersonationForm(forms.ModelForm):
     class Meta:

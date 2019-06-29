@@ -1,6 +1,6 @@
 import logging
 import csv
-import StringIO
+from io import StringIO
 from datetime import datetime, timedelta
 import io
 import pytz
@@ -313,7 +313,7 @@ class Command(BaseCommand):
             qset: BrowserCme queryset for a specific date range based on now timestamp
         Returns: stats in csv format
         """
-        csvfile = StringIO.StringIO()
+        csvfile = StringIO()
         wr = csv.writer(csvfile)
 
         startReportDate = ctx['startDate']
@@ -517,8 +517,7 @@ class Command(BaseCommand):
             d['Article/Website Consulted'] = m.url
             results.append(d)
         # write results to file
-        #output = io.StringIO() # TODO: use in py3
-        output = io.BytesIO()
+        output = StringIO()
         writer = csv.DictWriter(output, delimiter=',', fieldnames=outputFields)
         writer.writeheader()
         for row in results:

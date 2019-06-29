@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 import logging
 import csv
 from time import sleep
-from cStringIO import StringIO
+from io import StringIO
 from dateutil.parser import parse as dparse
 from smtplib import SMTPException
 from django.core import mail

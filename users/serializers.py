@@ -1,5 +1,5 @@
 import logging
-from urlparse import urlparse, urldefrag
+from urllib.parse import urlparse, urldefrag
 from rest_framework import serializers
 from common.appconstants import GROUP_ENTERPRISE_MEMBER
 from common.signals import profile_saved

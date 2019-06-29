@@ -1,5 +1,5 @@
 from __future__ import unicode_literals
-from cStringIO import StringIO
+import io
 from hashids import Hashids
 import os
 import hashlib
@@ -72,7 +72,7 @@ class UploadDocumentSerializer(serializers.Serializer):
                     im.thumbnail((thumb_size, thumb_size), Image.ANTIALIAS)
                     mime = mimetypes.guess_type(fileName)
                     plain_ext = mime[0].split('/')[1]
-                    memory_file = StringIO()
+                    memory_file = io.BytesIO()
                     # save thumb to memory_file
                     im.save(memory_file, plain_ext, quality=90)
                     # calculate md5sum of thumb
