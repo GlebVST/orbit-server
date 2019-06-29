@@ -6,7 +6,7 @@ There are two apps in Orbit Server, each with it's own database structure (model
 
 ## Installation
 
-To run this project, first make sure you have python2.7, python-dev, pip, and virtualenv on your machine. 
+To run this project, first make sure you have python3, python3-dev, and pip on your machine. 
 
 Note to setup project on Mac OSx additional step is installing graphviz via `brew install graphviz` prior to other deps.
 

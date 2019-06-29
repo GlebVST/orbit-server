@@ -376,11 +376,16 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
         Returns: UserGoal instance
         """
         license = instance
-        usergoal = license.usergoals.exclude(status=UserGoal.EXPIRED).order_by('-dueDate')[0]
         licenseNumber = validated_data.get('licenseNumber', license.licenseNumber)
         expireDate = validated_data.get('expireDate', license.expireDate)
         if expireDate:
             expireDate = expireDate.replace(hour=12)
+        # get the license usergoal for this license
+        lgt = GoalType.objects.get(name=GoalType.LICENSE)
+        usergoal = license.usergoals.select_related('goal__goalType') \
+            .filter(goal__goalType=lgt) \
+            .exclude(status=UserGoal.EXPIRED) \
+            .order_by('-dueDate')[0]
         renewLicense = False
         # Decide if renew license or edit in-place (e.g. correction)
         if license.isUnInitialized():
@@ -474,7 +479,7 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
             lt = license.licenseType
             state = license.state
             logger.info('Inactivate {0}'.format(license))
-            license.inactivate(now, validated_data['modifiedBy'])
+            license.inactivate(now, self.validated_data['modifiedBy'])
             licenses.append(license)
             if lt.name == LicenseType.TYPE_STATE:
                 stateSet.discard(state.pk)

@@ -1460,7 +1460,7 @@ class UserGoalManager(models.Manager):
             if basegoal.isOneOff() or basegoal.isRecurAny():
                 # singleton: only 1 usergoal should exist
                 continue
-            to_renew.append(cmeGoal)
+            to_renew.append(ug)
         newDueDate = newLicense.expireDate
         usergoals = []
         for ug in to_renew:
