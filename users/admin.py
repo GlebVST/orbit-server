@@ -11,7 +11,7 @@ from common.ac_filters import UserFilter, StateFilter, AllowedUrlFilter
 from common.dateutils import fmtLocalDatetime
 from .models import *
 from django.utils.html import format_html
-from django.core.urlresolvers import reverse
+from django.urls import reverse, NoReverseMatch
 from django.http import HttpResponseRedirect
 from django.conf.urls import url
 from django.contrib import messages
@@ -182,6 +182,26 @@ class OrgMemberAdmin(admin.ModelAdmin):
 
     class Media:
         pass
+
+class OrgReportForm(forms.ModelForm):
+    class Meta:
+        model = OrgReport
+        fields = ('name','description','resource','active')
+
+    def clean(self):
+        """Check that resource name can be properly reversed into a url"""
+        cleaned_data = super(OrgReportForm, self).clean()
+        if cleaned_data['resource']:
+            try:
+                url = reverse(cleaned_data['resource'])
+            except NoReverseMatch:
+                self.add_error('resource', 'Invalid endpoint name. Could not reverse to actual endpoint url. Check urls.py')
+
+class OrgReportAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'description', 'resource', 'last_generated', 'active', 'created')
+    ordering = ('id',)
+    form = OrgReportForm
+
 
 class CmeTagAdmin(admin.ModelAdmin):
     list_display = ('id', 'priority', 'name', 'description', 'srcme_only', 'instructions')
@@ -733,6 +753,7 @@ admin_site.register(Organization, OrgAdmin)
 admin_site.register(OrgAgg, OrgAggAdmin)
 admin_site.register(OrgFile, OrgFileAdmin)
 admin_site.register(OrgMember, OrgMemberAdmin)
+admin_site.register(OrgReport, OrgReportAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin_site.register(ResidencyProgram, ResidencyProgramAdmin)

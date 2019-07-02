@@ -10,6 +10,7 @@ from smtplib import SMTPException
 from django.conf import settings
 from django.contrib.auth.models import User, Group
 from django.utils import timezone
+from django.urls import reverse
 from rest_framework import serializers
 from common.viewutils import newUuid, md5_uploaded_file
 from common.appconstants import GROUP_ENTERPRISE_ADMIN, GROUP_ENTERPRISE_MEMBER
@@ -19,6 +20,26 @@ from .emailutils import sendPasswordTicketEmail
 from .serializers import NestedHospitalSerializer, NestedResidencySerializer
 
 logger = logging.getLogger('gen.esrl')
+
+class OrgReportReadSerializer(serializers.ModelSerializer):
+    endpoint = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrgReport
+        fields = (
+            'id',
+            'name',
+            'description',
+            'last_generated',
+            'endpoint'
+        )
+        read_only_fields = fields
+
+    def get_endpoint(self, obj):
+        try:
+            return reverse(obj.resource)
+        except NoReverseMatch:
+            return ''
 
 class OrgGroupSerializer(serializers.ModelSerializer):
     name = serializers.CharField(max_length=100)

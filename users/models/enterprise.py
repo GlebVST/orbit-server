@@ -39,6 +39,13 @@ class OrgFileManager(models.Manager):
 
 @python_2_unicode_compatible
 class OrgFile(models.Model):
+    DEA = 'DEA'
+    STATE_LICENSE = 'State License'
+    FILE_TYPE_CHOICES = (
+        (STATE_LICENSE, STATE_LICENSE),
+        (DEA, DEA),
+    )
+    # fields
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         related_name='orgfiles',
@@ -54,6 +61,9 @@ class OrgFile(models.Model):
     csvfile = models.FileField(null=True, blank=True, upload_to=orgfile_document_path,
             help_text='If original document is not in plain-text CSV, then upload converted file here')
     name = models.CharField(max_length=255, blank=True, help_text='document file name')
+    file_type = models.CharField(max_length=30, blank=True,
+            choices = FILE_TYPE_CHOICES,
+            help_text='file type')
     content_type = models.CharField(max_length=100, blank=True, help_text='document content_type')
     processed = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
@@ -351,3 +361,20 @@ class OrgAgg(models.Model):
 
     def __str__(self):
         return "{0.organization.code}|{0.day}|invited:{0.users_invited}|active:{0.users_active}|removed:{0.users_inactive}".format(self)
+
+# list of available reports for orgadmins to download
+# Some reports are dynamically generated (last_generated date is null).
+class OrgReport(models.Model):
+    name = models.CharField(max_length=60, unique=True, help_text='report name')
+    description = models.CharField(max_length=255, blank=True, help_text='description')
+    resource = models.CharField(max_length=255, blank=True, help_text='resource name - must match an endpoint name in urls.py. The actual url will be reversed from the name')
+    last_generated = models.DateTimeField(null=True, blank=True,
+            help_text='Date of report last generation')
+    active = models.BooleanField(default=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Enterprise Report'
+
+    def __str__(self):
+        return self.name

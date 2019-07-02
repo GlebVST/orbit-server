@@ -51,6 +51,13 @@ class LogValidationErrorMixin(object):
         return response
 
 
+class OrgReportList(generics.ListAPIView):
+    serializer_class = OrgReportReadSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        return OrgReport.objects.filter(active=True).order_by('name')
+
 # OrgGroup (Enterprise Practice Divisions)
 class OrgGroupList(LogValidationErrorMixin, generics.ListCreateAPIView):
     serializer_class = OrgGroupSerializer
