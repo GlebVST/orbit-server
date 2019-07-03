@@ -31,7 +31,6 @@
         <p>Your {{ boost_purchase.card_type }} card ending in {{ boost_purchase.card_last4 }} will be charged  ${{ boost_purchase.amount }}.</p>
         <p>Transaction ID: {{ boost_purchase.transactionId }} created on {{ boost_purchase.created|date:"r" }}.</p>
         {% include "email/mailto_support_snippet.html" %}
-        {% include "email/founder_signature.html" %}
         {% include "email/basic_footer.html" %}
     </div>
     </body>
