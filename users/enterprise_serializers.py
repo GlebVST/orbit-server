@@ -393,6 +393,8 @@ class OrgMemberFormSerializer(serializers.Serializer):
 class OrgFileReadSerializer(serializers.ModelSerializer):
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
+    firstName = serializers.ReadOnlyField(source='user.profile.firstName')
+    lastName = serializers.ReadOnlyField(source='user.profile.lastName')
     #url = serializers.FileField(source='document', max_length=None, allow_empty_file=False, use_url=True)
 
     class Meta:
@@ -401,6 +403,8 @@ class OrgFileReadSerializer(serializers.ModelSerializer):
             'id',
             'organization',
             'user',
+            'firstName',
+            'lastName',
             'name',
             #'url',
             'file_type',
