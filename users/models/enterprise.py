@@ -39,9 +39,11 @@ class OrgFileManager(models.Manager):
 
 @python_2_unicode_compatible
 class OrgFile(models.Model):
+    NEW_PROVIDER = 'New Provider'
     DEA = 'DEA'
     STATE_LICENSE = 'State License'
     FILE_TYPE_CHOICES = (
+        (NEW_PROVIDER, NEW_PROVIDER),
         (STATE_LICENSE, STATE_LICENSE),
         (DEA, DEA),
     )

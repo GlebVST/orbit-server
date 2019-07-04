@@ -517,8 +517,8 @@ class Profile(models.Model):
             blank=True,
             related_name='profiles')
     degrees = models.ManyToManyField(Degree, blank=True) # called primaryrole in UI
-    specialties = models.ManyToManyField(PracticeSpecialty, blank=True)
-    subspecialties = models.ManyToManyField(SubSpecialty, blank=True)
+    specialties = models.ManyToManyField(PracticeSpecialty, blank=True, related_name='profiles')
+    subspecialties = models.ManyToManyField(SubSpecialty, blank=True, related_name='profiles')
     states = models.ManyToManyField(State, blank=True, related_name='profiles')
     hasDEA = models.PositiveSmallIntegerField(
         null=True,

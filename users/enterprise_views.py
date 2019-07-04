@@ -31,7 +31,7 @@ from .auth0_tools import Auth0Api
 from .models import *
 from .enterprise_serializers import *
 from .serializers import ProfileReadSerializer, ProfileUpdateSerializer, UserSubsReadSerializer
-from .upload_serializers import UploadOrgFileSerializer
+from .upload_serializers import UploadRosterFileSerializer
 from .permissions import *
 from .emailutils import makeSubject, sendJoinTeamEmail
 from .dashboard_views import AuditReportMixin
@@ -58,13 +58,25 @@ class OrgReportList(generics.ListAPIView):
     def get_queryset(self):
         return OrgReport.objects.filter(active=True).order_by('name')
 
+class OrgFileListPagination(PageNumberPagination):
+    page_size = 10
+
+class OrgFileList(generics.ListAPIView):
+    serializer_class = OrgFileReadSerializer
+    pagination_class = OrgFileListPagination
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        req_user = self.request.user # OrgMember user with is_admin=True
+        return OrgFile.objects.filter(organization=req_user.profile.organization).order_by('-created')
+
 # OrgGroup (Enterprise Practice Divisions)
 class OrgGroupList(LogValidationErrorMixin, generics.ListCreateAPIView):
     serializer_class = OrgGroupSerializer
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
     def get_queryset(self):
-        """Return only the groups belonging to the same Org as the request.user"""
+        """Return only the files belonging to the same Org as request.user"""
         return OrgGroup.objects.filter(organization=self.request.user.profile.organization).order_by('name')
 
     def perform_create(self, serializer):
@@ -390,7 +402,7 @@ class OrgMemberUpdate(generics.UpdateAPIView):
 
 
 class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
-    serializer_class = UploadOrgFileSerializer
+    serializer_class = UploadRosterFileSerializer
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
     parser_classes = (FormParser, MultiPartParser)
 

@@ -117,7 +117,7 @@ class UploadDocumentSerializer(serializers.Serializer):
             thumb_instance.save(update_fields=('referenceId',))
         return instance
 
-class UploadOrgFileSerializer(serializers.Serializer):
+class UploadRosterFileSerializer(serializers.Serializer):
     document = serializers.FileField(max_length=None, allow_empty_file=False)
     name = serializers.CharField(max_length=255, required=False)
 
@@ -128,7 +128,7 @@ class UploadOrgFileSerializer(serializers.Serializer):
         )
 
     def create(self, validated_data):
-        """Create OrgFile instance.
+        """Create OrgFile instance for file_type=NEW_PROVIDER.
         Extra keys expected in validated_data:
             user: User instance
             organization: Organization instance
@@ -142,7 +142,7 @@ class UploadOrgFileSerializer(serializers.Serializer):
         if not fileName:
             fileName = defaultFileName
         try:
-            logger.debug('UploadOrgFile filename: {0}'.format(fileName))
+            logger.debug('UploadRosterFile filename: {0}'.format(fileName))
         except UnicodeDecodeError:
             fileName = defaultFileName
         instance = OrgFile.objects.create(
@@ -150,6 +150,7 @@ class UploadOrgFileSerializer(serializers.Serializer):
                 organization=org,
                 document=newDoc,
                 name=fileName,
+                file_type=OrgFile.NEW_PROVIDER,
                 content_type=newDoc.content_type
             )
         return instance
