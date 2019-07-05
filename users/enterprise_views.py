@@ -479,8 +479,8 @@ class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
         form_data = {'id': orgfile.pk}
         ser = LicenseFileTypeUpdateSerializer(orgfile, form_data, partial=False)
         ser.is_valid(raise_exception=True)
-        orgfile = ser.save(licenseUpdater=self.licenseUpdater) # set orgfile.file_type
-        logInfo(logger, request, 'OrgFile {0.pk} file_type: {0.file_type}'.format(orgfile))
+        instance = ser.save(licenseUpdater=self.licenseUpdater) # set orgfile.file_type
+        logInfo(logger, request, 'OrgFile {0.pk} file_type: {0.file_type}'.format(instance))
         # validate file
         parseErrors = []
         result = dict(num_new=0, num_upd=0, num_error=0, num_no_action=0)
@@ -490,6 +490,7 @@ class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
                 self.licenseUpdater.validateUsers()
                 result = self.licenseUpdater.preprocessData() # dict(num_new, num_upd, num_no_action, num_error)
         context = {
+            'id': instance.pk,
             'file_type': instance.file_type,
             'file_providers': {
                 'active': len(self.licenseUpdater.profileDict),
