@@ -154,3 +154,41 @@ class UploadRosterFileSerializer(serializers.Serializer):
                 content_type=newDoc.content_type
             )
         return instance
+
+class UploadLicenseFileSerializer(serializers.Serializer):
+    document = serializers.FileField(max_length=None, allow_empty_file=False)
+    name = serializers.CharField(max_length=255, required=False)
+
+    class Meta:
+        fields = (
+            'document',
+            'name',
+        )
+
+    def create(self, validated_data):
+        """Create OrgFile instance with empty (to-be-determined) file_type.
+        Extra keys expected in validated_data:
+            user: User instance
+            organization: Organization instance
+        """
+        user = validated_data['user']
+        org = validated_data['organization']
+        newDoc = validated_data['document'] # UploadedFile (or subclass)
+        now = timezone.now()
+        fileName = validated_data.get('name', '')
+        defaultFileName = 'upload_{0:%Y%m%d%H%M%S}.csv'.format(now)
+        if not fileName:
+            fileName = defaultFileName
+        try:
+            logger.debug('UploadLicenseFile filename: {0}'.format(fileName))
+        except UnicodeDecodeError:
+            fileName = defaultFileName
+        instance = OrgFile.objects.create(
+                user=user,
+                organization=org,
+                document=newDoc,
+                name=fileName,
+                file_type='',
+                content_type=newDoc.content_type
+            )
+        return instance

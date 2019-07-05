@@ -31,10 +31,11 @@ from .auth0_tools import Auth0Api
 from .models import *
 from .enterprise_serializers import *
 from .serializers import ProfileReadSerializer, ProfileUpdateSerializer, UserSubsReadSerializer
-from .upload_serializers import UploadRosterFileSerializer
+from .upload_serializers import UploadRosterFileSerializer, UploadLicenseFileSerializer
 from .permissions import *
 from .emailutils import makeSubject, sendJoinTeamEmail
 from .dashboard_views import AuditReportMixin
+from .license_tools import LicenseUpdater
 from goals.serializers import UserLicenseGoalSummarySerializer
 from goals.models import UserGoal
 
@@ -447,6 +448,65 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
         out_serializer = OrgFileReadSerializer(instance)
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
+
+# This handles upload of StateLicense/DEA file for existing users
+# It determines the file_type (either DEA or STATE_LICENSE) and validates the file
+class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
+    serializer_class = UploadLicenseFileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    parser_classes = (FormParser, MultiPartParser)
+
+    def perform_create(self, serializer, format=None):
+        """Create OrgFile instance and pre-process file to check for errors"""
+        user = self.request.user
+        org = user.profile.organization
+        instance = serializer.save(user=user, organization=org)
+        try:
+            fileData = instance.document.read()
+        except Exception as e:
+            logException(logger, self.request, 'UploadLicense readFile Exception: {0}'.format(e))
+            raise serializers.ValidationError('UploadLicense readFile Exception')
+        else:
+            return instance
+
+    def create(self, request, *args, **kwargs):
+        """Override method to handle custom input/output data structures"""
+        in_serializer = self.get_serializer(data=request.data)
+        in_serializer.is_valid(raise_exception=True)
+        orgfile = self.perform_create(in_serializer)
+        # determine file_type
+        self.licenseUpdater = LicenseUpdater(orgfile.organization, orgfile.user, dry_run=True)
+        form_data = {'id': orgfile.pk}
+        ser = LicenseFileTypeUpdateSerializer(orgfile, form_data, partial=False)
+        ser.is_valid(raise_exception=True)
+        orgfile = ser.save(licenseUpdater=self.licenseUpdater) # set orgfile.file_type
+        logInfo(logger, request, 'OrgFile {0.pk} file_type: {0.file_type}'.format(orgfile))
+        # validate file
+        parseErrors = []
+        result = dict(num_new=0, num_upd=0, num_error=0, num_no_action=0)
+        if instance.isValidFileTypeForUpdate():
+            parseErrors = self.licenseUpdater.extractData()
+            if self.licenseUpdater.data and not parseErrors:
+                self.licenseUpdater.validateUsers()
+                result = self.licenseUpdater.preprocessData() # dict(num_new, num_upd, num_no_action, num_error)
+        context = {
+            'file_type': instance.file_type,
+            'file_providers': {
+                'active': len(self.licenseUpdater.profileDict),
+                'unrecognized': len(self.licenseUpdater.userValidationDict['unrecognized']),
+                'inactive': len(self.licenseUpdater.userValidationDict['inactive']),
+                'nonmember': len(self.licenseUpdater.userValidationDict['nonmember']),
+            },
+            'file_licenses': {
+                'num_existing': result['num_no_action'],
+                'num_new': result['num_new'],
+                'num_update': result['num_upd'],
+                'num_error': result['num_error'],
+                'errors': self.licenseUpdater.preprocessErrors,
+                'parseErrors': parseErrors
+            }
+        }
+        return Response(context, status=status.HTTP_201_CREATED)
 
 class OrgMembersEmailInvite(APIView):
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]

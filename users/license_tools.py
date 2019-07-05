@@ -5,7 +5,7 @@ from dateutil.parser import parse as dparse
 from django.db import transaction
 from django.db.models import Subquery
 from users.models import *
-from goals.models import UserGoal
+from goals.models import GoalType, UserGoal
 from goals.serializers import UserLicenseCreateSerializer, UserLicenseGoalUpdateSerializer
 
 logger = logging.getLogger('gen.updsl')
@@ -29,49 +29,166 @@ DEA_LICENSE_FIELD_NAMES = (
 
 class LicenseUpdater:
     """Handles updating State or DEA licenses from file"""
-    FILE_TYPE_STATE = 'state'
-    FILE_TYPE_DEA = 'dea'
     LICENSE_EXISTS = 'license_exists'
     CREATE_NEW_LICENSE = 'create_new_license'
     CREATE_NEW_LICENSE_NO_UG = 'create_new_license_no_updatable_usergoal'
     UPDATE_LICENSE = 'update_license'
     EDIT_LICENSE_NUMBER= 'edit_license_number'
+    LICENSE_INTEGRITY_ERROR = 'license_integrity_error'
     FIELD_NAMES_MAP = {}
-    FIELD_NAMES_MAP[FILE_TYPE_DEA] = DEA_LICENSE_FIELD_NAMES
-    FIELD_NAMES_MAP[FILE_TYPE_STATE] = STATE_LICENSE_FIELD_NAMES
+    FIELD_NAMES_MAP[OrgFile.DEA] = DEA_LICENSE_FIELD_NAMES
+    FIELD_NAMES_MAP[OrgFile.STATE_LICENSE] = STATE_LICENSE_FIELD_NAMES
 
     def __init__(self, org, admin_user, dry_run=False):
         self.org = org
         self.admin_user = admin_user # used for modifiedBy
         self.dry_run = dry_run
+        self.fileType = None
         self.licenseGoalType = GoalType.objects.get(name=GoalType.LICENSE)
         self.lt_state = LicenseType.objects.get(name=LicenseType.TYPE_STATE)
         self.lt_dea = LicenseType.objects.get(name=LicenseType.TYPE_DEA)
+        self.data = []
         qset = State.objects.all()
         self.stateDict = {m.abbrev:m for m in qset}
         self.profileDict = {} # (NPI, firstName, lastName) => Profile instance
         self.licenseData = {} # userid => {(stateid, ltypeid, expireDate) => ACTION}
+        self.preprocessErrors = [] # error msgs from self.preprocessData
+        self.userValidationDict = dict(
+            unrecognized=set([]),
+            inactive=set([]),
+            nonmember=set([])
+            )
 
-    def validateUsers(self, data):
-        """Args:
-            data: list of dicts w. keys corresponding to actual model fields
-        Sets self.profileDict
-        Returns:dict {
-            inactive: list of inactive users in file,
-            nonmember: list of non-member users in file,
-            unrecognized: list of users for which Profile could not be identified from (NPI, firstName, lastName)
+    def determineFileType(self, src_file):
+        """Determine the fileType of the given file based on the column headers.
+        If it finds a match, it sets self.fileType.
+        Args:
+            src_file: Django UploadedFile object that contains csv data
+        Returns: None - for no match, or str: matched fileType
+        """
+        cls = self.__class__
+        f = StringIO(src_file.read().decode('utf-8'))
+        line = f.readline().strip()
+        L = line.split(',')
+        keys = set([key for key in L if key])
+        f.close()
+        src_file.close()
+        #print(keys)
+        self.fileType = None
+        self.src_file = None
+        for fileType in cls.FIELD_NAMES_MAP:
+            fieldNames = set(cls.FIELD_NAMES_MAP[fileType])
+            if fieldNames == keys:
+                self.fileType = fileType
+                self.src_file = src_file
+                break
+        return self.fileType
+
+    def mapRawDataToModelFields(self, raw_data):
+        """Iterate through each row in raw_data and create dict w. keys matching model fieldnames.
+        Returns: tuple (data: list of dicts, errors: list of error messages)
+        """
+        cls = self.__class__
+        if self.fileType == OrgFile.STATE_LICENSE:
+            stateKey = 'State of Issue'
+            licenseNumberKey = 'License Number'
+            ltype = self.lt_state
+        else:
+            stateKey = 'State'
+            licenseNumberKey = 'DEA Number'
+            ltype = self.lt_dea
+        #print('LicenseType: {0}'.format(ltype))
+        data = []
+        errors = []
+        for d in raw_data:
+            #print(d)
+            if not d['Last Name']:
+                continue
+            lastName = d['Last Name'].strip()
+            if not lastName:
+                msg = "Last Name cannot be blank. All fields are required."
+                errors.append(msg)
+                continue
+            licenseNumber = d[licenseNumberKey]
+            if ',' in licenseNumber:
+                msg = "License Number cannot contain comma: {0}".format(licenseNumber)
+                logger.warning(msg)
+                errors.append(msg)
+                continue
+            if '?' in licenseNumber:
+                msg = "License Number cannot contain question mark: {0}".format(licenseNumber)
+                logger.warning(msg)
+                errors.append(msg)
+                continue
+            try:
+                state = self.stateDict[d[stateKey].strip().upper()]
+            except KeyError:
+                msg = 'Invalid state: {0}'.format(d[stateKey])
+                logger.warning(msg)
+                errors.append(msg)
+                continue
+            try:
+                ed = dparse(d['Expiration Date'].strip())
+                expireDate = timezone.make_aware(ed)
+            except ValueError:
+                msg = 'Invalid date: {0}'.format(d['Expiration Date'])
+                logger.warning(msg)
+                errors.append(msg)
+                continue
+            # mapped dict
+            md = {
+                'npiNumber': d['NPI'].strip(),
+                'firstName': d['First Name'].strip(),
+                'lastName': lastName,
+                'state': state, # State instance
+                'licenseNumber': licenseNumber.strip(),
+                'licenseType': ltype,
+                'expireDate': expireDate
+            }
+            data.append(md)
+        return (data, errors)
+
+    def extractData(self):
+        """This should be called after determineFileType method is called.
+        It calls mapRawDataToModelFields and sets self.data
+        Returns: parseErrors - list of error messages encountered during extraction.
+        """
+        cls = self.__class__
+        fieldNames = cls.FIELD_NAMES_MAP[self.fileType]
+        self.src_file.open()
+        #print('src_file is readable: {0}'.format(self.src_file.readable()))
+        f = StringIO(self.src_file.read().decode('utf-8'))
+        reader = csv.DictReader(f,
+            fieldnames=fieldNames,
+            restkey='extra', dialect='excel')
+        all_data = [row for row in reader]
+        #print(all_data[0])
+        raw_data = all_data[1:]
+        # map data to model fields
+        data, errors = self.mapRawDataToModelFields(raw_data)
+        self.data = data
+        return errors
+
+    def validateUsers(self):
+        """This should be called after extractData sets self.data
+        Set self.profileDict, and initialize the userid keys in self.licenseData.
+        Set self.userValidationDict to: {
+            inactive: set of inactive users in file,
+            nonmember: set of non-member users in file,
+            unrecognized: set of users for which Profile could not be identified from (NPI, firstName, lastName)
             }
         """
         cls = self.__class__
         self.profileDict = {} # (NPI, firstName, lastName) => Profile instance
-        unrecognized = []
-        nonmember = []
-        inactive = []
+        self.licenseData = {}
+        unrecognized = set([])
+        nonmember = set([])
+        inactive =set([])
         orgmembersByUserid = dict()
         qs = self.org.orgmembers.filter(is_admin=False)
         for m in qs:
             orgmembersByUserid[m.user.pk] = m
-        for d in data:
+        for d in self.data:
             key = (d['npiNumber'], d['firstName'], d['lastName'])
             if key in self.profileDict:
                 continue
@@ -82,7 +199,8 @@ class LicenseUpdater:
             }
             qs = Profile.objects.filter(**fkwargs)
             if not qs.exists():
-                unrecognized.append(key)
+                unrecognized.add(key)
+                #print(key)
                 continue
             profile = qs[0]; user = profile.user
             # check org membership of user
@@ -90,51 +208,51 @@ class LicenseUpdater:
                 orgm = orgmembersByUserid[user.pk]
                 if orgm.removeDate:
                     # user was already removed
-                    inactive.append(key)
+                    inactive.add(key)
                 else:
                     # user is an active provider in this org
                     self.profileDict[key] = profile
                     self.licenseData[user.pk] = {}
             else:
-                nonmember.append(key)
-        return dict(
-            num_providers=len(self.profileDict),
+                nonmember.add(key)
+        self.userValidationDict = dict(
             unrecognized=unrecognized,
             inactive=inactive,
             nonmember=nonmember)
 
-    def preprocessData(self, ltype, data):
-        """Pre-process data to determine the action on each license
-        Args:
-            ltype: LicenseType instance (either State or DEA)
-            data: list of dicts w. keys corresponding to actual model fields
-        Sets self.licenseData: userid => {(expireDate, state.abbrev, ltype.name) => ACTION}
-        Returns: tuple (num_new, num_upd, num_no_action) for number of intended actions
+    def preprocessData(self):
+        """This should be called after validateUsers populates self.profileDict.
+        It pre-processes self.data to decide the intended action on each license
+        Set self.licenseData: userid => {(expireDate, state.abbrev, ltype.name) => ACTION}
+        Set self.preprocessErrors if it encounters license IntegrityErrors.
+        Returns: dict {num_new: int, num_upd: int, num_no_action: int, num_error}
         """
         cls = self.__class__
-        self.licenseData = {} # userid => {(expireDate, state.abbrev, ltype.name) => ACTION}
+        ltype = self.data[0]['licenseType']
         # query StateLicenses for users in org
-        subqs = Profile.objects.filter(organization=org)
+        profiles = Profile.objects.filter(organization=self.org)
         sls = StateLicense.objects \
             .filter(
                     licenseType=ltype,
                     is_active=True,
                     user__in=Subquery(profiles.values('pk'))) \
             .select_related('licenseType','state') \
-            .order_by('user','licenseType','state','-expireDate','-created')
-        slDict = {} # userid => (ltypeid, stateid) => [licenses]
+            .order_by('user','licenseType','state','licenseNumber', '-expireDate','-created')
+        slDict = {} # userid => (ltypeid, stateid, licenseNumber) => [licenses]
         for sl in sls:
-            if sl.user.pk not in slDict:
+            user = sl.user
+            if user.pk not in slDict:
                 slDict[user.pk] = {}
             userDict = slDict[user.pk]
-            key = (sl.licenseType.pk, sl.state.pk)
+            key = (sl.licenseType.pk, sl.state.pk, sl.licenseNumber)
             if key not in userDict:
                 userDict[key] = [sl]
             else:
                 userDict[key].append(sl)
         # check file rows against slDict & decide action on each row
-        num_new = 0; num_upd = 0; num_no_action = 0
-        for d in data:
+        num_new = 0; num_upd = 0; num_no_action = 0; num_error = 0
+        errors = []
+        for d in self.data:
             key = (d['npiNumber'], d['firstName'], d['lastName'])
             if key not in self.profileDict:
                 continue
@@ -142,27 +260,38 @@ class LicenseUpdater:
             user = profile.user
             lkey = (d['expireDate'], d['state'].abbrev, ltype.name)
             licenseActions = self.licenseData[user.pk] # dict to store intended action on lkey
-            userDict = slDict[user.pk] # user data from db
-            key = (ltype.pk, d['state'].pk)
+            userDict = slDict.get(user.pk, {}) # user data from db
+            key = (ltype.pk, d['state'].pk, d['licenseNumber'])
             if key not in userDict:
-                # brand-new license
-                licenseActions[lkey] = (cls.CREATE_NEW_LICENSE, None)
-                num_new += 1
+                # check uniq constraint on SL
+                ed = d['expireDate'].replace(hour=12)
+                slqs = user.statelicenses.filter(state=d['state'], licenseType=ltype, is_active=True, expireDate=ed)
+                if not slqs.exists():
+                    # brand-new license
+                    licenseActions[lkey] = (cls.CREATE_NEW_LICENSE, None)
+                    num_new += 1
+                else:
+                    # this license would raise integrity error on StateLicense model
+                    licenseActions[lkey] = (cls.LICENSE_INTEGRITY_ERROR, None)
+                    num_error += 1
+                    existing_sl = qs[0]
+                    logmsg = "IntegrityError for existing_sl: {0.pk}. lkey:{1} and licenseNumber:{2}.".format(existing_sl, lkey, d['licenseNumber'])
+                    logger.warning(logmsg)
+                    # msg for end user
+                    msg = "A {0.state.abbrev} {0.licenseType.name} license for {0.user} exists with a different licenseNumber: {0.licenseNumber}. Please re-verify the licenseNumber for this license."
+                    errors.append(msg)
                 continue
-            # get latest license for key (latest expireDate)
-            sl = userDict[key][0]
-            #print('Latest License: {0.pk}|{0.displayLabel)'.format(sl))
-            if sl.isDateMatch(d['expireDate']):
-                # expireDate matches
-                if sl.licenseNumber == d['licenseNumber']:
-                    # licenseNumber matches
+            is_match = False
+            for sl in userDict[key]:
+                if sl.isDateMatch(d['expireDate']):
+                    # expireDate matches
                     licenseActions[lkey] = (cls.LICENSE_EXISTS, sl)
                     num_no_action += 1
-                else:
-                    licenseActions[lkey] = (cls.EDIT_LICENSE_NUMBER, sl)
-                    num_upd += 1
+                    is_match = True
+                    break
+            if is_match:
                 continue
-            # expireDate from file does not match latest sl in db.
+            # expireDate from file does not match any sl in db for the same (ltype, state, licenseNumber).
             # is license attached to an updateable license usergoal
             ugs = sl.usergoals.filter(goal__goalType=self.licenseGoalType) \
                     .exclude(status=UserGoal.EXPIRED) \
@@ -175,19 +304,23 @@ class LicenseUpdater:
                 # renewal or edit-in-place
                 licenseActions[lkey] = (cls.UPDATE_LICENSE, sl)
                 num_upd += 1
-        return (num_new, num_upd, num_no_action)
+        self.preprocessErrors = errors
+        return dict(num_new=num_new, num_upd=num_upd, num_no_action=num_no_action, num_error=num_error)
 
-    def processData(self, ltype, data):
+    def processData(self):
         """This should be called after preprocessData. It handles the actions in self.licenseData and updates the db.
-        Args:
-            ltype: LicenseType instance (either State or DEA)
-            data: list of dicts w. keys corresponding to actual model fields
         If self.dry_run is set, it returns immediately.
+        If exception encountered in creating new license: append key of self.licenseData to self.create_errors.
+        If exception encountered in updating license: append key of self.licenseData to self.update_errors.
+        Returns: int - number of exceptions encountered
         """
         if self.dry_run:
-            return False
+            return 0
+        update_errors = []
+        create_errors = []
         cls = self.__class__
-        for d in data:
+        ltype = self.data[0]['licenseType']
+        for d in self.data:
             key = (d['npiNumber'], d['firstName'], d['lastName'])
             if key not in self.profileDict:
                 continue
@@ -198,6 +331,9 @@ class LicenseUpdater:
             action, sl = licenseActions[lkey] # (action, license instance)
             if action == cls.LICENSE_EXISTS:
                 continue
+            if action == cls.LICENSE_INTEGRITY_ERROR:
+                continue
+            #print("{0} for {1}".format(action, lkey))
             if action == cls.EDIT_LICENSE_NUMBER:
                 msg = 'Edit License Number of {0.pk}'.format(sl)
                 logger.info(msg)
@@ -206,22 +342,31 @@ class LicenseUpdater:
                 sl.save()
                 continue
             if action == cls.UPDATE_LICENSE:
-                msg = 'Update existing active License: {0.pk}'.format(sl)
-                logger.info(msg)
+                msg = 'Update existing active License for user {0.user}: {0} to expireDate:{1:%Y-%m-%d}'.format(sl, d['expireDate'])
+                #print(msg)
                 upd_form_data = {
                     'id': sl.pk,
                     'licenseNumber': d['licenseNumber'],
                     'expireDate': d['expireDate'],
                     'modifiedBy': self.admin_user.pk
                 }
-                serializer = UserLicenseGoalUpdateSerializer(
-                        instance=sl,
-                        data=upd_form_data
-                    )
-                with transaction.atomic():
-                    # execute UserLicenseGoalUpdateSerializer
-                    serializer.is_valid(raise_exception=True)
-                    usergoal = serializer.save() # renew or edit
+                try:
+                    serializer = UserLicenseGoalUpdateSerializer(
+                            instance=sl,
+                            data=upd_form_data
+                        )
+                    with transaction.atomic():
+                        # execute UserLicenseGoalUpdateSerializer
+                        serializer.is_valid(raise_exception=True)
+                        usergoal = serializer.save() # renew or edit
+                        logger.info(msg)
+                except Exception as e:
+                    logger.exception('Update active license exception')
+                    update_errors.append(lkey)
+                    continue
+                else:
+                    continue
+            if action not in (cls.CREATE_NEW_LICENSE, cls.CREATE_NEW_LICENSE_NO_UG):
                 continue
             # create new license case
             if action == cls.CREATE_NEW_LICENSE_NO_UG:
@@ -235,80 +380,24 @@ class LicenseUpdater:
                 'expireDate': d['expireDate'],
                 'modifiedBy': self.admin_user.pk
             }
-            serializer = UserLicenseCreateSerializer(data=form_data)
-            with transaction.atomic():
-                # create StateLicense, update profile
-                serializer.is_valid(raise_exception=True)
-                userLicense = serializer.save()
-                msg = "Created new License: {0.pk}".format(userLicense)
-                logger.info(msg)
-                userLicenseGoals, userCreditGoals = UserGoal.objects.handleNewStateLicenseForUser(userLicense)
-                if not userLicenseGoals:
-                    raise ValueError('A user licenseGoal for the new license was not found.')
-        return True
-
-    def mapRawDataToModelFields(self, fileType, raw_data):
-        cls = self.__class__
-        if fileType == cls.FILE_TYPE_STATE:
-            stateKey = 'State of Issue'
-            licenseNumberKey = 'License Number'
-            ltype = self.lt_state
-        else:
-            stateKey = 'State'
-            licenseNumberKey = 'DEA Number'
-            ltype = self.lt_dea
-        data = []
-        for d in raw_data:
-            #print(d)
-            if not d['Last Name']:
-                continue
-            lastName = d['Last Name'].strip()
-            if not lastName:
-                continue
             try:
-                state = self.stateDict[d[stateKey].strip().upper()]
-            except KeyError:
-                logger.warning('Invalid state: {0}'.format(d[stateKey]))
+                serializer = UserLicenseCreateSerializer(data=form_data)
+                with transaction.atomic():
+                    # create StateLicense, update profile
+                    serializer.is_valid(raise_exception=True)
+                    userLicense = serializer.save()
+                    msg = "Created new License: {0.pk}".format(userLicense)
+                    logger.info(msg)
+                    userLicenseGoals, userCreditGoals = UserGoal.objects.handleNewStateLicenseForUser(userLicense)
+                    if not userLicenseGoals:
+                        raise ValueError('A user licenseGoal for the new license was not found.')
+            except Exception as e:
+                logger.exception('Create new license exception')
+                create_errors.append(lkey)
                 continue
-            try:
-                expireDate = dparse(d['Expiration Date'].strip())
-            except ValueError:
-                logger.warning('Invalid date: {0}'.format(d['Expiration Date']))
+            else:
                 continue
-            # mapped dict
-            md = {
-                'npiNumber': d['NPI'].strip(),
-                'firstName': d['First Name'].strip(),
-                'lastName': lastName,
-                'state': state, # State instance
-                'licenseNumber': d[licenseNumberKey].strip(),
-                'licenseType': ltype,
-                'expireDate': expireDate
-            }
-            data.append(md)
-        return data
-
-    def preprocessFile(self, fileType, src_file):
-        """Args:
-            fileType: str one of FILE_TYPE_DEA, FILE_TYPE_STATE
-            src_file: Django UploadedFile object that contains csv data
-        Returns: bool - success
-        """
-        cls = self.__class__
-        try:
-            fieldNames = cls.FIELD_NAMES_MAP[fileType]
-            f = StringIO(src_file.read())
-            reader = csv.DictReader(f,
-                fieldnames=fieldNames,
-                restkey='extra', dialect='excel')
-            all_data = [row for row in reader]
-            raw_data = all_data[1:]
-            f.close()
-            # map data to model fields
-            data = self.mapRawDataToModelFields(fileType, raw_data)
-            ltype = data[0]['licenseType']
-            success = self.processData(ltype, data)
-        except IOError as e:
-            print(str(e))
-        else:
-            return success
+        self.create_errors = create_errors
+        self.update_errors = update_errors
+        num_errors = len(create_errors) + len(update_errors)
+        return num_errors

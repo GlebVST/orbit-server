@@ -159,6 +159,7 @@ api_patterns = [
     url(r'^enterprise/orgmembers-restore/?$', enterprise_views.OrgMembersRestore.as_view()),
     url(r'^enterprise/orgmembers-audit-report/(?P<memberId>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.EnterpriseMemberAuditReport.as_view()),
     url(r'^enterprise/orgfiles/?$', enterprise_views.OrgFileList.as_view()),
+    url(r'^enterprise/upload-license/?$', enterprise_views.UploadLicense.as_view()),
     url(r'^enterprise/upload-roster/?$', enterprise_views.UploadRoster.as_view()),
     url(r'^enterprise/team-stats/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.TeamStats.as_view()),
     url(r'^enterprise/join-team/?$', enterprise_views.JoinTeam.as_view()),
@@ -183,6 +184,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/orgmembers/(?P<pk>[0-9]+)/update/?$', debug_views.UpdateOrgMember.as_view()),
         url(r'^debug/orgmembers/(?P<pk>[0-9]+)/email-set-password/?$', debug_views.EmailSetPassword.as_view()),
         url(r'^debug/audit-report/(?P<userid>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', debug_views.CreateAuditReport.as_view()),
+        url(r'^debug/validate-license-file/(?P<pk>[0-9]+)/?$', debug_views.ValidateLicenseFile.as_view()),
     ])
 
 

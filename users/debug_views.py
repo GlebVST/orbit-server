@@ -23,6 +23,58 @@ from .enterprise_serializers import *
 from .dashboard_views import CertificateMixin
 from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate
 from .emailutils import sendJoinTeamEmail
+from .license_tools import LicenseUpdater
+
+class ValidateLicenseFile(generics.UpdateAPIView):
+    """Validate an existing uploaded license file
+    """
+    serializer_class = LicenseFileTypeUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    def get_queryset(self):
+        org = self.request.user.profile.organization
+        return OrgFile.objects.filter(organization=org)
+
+    def perform_update(self, serializer, format=None):
+        instance = serializer.save(licenseUpdater=self.licenseUpdater)
+        return instance
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        form_data = request.data.copy()
+        orgfile = self.get_object()
+        self.licenseUpdater = LicenseUpdater(orgfile.organization, orgfile.user, dry_run=True)
+        in_serializer = self.get_serializer(orgfile, data=form_data, partial=partial)
+        in_serializer.is_valid(raise_exception=True)
+        instance = self.perform_update(in_serializer)
+        print('file_type: {0.file_type}'.format(instance))
+        parseErrors = []
+        res = dict(num_new=0, num_upd=0, num_error=0, num_no_action=0)
+        if instance.isValidFileTypeForUpdate():
+            parseErrors = self.licenseUpdater.extractData()
+            for err in parseErrors:
+                print(err)
+            if self.licenseUpdater.data and not parseErrors:
+                self.licenseUpdater.validateUsers()
+                res = self.licenseUpdater.preprocessData() # dict(num_new, num_upd, num_no_action, num_error)
+        context = {
+            'file_type': instance.file_type,
+            'file_providers': {
+                'active': len(self.licenseUpdater.profileDict),
+                'unrecognized': len(self.licenseUpdater.userValidationDict['unrecognized']),
+                'inactive': len(self.licenseUpdater.userValidationDict['inactive']),
+                'nonmember': len(self.licenseUpdater.userValidationDict['nonmember']),
+            },
+            'file_licenses': {
+                'num_existing': res['num_no_action'],
+                'num_new': res['num_new'],
+                'num_update': res['num_upd'],
+                'num_error': res['num_error'],
+                'errors': self.licenseUpdater.preprocessErrors,
+                'parseErrors': parseErrors
+            }
+        }
+        return Response(context)
+
 class MakeOrbitCmeOffer(APIView):
     """
     Create a test OrbitCmeOffer for the authenticated user.

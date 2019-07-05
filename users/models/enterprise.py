@@ -42,10 +42,12 @@ class OrgFile(models.Model):
     NEW_PROVIDER = 'New Provider'
     DEA = 'DEA'
     STATE_LICENSE = 'State License'
+    INVALID = 'Invalid'
     FILE_TYPE_CHOICES = (
         (NEW_PROVIDER, NEW_PROVIDER),
         (STATE_LICENSE, STATE_LICENSE),
         (DEA, DEA),
+        (INVALID, INVALID),
     )
     # fields
     user = models.ForeignKey(User,
@@ -63,7 +65,7 @@ class OrgFile(models.Model):
     csvfile = models.FileField(null=True, blank=True, upload_to=orgfile_document_path,
             help_text='If original document is not in plain-text CSV, then upload converted file here')
     name = models.CharField(max_length=255, blank=True, help_text='document file name')
-    file_type = models.CharField(max_length=30, blank=True,
+    file_type = models.CharField(max_length=30, blank=True, default='',
             choices = FILE_TYPE_CHOICES,
             help_text='file type')
     content_type = models.CharField(max_length=100, blank=True, help_text='document content_type')
@@ -76,6 +78,9 @@ class OrgFile(models.Model):
 
     def __str__(self):
         return self.name
+
+    def isValidFileTypeForUpdate(self):
+        return self.file_type in (OrgFile.DEA, OrgFile.STATE_LICENSE)
 
 @python_2_unicode_compatible
 class OrgGroup(models.Model):

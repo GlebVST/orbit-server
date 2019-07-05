@@ -440,3 +440,25 @@ class OrgAggSerializer(serializers.ModelSerializer):
             'cme_gap_expiring'
         )
         read_only_fields = fields
+
+class LicenseFileTypeUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrgFile
+        fields = (
+            'id',
+        )
+    def update(self, instance, validated_data):
+        """This expects extra key in validated_data:
+        licenseUpdater: LicenseUpdater instance initialized for the given OrgFile instance
+        It calls 
+        Returns: updated OrgFile instance
+        """
+        licenseUpdater = validated_data['licenseUpdater']
+        fileType = licenseUpdater.determineFileType(instance.document)
+        if fileType:
+            instance.file_type = fileType
+        else:
+            instance.file_type = OrgFile.INVALID
+        instance.save(update_fields=('file_type',))
+        return instance
+
