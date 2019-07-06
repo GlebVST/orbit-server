@@ -36,6 +36,7 @@ from .permissions import *
 from .emailutils import makeSubject, setCommonContext, sendJoinTeamEmail
 from .dashboard_views import AuditReportMixin
 from .license_tools import LicenseUpdater
+from .tasks import processValidatedLicenseFile
 from goals.serializers import UserLicenseGoalSummarySerializer
 from goals.models import UserGoal
 
@@ -551,6 +552,40 @@ class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
             }
         }
         return Response(context, status=status.HTTP_201_CREATED)
+
+class ProcessUploadedLicenseFile(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def post(self, request, pk):
+        try:
+            orgfile = OrgFile.objects.get(pk=pk)
+        except OrgFile.DoesNotExist:
+            message = 'Invalid id'
+            context = {'error': message}
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if orgfile.organization != request.user.profile.organization:
+            message = 'Unauthorized file.'
+            context = {'error': message}
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if not orgfile.validated:
+            message = "The file needs to be validated first"
+            context = {'error': message}
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        if orgfile.processed:
+            message = "This file has already been processed. Please re-upload a new file if required."
+            context = {'error': message}
+            logWarning(logger, request, message)
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        # process file in celery task
+        processValidatedLicenseFile.delay(orgfile.pk)
+        context = {
+            'message': 'The file has been submitted for processing'
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
 
 class OrgMembersEmailInvite(APIView):
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
