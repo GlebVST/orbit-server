@@ -1,0 +1,73 @@
+{% load tz %}
+{% comment %}
+Context expected:
+    user: User instance (for addressee)
+    orgfile: OrgFile instance for the uploaded file
+    fileHasBlankFields: bool
+    parseErrors: list of strs for any fatal errors
+    preprocessErrors: list of strs for any preprocess errors
+    nonmember: set of 3-tuples (NPI, LastName, FirstName)
+    inactive: set of ,,
+    unrecognized: set of ,,
+    support_email: email address
+{% endcomment %}
+<div>
+    <p>Dear {{ user.profile.firstName }},
+    <p>The License file {{ orgfile.name }} uploaded to Orbit has the following alerts:</p>
+
+    {% if fileHasBlankFields %}
+        <p>The file has blank values for some columns. All fields are required. Entries with blank values will be skipped if the file is submitted for processing.</p>
+    {% endif %}
+
+    {% if parseErrors %}
+        <p>The following fatal errors were detected:</p>
+        <ul>
+            {% for msg in parseErrors %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% if nonmembers %}
+        <p>The following users in the file are not members of {{ orgfile.organization }}:</p>
+        <ul>
+            {% for item in nonmembers %}
+            <li>{{ item.0}} {{ item.1 }} {{ item.2 }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% if inactive %}
+        <p>The following users in the file are inactive members of {{ orgfile.organization }}:</p>
+        <ul>
+            {% for item in inactive %}
+            <li>{{ item.0}} {{ item.1 }} {{ item.2 }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% if unrecognized %}
+        <p>The following users in the file are not recognized as members of {{ orgfile.organization }}:</p>
+        <ul>
+            {% for item in unrecognized %}
+            <li>{{ item.0}} {{ item.1 }} {{ item.2 }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% if preprocessErrors %}
+        <p>The following licenses may not have the correct existing information in the Orbit database. Please review these licenses in Orbit and correct their licenseNumbers and dates.</p>
+        <ul>
+            {% for msg in preprocessErrors %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <p>Please review these alerts and re-upload an amended file as needed.</p>
+
+    {% timezone "America/Los_Angeles" %}
+    <p>File upload time: {% now "D, d N Y H:i e" %}</p>
+    {% endtimezone %}
+    {% include "email/mailto_support_snippet.html" %}
+</div>

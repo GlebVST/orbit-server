@@ -53,6 +53,7 @@ class LicenseUpdater:
         self.profileDict = {} # (NPI, firstName, lastName) => Profile instance
         self.licenseData = {} # userid => {(stateid, ltypeid, expireDate) => ACTION}
         self.preprocessErrors = [] # error msgs from self.preprocessData
+        self.fileHasBlankFields = False
         self.userValidationDict = dict(
             unrecognized=set([]),
             inactive=set([]),
@@ -100,16 +101,16 @@ class LicenseUpdater:
         #print('LicenseType: {0}'.format(ltype))
         data = []
         errors = []
+        self.fileHasBlankFields = False
         for d in raw_data:
             #print(d)
-            if not d['Last Name']:
-                continue
             lastName = d['Last Name'].strip()
-            if not lastName:
-                msg = "Last Name cannot be blank. All fields are required."
-                errors.append(msg)
-                continue
+            firstName = d['First Name'].strip()
+            npiNumber = d['NPI'].strip()
             licenseNumber = d[licenseNumberKey]
+            if not lastName or not firstName or not npiNumber or not licenseNumber:
+                self.fileHasBlankFields = True
+                continue
             if ',' in licenseNumber:
                 msg = "License Number cannot contain comma: {0}".format(licenseNumber)
                 logger.warning(msg)
@@ -306,6 +307,24 @@ class LicenseUpdater:
                 num_upd += 1
         self.preprocessErrors = errors
         return dict(num_new=num_new, num_upd=num_upd, num_no_action=num_no_action, num_error=num_error)
+
+    def hasWarnings(self):
+        """Returns True if file has warnings from:
+            fileHasBlankFields: these rows will be ignored if file is processed.
+            preprocessErrors exists : these license rows in the file will be ignored if the file is processed
+            userValidationDict has inactive/nonmember/unrecognized entries : these users' licenses will be ignored.
+        """
+        if self.fileHasBlankFields:
+            return True
+        if self.preprocessErrors:
+            return True
+        if self.userValidationDict['unrecognized']:
+            return True
+        if self.userValidationDict['nonmember']:
+            return True
+        if self.userValidationDict['inactive']:
+            return True
+        return False
 
     def processData(self):
         """This should be called after preprocessData. It handles the actions in self.licenseData and updates the db.
