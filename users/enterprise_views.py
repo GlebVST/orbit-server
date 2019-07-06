@@ -489,6 +489,8 @@ class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
             if self.licenseUpdater.data and not parseErrors:
                 self.licenseUpdater.validateUsers()
                 result = self.licenseUpdater.preprocessData() # dict(num_new, num_upd, num_no_action, num_error)
+                instance.validated = True
+                instance.save(update_fields=('validated',))
         context = {
             'id': instance.pk,
             'file_type': instance.file_type,
@@ -500,11 +502,11 @@ class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
             },
             'file_licenses': {
                 'num_existing': result['num_no_action'],
-                'num_new': result['num_new'],
-                'num_update': result['num_upd'],
-                'num_error': result['num_error'],
-                'errors': self.licenseUpdater.preprocessErrors,
-                'parseErrors': parseErrors
+                'num_new': result['num_new'], # number of new licenses found in file
+                'num_update': result['num_upd'], # number of licenses to update
+                'num_error': result['num_error'], # licenses that would an error in db. If non-zero, user must decide whether to continue processing the file or not
+                'errors': self.licenseUpdater.preprocessErrors, # error messages for num_error
+                'parseErrors': parseErrors # if parseErrors exist: file has fatal errors and cannot be processed.
             }
         }
         return Response(context, status=status.HTTP_201_CREATED)

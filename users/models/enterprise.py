@@ -69,7 +69,10 @@ class OrgFile(models.Model):
             choices = FILE_TYPE_CHOICES,
             help_text='file type')
     content_type = models.CharField(max_length=100, blank=True, help_text='document content_type')
-    processed = models.BooleanField(default=False)
+    processed = models.BooleanField(default=False,
+            help_text='Set to true after the file has been processed and db is updated')
+    validated = models.BooleanField(default=False,
+            help_text='Set to true after file has been validated. This must be done before using the file to update the db')
     created = models.DateTimeField(auto_now_add=True)
     objects = OrgFileManager()
 

@@ -419,6 +419,15 @@ HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
 DOCUMENT_HASHIDS_SALT = 'random AlVkkUk2Z14FCTXu1pC32pUYm3T6uYSEYZY9ZtOLVNEJ'
 REPORT_HASHIDS_SALT = 'random AjMAVYQgiOgeS4Kwijb6ejHTzsMNsqvsauMIooVlxkOA'
 
+# celery settings
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # redis://:password@hostname:port/db_number
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+##CELERY_IGNORE_RESULT = False  # enable for testing results only
+CELERY_ACCEPT_CONTENT = ['json',]
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_IMPORTS = ['users.tasks',]
+
+
 # Tufts license start/end dates that are printed on Certificates
 CERT_ORIGINAL_RELEASE_DATE = datetime(2017, 8, 7, tzinfo=pytz.utc)
 CERT_EXPIRE_DATE = datetime(2019, 8, 6, tzinfo=pytz.utc)

@@ -120,7 +120,7 @@ class OrgFileForm(forms.ModelForm):
 
 
 class OrgFileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'user', 'file_type', 'name', 'document', 'csvfile', 'created')
+    list_display = ('id', 'organization', 'user', 'file_type', 'name', 'document', 'csvfile', 'validated', 'created')
     list_filter = ('file_type', 'organization')
     #readonly_fields = ('orgfile_actions',)
     list_select_related = True
