@@ -120,9 +120,9 @@ class OrgFileForm(forms.ModelForm):
 
 
 class OrgFileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'user', 'file_type', 'name', 'document', 'csvfile', 'validated', 'created')
+    list_display = ('id', 'organization', 'user', 'file_type', 'name', 'document', 'validated', 'created', 'orgfile_actions')
     list_filter = ('file_type', 'organization')
-    #readonly_fields = ('orgfile_actions',)
+    readonly_fields = ('orgfile_actions',)
     list_select_related = True
     ordering = ('-created',)
     form = OrgFileForm
@@ -137,42 +137,43 @@ class OrgFileAdmin(admin.ModelAdmin):
             kwargs['queryset'] = User.objects.filter(pk__in=Subquery(admin_users.values('user'))).order_by('email')
         return super(OrgFileAdmin, self).formfield_for_foreignkey(db_field, request, **kwargs)
 
-#    def get_urls(self):
-#        urls = super(OrgFileAdmin, self).get_urls()
-#        custom_urls = [
-#            url(
-#                r'^(?P<id>.+)/process/$',
-#                self.admin_site.admin_view(self.orgfile_process),
-#                name='orgfile-process',
-#            ),
-#        ]
-#        return custom_urls + urls
+    def get_urls(self):
+        urls = super(OrgFileAdmin, self).get_urls()
+        custom_urls = [
+            url(
+                r'^(?P<id>.+)/process/$',
+                self.admin_site.admin_view(self.orgfile_process),
+                name='orgfile-process',
+            ),
+        ]
+        return custom_urls + urls
 
-#    def orgfile_actions(self, obj):
-#        return format_html(
-#            '<a class="button" href="{}">Import New Users</a>',
-#            reverse('admin:orgfile-process', args=[obj.pk]),
-#        )
-#    orgfile_actions.short_description = 'Account Actions'
-#    orgfile_actions.allow_tags = True
+    def orgfile_actions(self, obj):
+        """TODO: the action should be different depending on the file_type"""
+        return format_html(
+            '<a class="button" href="{}">Import New Users</a>',
+            reverse('admin:orgfile-process', args=[obj.pk]),
+        )
+    orgfile_actions.short_description = 'File Actions'
+    orgfile_actions.allow_tags = True
 
-#    def orgfile_process(self,  request, id, *args, **kwargs):
-#        orgfile = self.get_object(request, id)
-#        org = orgfile.organization
-#        src_file = orgfile.csvfile if orgfile.csvfile else orgfile.document
-#        output = StringIO()
-#        csv = ProviderCsvImport(stdout=output)
-#        success = csv.processOrgFile(org_id=org.id, src_file=src_file, dry_run=True)
-#        if success:
-#            self.message_user(request, 'Success')
-#        else:
-#            self.message_user(request, output.getvalue(), messages.WARNING)
-#        url = reverse(
-#            'admin:users_orgfile_change',
-#            args=[orgfile.pk],
-#            current_app=self.admin_site.name,
-#        )
-#        return HttpResponseRedirect(url)
+    def orgfile_process(self,  request, id, *args, **kwargs):
+        orgfile = self.get_object(request, id)
+        org = orgfile.organization
+        src_file = orgfile.csvfile if orgfile.csvfile else orgfile.document
+        output = StringIO()
+        csv = ProviderCsvImport(stdout=output)
+        success = csv.processOrgFile(org_id=org.id, src_file=src_file, dry_run=True)
+        if success:
+            self.message_user(request, 'Success')
+        else:
+            self.message_user(request, output.getvalue(), messages.WARNING)
+        url = reverse(
+            'admin:users_orgfile_change',
+            args=[orgfile.pk],
+            current_app=self.admin_site.name,
+        )
+        return HttpResponseRedirect(url)
 
 class OrgMemberAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'group', 'user', 'fullname', 'is_admin', 'pending', 'numArticlesRead30', 'removeDate')
