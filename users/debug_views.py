@@ -51,11 +51,13 @@ class ValidateLicenseFile(generics.UpdateAPIView):
         res = dict(num_new=0, num_upd=0, num_error=0, num_no_action=0)
         if instance.isValidFileTypeForUpdate():
             parseErrors = self.licenseUpdater.extractData()
-            for err in parseErrors:
-                print(err)
             if self.licenseUpdater.data and not parseErrors:
                 self.licenseUpdater.validateUsers()
                 res = self.licenseUpdater.preprocessData() # dict(num_new, num_upd, num_no_action, num_error)
+                instance.validated = True # num_error can be non-zero (these rows will be skipped if file is processed)
+            else:
+                instance.validated = False
+            instance.save(update_fields=('validated',))
         context = {
             'file_type': instance.file_type,
             'file_providers': {

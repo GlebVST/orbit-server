@@ -507,9 +507,9 @@ class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
                 to_email = [request.user.email, settings.SUPPORT_EMAIL]
                 bcc_email = [settings.ADMINS[0][1],]
             else:
-                to_email = [settings.DEV_EMAILS[0],]
+                to_email = [tup[1] for tup in settings.ADMINS]
                 bcc_email = []
-            subject = makeSubject('[Orbit] Notifications for New License File Upload from {0.organization}'.format(instance))
+            subject = makeSubject('[Orbit] New License File Upload from {0.organization}'.format(instance))
             ctx = {
                 'user': request.user,
                 'orgfile': instance,

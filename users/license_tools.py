@@ -331,12 +331,15 @@ class LicenseUpdater:
         If self.dry_run is set, it returns immediately.
         If exception encountered in creating new license: append key of self.licenseData to self.create_errors.
         If exception encountered in updating license: append key of self.licenseData to self.update_errors.
-        Returns: int - number of exceptions encountered
+        Returns: tuple (
+            num_action:int - number of license created or updated,
+            num_error: int - number of exceptions encountered)
         """
         if self.dry_run:
             return 0
         update_errors = []
         create_errors = []
+        num_action = 0
         cls = self.__class__
         ltype = self.data[0]['licenseType']
         for d in self.data:
@@ -359,6 +362,7 @@ class LicenseUpdater:
                 sl.licenseNumber = d['licenseNumber']
                 sl.modifiedBy = self.admin_user
                 sl.save()
+                num_action += 1
                 continue
             if action == cls.UPDATE_LICENSE:
                 msg = 'Update existing active License for user {0.user}: {0} to expireDate:{1:%Y-%m-%d}'.format(sl, d['expireDate'])
@@ -381,9 +385,10 @@ class LicenseUpdater:
                         logger.info(msg)
                 except Exception as e:
                     logger.exception('Update active license exception')
-                    update_errors.append(lkey)
+                    update_errors.append(d)
                     continue
                 else:
+                    num_action += 1
                     continue
             if action not in (cls.CREATE_NEW_LICENSE, cls.CREATE_NEW_LICENSE_NO_UG):
                 continue
@@ -412,11 +417,12 @@ class LicenseUpdater:
                         raise ValueError('A user licenseGoal for the new license was not found.')
             except Exception as e:
                 logger.exception('Create new license exception')
-                create_errors.append(lkey)
+                create_errors.append(d)
                 continue
             else:
+                num_action += 1
                 continue
         self.create_errors = create_errors
         self.update_errors = update_errors
         num_errors = len(create_errors) + len(update_errors)
-        return num_errors
+        return (num_action, num_errors)

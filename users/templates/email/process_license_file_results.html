@@ -1,0 +1,27 @@
+{% load tz %}
+{% comment %}
+Context expected:
+    orgfile: OrgFile instance for the uploaded file
+    stats: dict {num_action:int, num_no_action:int}
+    num_errors: int - number of errors during process step
+    create_errors: list of dicts that had license create errors
+    update_errors: list of dicts that had license update errors
+    support_email: email address
+{% endcomment %}
+<div>
+    <p>The {{ orgfile.organization }} License file {{ orgfile.name }} uploaded to Orbit has been processed.</p>
+    <p>File Type: {{ orgfile.file_type }}</p>
+    <p>Number of licenses created: {{ stats.num_action }}
+    <p>Number of existing (unchanged) licenses: {{ stats.num_no_action }}</p>
+    {% if num_errors %}
+        <h4>The following licenses resulted in a processing error ({{ num_errors }} errors total)</h4>:
+    {% endif %}
+    {% for d in create_errors %}
+        <p>{{ d.npiNumber }}|{{ d.lastName }}|{{ d.firstName }}|{{ d.state }}|{{ d.licenseNumber }}|{{ d.expireDate|date:"m/d/Y" }}</p>
+    {% endfor %}
+
+    {% for d in update_errors %}
+        <p>{{ d.npiNumber }}|{{ d.lastName }}|{{ d.firstName }}|{{ d.state }}|{{ d.licenseNumber }}|{{ d.expireDate|date:"m/d/Y" }}</p>
+    {% endfor %}
+    {% include "email/mailto_support_snippet.html" %}
+</div>
