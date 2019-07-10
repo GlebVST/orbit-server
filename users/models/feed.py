@@ -508,6 +508,8 @@ class BrowserCmeManager(models.Manager):
             entry__activityDate__month=month,
             entry__valid=True
         ).aggregate(cme_total=Sum('credits'))
+        if not qs['cme_total']:
+            return False
         return qs['cme_total'] >= plan.maxCmeMonth
 
     # def hasEarnedYearLimit(self, user_subs, year):
