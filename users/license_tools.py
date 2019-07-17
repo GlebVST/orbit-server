@@ -68,6 +68,7 @@ class LicenseUpdater:
         Returns: None - for no match, or str: matched fileType
         """
         cls = self.__class__
+        src_file.seek(0) # file is always empty without this line
         f = StringIO(src_file.read().decode('utf-8'))
         line = f.readline().strip()
         L = line.split(',')
