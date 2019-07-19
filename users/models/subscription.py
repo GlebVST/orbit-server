@@ -1161,6 +1161,9 @@ class UserSubscriptionManager(models.Manager):
             billingCycle=bt_subs.current_billing_cycle
         )
         self.setUserCmeCreditByPlan(user, plan)
+        profile = user.profile
+        profile.planId = plan.planId
+        profile.save(update_fields=('planId',))
         # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist
         result_transactions = bt_subs.transactions # list
         if len(result_transactions):
