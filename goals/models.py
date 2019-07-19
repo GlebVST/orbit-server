@@ -760,7 +760,7 @@ class CmeGoal(models.Model):
             return False
         # check tag
         if self.cmeTag:
-            if self.cmeTag.name == CmeTag.FLUOROSCOPY:
+            if self.cmeTag.name in (CmeTag.FLUOROSCOPY, CmeTag.RADIATION_SAFETY):
                 if self.state and self.state_id not in profile.fluoroscopyStateSet:
                     return False # cmegoal does not apply
             return self.cmeTag.pk in profile.activeCmeTagSet

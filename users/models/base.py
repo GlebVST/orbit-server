@@ -79,6 +79,7 @@ class CmeTagManager(models.Manager):
 @python_2_unicode_compatible
 class CmeTag(models.Model):
     FLUOROSCOPY = 'Fluoroscopy'
+    RADIATION_SAFETY = 'Radiation Safety'
     # fields
     name= models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
     priority = models.IntegerField(
@@ -161,11 +162,11 @@ class State(models.Model):
 
     def formatDEATags(self):
         return ", ".join([t.name for t in self.deaTags.all()])
-    formatTags.short_description = "deaTags"
+    formatDEATags.short_description = "deaTags"
 
     def formatDOTags(self):
         return ", ".join([t.name for t in self.doTags.all()])
-    formatTags.short_description = "doTags"
+    formatDOTags.short_description = "doTags"
 
 # Many-to-many through relation between State and CmeTag for DEA
 class StateDeatag(models.Model):
@@ -768,6 +769,8 @@ class Profile(models.Model):
         if self.fluoroscopyStates.exists():
             fluotag = CmeTag.objects.get(name=CmeTag.FLUOROSCOPY)
             add_tags.add(fluotag)
+            rstag = CmeTag.objects.get(name=CmeTag.RADIATION_SAFETY)
+            add_tags.add(rstag)
         # Process add_tags
         for t in add_tags:
             # tag may exist from a previous assignment
