@@ -222,6 +222,19 @@ class LicenseUpdater:
             inactive=inactive,
             nonmember=nonmember)
 
+    def getAllNonMembers(self):
+        """Return consolidated list of users from self.userValidationDict
+        Returns: list
+        """
+        data = []
+        for t in self.userValidationDict['unrecognized']:
+            data.append(t)
+        for t in self.userValidationDict['nonmember']:
+            data.append(t)
+        for t in self.userValidationDict['inactive']:
+            data.append(t)
+        return data
+
     def preprocessData(self):
         """This should be called after validateUsers populates self.profileDict.
         It pre-processes self.data to decide the intended action on each license

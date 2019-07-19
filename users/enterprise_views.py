@@ -484,9 +484,9 @@ class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
         logInfo(logger, request, 'OrgFile {0.pk} file_type: {0.file_type}'.format(instance))
         # validate file
         parseErrors = []
-        unrecognized = []
-        inactive = []
-        nonmember = []
+        nonmembers = []
+        num_active = 0
+        num_nonmember = 0
         result = dict(num_new=0, num_upd=0, num_error=0, num_no_action=0)
         if instance.isValidFileTypeForUpdate():
             parseErrors = self.licenseUpdater.extractData()
@@ -494,61 +494,60 @@ class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
                 self.licenseUpdater.validateUsers()
                 result = self.licenseUpdater.preprocessData() # dict(num_new, num_upd, num_no_action, num_error)
                 instance.validated = True # num_error can be non-zero (these rows will be skipped if file is processed)
-                unrecognized = self.licenseUpdater.userValidationDict['unrecognized']
-                inactive = self.licenseUpdater.userValidationDict['inactive']
-                nonmember = self.licenseUpdater.userValidationDict['nonmember']
+                nonmembers = self.licenseUpdater.getAllNonMembers() # consolidated list of (npi, firstName, lastName) tuples
+                num_nonmember = len(nonmembers)
+                num_active = len(self.licenseUpdater.profileDict)
             else:
                 instance.validated = False
             instance.save(update_fields=('validated',))
-        if parseErrors or self.licenseUpdater.hasWarnings():
-            # send EmailMessage
-            from_email = settings.SUPPORT_EMAIL
-            if settings.ENV_TYPE == settings.ENV_PROD:
-                to_email = [request.user.email, settings.SUPPORT_EMAIL]
-                bcc_email = [settings.ADMINS[0][1],]
-            else:
-                to_email = [tup[1] for tup in settings.ADMINS]
-                bcc_email = []
-            subject = makeSubject('[Orbit] New License File Upload from {0.organization}'.format(instance))
-            ctx = {
-                'user': request.user,
-                'orgfile': instance,
-                'fileHasBlankFields': self.licenseUpdater.fileHasBlankFields,
-                'parseErrors': parseErrors,
-                'unrecognized': unrecognized,
-                'inactive': inactive,
-                'nonmember': nonmember,
-                'preprocessErrors': self.licenseUpdater.preprocessErrors, # any errors encountered during preprocess step
-            }
-            setCommonContext(ctx)
-            message = get_template('email/upload_license_notification.html').render(ctx)
-            msg = EmailMessage(subject,
-                    message,
-                    to=to_email,
-                    bcc=bcc_email,
-                    from_email=from_email)
-            msg.content_subtype = 'html'
-            try:
-                msg.send()
-            except SMTPException as e:
-                logException(logger, request, 'UploadLicense send email failed.')
+        has_alerts = parseErrors or self.licenseUpdater.hasWarnings()
+        # send EmailMessage
+        from_email = settings.SUPPORT_EMAIL
+        if settings.ENV_TYPE == settings.ENV_PROD:
+            to_email = [request.user.email, settings.SUPPORT_EMAIL]
+            bcc_email = [settings.ADMINS[0][1],]
+        else:
+            to_email = [tup[1] for tup in settings.ADMINS]
+            bcc_email = []
+        subject = makeSubject('[Orbit] New License File Upload from {0.organization}'.format(instance))
+        ctx = {
+            'user': request.user,
+            'orgfile': instance,
+            'has_alerts': has_alerts,
+            'fileHasBlankFields': self.licenseUpdater.fileHasBlankFields,
+            'parseErrors': parseErrors, # fatal errors
+            'num_active': num_active,
+            'num_nonmember': num_nonmember,
+            'nonmembers': nonmembers,
+            'preprocessErrors': self.licenseUpdater.preprocessErrors, # any errors encountered during preprocess step
+        }
+        setCommonContext(ctx)
+        message = get_template('email/upload_license_notification.html').render(ctx)
+        msg = EmailMessage(subject,
+                message,
+                to=to_email,
+                bcc=bcc_email,
+                from_email=from_email)
+        msg.content_subtype = 'html'
+        try:
+            msg.send()
+        except SMTPException as e:
+            logException(logger, request, 'UploadLicense send email failed.')
         # context for response
+        num_fatal_error = len(parseErrors)
         context = {
             'id': instance.pk,
-            'file_type': instance.file_type,
+            'file_type': instance.file_type, # if invalid: file_type could not be determined (validated is automatically False)
+            'validated': instance.validated, # if False: file has fatal errors and cannot be processed
             'file_providers': {
-                'active': len(self.licenseUpdater.profileDict),
-                'unrecognized': len(unrecognized),
-                'inactive': len(inactive),
-                'nonmember': len(nonmember),
+                'num_active': num_active,
+                'num_nonmember': num_nonmember,
             },
             'file_licenses': {
                 'num_existing': result['num_no_action'],
                 'num_new': result['num_new'], # number of new licenses found in file
                 'num_update': result['num_upd'], # number of licenses to update
-                'num_error': result['num_error'], # num licenses that would cause a db IntegrityError. These will be omitted during process.
-                'errors': self.licenseUpdater.preprocessErrors, # error messages for num_error
-                'parseErrors': parseErrors # if parseErrors exist: file has fatal errors and cannot be processed.
+                'num_error': num_fatal_error or result['num_error'] # if parseErrors exists: return num_fatal_error, else num preprocess warnings
             }
         }
         return Response(context, status=status.HTTP_201_CREATED)

@@ -454,11 +454,15 @@ class LicenseFileTypeUpdateSerializer(serializers.ModelSerializer):
         Returns: updated OrgFile instance
         """
         licenseUpdater = validated_data['licenseUpdater']
-        fileType = licenseUpdater.determineFileType(instance.document)
-        if fileType:
-            instance.file_type = fileType
-        else:
+        try:
+            fileType = licenseUpdater.determineFileType(instance.document)
+        except UnicodeDecodeError as e:
+            logger.exception('determineFileType UnicodeDecodeError')
             instance.file_type = OrgFile.INVALID
+        else:
+            if fileType:
+                instance.file_type = fileType
+            else:
+                instance.file_type = OrgFile.INVALID
         instance.save(update_fields=('file_type',))
         return instance
-

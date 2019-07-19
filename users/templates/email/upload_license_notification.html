@@ -3,24 +3,29 @@
 Context expected:
     user: User instance (for addressee)
     orgfile: OrgFile instance for the uploaded file
+    has_alerts: bool
     fileHasBlankFields: bool
     parseErrors: list of strs for any fatal errors
     preprocessErrors: list of strs for any preprocess errors
-    nonmember: set of 3-tuples (NPI, LastName, FirstName)
-    inactive: set of ,,
-    unrecognized: set of ,,
+    nonmember: list of 3-tuples (NPI, LastName, FirstName)
+    num_active: int
+    num_nonmember: int
     support_email: email address
 {% endcomment %}
 <div>
     <p>Dear {{ user.profile.firstName }},
-    <p>The License file {{ orgfile.name }} uploaded to Orbit has the following alerts:</p>
+    {% if has_alerts %}
+        <p>The License file {{ orgfile.name }} uploaded to Orbit has the following alerts:</p>
+    {% else %}
+        <p>The License file {{ orgfile.name }} was uploaded to Orbit.</p>
+    {% endif %}
 
     {% if fileHasBlankFields %}
         <p>The file has blank values for some columns. All fields are required. Entries with blank values will be skipped if the file is submitted for processing.</p>
     {% endif %}
 
     {% if parseErrors %}
-        <p>The following fatal errors were detected:</p>
+    <p>The following <em>fatal</em> errors were detected:</p>
         <ul>
             {% for msg in parseErrors %}
             <li>{{ msg }}</li>
@@ -28,29 +33,15 @@ Context expected:
         </ul>
     {% endif %}
 
+    {% if num_active %}
+        <p>Number of active providers found in file: {{ num_active }}</p>
+    {% endif %}
+
     {% if nonmembers %}
-        <p>The following users in the file are not members of {{ orgfile.organization }}:</p>
+        <p>The following {{ num_nonmember }} user(s) in the file are not recognized as members of {{ orgfile.organization }}:</p>
         <ul>
             {% for item in nonmembers %}
-            <li>{{ item.0}} {{ item.1 }} {{ item.2 }}</li>
-            {% endfor %}
-        </ul>
-    {% endif %}
-
-    {% if inactive %}
-        <p>The following users in the file are inactive members of {{ orgfile.organization }}:</p>
-        <ul>
-            {% for item in inactive %}
-            <li>{{ item.0}} {{ item.1 }} {{ item.2 }}</li>
-            {% endfor %}
-        </ul>
-    {% endif %}
-
-    {% if unrecognized %}
-        <p>The following users in the file are not recognized as members of {{ orgfile.organization }}:</p>
-        <ul>
-            {% for item in unrecognized %}
-            <li>{{ item.0}} {{ item.1 }} {{ item.2 }}</li>
+            <li>{{ item.0 }} {{ item.1 }} {{ item.2 }}</li>
             {% endfor %}
         </ul>
     {% endif %}
@@ -64,7 +55,11 @@ Context expected:
         </ul>
     {% endif %}
 
-    <p>Please review these alerts and re-upload an amended file as needed.</p>
+    {% if parseErrors %}
+        <p>Please review these errors and re-upload an amended file.</p>
+    {% elif has_alerts %}
+        <p>Please review these warnings and re-upload an amended file as needed.</p>
+    {% endif %}
 
     {% timezone "America/Los_Angeles" %}
     <p>File upload time: {% now "D, d N Y H:i e" %}</p>
