@@ -2,7 +2,7 @@ amqp==2.5.0
 appdirs==1.4.3
 appnope==0.1.0
 argon2-cffi==19.1.0
-auth0-python==3.9.0
+auth0-python==3.7.2
 backports.functools-lru-cache==1.4
 backports.shutil-get-terminal-size==1.0.0
 billiard==3.6.0.0
