@@ -11,7 +11,18 @@ class UserEmailAutocomplete(autocomplete.Select2QuerySetView):
             qs = qs.filter(email__icontains=self.q)
         return qs
 
+# Non srcme_only tags
 class CmeTagAutocomplete(autocomplete.Select2QuerySetView):
+    def get_queryset(self):
+        if not self.request.user.is_authenticated():
+            return CmeTag.objects.none()
+        qs = CmeTag.objects.only('pk','name').order_by('name')
+        if self.q:
+            qs = qs.filter(name__istartswith=self.q, srcme_only=False)
+        return qs
+
+# all cme tags
+class AllCmeTagAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
         if not self.request.user.is_authenticated():
             return CmeTag.objects.none()

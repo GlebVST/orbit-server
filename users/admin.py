@@ -7,7 +7,7 @@ from django.db.models import Count, Q, Subquery
 from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
-from common.ac_filters import UserFilter, StateFilter, AllowedUrlFilter
+from common.ac_filters import UserFilter, CmeTagFilter, StateFilter, AllowedUrlFilter
 from common.dateutils import fmtLocalDatetime
 from .models import *
 from django.utils.html import format_html
@@ -308,12 +308,12 @@ class EntryTypeAdmin(admin.ModelAdmin):
 
 class DocumentAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'name', 'content_type','document','md5sum', 'image_h','image_w', 'is_thumb', 'is_certificate', 'set_id', 'created')
-    list_select_related = ('user',)
+    list_select_related = True
 
 class EntryAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'entryType', 'activityDate', 'valid', 'description', 'created')
-    list_filter = ('entryType', 'valid', UserFilter)
-    list_select_related = ('user',)
+    list_filter = ('entryType', 'valid', UserFilter, 'tags')
+    list_select_related = True
     raw_id_fields = ('documents',)
     ordering = ('-created',)
     filter_horizontal = ('tags',)
@@ -701,7 +701,7 @@ class RecAllowedUrlAdmin(admin.ModelAdmin):
     list_display = ('id','user','cmeTag','url', 'offerid')
     list_select_related = True
     raw_id_fields = ('offer',)
-    list_filter = (UserFilter, 'cmeTag')
+    list_filter = (UserFilter, CmeTagFilter)
     ordering = ('user', 'url')
     form = RecAllowedUrlForm
 
