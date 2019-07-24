@@ -926,6 +926,7 @@ class LicenseType(models.Model):
     TYPE_MB = 'Medical Board'
     TYPE_STATE = 'State'
     TYPE_FLUO = 'Fluoroscopy'
+    TYPE_TELEMEDICINE = 'Out-of-State-Telemedicine'
     # fields
     name = models.CharField(max_length=30, unique=True)
     created = models.DateTimeField(auto_now_add=True)

@@ -147,6 +147,10 @@ class LicenseUpdater:
                 'licenseType': ltype,
                 'expireDate': expireDate
             }
+            # 2019-07-23: skip Mary Betterman TM license for now (telemedicine)
+            if md['npiNumber'] == '1710962386' and md['licenseNumber'].startswith('TM') and state.abbrev == 'TX':
+                logger.warning('Skip {npiNumber}|{state}|{licenseNumber} TM license for now'.format(**md))
+                continue
             data.append(md)
         return (data, errors)
 
@@ -268,44 +272,65 @@ class LicenseUpdater:
         num_new = 0; num_upd = 0; num_no_action = 0; num_error = 0
         errors = []
         for d in self.data:
-            key = (d['npiNumber'], d['firstName'], d['lastName'])
-            if key not in self.profileDict:
+            pkey = (d['npiNumber'], d['firstName'], d['lastName'])
+            if pkey not in self.profileDict:
                 continue
-            profile = self.profileDict[key] # Profile instance
+            profile = self.profileDict[pkey] # Profile instance
             user = profile.user
             lkey = (d['expireDate'], d['state'].abbrev, ltype.name)
             licenseActions = self.licenseData[user.pk] # dict to store intended action on lkey
             userDict = slDict.get(user.pk, {}) # user data from db
-            key = (ltype.pk, d['state'].pk, d['licenseNumber'])
-            if key not in userDict:
-                # check uniq constraint on SL
-                ed = d['expireDate'].replace(hour=12)
-                slqs = user.statelicenses.filter(state=d['state'], licenseType=ltype, is_active=True, expireDate=ed)
-                if not slqs.exists():
-                    # brand-new license
-                    licenseActions[lkey] = (cls.CREATE_NEW_LICENSE, None)
-                    num_new += 1
-                else:
-                    # this license would raise integrity error on StateLicense model
-                    licenseActions[lkey] = (cls.LICENSE_INTEGRITY_ERROR, None)
-                    num_error += 1
-                    existing_sl = qs[0]
-                    logmsg = "IntegrityError for existing_sl: {0.pk}. lkey:{1} and licenseNumber:{2}.".format(existing_sl, lkey, d['licenseNumber'])
-                    logger.warning(logmsg)
-                    # msg for end user
-                    msg = "A {0.state.abbrev} {0.licenseType.name} license for {0.user} exists with a different licenseNumber: {0.licenseNumber}. Please re-verify the licenseNumber for this license."
-                    errors.append(msg)
-                continue
+            origkey = (ltype.pk, d['state'].pk, d['licenseNumber'])
+            key = None
             is_match = False
-            for sl in userDict[key]:
-                if sl.isDateMatch(d['expireDate']):
-                    # expireDate matches
-                    licenseActions[lkey] = (cls.LICENSE_EXISTS, sl)
-                    num_no_action += 1
-                    is_match = True
-                    break
+            if origkey in userDict:
+                key = origkey
+            else:
+                # pad licenseNumber with 0's and check if match
+                for idx in range(1,7):
+                    lz = '0'*idx + d['licenseNumber'] # left-pad
+                    zkey = (ltype.pk, d['state'].pk, lz)
+                    if zkey in userDict:
+                        logmsg = "Left zero-padded licenseNumber: {0} for: {1}|{2}".format(lz, user, origkey)
+                        logger.warning(logmsg)
+                        key = zkey
+                        break
+                    if not key:
+                        rz = d['licenseNumber'] + '0'*idx # right-pad
+                        zkey = (ltype.pk, d['state'].pk, rz)
+                        if zkey in userDict:
+                            logmsg = "Right zero-padded licenseNumber: {0} for: {1}|{2}".format(lz, user, origkey)
+                            logger.warning(logmsg)
+                            key = zkey
+                            break
+            if key:
+                for sl in userDict[key]:
+                    if sl.isDateMatch(d['expireDate']):
+                        # expireDate matches
+                        licenseActions[lkey] = (cls.LICENSE_EXISTS, sl)
+                        num_no_action += 1
+                        is_match = True
+                        break
             if is_match:
                 continue
+            # key not in userDict: check uniq constraint on SL
+            ed = d['expireDate'].replace(hour=12)
+            slqs = user.statelicenses.filter(state=d['state'], licenseType=ltype, is_active=True, expireDate=ed)
+            if not slqs.exists():
+                # brand-new license
+                licenseActions[lkey] = (cls.CREATE_NEW_LICENSE, None)
+                num_new += 1
+            else:
+                existing_sl = slqs[0]
+                # this license would raise integrity error on StateLicense model
+                licenseActions[lkey] = (cls.LICENSE_INTEGRITY_ERROR, None)
+                num_error += 1
+                logmsg = "IntegrityError for existing_sl: {0.pk}. lkey:{1} and licenseNumber:{2}.".format(existing_sl, lkey, d['licenseNumber'])
+                logger.warning(logmsg)
+                # msg for end user
+                msg = "A {0.state.abbrev} {0.licenseType.name} license for {0.user} exists with a different licenseNumber: {0.licenseNumber}. Please re-verify the licenseNumber for this license.".format(existing_sl)
+                errors.append(msg)
+            continue
             # expireDate from file does not match any sl in db for the same (ltype, state, licenseNumber).
             # is license attached to an updateable license usergoal
             ugs = sl.usergoals.filter(goal__goalType=self.licenseGoalType) \
