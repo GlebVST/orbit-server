@@ -14,6 +14,10 @@ def handleProfileSaved(sender, **kwargs):
         logger.error('handleProfileSaved: invalid user_id: {0}'.format(user_id))
     else:
         if user.profile.allowUserGoals():
+            # check if user is an active non-admin orgmember
+            qs = user.orgmembers.filter(is_admin=False, removeDate__isnull=True)
+            if not qs.exists():
+                return
             usergoals = UserGoal.objects.rematchGoals(user)
             if usergoals:
                 logger.info('handleProfileSaved: {0} new usergoals created.'.format(len(usergoals)))

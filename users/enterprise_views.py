@@ -216,6 +216,12 @@ class OrgMemberCreate(generics.CreateAPIView):
     serializer_class = OrgMemberFormSerializer
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
+    def make_form_data(self, request):
+        form_data = request.data.copy()
+        if 'npiNumber' not in form_data:
+            form_data['npiNumber'] = ''
+        return form_data
+
     def perform_create(self, serializer, format=None):
         """If user account for email already exists:
             call sendJoinTeamEmail to send invitation email to user
@@ -289,14 +295,15 @@ class OrgMemberCreate(generics.CreateAPIView):
             with transaction.atomic():
                 instance = serializer.save(apiConn=apiConn, organization=org, plan=plan) # returns OrgMember instance
                 profile = instance.user.profile
-                profileUpdateSerializer = ProfileUpdateSerializer(profile, data=self.request.data)
+                form_data = self.make_form_data(self.request)
+                profileUpdateSerializer = ProfileUpdateSerializer(profile, data=form_data)
                 profileUpdateSerializer.is_valid(raise_exception=True)
                 profile = profileUpdateSerializer.save() # this emits profile_saved signal
             logInfo(logger, self.request, 'Created OrgMemberId: {0.pk} for userid: {0.user.pk}'.format(instance))
         return instance
 
     def create(self, request, *args, **kwargs):
-        form_data = request.data.copy()
+        form_data = self.make_form_data(request)
         logInfo(logger, request, str(form_data))
         serializer = self.get_serializer(data=form_data)
         serializer.is_valid(raise_exception=True)
