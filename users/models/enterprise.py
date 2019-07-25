@@ -206,7 +206,7 @@ class OrgMemberManager(models.Manager):
             fieldnames: tuple of column names
             results: list of dicts ordered by last name, firstname, id
         """
-        fieldnames = ('NPINumber', 'First Name', 'Last Name', 'Email', 'Status')
+        fieldnames = ('Status', 'NPINumber', 'Email', 'First Name', 'Last Name')
         data = []
         qs = self.model.objects.select_related('user__profile') \
             .filter(organization=org, is_admin=False) \
@@ -214,11 +214,11 @@ class OrgMemberManager(models.Manager):
         for m in qs:
             user = m.user; profile = user.profile
             data.append({
+                'Status': m.enterpriseStatus,
                 'NPINumber': profile.npiNumber,
+                'Email': user.email,
                 'First Name': profile.firstName,
                 'Last Name': profile.lastName,
-                'Email': user.email,
-                'Status': m.enterpriseStatus
             })
         return (fieldnames, data)
 
