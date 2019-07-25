@@ -14,11 +14,11 @@ Context expected:
 {% endcomment %}
 <div>
     <p>Dear {{ user.profile.firstName }},
-    {% if has_alerts %}
-        <p>The License file {{ orgfile.name }} uploaded to Orbit has the following alerts:</p>
-    {% else %}
-        <p>The License file {{ orgfile.name }} was uploaded to Orbit.</p>
-    {% endif %}
+    <p>A {{ orgfile.file_type }} file was uploaded to Orbit just now by {{ user.profile.getFullName }}.</p>
+    <p>File Name: {{ orgfile.name }}</p>
+    {% timezone "America/Los_Angeles" %}
+    <p>File upload time: {% now "D, d N Y H:i e" %}</p>
+    {% endtimezone %}
 
     {% if fileHasBlankFields %}
         <p>The file has blank values for some columns. All fields are required. Entries with blank values will be skipped if the file is submitted for processing.</p>
@@ -61,8 +61,5 @@ Context expected:
         <p>Please review these warnings and re-upload an amended file as needed.</p>
     {% endif %}
 
-    {% timezone "America/Los_Angeles" %}
-    <p>File upload time: {% now "D, d N Y H:i e" %}</p>
-    {% endtimezone %}
     {% include "email/mailto_support_snippet.html" %}
 </div>
