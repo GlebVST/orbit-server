@@ -852,6 +852,7 @@ class OrgMemberRoster(APIView):
         org = self.request.user.profile.organization
         fieldnames, data = OrgMember.objects.listMembersOfOrg(org)
         context = {
+            'fieldnames': fieldnames,
             'results': data
         }
         return Response(context, status=status.HTTP_200_OK)
