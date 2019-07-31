@@ -79,28 +79,32 @@ class SubscriptionPlanList(generics.ListAPIView):
         return (can_upgrade, amount)
 
     def get_queryset(self):
-        """Filter plans by plan_key sourced from the planId in request.user.profile"""
+        """Returns SubscriptionPlan queryset containing:
+            1. User's current plan (if user has a current subs)
+            2. upgrade_plan (if user_subs.plan.upgrade_plan is not null)
+            3. downgrade_plan (if user_subs.plan.downgrade_plan is not null)
+        """
         user = self.request.user
         profile = user.profile
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
         try:
-            plan = SubscriptionPlan.objects.get(planId=profile.planId)
-            if plan.isEnterprise():
-                filter_kwargs = dict(plan_type=plan.plan_type)
-                return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('id')
-            plan_key = plan.plan_key
+            if not user_subs:
+                plan = SubscriptionPlan.objects.get(planId=profile.planId) # profile.planId is set at user signup time
+            else:
+                plan = user_subs.plan
         except SubscriptionPlan.DoesNotExist:
             logError(logger, self.request, "Invalid profile.planId: {0.planId}".format(profile))
             return SubscriptionPlan.objects.none().order_by('id')
         else:
-            if not plan_key:
-                plan_key = SubscriptionPlan.objects.findPlanKeyForProfile(profile)
-                if not plan_key:
-                    plan_key = SubscriptionPlanKey.objects.all().order_by('id')[0]
-
-            # return plans for the plan_key
-            filter_kwargs = dict(plan_key=plan_key)
+            if plan.isEnterprise():
+                return SubscriptionPlan.objects.filter(pk=plan.pk) # current plan only
+            pks = [plan.pk,]
+            if plan.upgrade_plan:
+                pks.append(plan.upgrade_plan.pk)
+            if plan.downgrade_plan:
+                pks.append(plan.downgrade_plan.pk)
+            filter_kwargs = dict(pk__in=pks)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
-
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
