@@ -118,7 +118,7 @@ class SubscriptionPlanList(generics.ListAPIView):
             (can_upgrade, amount) = self.getUpgradeAmount(queryset[index], user_subs)
             plan['can_upgrade'] = can_upgrade
             plan['upgrade_amount'] = amount
-
+            logInfo(logger, self.request, "planId: {planId} can_upgrade: {can_upgrade}".format(**plan))
         return Response(available_plans)
 
 
