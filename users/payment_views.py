@@ -47,9 +47,11 @@ class SubscriptionPlanList(generics.ListAPIView):
         if not user_subs:
             return (can_upgrade, amount)
         user = user_subs.user
-        # New plan must be an upgrade from the old plan (ignoring Enterprise)
         old_plan = user_subs.plan
-        if new_plan and not new_plan.isEnterprise() and new_plan.price > old_plan.price:
+        if old_plan.pk == new_plan.pk:
+            return (can_upgrade, amount)
+        # New plan must be an upgrade from the old plan (ignoring Enterprise)
+        if new_plan.price > old_plan.price and not new_plan.isEnterprise():
             starterStatus = (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED, UserSubscription.UI_ENTERPRISE_CANCELED)
             if user_subs.display_status in starterStatus:
                 # user hasn't ever paid yet so could utilize discounts on the next plan
@@ -103,6 +105,10 @@ class SubscriptionPlanList(generics.ListAPIView):
                 pks.append(plan.upgrade_plan.pk)
             if plan.downgrade_plan:
                 pks.append(plan.downgrade_plan.pk)
+            # Ensure user_subs.next_plan is contained in pks if non-null (UI_ACTIVE_DOWNGRADE status)
+            # Normally user_subs.next_plan, if set, is plan.downgrade_plan, but in case it differs, then add it.
+            if user_subs and user_subs.next_plan and user_subs.next_plan.pk not in pks:
+                pks.append(user_subs.next_plan.pk)
             filter_kwargs = dict(pk__in=pks)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
 
