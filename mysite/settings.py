@@ -430,7 +430,7 @@ CELERY_IMPORTS = ['users.tasks',]
 
 # Tufts license start/end dates that are printed on Certificates
 CERT_ORIGINAL_RELEASE_DATE = datetime(2017, 8, 7, tzinfo=pytz.utc)
-CERT_EXPIRE_DATE = datetime(2019, 8, 6, tzinfo=pytz.utc)
+CERT_EXPIRE_DATE = datetime(2022, 8, 6, tzinfo=pytz.utc)
 # Separate dates for Orbit Story Certificates
 STORY_CERT_ORIGINAL_RELEASE_DATE = datetime(2018, 3, 1, tzinfo=pytz.utc)
 STORY_CERT_EXPIRE_DATE = datetime(2019, 3, 1, tzinfo=pytz.utc)
