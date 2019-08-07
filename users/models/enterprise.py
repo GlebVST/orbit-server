@@ -226,7 +226,7 @@ class OrgMemberManager(models.Manager):
 class OrgMember(models.Model):
     STATUS_ACTIVE = 'Active'
     STATUS_INVITED = 'Invited'
-    STATUS_REMOVED = 'Removed'
+    STATUS_INACTIVE = 'Inactive'
     # fields
     organization = models.ForeignKey(Organization,
         on_delete=models.CASCADE,
@@ -281,11 +281,11 @@ class OrgMember(models.Model):
         """Return one of:
         STATUS_ACTIVE
         STATUS_INVITED
-        STATUS_REMOVED
+        STATUS_INACTIVE
         for self
         """
         if self.removeDate:
-            return OrgMember.STATUS_REMOVED
+            return OrgMember.STATUS_INACTIVE
         profile = self.user.profile
         if profile.verified and not self.pending:
             return OrgMember.STATUS_ACTIVE
@@ -310,7 +310,7 @@ class OrgAggManager(models.Manager):
         stats = {
             OrgMember.STATUS_ACTIVE: 0,
             OrgMember.STATUS_INVITED: 0,
-            OrgMember.STATUS_REMOVED: 0
+            OrgMember.STATUS_INACTIVE: 0
         }
         for m in members:
             entStatus = m.getEnterpriseStatus()
@@ -320,7 +320,7 @@ class OrgAggManager(models.Manager):
             orgagg = qs[0]
             orgagg.users_invited = stats[OrgMember.STATUS_INVITED]
             orgagg.users_active = stats[OrgMember.STATUS_ACTIVE]
-            orgagg.users_inactive = stats[OrgMember.STATUS_REMOVED]
+            orgagg.users_inactive = stats[OrgMember.STATUS_INACTIVE]
             orgagg.save()
         else:
             orgagg = OrgAgg.objects.create(
@@ -328,7 +328,7 @@ class OrgAggManager(models.Manager):
                 day=today,
                 users_invited=stats[OrgMember.STATUS_INVITED],
                 users_active=stats[OrgMember.STATUS_ACTIVE],
-                users_inactive=stats[OrgMember.STATUS_REMOVED]
+                users_inactive=stats[OrgMember.STATUS_INACTIVE]
             )
         return orgagg
 
