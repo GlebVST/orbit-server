@@ -27,6 +27,12 @@ DEA_LICENSE_FIELD_NAMES = (
     'Expiration Date'
 )
 
+DUAL_TM_LIC = set([
+    ('1710962386', 'TX'),
+    ('1205925864', 'TX'),
+    ('1902096704', 'TX'),
+])
+
 class LicenseUpdater:
     """Handles updating State or DEA licenses from file"""
     LICENSE_EXISTS = 'license_exists'
@@ -131,7 +137,7 @@ class LicenseUpdater:
                 continue
             try:
                 ed = dparse(d['Expiration Date'].strip())
-                expireDate = timezone.make_aware(ed)
+                expireDate = timezone.make_aware(ed).replace(hour=12)
             except ValueError:
                 msg = 'Invalid date: {0}'.format(d['Expiration Date'])
                 logger.warning(msg)
@@ -147,9 +153,10 @@ class LicenseUpdater:
                 'licenseType': ltype,
                 'expireDate': expireDate
             }
-            # 2019-07-23: skip Mary Betterman TM license for now (telemedicine)
-            if md['npiNumber'] == '1710962386' and md['licenseNumber'].startswith('TM') and state.abbrev == 'TX':
-                logger.warning('Skip {npiNumber}|{state}|{licenseNumber} TM license for now'.format(**md))
+            # 2019-07-23: skip dual TM license for now (telemedicine)
+            t = (md['npiNumber'], state.abbrev)
+            if t in DUAL_TM_LIC:
+                logger.warning('Skip {npiNumber}|{lastName}|{state}|{licenseNumber} dual-TM license for now'.format(**md))
                 continue
             data.append(md)
         return (data, errors)
@@ -239,6 +246,30 @@ class LicenseUpdater:
             data.append(t)
         return data
 
+    def findKeyInLicenseData(self, d, userDict):
+        origkey = (ltype.pk, d['state'].pk, d['licenseNumber'])
+        if origkey in userDict:
+            return origkey
+        key = None
+        # pad licenseNumber with 0's and check if match
+        for idx in range(1,7):
+            lz = '0'*idx + d['licenseNumber'] # left-pad
+            zkey = (ltype.pk, d['state'].pk, lz)
+            if zkey in userDict:
+                logmsg = "Left zero-padded licenseNumber: {0} for: {1}|{2}".format(lz, user, origkey)
+                logger.warning(logmsg)
+                key = zkey
+                break
+            if not key:
+                rz = d['licenseNumber'] + '0'*idx # right-pad
+                zkey = (ltype.pk, d['state'].pk, rz)
+                if zkey in userDict:
+                    logmsg = "Right zero-padded licenseNumber: {0} for: {1}|{2}".format(lz, user, origkey)
+                    logger.warning(logmsg)
+                    key = zkey
+                    break
+        return key
+
     def preprocessData(self):
         """This should be called after validateUsers populates self.profileDict.
         It pre-processes self.data to decide the intended action on each license
@@ -280,29 +311,8 @@ class LicenseUpdater:
             lkey = (d['expireDate'], d['state'].abbrev, ltype.name)
             licenseActions = self.licenseData[user.pk] # dict to store intended action on lkey
             userDict = slDict.get(user.pk, {}) # user data from db
-            origkey = (ltype.pk, d['state'].pk, d['licenseNumber'])
-            key = None
             is_match = False
-            if origkey in userDict:
-                key = origkey
-            else:
-                # pad licenseNumber with 0's and check if match
-                for idx in range(1,7):
-                    lz = '0'*idx + d['licenseNumber'] # left-pad
-                    zkey = (ltype.pk, d['state'].pk, lz)
-                    if zkey in userDict:
-                        logmsg = "Left zero-padded licenseNumber: {0} for: {1}|{2}".format(lz, user, origkey)
-                        logger.warning(logmsg)
-                        key = zkey
-                        break
-                    if not key:
-                        rz = d['licenseNumber'] + '0'*idx # right-pad
-                        zkey = (ltype.pk, d['state'].pk, rz)
-                        if zkey in userDict:
-                            logmsg = "Right zero-padded licenseNumber: {0} for: {1}|{2}".format(lz, user, origkey)
-                            logger.warning(logmsg)
-                            key = zkey
-                            break
+            key = self.findKeyInLicenseData(d, userDict)
             if key:
                 for sl in userDict[key]:
                     if sl.isDateMatch(d['expireDate']):
@@ -311,16 +321,27 @@ class LicenseUpdater:
                         num_no_action += 1
                         is_match = True
                         break
-            if is_match:
-                continue
+                if is_match:
+                    continue
+                # key exists, but no exact match on expireDate
+                sl = userDict[key][0] # latest expireDate
+                # is license attached to an updateable license usergoal
+                ugs = sl.usergoals.filter(goal__goalType=self.licenseGoalType) \
+                        .exclude(status=UserGoal.EXPIRED) \
+                        .order_by('-dueDate')
+                if not ugs.exists():
+                    # No updateable usergoal (corner case)
+                    licenseActions[lkey] = (cls.CREATE_NEW_LICENSE_NO_UG, sl)
+                    num_new += 1
+                    continue
+                else:
+                    # renewal or edit-in-place (decision is made by serializer based on expireDate)
+                    licenseActions[lkey] = (cls.UPDATE_LICENSE, sl)
+                    num_upd += 1
+                    continue
             # key not in userDict: check uniq constraint on SL
-            ed = d['expireDate'].replace(hour=12)
             slqs = user.statelicenses.filter(state=d['state'], licenseType=ltype, is_active=True, expireDate=ed)
-            if not slqs.exists():
-                # brand-new license
-                licenseActions[lkey] = (cls.CREATE_NEW_LICENSE, None)
-                num_new += 1
-            else:
+            if slqs.exists():
                 existing_sl = slqs[0]
                 # this license would raise integrity error on StateLicense model
                 licenseActions[lkey] = (cls.LICENSE_INTEGRITY_ERROR, None)
@@ -330,20 +351,19 @@ class LicenseUpdater:
                 # msg for end user
                 msg = "A {0.state.abbrev} {0.licenseType.name} license for {0.user} exists with a different licenseNumber: {0.licenseNumber}. Please re-verify the licenseNumber for this license.".format(existing_sl)
                 errors.append(msg)
-            continue
-            # expireDate from file does not match any sl in db for the same (ltype, state, licenseNumber).
-            # is license attached to an updateable license usergoal
-            ugs = sl.usergoals.filter(goal__goalType=self.licenseGoalType) \
-                    .exclude(status=UserGoal.EXPIRED) \
-                    .order_by('-dueDate')
-            if not ugs.exists():
-                # No updateable usergoal! (corner case)
-                licenseActions[lkey] = (cls.CREATE_NEW_LICENSE_NO_UG, sl)
+                continue
+            # is this a brand new (ltype, state) license for the user
+            slqs = user.statelicenses.filter(state=d['state'], licenseType=ltype, is_active=True).order_by('-expireDate','pk')
+            if not slqs.exists():
+                # brand-new license
+                licenseActions[lkey] = (cls.CREATE_NEW_LICENSE, None)
                 num_new += 1
-            else:
-                # renewal or edit-in-place
-                licenseActions[lkey] = (cls.UPDATE_LICENSE, sl)
-                num_upd += 1
+                continue
+            # handle empty/UnInitialized license (created when state is directly added to user's profile).
+            sl = slqs[0]
+            licenseActions[lkey] = (cls.UPDATE_LICENSE, sl)
+            num_upd += 1
+            continue
         self.preprocessErrors = errors
         return dict(num_new=num_new, num_upd=num_upd, num_no_action=num_no_action, num_error=num_error)
 
