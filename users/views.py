@@ -184,6 +184,13 @@ class ProfileInitialUpdate(generics.UpdateAPIView):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         form_data = request.data.copy()
+        # truncate values if longer than CharField max_length (to prevent ValidationError for this case)
+        for key in ('firstName','lastName'):
+            if key in form_data:
+                v = form_data[key]
+                max_length = Profile._meta.get_field(key).max_length
+                if len(v) > max_length:
+                    form_data[key] = v[0:max_length]
         serializer = self.get_serializer(instance, data=form_data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -342,7 +349,7 @@ class UserStateLicenseList(generics.ListAPIView):
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
-        """Returns the latest (by expireDate) license per (state, license_type)
+        """Returns the latest (by expireDate) license per (state, license_type, licenseNumber)
         for the given user.
         """
         user = self.request.user

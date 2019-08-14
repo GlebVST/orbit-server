@@ -1091,13 +1091,25 @@ class UserGoalManager(models.Manager):
         Returns: dict
         """
         userLicenseDict = dict()
+        tmpdict = defaultdict(list)
         licenseGoalType = GoalType.objects.get(name=GoalType.LICENSE)
         # get non-archived user licensegoals
         qset = user.usergoals.select_related('goal','license') \
                 .filter(goal__goalType=licenseGoalType) \
-                .exclude(status=UserGoal.EXPIRED)
+                .exclude(status=UserGoal.EXPIRED) \
+                .order_by('dueDate', 'license__subcatg')
+        # A user may have multiple distinct licenses per (licenseType, state) (e.g. per basegoal)
         for m in qset:
-            userLicenseDict[m.goal.pk] = m.license
+            tmpdict[m.goal.pk].append(m.license)
+        # Select the license with earliest non-null date for the basegoal
+        for bgid in tmpdict.keys():
+            for license in tmpdict[bgid]:
+                if license.expireDate:
+                    userLicenseDict[bgid] = license # earliest non-null date
+                    break
+            else:
+                # no breaks encountered
+                userLicenseDict[bgid] = tmpdict[bgid][0] # first license in list
         return userLicenseDict
 
     def renewLicenseGoal(self, oldGoal, newLicense):
@@ -1196,16 +1208,35 @@ class UserGoalManager(models.Manager):
             basegoal = goal.goal
             licenseType = goal.licenseType
             userLicense = None
-            # does user license exist with a non-null expireDate
-            qset = user.statelicenses.filter(
-                    state=goal.state,
-                    licenseType=licenseType,
-                    is_active=True,
-                    expireDate__isnull=False).order_by('-expireDate')
-            if qset.exists():
-                userLicense = qset[0]
-                dueDate = userLicense.expireDate
-                status = self.model.IN_PROGRESS
+            # does user have active licenses with a non-null expireDate for (ltype, state)
+            slqs = StateLicense.objects.getLatestSetForUserLtypeState(user, licenseType, goal.state)
+            if slqs.exists():
+                for userLicense in slqs:
+                    # does UserGoal for this license already exist
+                    ugqs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense)
+                    if ugqs.exists():
+                        usergoal = ugqs[0]
+                    else:
+                        # create UserGoal with associated license
+                        status = self.model.IN_PROGRESS
+                        dueDate = userLicense.expireDate
+                        if dueDate.hour != 12:
+                            dueDate = dueDate.replace(hour=12)
+                        usergoal = self.model.objects.create(
+                                user=user,
+                                goal=basegoal,
+                                state=goal.state, # State
+                                dueDate=dueDate,
+                                status=status,
+                                license=userLicense
+                            )
+                        logger.info('Created UserGoal: {0}'.format(usergoal))
+                        usergoals.append(usergoal)
+                        # check status
+                        status = usergoal.calcLicenseStatus(now)
+                        if usergoal.status != status:
+                            usergoal.status = status
+                            usergoal.save(update_fields=('status',))
             else:
                 dueDate = now
                 status = self.model.PASTDUE
@@ -1225,28 +1256,24 @@ class UserGoalManager(models.Manager):
                             licenseType=licenseType
                         )
                     logger.info('Create uninitialized {0.licenseType} License for user {0.user}'.format(userLicense))
-            # does UserGoal for this license already exist
-            qs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense)
-            if qs.exists():
-                usergoal = qs[0]
-            else:
-                # create UserGoal with associated license
-                usergoal = self.model.objects.create(
-                        user=user,
-                        goal=basegoal,
-                        state=goal.state, # State
-                        dueDate=dueDate,
-                        status=status,
-                        license=userLicense
-                    )
-                logger.info('Created UserGoal: {0}'.format(usergoal))
-                usergoals.append(usergoal)
-            # check status
-            status = usergoal.calcLicenseStatus(now)
-            if usergoal.status != status:
-                usergoal.status = status
-                usergoal.save(update_fields=('status',))
-        return usergoals
+                # does UserGoal for this license already exist
+                ugqs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense)
+                if ugqs.exists():
+                    usergoal = ugqs[0]
+                else:
+                    # create UserGoal with associated license
+                    usergoal = self.model.objects.create(
+                            user=user,
+                            goal=basegoal,
+                            state=goal.state, # State
+                            dueDate=dueDate,
+                            status=status,
+                            license=userLicense
+                        )
+                    logger.info('Created UserGoal: {0}'.format(usergoal))
+                    usergoals.append(usergoal)
+                    # no need to recheck status (it is PASTDUE b/c license is UnInitialized)
+            return usergoals
 
     def handleGoalsForTag(self, user, tag, goals, userLicenseDict):
         """Create or update composite goal and individual usergoals
@@ -1262,8 +1289,15 @@ class UserGoalManager(models.Manager):
         basegoalids = [goal.goal.pk for goal in goals]
         # check individual goals
         for goal in goals:
-            basegoal = goal.goal
+            userLicense = None
+            if goal.licenseGoal:
+                try:
+                    userLicense = userLicenseDict[goal.licenseGoal.pk]
+                except KeyError:
+                    logger.exception("userLicense not found for {0}. Could not create usergoal for goal {1.pk}|{1}".format(user, goal))
+                    return
             # Does UserGoal for (user, basegoal) already exist
+            basegoal = goal.goal
             filter_kwargs = {
                 'user': user,
                 'goal': basegoal,
@@ -1283,13 +1317,6 @@ class UserGoalManager(models.Manager):
                 consgoals.append(ug)
                 continue
             # create UserGoal for (user, basegoal) with initial status=NEW
-            userLicense = None
-            if goal.licenseGoal:
-                try:
-                    userLicense = userLicenseDict[goal.licenseGoal.pk]
-                except KeyError:
-                    logger.exception("userLicense not found for {0}. Could not create usergoal for goal {1.pk}|{1}".format(user, goal))
-                    return
             usergoal = self.model.objects.create(
                     user=user,
                     goal=basegoal,
@@ -1404,6 +1431,40 @@ class UserGoalManager(models.Manager):
         usergoals.extend(self.assignSRCmeGoals(profile, userLicenseDict))
         return usergoals
 
+    def getCreditsGoalsForLicense(self, license):
+        """Get credit usergoals for the given license
+        Args:
+            license: StateLicense instance
+        Returns: UserGoal queryset
+        """
+        user = license.user
+        qset = user.usergoals \
+            .select_related('goal__goalType') \
+            .filter(
+                    license=license,
+                    goal__goalType__name__in=[GoalType.CME, GoalType.SRCME]
+                )
+        return qset
+
+    def transferCreditGoalsToLicense(self, oldLicense, newLicense):
+        """Transfer credit usergoals from old to new license and recompute"""
+        qset = self.getCreditsGoalsForLicense(oldLicense)
+        composite_goals = set([])
+        # recompute individual goals first
+        for ug in qset:
+            ug.license = newLicense
+            ug.dueDate = newLicense.expireDate
+            ug.recompute()
+            logger.info('Transfer license for: {0.pk}|{0}'.format(ug))
+            # find the composite goals to update
+            qs = user.usergoals.filter(is_composite_goal=True, constituentGoals=ug)
+            for cug in qs:
+                composite_goals.add(cug)
+        # now recompute composite goals
+        for cug in composite_goals:
+            ug.recompute()
+            logger.info('Recomputed {0.pk}|{0}'.format(ug))
+
     def recomputeCreditGoalsForLicense(self, usergoal):
         """This is called when a license is edited in-place. Recompute all dependent credit goals
         Args:
@@ -1412,12 +1473,7 @@ class UserGoalManager(models.Manager):
         user = usergoal.user
         # Find credit goals attached to usergoal.license
         # These are individual goals since they are associated with license
-        qset = user.usergoals \
-            .select_related('goal__goalType') \
-            .filter(
-                    license=usergoal.license,
-                    goal__goalType__name__in=[GoalType.CME, GoalType.SRCME]
-                )
+        qset = self.getCreditsGoalsForLicense(usergoal.license)
         composite_goals = set([])
         # recompute individual goals first
         for ug in qset:

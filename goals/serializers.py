@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 import math
 from datetime import timedelta
 from django.utils import timezone
@@ -344,8 +345,10 @@ class UserLicenseCreateSerializer(serializers.ModelSerializer):
         licenseType = validated_data['licenseType']
         state = validated_data['state']
         expireDate = validated_data.get('expireDate', None)
-        if expireDate:
+        if expireDate and expireDate.hour != 12:
             expireDate = expireDate.replace(hour=12)
+            validated_data['expireDate'] = expireDate
+        validated_data['subcatg'] = StateLicense.objects.determineSubCatg(licenseType, state, validated_data['licenseNumber'])
         # create StateLicense instance
         license = super(UserLicenseCreateSerializer, self).create(validated_data)
         # update profile
@@ -378,7 +381,7 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
         license = instance
         licenseNumber = validated_data.get('licenseNumber', license.licenseNumber)
         expireDate = validated_data.get('expireDate', license.expireDate)
-        if expireDate:
+        if expireDate and expireDate.hour != 12:
             expireDate = expireDate.replace(hour=12)
         # get the license usergoal for this license
         lgt = GoalType.objects.get(name=GoalType.LICENSE)
@@ -388,20 +391,22 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
             .order_by('-dueDate')[0]
         renewLicense = False
         # Decide if renew license or edit in-place (e.g. correction)
-        if license.isUnInitialized():
+        if license.isUnInitialized() or licenseNumber != license.licenseNumber:
             # An uninitialized license will be edited
-            logger.info('License {0.pk} is uninitialized. Edit in-place'.format(license))
+            logger.info('Edit in-place: License {0}'.format(license))
             renewLicense = False
         elif license.checkExpireDateForRenewal(expireDate):
             # new expireDate meets cutoff for license renewal
             renewLicense = True
+        subcatg = StateLicense.objects.determineSubCatg(license.licenseType, license.state, licenseNumber)
         if renewLicense:
             newLicense = StateLicense.objects.create(
                     user=license.user,
                     state=license.state,
                     licenseType=license.licenseType,
-                    licenseNumber=license.licenseNumber,
+                    licenseNumber=licenseNumber,
                     expireDate=expireDate,
+                    subcatg=subcatg,
                     modifiedBy=validated_data['modifiedBy']
                 )
             logger.info('Renewed License: {0}'.format(newLicense))
@@ -409,8 +414,8 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
             ugs = UserGoal.objects.updateCreditGoalsForRenewLicense(usergoal, newUserLicenseGoal)
             return newUserLicenseGoal
         # else: update license and usergoal in-place
-        logger.info('Edit existing license {0.pk}'.format(license))
         license.licenseNumber = licenseNumber
+        license.subcatg = subcatg
         license.modifiedBy = validated_data['modifiedBy']
         if expireDate and expireDate != license.expireDate:
             license.expireDate = expireDate
@@ -421,7 +426,7 @@ class UserLicenseGoalUpdateSerializer(serializers.ModelSerializer):
             usergoal.save(update_fields=('dueDate',))
             usergoal.recompute() # update status/compliance
             logger.info('Recomputed usergoal {0.pk}/{0}'.format(usergoal))
-            # recompute dependent creditgoals since we changed the dueDate of the licensegoal
+            # recompute any dependent creditgoals since we changed the dueDate of the licensegoal
             ugs = UserGoal.objects.recomputeCreditGoalsForLicense(usergoal)
         return usergoal
 
@@ -473,6 +478,7 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
         fluoStateSet = set([s.pk for s in profile.fluoroscopyStates.all()])
         # inactivate licenses
         licenses = []
+        ltypeStateDict = defaultdict(list) # (ltype, state) => [license,]
         now = timezone.now()
         for ug in usergoals:
             license = ug.license
@@ -481,22 +487,38 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
             logger.info('Inactivate {0}'.format(license))
             license.inactivate(now, self.validated_data['modifiedBy'])
             licenses.append(license)
-            if lt.name == LicenseType.TYPE_STATE:
-                stateSet.discard(state.pk)
-            elif lt.name == LicenseType.TYPE_DEA:
-                deaStateSet.discard(state.pk)
-            elif lt.name == LicenseType.TYPE_FLUO:
-                fluoStateSet.discard(state.pk)
+            ltypeStateDict[(lt, state)].append(license)
             # delete the license usergoal
             logger.info('Deleting license usergoal {0.pk}|{0}'.format(ug))
             ug.delete()
-        # update profile (and rematchGoals via signal)
+        # check if need to remove states from profile
+        for lt, state in ltypeStateDict.keys():
+            # does user have any active licenses for this pair?
+            qs = user.statelicenses.filter(licenseType=lt, state=state, is_active=True).order_by('expireDate', 'pk')
+            if qs.exists():
+                active_sl = qs[0] # active license for (ltype, state) with the earliest expireDate
+                # Check if need to transfer creditgoals
+                for license in ltypeStateDict[(lt, state)]:
+                    # does inactivated license have any credit goals
+                    credit_ugs = UserGoals.objects.getCreditsGoalsForLicense(license)
+                    if credit_ugs.exists():
+                        # transfer creditgoals to the active_sl
+                        ret = UserGoal.objects.transferCreditGoalsToLicense(license, active_sl)
+            else:
+                # user has no active licenses for (ltype, state): discard state from appropriate set
+                if lt.name == LicenseType.TYPE_STATE:
+                    stateSet.discard(state.pk)
+                elif lt.name == LicenseType.TYPE_DEA:
+                    deaStateSet.discard(state.pk)
+                elif lt.name == LicenseType.TYPE_FLUO:
+                    fluoStateSet.discard(state.pk)
+        # Update profile (even if no discard because we still want to rematchGoals via signal)
         form_data = {
                 'states': list(stateSet),
                 'deaStates': list(deaStateSet),
                 'fluorsocopyStates': list(fluoStateSet),
             }
-        logger.info('Update profile: {0}'.format(profile))
+        logger.info('Update profile: {0.pk}|{0}'.format(profile))
         profileUpdSer = ProfileUpdateSerializer(instance=profile, data=form_data, partial=True)
         profileUpdSer.is_valid(raise_exception=True)
         profile = profileUpdSer.save()

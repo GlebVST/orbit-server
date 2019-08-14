@@ -926,7 +926,7 @@ class LicenseType(models.Model):
     TYPE_MB = 'Medical Board'
     TYPE_STATE = 'State'
     TYPE_FLUO = 'Fluoroscopy'
-    TYPE_TELEMEDICINE = 'Out-of-State-Telemedicine'
+##    TYPE_TELEMEDICINE = 'Out-of-State-Telemedicine'
     # fields
     name = models.CharField(max_length=30, unique=True)
     created = models.DateTimeField(auto_now_add=True)
@@ -946,16 +946,30 @@ class StateLicenseManager(models.Manager):
         return None
 
     def getLatestSetForUser(self, user):
-        """Finds the latest (by expireDate) license per (state, licenseType)
+        """Finds the latest (by expireDate) license per (state, licenseType, licenseNumber)
         for the given user. This uses Postgres SELECT DISTINCT ON to return the
         first row of each (licenseType, state, -expireDate) subset.
         Reference: https://docs.djangoproject.com/en/1.11/ref/models/querysets/#django.db.models.query.QuerySet.distinct
         Ref: https://stackoverflow.com/questions/20582966/django-order-by-filter-with-distinct
         Returns: queryset
         """
-        return StateLicense.objects.filter(user=user, is_active=True) \
-            .order_by('licenseType_id', 'state_id', '-expireDate') \
-            .distinct('licenseType','state')
+        return StateLicense.objects.filter(user=user, is_active=True, expireDate__isnull=False) \
+            .order_by('licenseType_id', 'state_id', 'licenseNumber', '-expireDate') \
+            .distinct('licenseType','state', 'licenseNumber')
+
+    def getLatestSetForUserLtypeState(self, user, ltype, state):
+        """Finds the latest (by expireDate) license per licenseNumber for the given user, state, and licenseType.
+        For most users this returns 0 or 1 license. Some users have multiple distinct licenses for the same (ltype, state).
+        Returns: queryset
+        """
+        fkw = dict(licenseType=ltype,
+                state=state,
+                is_active=True,
+                expireDate__isnull=False)
+        qs = user.statelicenses.filter(**fkw) \
+            .order_by('licenseNumber','-expireDate') \
+            .distinct('licenseNumber')
+        return qs
 
     def partitionByStatusForUser(self, user):
         """Get the latest set of licenses for the given user, and partition them
@@ -987,12 +1001,21 @@ class StateLicenseManager(models.Manager):
             }
         return data
 
+    def determineSubCatg(self, licenseType, state, licenseNumber):
+        """Determine subcatg of license"""
+        if licenseType.name == LicenseType.TYPE_STATE:
+            if state.abbrev == 'TX' and licenseNumber.startswith('TM'):
+                return StateLicense.SUB_CATG_TM
+        return StateLicense.SUB_CATG_DEFAULT
+
 class StateLicense(models.Model):
     EXPIRING_CUTOFF_DAYS = 90 # expireDate cutoff for expiring goals (match UserGoal const)
     MIN_INTERVAL_DAYS = 365 # mininum license interval for renewal
     EXPIRED = 'EXPIRED'
     EXPIRING = 'EXPIRING'
     COMPLETED = 'COMPLETED'
+    SUB_CATG_DEFAULT = 0
+    SUB_CATG_TM = 1
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         related_name='statelicenses',
@@ -1007,6 +1030,12 @@ class StateLicense(models.Model):
         on_delete=models.CASCADE,
         related_name='statelicenses',
         db_index=True
+    )
+    subcatg = models.IntegerField(
+        default=0,
+        blank=True,
+        choices=((SUB_CATG_DEFAULT, 'Default'), (SUB_CATG_TM, 'Telemedicine')),
+        help_text='Sub-category for State licenses.'
     )
     licenseNumber = models.CharField(max_length=40, blank=True, default='',
             help_text='License number')
@@ -1028,12 +1057,12 @@ class StateLicense(models.Model):
     objects = StateLicenseManager()
 
     class Meta:
-        unique_together = ('user','state','licenseType','expireDate', 'is_active')
+        unique_together = ('user','state','licenseType','subcatg', 'expireDate', 'is_active')
 
     def __str__(self):
         if self.expireDate:
-            return "{0.pk}|{0.licenseType}|{0.state}|{0.expireDate:%Y-%m-%d}".format(self)
-        return "{0.pk}|{0.licenseType}|{0.state}|expireDate not set".format(self)
+            return "{0.pk}|{0.licenseType}|{0.state}|{0.subcatg}|{0.expireDate:%Y-%m-%d}".format(self)
+        return "{0.pk}|{0.licenseType}|{0.state}|{0.subcatg}|expireDate unset".format(self)
 
     def isUnInitialized(self):
         return self.licenseNumber == '' or not self.expireDate

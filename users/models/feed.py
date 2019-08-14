@@ -691,7 +691,7 @@ class UserFeedback(models.Model):
         blank=True,
         default=None
     )
-    message = models.CharField(max_length=500)
+    message = models.CharField(max_length=4000)
     hasBias = models.BooleanField(default=False)
     hasUnfairContent = models.BooleanField(default=False)
     reviewed = models.BooleanField(default=False)
