@@ -1620,8 +1620,6 @@ class UserSubscriptionManager(models.Manager):
             user_subs.status = result.subscription.status
             if old_display_status == self.model.UI_TRIAL:
                 user_subs.display_status = self.model.UI_TRIAL_CANCELED
-                # reset billingEndDate because it was set to billingStartDate + billingCycleMonths by createBtSubscription
-                user_subs.billingEndDate = user_subs.billingStartDate
             else:
                 user_subs.display_status = self.model.UI_EXPIRED
             user_subs.billingEndDate = now

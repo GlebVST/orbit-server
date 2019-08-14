@@ -942,7 +942,8 @@ class CancelSubscription(APIView):
                 context = {
                     'success': True,
                     'bt_status': user_subs.status,
-                    'display_status': user_subs.display_status
+                    'display_status': user_subs.display_status,
+                    'billingEndDate': user_subs.billingEndDate
                 }
                 message = 'CancelSubscription complete for subscriptionId: {0.subscriptionId}.'.format(user_subs)
                 logInfo(logger, request, message)
