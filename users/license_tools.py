@@ -391,14 +391,16 @@ class LicenseUpdater:
         If exception encountered in creating new license: append key of self.licenseData to self.create_errors.
         If exception encountered in updating license: append key of self.licenseData to self.update_errors.
         Returns: tuple (
-            num_action:int - number of license created or updated,
+            num_new:int - number of license created,
+            num_upd:int - number of licenses updated,
             num_error: int - number of exceptions encountered)
         """
         if self.dry_run:
             return 0
         update_errors = []
         create_errors = []
-        num_action = 0
+        num_new = 0
+        num_upd = 0
         cls = self.__class__
         ltype = self.data[0]['licenseType']
         for d in self.data:
@@ -421,7 +423,7 @@ class LicenseUpdater:
                 sl.licenseNumber = d['licenseNumber']
                 sl.modifiedBy = self.admin_user
                 sl.save()
-                num_action += 1
+                num_upd += 1
                 continue
             if action == cls.UPDATE_LICENSE:
                 msg = 'Update existing active License for user {0.user}: {0} to expireDate:{1:%Y-%m-%d}'.format(sl, d['expireDate'])
@@ -447,7 +449,7 @@ class LicenseUpdater:
                     update_errors.append(d)
                     continue
                 else:
-                    num_action += 1
+                    num_upd += 1
                     continue
             if action not in (cls.CREATE_NEW_LICENSE, cls.CREATE_NEW_LICENSE_NO_UG):
                 continue
@@ -479,9 +481,9 @@ class LicenseUpdater:
                 create_errors.append(d)
                 continue
             else:
-                num_action += 1
+                num_new += 1
                 continue
         self.create_errors = create_errors
         self.update_errors = update_errors
         num_errors = len(create_errors) + len(update_errors)
-        return (num_action, num_errors)
+        return (num_new, num_upd, num_errors)

@@ -2,17 +2,50 @@
 {% comment %}
 Context expected:
     orgfile: OrgFile instance for the uploaded file
-    stats: dict {num_action:int, num_no_action:int}
+    stats: dict {num_new:int, num_upd:int, num_no_action:int}
     num_errors: int - number of errors during process step
     create_errors: list of dicts that had license create errors
     update_errors: list of dicts that had license update errors
     support_email: email address
 {% endcomment %}
 <div>
-    <p>The {{ orgfile.organization }} License file {{ orgfile.name }} uploaded to Orbit has been processed.</p>
-    <p>File Type: {{ orgfile.file_type }}</p>
-    <p>Number of licenses created: {{ stats.num_action }}
-    <p>Number of existing (unchanged) licenses: {{ stats.num_no_action }}</p>
+    <p>Confirmation - {{ orgfile.file_type }} file processed.</p>
+    {% timezone "America/Los_Angeles" %}
+    <table>
+        <tr>
+            <th>Date of upload</th>
+            <td>{{ orgfile.created|date:"D, d N Y H:i e" }}</td>
+        </tr>
+        <tr>
+            <th>Uploaded by</th>
+            <td>{{ orgfile.user.profile.getFullName }}</p>
+        </tr>
+        <tr>
+            <th>Organization</th>
+            <td>{{ orgfile.organization.name }}</p>
+        </tr>
+        <tr>
+            <th>File Name</th>
+            <td>{{ orgfile.name }}</p>
+        </tr>
+        <tr>
+            <th>Licenses added</th>
+            <td>{{ stats.num_new }}</p>
+        </tr>
+        <tr>
+            <th>Licenses updated</th>
+            <td>{{ stats.num_upd }}</p>
+        </tr>
+        <tr>
+            <th>Licenses un-changed</th>
+            <td>{{ stats.num_no_action }}</p>
+        </tr>
+        <tr>
+            <th>Licenses removed</th>
+            <td>0</p>
+        </tr>
+    </table>
+    {% endtimezone %}
     {% if num_errors %}
         <h4>The following licenses resulted in a processing error ({{ num_errors }} errors total)</h4>:
     {% endif %}
