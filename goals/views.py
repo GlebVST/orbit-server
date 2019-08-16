@@ -377,7 +377,7 @@ class GoalRecsList(APIView):
                 qset = user.recaurls \
                     .select_related('offer', 'url__eligible_site') \
                     .filter(cmeTag=usergoal.cmeTag) \
-                    .order_by('offer','-url__numOffers', 'id')
+                    .order_by('offer', 'id')
                 s = RecAllowedUrlReadSerializer(qset[:3], many=True)
                 results = s.data
             else:

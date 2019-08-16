@@ -1450,10 +1450,15 @@ class UserGoalManager(models.Manager):
         """Transfer credit usergoals from old to new license and recompute"""
         qset = self.getCreditsGoalsForLicense(oldLicense)
         composite_goals = set([])
+        user = oldLicense.user
+        if newLicense.user != user:
+            logger.error('transferCreditGoalsToLicense: users do not match for oldLicense: {0.pk} and newLicense: {1.pk}'.format(oldLicense, newLicense))
+            return
         # recompute individual goals first
         for ug in qset:
             ug.license = newLicense
             ug.dueDate = newLicense.expireDate
+            ug.save()
             ug.recompute()
             logger.info('Transfer license for: {0.pk}|{0}'.format(ug))
             # find the composite goals to update

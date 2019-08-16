@@ -500,7 +500,7 @@ class UserLicenseGoalRemoveSerializer(serializers.Serializer):
                 # Check if need to transfer creditgoals
                 for license in ltypeStateDict[(lt, state)]:
                     # does inactivated license have any credit goals
-                    credit_ugs = UserGoals.objects.getCreditsGoalsForLicense(license)
+                    credit_ugs = UserGoal.objects.getCreditsGoalsForLicense(license)
                     if credit_ugs.exists():
                         # transfer creditgoals to the active_sl
                         ret = UserGoal.objects.transferCreditGoalsToLicense(license, active_sl)
