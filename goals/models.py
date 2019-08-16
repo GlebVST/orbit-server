@@ -1087,29 +1087,19 @@ class SRCmeGoal(models.Model):
 class UserGoalManager(models.Manager):
 
     def makeUserLicenseDict(self, user):
-        """Find all user licensegoals and make {BaseGoal.pk => License instance} for self.user and goalType = LICENSE
+        """Find all user licensegoals and make {BaseGoal.pk => [License instance,]} for self.user and goalType = LICENSE
         Returns: dict
         """
-        userLicenseDict = dict()
-        tmpdict = defaultdict(list)
+        userLicenseDict = defaultdict(list)
         licenseGoalType = GoalType.objects.get(name=GoalType.LICENSE)
         # get non-archived user licensegoals
         qset = user.usergoals.select_related('goal','license') \
                 .filter(goal__goalType=licenseGoalType) \
                 .exclude(status=UserGoal.EXPIRED) \
-                .order_by('dueDate', 'license__subcatg')
+                .order_by('license__subcatg', 'dueDate')
         # A user may have multiple distinct licenses per (licenseType, state) (e.g. per basegoal)
         for m in qset:
-            tmpdict[m.goal.pk].append(m.license)
-        # Select the license with earliest non-null date for the basegoal
-        for bgid in tmpdict.keys():
-            for license in tmpdict[bgid]:
-                if license.expireDate:
-                    userLicenseDict[bgid] = license # earliest non-null date
-                    break
-            else:
-                # no breaks encountered
-                userLicenseDict[bgid] = tmpdict[bgid][0] # first license in list
+            userLicenseDict[m.goal.pk].append(m.license)
         return userLicenseDict
 
     def renewLicenseGoal(self, oldGoal, newLicense):
@@ -1292,8 +1282,8 @@ class UserGoalManager(models.Manager):
             userLicense = None
             if goal.licenseGoal:
                 try:
-                    userLicense = userLicenseDict[goal.licenseGoal.pk]
-                except KeyError:
+                    userLicense = userLicenseDict[goal.licenseGoal.pk][0]
+                except (KeyError, IndexError) as e:
                     logger.exception("userLicense not found for {0}. Could not create usergoal for goal {1.pk}|{1}".format(user, goal))
                     return
             # Does UserGoal for (user, basegoal) already exist

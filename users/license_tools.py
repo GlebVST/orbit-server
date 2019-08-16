@@ -139,7 +139,10 @@ class LicenseUpdater:
                 ed = dparse(d['Expiration Date'].strip())
                 expireDate = timezone.make_aware(ed).replace(hour=12)
             except ValueError:
-                msg = 'Invalid date: {0}'.format(d['Expiration Date'])
+                if d['Expiration Date']:
+                    msg = 'Invalid date: {0}'.format(d['Expiration Date'])
+                else:
+                    msg = "Expiration Date cannot be blank ({NPI} {Last Name})".format(**d)
                 logger.warning(msg)
                 errors.append(msg)
                 continue
@@ -243,6 +246,7 @@ class LicenseUpdater:
         return data
 
     def findKeyInLicenseData(self, d, userDict):
+        ltype = d['licenseType']
         origkey = (ltype.pk, d['state'].pk, d['subcatg'], d['licenseNumber'])
         if origkey in userDict:
             return origkey
