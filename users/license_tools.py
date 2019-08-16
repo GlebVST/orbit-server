@@ -123,6 +123,11 @@ class LicenseUpdater:
                 logger.warning(msg)
                 errors.append(msg)
                 continue
+            if licenseNumber.startswith('Tracking'):
+                msg = "Invalid License Number: {0}".format(licenseNumber)
+                logger.warning(msg)
+                errors.append(msg)
+                continue
             if '?' in licenseNumber:
                 msg = "License Number cannot contain question mark: {0}".format(licenseNumber)
                 logger.warning(msg)
@@ -245,7 +250,7 @@ class LicenseUpdater:
             data.append(t)
         return data
 
-    def findKeyInLicenseData(self, d, userDict):
+    def findKeyInLicenseData(self, d, user, userDict):
         ltype = d['licenseType']
         origkey = (ltype.pk, d['state'].pk, d['subcatg'], d['licenseNumber'])
         if origkey in userDict:
@@ -312,7 +317,7 @@ class LicenseUpdater:
             licenseActions = self.licenseData[user.pk] # dict to store intended action on lkey
             userDict = slDict.get(user.pk, {}) # user data from db
             is_match = False
-            key = self.findKeyInLicenseData(d, userDict)
+            key = self.findKeyInLicenseData(d, user, userDict)
             if key:
                 for sl in userDict[key]:
                     if sl.isDateMatch(d['expireDate']):
