@@ -340,7 +340,7 @@ class LicenseUpdater:
                     num_upd += 1
                     continue
             # key not in userDict: check uniq constraint on SL
-            slqs = user.statelicenses.filter(state=d['state'], licenseType=ltype, is_active=True, expireDate=ed, subcatg=d['subcatg'])
+            slqs = user.statelicenses.filter(state=d['state'], licenseType=ltype, is_active=True, expireDate=d['expireDate'], subcatg=d['subcatg'])
             if slqs.exists():
                 existing_sl = slqs[0]
                 # this license would raise integrity error on StateLicense model
