@@ -322,7 +322,7 @@ class NewSubscription(generics.CreateAPIView):
         if not UserSubscription.objects.allowNewSubscription(request.user):
             context = {
                 'success': False,
-                'message': 'User has an existing Subscription that must be canceled first.'
+                'message': 'The user {0} has an existing Subscription that must be canceled first.'.format(request.user)
             }
             logError(logger, request, context['message'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
@@ -830,12 +830,12 @@ class SwitchTrialToActive(APIView):
     def post(self, request, *args, **kwargs):
         user = request.user
         customer = user.customer
-        # 1. check that user is currently in UI_TRIAL
+        # 1. check that user is currently in UI_TRIAL or UI_TRIAL_CANCELED
         last_subscription = UserSubscription.objects.getLatestSubscription(request.user)
-        if not last_subscription or (last_subscription.display_status != UserSubscription.UI_TRIAL):
+        if not last_subscription or last_subscription.display_status not in (UserSubscription.UI_TRIAL, UserSubscription.UI_TRIAL_CANCELED):
             context = {
                 'success': False,
-                'message': 'User is not currently in Trial period.'
+                'message': 'User {0} is not currently in Trial period.'.format(user)
             }
             logError(logger, request, context['message'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
@@ -854,7 +854,7 @@ class SwitchTrialToActive(APIView):
         context = {'success': result.is_success}
         if not result.is_success:
             context['message'] = 'Create Subscription failed.'
-            message = 'SwitchTrialToActive: Create Subscription failed. Result message: {0.message}'.format(result)
+            message = 'SwitchTrialToActive: Create Subscription failed for {0}. Result message: {1.message}'.format(user, result)
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # else
@@ -911,7 +911,7 @@ class CancelSubscription(APIView):
         if user_subs.status in (UserSubscription.CANCELED, UserSubscription.EXPIRED):
             context = {
                 'success': False,
-                'message': 'UserSubscription {0.subscriptionId} is already in status: {0.status}.' + user_subs.status
+                'message': 'UserSubscription {0.subscriptionId} is already in status: {0.status}.'.format(user_subs)
             }
             logWarning(logger, request, context['message'])
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
@@ -954,7 +954,7 @@ class ResumeSubscription(APIView):
     """
     This view expects a JSON object from the POST:
     {"subscription-id": BT subscriptionid to cancel}
-    If the subscription Id is valid and it is in UI_ACTIVE_CANCELED:
+    If the subscription Id is valid and it is in one of: UI_ACTIVE_CANCELED/UI_ACTIVE_DOWNGRADE:
             call reactivateBtSubscription
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
