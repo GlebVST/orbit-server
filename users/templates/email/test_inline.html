@@ -32,18 +32,46 @@
     </head>
     <body>
         <div id="banner">
-            <h1>Your Orbit Update for {{ reportDate|date:"F Y" }}</h1>
+            <h1>Orbit User Activity for {{ reportDate|date:"F Y" }}</h1>
         </div>
         <div id="content">
             <p class="lead">Hello, {{ profile.firstName }}</p>
-            <ul>
+            <table>
+                <tr>
+                    <th align="right">First Name</th>
+                    <td>{{ profile.firstName }}</th>
+                </tr>
+                <tr>
+                    <th align="right">Last Name</th>
+                    <td>{{ profile.lastName }}</th>
+                </tr>
+                <tr>
+                    <th align="right">Degree</th>
+                    <td>{{ profile.formatDegrees }}</th>
+                </tr>
+            </table>
+            <p>Recent entries:</p>
+            <table border="1">
+                <thead>
+                    <tr>
+                        <th align="left">User</th>
+                        <th align="left">EntryType</th>
+                        <th align="left">Description</th>
+                        <th align="left">Created</th>
+                    </tr>
+                </thead>
+                <tbody>
                 {% for entry in entries %}
-                <li>{{ entry.url }} on {{ entry.created|date:"Y-m-d" }}</li>
-                {% empty %}
-                    <li>Sorry, you did not visit any sites this month</li>
+                <tr>
+                    <td align="left">{{ entry.user }}</td>
+                    <td align="left">{{ entry.entryType }}</td>
+                    <td align="left">{{ entry.description|truncatechars:80 }}</td>
+                    <td align="left">{{ entry.created|date:"d M Y" }}</td>
+                </tr>
                 {% endfor %}
-            </ul>
-            <p>Have a wonderful day!</p>
+                </tbody>
+            </table>
+            <p>Total number of entries: {{ num_entries }} created since {{ cutoff|date:"d M Y" }}.</p>
         </div>
     </body>
 </html>

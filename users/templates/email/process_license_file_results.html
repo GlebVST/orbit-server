@@ -13,35 +13,35 @@ Context expected:
     {% timezone "America/Los_Angeles" %}
     <table>
         <tr>
-            <th>Date of upload</th>
+            <th align="right">Date of upload</th>
             <td>{{ orgfile.created|date:"D, d N Y H:i e" }}</td>
         </tr>
         <tr>
-            <th>Uploaded by</th>
+            <th align="right">Uploaded by</th>
             <td>{{ orgfile.user.profile.getFullName }}</p>
         </tr>
         <tr>
-            <th>Organization</th>
+            <th align="right">Organization</th>
             <td>{{ orgfile.organization.name }}</p>
         </tr>
         <tr>
-            <th>File Name</th>
+            <th align="right">File Name</th>
             <td>{{ orgfile.name }}</p>
         </tr>
         <tr>
-            <th>Licenses added</th>
+            <th align="right">Licenses added</th>
             <td>{{ stats.num_new }}</p>
         </tr>
         <tr>
-            <th>Licenses updated</th>
+            <th align="right">Licenses updated</th>
             <td>{{ stats.num_upd }}</p>
         </tr>
         <tr>
-            <th>Licenses un-changed</th>
+            <th align="right">Licenses un-changed</th>
             <td>{{ stats.num_no_action }}</p>
         </tr>
         <tr>
-            <th>Licenses removed</th>
+            <th align="right">Licenses removed</th>
             <td>0</p>
         </tr>
     </table>

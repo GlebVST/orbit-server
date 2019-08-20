@@ -232,24 +232,17 @@ class PreEmail(APIView):
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
         now = timezone.now()
         cutoff = now - timedelta(days=90)
-        entries = Entry.objects.filter(
-                user=user,
-                entryType=etype,
+        entries = Entry.objects.select_related('user','entryType').filter(
                 valid=True,
                 created__gte=cutoff).order_by('-created')
-        data = []
-        for m in entries:
-            data.append(dict(
-                id=m.pk,
-                url=m.brcme.url,
-                created=m.created
-            ))
         from_email = settings.SUPPORT_EMAIL
-        subject = 'Your Orbit monthly update'
+        subject = 'Orbit user activity'
         ctx = {
             'profile': user.profile,
-            'entries': data,
-            'reportDate': now
+            'entries': entries,
+            'num_entries': entries.count(),
+            'reportDate': now,
+            'cutoff': cutoff
         }
         # setup premailer
         plog = StringIO()
