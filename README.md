@@ -12,11 +12,12 @@ Note to setup project on Mac OSx additional step is installing graphviz via `bre
 
   ```
   git clone ...
-  virtualenv venv
+  cd orbit_server
+  git checkout develop
+  python3 -m venv venv
   source venv/bin/activate
   pip install -r requirements.txt
   Create .env file in the same dir as manage.py with key=value for the keys below.
-  ./run.sh
   ```
 
 
