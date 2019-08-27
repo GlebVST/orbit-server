@@ -1079,12 +1079,21 @@ class UserSubscriptionManager(models.Manager):
         user_subs.display_status = self.model.UI_EXPIRED
         user_subs.billingEndDate = now
         user_subs.save()
-        # remove user from EnterpriseMember group
-        ge = Group.objects.get(name=GROUP_ENTERPRISE_MEMBER)
-        user.groups.remove(ge)
         # clear profile.organization
         profile.organization = None
         profile.save(update_fields=('organization',))
+        # check which group user is in
+        ga = Group.objects.get(name=GROUP_ENTERPRISE_ADMIN)
+        if user.groups.filter(pk=ga.pk).exists():
+            # admin user - do not transfer to free plan
+            user.groups.clear()
+            # delete enterprise user_subs so that user can be re-added to org if needed
+            user_subs.delete()
+            logger.info('endEnterpriseSubscription for admin user: {0}.'.format(user))
+            return
+        ge = Group.objects.get(name=GROUP_ENTERPRISE_MEMBER)
+        # remove user from EnterpriseMember group
+        user.groups.remove(ge)
         # find appropriate plan_key for user
         plan_key = SubscriptionPlan.objects.findPlanKeyForProfile(profile)
         if not plan_key:
