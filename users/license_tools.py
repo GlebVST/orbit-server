@@ -460,7 +460,9 @@ class LicenseUpdater:
             # create new license case
             if action == cls.CREATE_NEW_LICENSE_NO_UG:
                 # handle corner case
-                sl.inactivate()
+                msg = "Inactivate License: {0.pk} for {0.user}".format(sl)
+                logger.info(msg)
+                sl.inactivate(removeDate=timezone.now(), modifiedBy=self.admin_user)
             form_data = {
                 'user': user.pk,
                 'state': d['state'].pk,

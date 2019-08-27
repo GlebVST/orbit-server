@@ -116,7 +116,7 @@ class InvalidateEntry(generics.UpdateAPIView):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         msg = 'Invalidate entry {0}'.format(instance)
-        logInfo(logger, request, msg)
+        #logInfo(logger, request, msg)
         instance.valid = False
         instance.save()
         context = {'success': True}
@@ -139,10 +139,10 @@ class InvalidateOffer(generics.UpdateAPIView):
                 'message': 'Offer has already been redeemed.'
             }
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        msg = 'Invalidate offer {0.pk}/{0}'.format(instance)
-        logInfo(logger, request, msg)
+        #msg = 'Invalidate offer {0.pk}/{0}'.format(instance)
+        #logInfo(logger, request, msg)
         instance.valid = False
-        instance.save()
+        instance.save(update_fields=('valid',))
         context = {'success': True}
         return Response(context)
 
