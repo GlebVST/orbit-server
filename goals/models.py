@@ -1103,7 +1103,7 @@ class UserGoalManager(models.Manager):
             userLicenseDict[m.goal.pk].append(m.license)
         for bgoalid, lics in userLicenseDict.items():
             s = ','.join([str(sl.pk) for sl in lics])
-            logger.info('LicenseBaseGoal {0.pk} : {1}'.format(bgoalid, s))
+            logger.info('LicenseBaseGoal {0} : {1}'.format(bgoalid, s))
         return userLicenseDict
 
     def renewLicenseGoal(self, oldGoal, newLicense):
