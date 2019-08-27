@@ -1087,8 +1087,9 @@ class SRCmeGoal(models.Model):
 class UserGoalManager(models.Manager):
 
     def makeUserLicenseDict(self, user):
-        """Find all user licensegoals and make {BaseGoal.pk => [License instance,]} for self.user and goalType = LICENSE
-        Returns: dict
+        """Find all non-expired license usergoals for user, and make
+        {BaseGoal.pk => [License instance,]} for self.user and goalType = LICENSE
+        Returns: dict {int => list}
         """
         userLicenseDict = defaultdict(list)
         licenseGoalType = GoalType.objects.get(name=GoalType.LICENSE)
@@ -1100,6 +1101,9 @@ class UserGoalManager(models.Manager):
         # A user may have multiple distinct licenses per (licenseType, state) (e.g. per basegoal)
         for m in qset:
             userLicenseDict[m.goal.pk].append(m.license)
+        for bgoalid, lics in userLicenseDict.items():
+            s = ','.join([sl.pk for sl in lics])
+            logger.info('LicenseBaseGoal {0.pk} : {1}'.format(bgoalid, s))
         return userLicenseDict
 
     def renewLicenseGoal(self, oldGoal, newLicense):
@@ -1202,8 +1206,8 @@ class UserGoalManager(models.Manager):
             slqs = StateLicense.objects.getLatestSetForUserLtypeState(user, licenseType, goal.state)
             if slqs.exists():
                 for userLicense in slqs:
-                    # does UserGoal for this license already exist
-                    ugqs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense)
+                    # does non-expired UserGoal for this license already exist
+                    ugqs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense).exclude(status=UserGoal.EXPIRED)
                     if ugqs.exists():
                         usergoal = ugqs[0]
                     else:
@@ -1245,9 +1249,9 @@ class UserGoalManager(models.Manager):
                             state=goal.state,
                             licenseType=licenseType
                         )
-                    logger.info('Create uninitialized {0.licenseType} License for user {0.user}'.format(userLicense))
-                # does UserGoal for this license already exist
-                ugqs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense)
+                    logger.info('Create uninitialized License for user {0.user}: {0}'.format(userLicense))
+                # does non-expired UserGoal for this license already exist
+                ugqs = self.model.objects.filter(user=user, goal=basegoal, license=userLicense).exclude(status=UserGoal.EXPIRED)
                 if ugqs.exists():
                     usergoal = ugqs[0]
                 else:
@@ -1270,7 +1274,7 @@ class UserGoalManager(models.Manager):
         Args:
             tag: CmeTag or None
             goals: list of CmeGoals or SrCmeGoals
-            userLicenseDict: dict {licenseBaseGoal.pk => StateLicense instance} for user
+            userLicenseDict: dict {licenseBaseGoal.pk => [StateLicense instance,]} for user
         """
         now = timezone.now()
         usergoals = [] # newly created
@@ -1284,7 +1288,7 @@ class UserGoalManager(models.Manager):
                 try:
                     userLicense = userLicenseDict[goal.licenseGoal.pk][0]
                 except (KeyError, IndexError) as e:
-                    logger.exception("userLicense not found for {0}. Could not create usergoal for goal {1.pk}|{1}".format(user, goal))
+                    logger.exception("userLicense not found for {0} for licenseGoal: {1.licenseGoal.pk}. Could not create usergoal for goal {1.pk}|{1}".format(user, goal))
                     return [] # return type should be list
             # Does UserGoal for (user, basegoal) already exist
             basegoal = goal.goal
