@@ -1101,9 +1101,9 @@ class UserGoalManager(models.Manager):
         # A user may have multiple distinct licenses per (licenseType, state) (e.g. per basegoal)
         for m in qset:
             userLicenseDict[m.goal.pk].append(m.license)
-        for bgoalid, lics in userLicenseDict.items():
-            s = ','.join([str(sl.pk) for sl in lics])
-            logger.info('LicenseBaseGoal {0} : {1}'.format(bgoalid, s))
+        #for bgoalid, lics in userLicenseDict.items():
+        #    s = ','.join([str(sl.pk) for sl in lics])
+        #    logger.info('LicenseBaseGoal {0} : {1}'.format(bgoalid, s))
         return userLicenseDict
 
     def renewLicenseGoal(self, oldGoal, newLicense):
@@ -1267,7 +1267,7 @@ class UserGoalManager(models.Manager):
                     logger.info('Created UserGoal: {0}'.format(usergoal))
                     usergoals.append(usergoal)
                     # no need to recheck status (it is PASTDUE b/c license is UnInitialized)
-            return usergoals
+        return usergoals
 
     def handleGoalsForTag(self, user, tag, goals, userLicenseDict):
         """Create or update composite goal and individual usergoals
