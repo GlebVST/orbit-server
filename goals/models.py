@@ -1285,7 +1285,7 @@ class UserGoalManager(models.Manager):
                     userLicense = userLicenseDict[goal.licenseGoal.pk][0]
                 except (KeyError, IndexError) as e:
                     logger.exception("userLicense not found for {0}. Could not create usergoal for goal {1.pk}|{1}".format(user, goal))
-                    return
+                    return [] # return type should be list
             # Does UserGoal for (user, basegoal) already exist
             basegoal = goal.goal
             filter_kwargs = {
