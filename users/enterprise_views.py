@@ -335,7 +335,7 @@ class OrgMembersRemove(APIView):
                 uc = UserCmeCredit.objects.get(user=u)
                 if uc.total_credits_earned:
                     logger.warning('Disallow remove for user {0.user}. total_credits_earned={0.total_credits_earned}.'.format(uc))
-                    disallowed.append({"id": member.pk})
+                    disallowed.append(member.pk)
                     continue
             member.removeDate = now
             member.save(update_fields=('removeDate',))
