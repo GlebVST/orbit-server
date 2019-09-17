@@ -72,8 +72,10 @@ class Auth0Api(object):
         if self.token:
             return self.token['expires_in']
 
-    def getUsers(self):
+    def getUsers(self, limit_total=None):
         """Get all users
+        Args:
+            limit_total: int/None limit number of users returned
         Returns: list of dicts
         """
         list_kwargs = {
@@ -90,7 +92,11 @@ class Auth0Api(object):
         logger.debug('Start:{start} Length:{length} Total:{total} Limit:{limit}'.format(**data))
         num_total = data['total']
         cur_total += data['length']
-        while (cur_total < num_total):
+        if not limit_total: # requested total
+            limit_total = 10000000
+        req_total = min(num_total, limit_total)
+        # get more users until we reach min(num_total, limit_total)
+        while (cur_total < req_total):
             list_kwargs['page'] += 1
             # throttle
             time.sleep(0.5) # to prevent Auth0Error: 429: Global limit has been reached

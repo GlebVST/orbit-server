@@ -70,8 +70,7 @@ def login_via_code(request):
         code,
         CALLBACK_URL
     )
-    user_info = auth0_users.userinfo(token['access_token'])
-    user_info_dict = json.loads(user_info)
+    user_info_dict = auth0_users.userinfo(token['access_token'])
     logInfo(logger, request, 'user_id: {user_id} email:{email}'.format(**user_info_dict))
     user = authenticate(request, user_info=user_info_dict) # must specify the keyword user_info
     if user:
@@ -217,8 +216,7 @@ def login_via_token(request, access_token):
             logWarning(logger, request, msg)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
     auth0_users = Users(settings.AUTH0_DOMAIN)
-    user_info = auth0_users.userinfo(access_token) # return str as json
-    user_info_dict = json.loads(user_info) # create dict
+    user_info_dict = auth0_users.userinfo(access_token) # returns dict as of auth0 v3.9.1
     user_info_dict['planId'] = planId
     user_info_dict['inviterId'] = inviterId
     user_info_dict['affiliateId'] = affiliateId
