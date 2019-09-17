@@ -66,17 +66,17 @@ class UploadDocumentSerializer(serializers.Serializer):
         is_image = newDoc.content_type.lower().startswith('image')
         if is_image:
             try:
-                im = Image.open(newDoc)
-                image_w, image_h = im.size
-                if image_w > thumb_size or image_h > thumb_size:
-                    im.thumbnail((thumb_size, thumb_size), Image.ANTIALIAS)
-                    mime = mimetypes.guess_type(fileName)
-                    plain_ext = mime[0].split('/')[1]
-                    memory_file = io.BytesIO()
-                    # save thumb to memory_file
-                    im.save(memory_file, plain_ext, quality=90)
-                    # calculate md5sum of thumb
-                    thumbMd5 = hashlib.md5(memory_file.getvalue()).hexdigest()
+                with Image.open(newDoc) as im:
+                    image_w, image_h = im.size
+                    if image_w > thumb_size or image_h > thumb_size:
+                        im.thumbnail((thumb_size, thumb_size), Image.ANTIALIAS)
+                        mime = mimetypes.guess_type(fileName)
+                        plain_ext = mime[0].split('/')[1]
+                        memory_file = io.BytesIO()
+                        # save thumb to memory_file
+                        im.save(memory_file, plain_ext, quality=90)
+                        # calculate md5sum of thumb
+                        thumbMd5 = hashlib.md5(memory_file.getvalue()).hexdigest()
             except IOError as e:
                 logger.exception('UploadDocument: Image open failed.')
             else:
