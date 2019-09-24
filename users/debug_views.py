@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.template.loader import get_template
+from django.utils import timezone
 from rest_framework.filters import BaseFilterBackend
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -22,7 +23,7 @@ from .serializers import *
 from .enterprise_serializers import *
 from .dashboard_views import CertificateMixin
 from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate
-from .emailutils import sendJoinTeamEmail
+from .emailutils import sendJoinTeamEmail, sendWelcomeEmail
 from .license_tools import LicenseUpdater
 
 class ValidateLicenseFile(generics.UpdateAPIView):
@@ -519,6 +520,7 @@ class EmailSetPassword(APIView):
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def post(self, request, *args, **kwargs):
+        apiConn = Auth0Api.getConnection(self.request)
         memberid = self.kwargs.get('pk')
         if memberid:
             qset = OrgMember.objects.filter(pk=memberid)
@@ -528,17 +530,23 @@ class EmailSetPassword(APIView):
             profile = orgmember.user.profile
             if orgmember.pending:
                 # member get into a pending state only when existing Orbit user get invited to organisation
-                # so for such users we send a join-team email again
+                # for such users we send a join-team email again
                 try:
                     sendJoinTeamEmail(orgmember.user, orgmember.organization, send_message=True)
+                    sleep(0.2)
                 except SMTPException as e:
                     logger.warn('sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(orgmember))
+                else:
+                    member.inviteDate = timezone.now()
+                    member.setPasswordEmailSent = True # need to set this flag otherwise member appears in Launchpad in UI
+                    member.save(update_fields=('inviteDate',))
+                    member.save(update_fields=('setPasswordEmailSent','inviteDate'))
             elif not orgmember.user.profile.verified:
-                # unverified users with with non-pending state are thos recently invited and never actually joined Orbit
+                # unverified users with with non-pending state are those invited but not yet verified their email
                 # so for such users we send a set-password email
-                apiConn = Auth0Api.getConnection(self.request)
                 OrgMember.objects.sendPasswordTicket(orgmember.user.profile.socialId, orgmember, apiConn)
-
+                if not member.is_admin:
+                    sendWelcomeEmail(member)
             context = {'success': True}
             return Response(context, status=status.HTTP_200_OK)
         return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)

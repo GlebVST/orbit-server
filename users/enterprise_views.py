@@ -36,7 +36,7 @@ from .permissions import *
 from .emailutils import makeSubject, setCommonContext, sendJoinTeamEmail
 from .dashboard_views import AuditReportMixin
 from .license_tools import LicenseUpdater
-from .tasks import processValidatedLicenseFile
+from .tasks import processValidatedLicenseFile, sendWelcomeEmailtoMembers
 from goals.serializers import UserLicenseGoalSummarySerializer
 from goals.models import UserGoal
 
@@ -606,6 +606,11 @@ class ProcessUploadedLicenseFile(APIView):
 
 
 class OrgMembersEmailInvite(APIView):
+    """This is used to re-send invite link to users (either sendPasswordTicket or JoinTeamEmail
+    depending on user's pending state). Additionally, it also sends a Welcome email to the new
+    users using celery task. (The pending users receive the Welcome Email after they have joined
+    and started their Enterprise subs).
+    """
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
     def post(self, request, *args, **kwargs):
@@ -613,6 +618,7 @@ class OrgMembersEmailInvite(APIView):
         logInfo(logger, self.request, 'Repeat email invites for OrgMembers: {}'.format(ids))
         apiConn = Auth0Api.getConnection(self.request)
         members = OrgMember.objects.select_related('user__profile').filter(pk__in=ids)
+        new_memberids = []
         for member in members:
             if member.pending:
                 # member get into a pending state only when existing Orbit user get invited to organisation
@@ -625,15 +631,22 @@ class OrgMembersEmailInvite(APIView):
                     logException(logger, self.request, 'sendJoinTeamEmail failed to pending OrgMember {0.fullname}.'.format(member))
                 else:
                     member.inviteDate = timezone.now()
+                    member.setPasswordEmailSent = True # need to set this flag otherwise member appears in Launchpad in UI
                     member.save(update_fields=('inviteDate',))
+                    member.save(update_fields=('setPasswordEmailSent','inviteDate'))
             elif not member.user.profile.verified:
                 # unverified users with non-pending state are those recently invited and never actually joined Orbit
                 # so for such users we send a set-password email
                 OrgMember.objects.sendPasswordTicket(member.user.profile.socialId, member, apiConn)
+                if not member.is_admin:
+                    new_memberids.append(member.pk)
                 # auth0 rate-limit API calls on a free tier to 2 requests per second
                 # https://auth0.com/docs/policies/rate-limits
                 sleep(0.5)
         context = {'success': True}
+        # send Welcome emails to new users
+        if new_memberids:
+            sendWelcomeEmailToMembers.delay(new_memberids)
         return Response(context, status=status.HTTP_200_OK)
 
 class OrgMembersRestore(APIView):
@@ -746,6 +759,7 @@ class TeamStats(APIView):
 #  If removeDate is not None: clear it (re-activate membership)
 # 2. Terminate current user_subs and begin new Enterprise subs
 # 3. Emit profile_saved signal (to create usergoals)
+# 4. For non-admin user: send Welcome Email
 class JoinTeam(APIView):
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
@@ -799,6 +813,8 @@ class JoinTeam(APIView):
             'permissions': pdata['permissions'],
             'credits': pdata['credits']
         }
+        if not m.is_admin:
+            sendWelcomeEmailToMembers.delay([m.pk,])
         return Response(context, status=status.HTTP_200_OK)
 
 class EnterpriseMemberAuditReport(AuditReportMixin, APIView):

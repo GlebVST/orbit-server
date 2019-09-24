@@ -7,9 +7,9 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 from django.template.loader import get_template
 from django.utils import timezone
-from .models import OrgFile
+from .models import OrgFile, OrgMember
 from .license_tools import LicenseUpdater
-from .emailutils import makeSubject, setCommonContext
+from .emailutils import makeSubject, setCommonContext, sendWelcomeEmail
 
 logger = logging.getLogger('gen.tasks')
 
@@ -85,3 +85,26 @@ def processValidatedLicenseFile(orgfile_pk):
             msg.send()
         except SMTPException as e:
             logException(logger, request, 'UploadLicense send email failed.')
+
+@shared_task
+def sendWelcomeEmailToMembers(orgmemberids):
+    """Send welcome email to each of the given OrgMembers.
+    Note: If the Auth0 welcome email template is modified, it should be copied into
+    the welcome_auth0.html, and replace any hardcoded links to the website with server_hostname.
+    Args:
+        orgmemberids: list of OrgMember pkeyids
+    """
+    from django.core import mail
+    messages = []
+    members = OrgMember.objects.select_related('user').filter(pk__in=orgmemberids)
+    for member in members:
+        msg = sendWelcomeEmail(member, send_message=False)
+        messages.append(msg)
+    connection = mail.get_connection()
+    try:
+        connection.send_messages(messages)
+    except SMTPException as e:
+        logger.exception('sendWelcomeEmailToMembers failed')
+    else:
+        num_messages = len(messages)
+        logger.info('sendWelcomeEmailToMembers done for {0} user(s)'.format(num_messages))

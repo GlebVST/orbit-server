@@ -200,8 +200,8 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
         brcme = self.perform_create(serializer)
         entry = brcme.entry
         user = request.user
-        msg = "Redeemed offer {0.offerId}".format(brcme)
-        logInfo(logger, request, msg)
+        #msg = "Redeemed offer {0.offerId}".format(brcme)
+        #logInfo(logger, request, msg)
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context = {

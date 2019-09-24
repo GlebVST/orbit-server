@@ -524,9 +524,38 @@ def sendCancelReminderEmail(user_subs, payment_method, extra_data):
     msg.content_subtype = 'html'
     msg.send()
 
+def sendWelcomeEmail(orgmember, send_message=True):
+    """Send EmailMessage to user using the welcome_auth0 template.
+    Note: If the Auth0 welcome email template is modified, it should be copied into
+    the welcome_auth0.html template, and replace any hardcoded links to the website
+    with server_hostname.
+    Args:
+        orgmember: OrgMember instance
+        send_message: bool defaults to True. If False, msg will be returned instead
+    Returns:
+        If send_message is True: int (0 = failed. 1 = delivered)
+        If send_message is False: EmailMessage object
+    Can raise SMTPException
+
+    """
+    from_email = settings.SUPPORT_EMAIL
+    subject = makeSubject('Orbit - start earning credit with your new account')
+    user = orgmember.user
+    ctx = {
+        'org': orgmember.organization,
+    }
+    setCommonContext(ctx)
+    message = get_template('email/welcome_auth0.html').render(ctx)
+    msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
+    msg.content_subtype = 'html'
+    if send_message:
+        return msg.send() # 0 or 1
+    else:
+        return msg
+
 
 def sendPasswordTicketEmail(orgmember, ticket_url, send_message=True):
-    """Send EmailMessage receipt to user using set_password_enterprise template
+    """Send EmailMessage to user using set_password_enterprise template
     Args:
         orgmember: OrgMember instance
         ticket_url: URL for change-password-ticket
