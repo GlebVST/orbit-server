@@ -493,7 +493,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('price', 'discountPrice')
         }),
         ('CME', {
-            'fields': ('maxCmeYear','maxCmeMonth','cmeTags')
+            'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits', 'cmeTags')
         }),
         ('Other', {
             'fields': ('trialDays','billingCycleMonths','active',)

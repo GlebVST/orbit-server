@@ -753,6 +753,11 @@ class SubscriptionPlan(models.Model):
     maxCmeYear = models.PositiveIntegerField(
         default=0,
         help_text='Maximum allowed CME per plan period (defined via billingCycleMonths - can be one or multiple years). 0 for unlimited total.')
+    max_trial_credits = models.DecimalField(
+        max_digits=3,
+        decimal_places=1,
+        default=0,
+        help_text=' Custom value for maximum credits allowed in Trial period. Overrides default value in settings.py')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()
@@ -788,6 +793,11 @@ class SubscriptionPlan(models.Model):
 
     def isPaid(self):
         return self.plan_type.needs_payment_method
+
+    def getMaxTrialCredits(self):
+        if self.max_trial_credits:
+            return self.max_trial_credits
+        return settings.MAX_TRIAL_CME_CREDIT
 
 
 # User Subscription
@@ -898,7 +908,7 @@ class UserSubscriptionManager(models.Manager):
             userCredits = UserCmeCredit.objects.get(user=user)
         except UserCmeCredit.DoesNotExist:
             # might be a case when user hasn't completed signup so don't have a subscription yet
-            logger.debug('UserCmeCredit instance does not exist for user {0}'.format(user))
+            logger.warning('UserCmeCredit instance does not exist for user {0}'.format(user))
         else:
             remaining_credits = userCredits.remaining()
             plan_credits = userCredits.plan_credits
@@ -920,7 +930,7 @@ class UserSubscriptionManager(models.Manager):
             if credits_earned < settings.MIN_CME_CREDIT_FOR_REFERRAL:
                 discard_codes.add(PERM_ALLOW_INVITE)
 
-            if user_subs.display_status == UserSubscription.UI_TRIAL and userCredits and userCredits.total_credits_earned >= settings.MAX_TRIAL_CME_CREDIT:
+            if user_subs.display_status == UserSubscription.UI_TRIAL and userCredits and userCredits.total_credits_earned >= user_subs.plan.getMaxTrialCredits():
                 is_trial_cme_limit = True
 
 
