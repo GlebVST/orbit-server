@@ -36,7 +36,7 @@ from .permissions import *
 from .emailutils import makeSubject, setCommonContext, sendJoinTeamEmail
 from .dashboard_views import AuditReportMixin
 from .license_tools import LicenseUpdater
-from .tasks import processValidatedLicenseFile, sendWelcomeEmailtoMembers
+from .tasks import processValidatedLicenseFile, sendWelcomeEmailToMembers
 from goals.serializers import UserLicenseGoalSummarySerializer
 from goals.models import UserGoal
 
