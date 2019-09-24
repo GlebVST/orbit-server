@@ -100,11 +100,11 @@ def sendWelcomeEmailToMembers(orgmemberids):
     for member in members:
         msg = sendWelcomeEmail(member, send_message=False)
         messages.append(msg)
-    connection = mail.get_connection()
     try:
+        connection = mail.get_connection()
         connection.send_messages(messages)
     except SMTPException as e:
-        logger.exception('sendWelcomeEmailToMembers failed')
+        logger.exception('sendWelcomeEmailToMembers connection failed')
     else:
         num_messages = len(messages)
         logger.info('sendWelcomeEmailToMembers done for {0} user(s)'.format(num_messages))
