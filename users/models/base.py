@@ -68,6 +68,18 @@ class AuthImpersonation(models.Model):
                 self.impersonator, self.impersonatee)
 
 
+class CmeTagCategory(models.Model):
+    name= models.CharField(max_length=80, unique=True, help_text='Category name.')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name_plural = 'CME Tag Categories'
+        ordering = ['name',]
+
 # CME tag types (SA-CME tag has priority=1)
 class CmeTagManager(models.Manager):
     def getSpecTags(self):
@@ -90,6 +102,13 @@ class CmeTag(models.Model):
     srcme_only = models.BooleanField(default=False,
             help_text='True if tag is only valid for self-reported cme')
     instructions = models.TextField(default='', help_text='Instructions to provider. May contain Markdown-formatted text.')
+    category = models.ForeignKey(CmeTagCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name='tags',
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = CmeTagManager()

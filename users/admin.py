@@ -206,8 +206,9 @@ class OrgReportAdmin(admin.ModelAdmin):
 
 
 class CmeTagAdmin(admin.ModelAdmin):
-    list_display = ('id', 'priority', 'name', 'description', 'srcme_only', 'instructions')
-    list_filter = ('srcme_only',)
+    list_display = ('id', 'category', 'name', 'description', 'srcme_only', 'priority', 'instructions')
+    list_filter = ('srcme_only','category')
+    list_select_related = ('category',)
 
 class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
