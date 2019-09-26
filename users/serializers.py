@@ -112,10 +112,11 @@ class ProfileCmetagSerializer(serializers.ModelSerializer):
     priority = serializers.ReadOnlyField(source='tag.priority')
     description = serializers.ReadOnlyField(source='tag.description')
     srcme_only = serializers.ReadOnlyField(source='tag.srcme_only')
+    instructions = serializers.ReadOnlyField(source='tag.instructions')
 
     class Meta:
         model = ProfileCmetag
-        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only')
+        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only', 'instructions')
 
 class ProfileCmetagUpdateSerializer(serializers.ModelSerializer):
     tag = serializers.PrimaryKeyRelatedField(
