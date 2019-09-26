@@ -757,7 +757,7 @@ class SubscriptionPlan(models.Model):
         max_digits=3,
         decimal_places=1,
         default=0,
-        help_text=' Custom value for maximum credits allowed in Trial period. Overrides default value in settings.py')
+        help_text=' Custom value for maximum OrbitCME credits allowed in Trial period. -1 means: no redeeming allowed in Trial. 0 means: use default max_trial_credits in settings.py. A positive value: overrides default value in settings.py')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()

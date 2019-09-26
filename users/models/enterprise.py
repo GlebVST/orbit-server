@@ -178,18 +178,25 @@ class OrgMemberManager(models.Manager):
                 users.append(user)
         return users
 
-    def sendPasswordTicket(self, socialId, member, apiConn):
+    def sendPasswordTicket(self, socialId, member, apiConn, connection=None):
+        """Generate auth0 password-ticket url and call emailutils.sendPasswordTicketEmail to send the message
+        Args:
+            socialId: str profile.socialId for auth0
+            member: OrgMember instance
+            apiConn: auth0Api instance
+            connection: mail connection to re-use (or None for a connection to be auto-created per ticket)
+        """
         hostname = getHostname() # this ensures hostname is either prod or test server (not admin server)
         UI_LOGIN_URL = 'https://{0}{1}'.format(hostname, settings.UI_LINK_LOGIN)
         ticket_url = apiConn.change_password_ticket(socialId, UI_LOGIN_URL)
-        # TODO remove this dangerous ticket exposure when we are sure this works and no need to try out users
         logger.info('ticket_url for {0}={1}'.format(member.user.email, ticket_url))
         try:
-            delivered = sendPasswordTicketEmail(member, ticket_url)
+            delivered = sendPasswordTicketEmail(member, ticket_url, connection=connection)
             if delivered:
                 member.setPasswordEmailSent = True
                 member.inviteDate = timezone.now()
-                member.save(update_fields=('setPasswordEmailSent','inviteDate'))
+                member.ticket_url = ticket_url
+                member.save(update_fields=('setPasswordEmailSent','inviteDate', 'ticket_url'))
         except SMTPException as e:
             error_msg = 'sendPasswordTicketEmail failed for org member {0.fullname}. ticket_url={1}'.format(member, ticket_url)
             if settings.ENV_TYPE == settings.ENV_PROD:
@@ -257,6 +264,8 @@ class OrgMember(models.Model):
             help_text='Cached compliance level aggregated over user goals')
     setPasswordEmailSent = models.BooleanField(default=False,
             help_text='Set to True when password-ticket email is sent')
+    ticket_url = models.URLField(max_length=500, blank=True,
+        help_text='Password-ticket URL. This is a timed URL - set by ttl_days on the ticket.')
     orgfiles = models.ManyToManyField(OrgFile, blank=True, related_name='orgmembers')
     pending = models.BooleanField(default=False,
             help_text='Set to True when invitation is sent to existing user to join team.')

@@ -554,7 +554,7 @@ def sendWelcomeEmail(orgmember, send_message=True):
         return msg
 
 
-def sendPasswordTicketEmail(orgmember, ticket_url, send_message=True):
+def sendPasswordTicketEmail(orgmember, ticket_url, send_message=True, connection=None):
     """Send EmailMessage to user using set_password_enterprise template
     Args:
         orgmember: OrgMember instance
@@ -578,7 +578,10 @@ def sendPasswordTicketEmail(orgmember, ticket_url, send_message=True):
     msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
     msg.content_subtype = 'html'
     if send_message:
-        return msg.send() # 0 or 1
+        if connection:
+            return connection.send_messages([msg,]) # 0 or 1
+        else:
+            return msg.send() # 0 or 1
     else:
         return msg
 

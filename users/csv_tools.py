@@ -398,13 +398,13 @@ class ProviderCsvImport(CsvImport):
             self.print_out(error_msg, True)
             return False
 
-    def sendPasswordTicketEmails(self, org, auth0):
-        # Send password ticket emails for all members of the organisations who
-        # don't have a `setPasswordEmailSent` flag set yet
-        redirect_url = 'https://{0}{1}'.format(getHostname(), settings.UI_LINK_LOGIN)
+    def sendPasswordTicketEmails(self, org, apiConn):
+        """
+        Send password ticket emails for all members of the organisations who
+         don't have a `setPasswordEmailSent` flag set yet
+        """
         user_tickets = []
-        qset = OrgMember.objects.filter(organization=org, setPasswordEmailSent=False).order_by('id')
-
+        qset = OrgMember.objects.filter(organization=org, setPasswordEmailSent=False, pending=False, removeDate__isnull=True).order_by('id')
         # send out emails
         connection = mail.get_connection()
         connection.open()
@@ -412,26 +412,14 @@ class ProviderCsvImport(CsvImport):
         for orgmember in qset:
             user = orgmember.user
             profile = user.profile
-            tickets_msg = 'Generating Auth0 password-ticket for {}'.format(user.email)
-            self.print_out(tickets_msg)
-            ticket_url = auth0.change_password_ticket(profile.socialId, redirect_url)
-
-            sending_msg = "Sending password-ticket email for User: {0}: {1}...".format(user, ticket_url)
-            # TODO remove this dangerous ticket exposure when we are sure this works and no need to try out users
-            #self.print_out(sending_msg)
-
-            msg = sendPasswordTicketEmail(orgmember, ticket_url, send_message=False)
-            # send email and update flag if success
-            num_sent = connection.send_messages([msg,])
-            if num_sent == 1:
-                orgmember.setPasswordEmailSent = True
-                orgmember.save(update_fields=('setPasswordEmailSent',))
-            else:
-                error_msg = 'Send password-ticket email failed for {0.user}'.format(orgmember)
+            msg = 'Generating Auth0 password-ticket for {0}'.format(user)
+            self.print_out(msg)
+            delivered = OrgMember.objects.sendPasswordTicket(profile.socialId, orgmember, apiConn, connection=connection)
+            if not delivered:
+                error_msg = 'Send password-ticket email failed for {0}'.format(user)
                 self.print_out(error_msg, True)
             # add delay as we are not spammers
             # auth0 rate-limit API calls on a free tier to 2 requests per second
             # https://auth0.com/docs/policies/rate-limits
             sleep(0.5)
-
         connection.close()
