@@ -640,6 +640,9 @@ class InvitationDiscountReadSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
+class UserEmailLookupSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
 class UserEmailUpdateSerializer(serializers.Serializer):
     email = serializers.EmailField()
 

@@ -252,6 +252,57 @@ class InviteIdLookup(APIView):
         return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
 
 
+class EmailLookup(APIView):
+    """This view returns information about the email address in the POST data.
+    Example JSON in the POST data:
+        {"email": "some_email@email.com"}
+    """
+    permission_classes = (permissions.AllowAny,)
+    serializer_class = UserEmailLookupSerializer
+
+    def post(self, request, *args, **kwargs):
+        ser = UserEmailLookupSerializer(data=request.data)
+        is_valid = ser.is_valid(raise_exception=False)
+        if not is_valid:
+            #print(ser.errors)
+            context = {
+                'message': 'Invalid value'
+            }
+            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+        email = ser.validated_data['email']
+        qset = User.objects.filter(email__iexact=email, is_superuser=False).order_by('-id')
+        if qset.exists():
+            user = qset[0]
+            profile = user.profile
+            context = {
+                'id': user.pk,
+                'verified': profile.verified,
+                'subs': None,
+                'org': None
+            }
+            # does UserSubs exist for this user
+            user_subs = UserSubscription.objects.getLatestSubscription(user)
+            if user_subs:
+                context['subs'] = {
+                    'plan': user_subs.plan.display_name,
+                    'status': user_subs.display_status
+                }
+            # does active OrgMember instance exist for this user
+            qs = OrgMember.objects.filter(user=user, removeDate__isnull=True).order_by('-created')
+            if qs.exists():
+                member = qs[0]
+                context['org'] = {
+                    'name': member.organization.name,
+                    'pending': member.pending,
+                    'ticket_url': ''
+                }
+                if not member.pending and not profile.verified:
+                    # brand-new member (never joined)
+                    context['org']['ticket_url'] = member.ticket_url
+            return Response(context, status=status.HTTP_200_OK)
+        else:
+            return Response({'success': False}, status=status.HTTP_404_NOT_FOUND)
+
 class SetProfileAccessedTour(APIView):
     """This view sets/clears the accessedTour flag on the user's profile.
     Example JSON in the POST data:
