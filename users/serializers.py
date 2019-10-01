@@ -34,6 +34,7 @@ class NestedResidencySerializer(serializers.ModelSerializer):
         model = ResidencyProgram
         fields = ('id', 'name')
 
+
 class CmeTagWithSpecSerializer(serializers.ModelSerializer):
     specialties = serializers.PrimaryKeyRelatedField(
         queryset=PracticeSpecialty.objects.all(),
@@ -113,10 +114,22 @@ class ProfileCmetagSerializer(serializers.ModelSerializer):
     description = serializers.ReadOnlyField(source='tag.description')
     srcme_only = serializers.ReadOnlyField(source='tag.srcme_only')
     instructions = serializers.ReadOnlyField(source='tag.instructions')
+    categoryid = serializers.ReadOnlyField(source='tag.category.id')
+    category_name = serializers.ReadOnlyField(source='tag.category.name')
 
     class Meta:
         model = ProfileCmetag
-        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only', 'instructions')
+        fields = (
+            'id',
+            'name',
+            'priority',
+            'description',
+            'is_active',
+            'srcme_only',
+            'instructions',
+            'categoryid',
+            'category_name'
+        )
 
 class ProfileCmetagUpdateSerializer(serializers.ModelSerializer):
     tag = serializers.PrimaryKeyRelatedField(

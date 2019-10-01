@@ -68,7 +68,7 @@ def makeOffers(user, num_offers=None):
             )
             offer.assignCmeTags()
         print('{0.pk}|{0.url}|{0.activityDate:%Y-%m-%d}'.format(offer))
-        #print(offer.tags.all())
+        print(offer.tags.all())
 
 def makeOffersForRecs(user, tag):
     """Generate offer for recaurl and set recaurl.offer"""

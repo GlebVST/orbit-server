@@ -52,8 +52,7 @@ class OrbitCmeOfferSerializer(serializers.ModelSerializer):
     url = serializers.StringRelatedField(read_only=True)
     pageTitle = serializers.CharField(source='url.page_title', max_length=500, read_only=True, default='')
     logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
-    cmeTags = serializers.PrimaryKeyRelatedField(source='tags', many=True, read_only=True)
-
+    recommendedTags = serializers.PrimaryKeyRelatedField(source='tags', many=True, read_only=True)
     class Meta:
         model = OrbitCmeOffer
         fields = (
@@ -67,7 +66,7 @@ class OrbitCmeOfferSerializer(serializers.ModelSerializer):
             'credits',
             'sponsor',
             'logo_url',
-            'cmeTags'
+            'recommendedTags',
         )
         read_only_fields = fields
 
@@ -115,6 +114,7 @@ class BRCmeSubSerializer(serializers.ModelSerializer):
 class CreateSRCmeOutSerializer(serializers.ModelSerializer):
     """Serializer for the response returned for create srcme entry"""
     documents = DocumentReadSerializer(many=True, required=False)
+    success = serializers.SerializerMethodField()
 
     class Meta:
         model = Entry
@@ -124,7 +124,6 @@ class CreateSRCmeOutSerializer(serializers.ModelSerializer):
             'created',
             'success'
         )
-    success = serializers.SerializerMethodField()
 
     def get_success(self, obj):
         return True

@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+from collections import OrderedDict
 import logging
 from datetime import datetime, timedelta
 from hashids import Hashids
@@ -461,6 +462,22 @@ class ProfileManager(models.Manager):
             )
         return profile
 
+    def groupActiveTagsByCatg(self, profile):
+        """Group the user's active ProfileCmeTags by CmeTagCategory
+        Returns: OrderedDict: {CmeTagCategory instance => list of CmeTags}
+        """
+        pcts = ProfileCmetag.objects \
+            .filter(profile=profile, is_active=True) \
+            .select_related('tag__category') \
+            .order_by('tag__category__name', 'tag__name')
+        grouped = OrderedDict()
+        for pct in pcts:
+            tag = pct.tag
+            catg = tag.category
+            if catg not in grouped:
+                grouped[catg] = []
+            grouped[catg].append(tag)
+        return grouped
 
 @python_2_unicode_compatible
 class Profile(models.Model):

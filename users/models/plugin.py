@@ -16,6 +16,7 @@ from .base import (
     CMETAG_SACME,
     SACME_SPECIALTIES,
     CmeTag,
+    ProfileCmetag,
     EligibleSite,
     Organization
 )
@@ -379,15 +380,19 @@ class OrbitCmeOffer(models.Model):
     def assignCmeTags(self):
         """Assign tags based on: eligible_site, url, and user"""
         esite = self.eligible_site
-        # get suggested cmetags from the eligible_site.specialties
-        specnames = [p.name for p in esite.specialties.all()]
-        spectags = CmeTag.objects.filter(name__in=specnames) # tags whose name=pracspec.name
+        profile = self.user.profile
+        profile_specs = set([s.name for s in profile.specialties.all()])
+        esite_specs = set([s.name for s in esite.specialties.all()])
+        int_specs = profile_specs.intersection(esite_specs)
+        spectags = CmeTag.objects.filter(name__in=int_specs) # tag.name matches ps.name for ps in int_specs
         self.tags.set(list(spectags))
+        pcts = ProfileCmetag.objects.filter(profile=profile, is_active=True)
+        pct_tags = set([pct.tag for pct in pcts])
         # tags from allowed_url
         for t in self.url.cmeTags.all():
-            self.tags.add(t)
+            if t in pct_tags: # aurl.tag is contained in user's profilecmetags
+                self.tags.add(t)
         # check if can add SA-CME tag
-        profile = self.user.profile
         if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
             self.tags.add(CmeTag.objects.get(name=CMETAG_SACME))
 
