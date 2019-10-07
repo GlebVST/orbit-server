@@ -81,7 +81,6 @@ class CmeTagCategory(models.Model):
         verbose_name_plural = 'CME Tag Categories'
         ordering = ['name',]
 
-# CME tag types (SA-CME tag has priority=1)
 class CmeTagManager(models.Manager):
     def getSpecTags(self):
         pspecs = PracticeSpecialty.objects.all()
@@ -96,8 +95,8 @@ class CmeTag(models.Model):
     # fields
     name= models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
     priority = models.IntegerField(
-        default=0,
-        help_text='Used for non-alphabetical sort.'
+        default=2,
+        help_text='Used for non-alphabetical sort. 0=Specialty-name tag. 1=SA-CME. 2=Others.'
     )
     description = models.CharField(max_length=200, unique=True, help_text='Long-form name. Must be unique. Used on certificates.')
     srcme_only = models.BooleanField(default=False,
@@ -119,7 +118,7 @@ class CmeTag(models.Model):
 
     class Meta:
         verbose_name_plural = 'CME Tags'
-        ordering = ['-priority', 'name']
+        ordering = ['priority', 'name']
 
 
 @python_2_unicode_compatible

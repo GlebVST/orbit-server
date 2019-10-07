@@ -121,13 +121,12 @@ class PracticeSpecialtyList(generics.ListAPIView):
 
 # CmeTag - list only
 class CmeTagList(generics.ListAPIView):
-    #queryset = CmeTag.objects.all().order_by('-priority', 'name')
     serializer_class = CmeTagWithSpecSerializer
     pagination_class = LongPagination
     permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
 
     def get_queryset(self):
-        return CmeTag.objects.all().prefetch_related('specialties').order_by('-priority','name')
+        return CmeTag.objects.all().prefetch_related('specialties').order_by('priority','name')
 
 # Update profile
 class ProfileUpdate(generics.UpdateAPIView):
