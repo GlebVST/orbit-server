@@ -53,13 +53,25 @@ class ResidencyProgramSerializer(serializers.ModelSerializer):
 # Used by auth_view to serialize the SA-CME tag
 class ActiveCmeTagSerializer(serializers.ModelSerializer):
     is_active = serializers.SerializerMethodField()
+    categoryid = serializers.ReadOnlyField(source='category.id')
+    category_name = serializers.ReadOnlyField(source='category.name')
 
     def get_is_active(self, obj):
         return True
 
     class Meta:
         model = CmeTag
-        fields = ('id', 'name', 'priority', 'description', 'is_active', 'srcme_only', 'instructions')
+        fields = (
+            'id',
+            'name',
+            'priority',
+            'description',
+            'is_active',
+            'srcme_only',
+            'instructions',
+            'categoryid',
+            'category_name'
+        )
 
 
 class NestedStateSerializer(serializers.ModelSerializer):
