@@ -1748,12 +1748,16 @@ class UserSubscriptionManager(models.Manager):
                 user_subs.display_status = self.model.UI_ACTIVE
             else:
                 if user_subs.display_status not in (self.model.UI_ACTIVE_CANCELED, self.model.UI_ACTIVE_DOWNGRADE):
-                    logger.warning('Invalid display_status for subscriptionId: {0.subscriptionId}'.format(user_subs))
+                    logger.error('Invalid display_status for subscriptionId: {0.subscriptionId}: {0.display_status}'.format(user_subs))
         elif bt_subs.status == self.model.PASTDUE:
             user_subs.display_status = self.model.UI_SUSPENDED
         elif bt_subs.status == self.model.CANCELED:
             if user_subs.display_status not in (self.model.UI_EXPIRED, self.model.UI_SUSPENDED, self.model.UI_TRIAL_CANCELED):
-                logger.error('Invalid display_status for canceled subscriptionId: {0.subscriptionId}'.format(user_subs))
+                logger.error('Invalid display_status for canceled subscriptionId: {0.subscriptionId}: {0.display_status}'.format(user_subs))
+        elif bt_subs.status == self.model.EXPIRED:
+            if user_subs.display_status == self.model.UI_ACTIVE_CANCELED:
+                user_subs.display_status = self.model.UI_EXPIRED
+                logger.info('Update Active-canceled subscription: {0.subscriptionId} to {0.display_status}'.format(user_subs))
         startDate = bt_subs.billing_period_start_date
         endDate = bt_subs.billing_period_end_date
         if startDate:
