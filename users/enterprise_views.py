@@ -271,11 +271,16 @@ class OrgMemberCreate(generics.CreateAPIView):
             if org_qset.exists():
                 instance = org_qset[0]
                 if instance.pending:
+                    instance.inviteDate = timezone.now()
+                    instance.setPasswordEmailSent = True
+                    instance.save(update_fields=('setPasswordEmailSent', 'inviteDate'))
                     logInfo(logger, self.request, 'User is already pending OrgMember {0.pk}'.format(instance))
                 elif instance.removeDate is not None:
                     logInfo(logger, self.request, 'User {0} is removed OrgMember {1.pk}. Set pending to True'.format(user, instance))
+                    instance.inviteDate = timezone.now()
+                    instance.setPasswordEmailSent = True
                     instance.pending = True
-                    instance.save(update_fields=('pending',))
+                    instance.save(update_fields=('pending', 'setPasswordEmailSent', 'inviteDate'))
                 else:
                     error_msg = 'The user {0} already belongs to the team.'.format(user)
                     logWarning(logger, self.request, error_msg)
@@ -284,6 +289,9 @@ class OrgMemberCreate(generics.CreateAPIView):
                 # create pending OrgMember
                 instance = OrgMember.objects.createMember(org, orggroup, user.profile, pending=True)
                 logInfo(logger, self.request, 'Created pending OrgMember {0}'.format(instance))
+                instance.inviteDate = timezone.now()
+                instance.setPasswordEmailSent = True # need to set this flag otherwise member appears in Launchpad in UI
+                instance.save(update_fields=('setPasswordEmailSent','inviteDate'))
             # send JoinTeam email
             try:
                 msg = sendJoinTeamEmail(user, org, send_message=True)

@@ -539,7 +539,6 @@ class EmailSetPassword(APIView):
                 else:
                     member.inviteDate = timezone.now()
                     member.setPasswordEmailSent = True # need to set this flag otherwise member appears in Launchpad in UI
-                    member.save(update_fields=('inviteDate',))
                     member.save(update_fields=('setPasswordEmailSent','inviteDate'))
             elif not orgmember.user.profile.verified:
                 # unverified users with with non-pending state are those invited but not yet verified their email
