@@ -512,22 +512,6 @@ class BrowserCmeManager(models.Manager):
             return False
         return qs['cme_total'] >= plan.maxCmeMonth
 
-    # def hasEarnedYearLimit(self, user_subs, year):
-    #     """Returns True if user has reached the monthly limit set by user_subs.plan
-    #     Note: this should only be called for LimitedCme plans.
-    #     Args:
-    #         user_subs: UserSubscription instance
-    #         dt: datetime - used for year count
-    #     """
-    #     user = user_subs.user
-    #     plan = user_subs.plan
-    #     qs = self.model.objects.select_related('entry').filter(
-    #         entry__user=user,
-    #         entry__activityDate__year=year,
-    #         entry__valid=True
-    #     ).aggregate(cme_total=Sum('credits'))
-    #     return qs['cme_total'] >= plan.maxCmeYear
-
     def totalCredits(self):
         """Calculate total BrowserCme credits earned over all time
         Returns: Decimal

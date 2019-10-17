@@ -7,7 +7,7 @@ from django.db.models import Count, Q, Subquery
 from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
-from common.ac_filters import UserFilter, CmeTagFilter, StateFilter, AllowedUrlFilter
+from common.ac_filters import UserFilter, CmeTagFilter, TagFilter, StateFilter, EligibleSiteFilter 
 from common.dateutils import fmtLocalDatetime
 from .models import *
 from django.utils.html import format_html
@@ -591,14 +591,59 @@ class AllowedHostAdmin(admin.ModelAdmin):
 class HostPatternAdmin(admin.ModelAdmin):
     list_display = ('id', 'host', 'eligible_site', 'pattern_key', 'path_contains', 'path_reject')
     list_select_related = ('host','eligible_site')
-    list_filter = ('host', 'eligible_site')
+    list_filter = (EligibleSiteFilter, 'host')
+
+    class Media:
+        pass
+
+class UrlTagFreqForm(forms.ModelForm):
+    class Meta:
+        model = UrlTagFreq
+        fields = ('__all__')
+        widgets = {
+            'tag': autocomplete.ModelSelect2(
+                url='cmetag-autocomplete',
+                attrs={
+                    'data-placeholder': 'CmeTag',
+                    'data-minimum-input-length': 1,
+                }
+            ),
+            'url': autocomplete.ModelSelect2(
+                url='aurl-autocomplete',
+                attrs={
+                    'data-placeholder': 'Url',
+                    'data-minimum-input-length': 8,
+                }
+            ),
+        }
+class UrlTagFreqInline(admin.StackedInline):
+    model = UrlTagFreq
+    extra = 1
+    form = UrlTagFreqForm
 
 class AllowedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'eligible_site', 'url', 'valid', 'set_id', 'modified')
     list_select_related = ('host', 'eligible_site')
-    list_filter = ('valid','host',)
+    list_filter = ('valid',EligibleSiteFilter, 'host',)
     filter_horizontal = ('cmeTags',)
+    search_fields = ['page_title','set_id']
     ordering = ('-modified',)
+    inlines = [
+        UrlTagFreqInline,
+    ]
+
+    class Media:
+        pass
+
+class UrlTagFreqAdmin(admin.ModelAdmin):
+    list_display = ('id','tag','url','numOffers','modified')
+    list_selected_related = ('tag','url')
+    list_filter = (TagFilter,)
+    ordering = ('-modified',)
+    form = UrlTagFreqForm
+
+    class Media:
+        pass
 
 class RejectedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'host', 'url', 'created')
@@ -724,7 +769,7 @@ class OrbitCmeOfferAdmin(admin.ModelAdmin):
 
     def lastModified(self, obj):
         return fmtLocalDatetime(obj.modified)
-    lastModified.short_description = 'Last Modified'
+    lastModified.short_description = 'Modified'
     lastModified.admin_order_field = 'modified'
 
 # register models
@@ -783,4 +828,5 @@ admin_site.register(RequestedUrl, RequestedUrlAdmin)
 admin_site.register(ActivitySet, ActivitySetAdmin)
 admin_site.register(ActivityLog, ActivityLogAdmin)
 admin_site.register(RecAllowedUrl, RecAllowedUrlAdmin)
+admin_site.register(UrlTagFreq, UrlTagFreqAdmin)
 admin_site.register(OrbitCmeOffer, OrbitCmeOfferAdmin)

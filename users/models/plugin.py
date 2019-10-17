@@ -358,8 +358,8 @@ class OrbitCmeOffer(models.Model):
     tags = models.ManyToManyField(
         CmeTag,
         blank=True,
-        related_name='new_offers',
-        help_text='Suggested tags (intersected with user cmeTags by UI)'
+        related_name='offers',
+        help_text='Recommended tags'
     )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -425,82 +425,27 @@ class OrbitCmeOfferAgg(models.Model):
     def __str__(self):
         return "{0.day}".format(self)
 
+MIN_VOTE_FOR_REC = 5 # should match with value in defined in plugin_server
+class UrlTagFreq(models.Model):
+    id = models.AutoField(primary_key=True)
+    url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='urltagfreqs')
+    tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='urltagfreqs')
+    numOffers = models.PositiveIntegerField(default=MIN_VOTE_FOR_REC,
+        help_text='Specify a number gte to {0} in order to make this an article recommendation'.format(MIN_VOTE_FOR_REC)
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
 
-# User recommendations for AllowedUrls by tag
-class RecAllowedUrlManager(models.Manager):
-    def updateRecsForUser(self, user, tag):
-        """Maintain a list of upto MAX_RECS_PER_USERTAG recommended aurls for the given user and tag
-        Args:
-            user: User instance
-            tag: CmeTag instance
-        Returns: int - number of recs created
-        """
-        num_recs = self.model.MAX_RECS_PER_USERTAG - user.recaurls.filter(cmeTag=tag).count()
-        if num_recs <= 0:
-            return 0
-        num_created = 0
-        # exclude_offers redeemed by user since OFFER_LOOKBACK_DAYS. This is used as a subquery below
-        now = timezone.now()
-        startdate = now - timedelta(days=OFFER_LOOKBACK_DAYS)
-        filter_kwargs = dict(
-            user=user,
-            redeemed=True,
-            valid=True,
-            activityDate__gte=startdate,
-        )
-        Q_offer_setid = Q(url__set_id='')
-        # redeemed offers whose aurl.set_id is blank
-        offers_blank_setid = OrbitCmeOffer.objects.select_related('url').filter(Q_offer_setid, **filter_kwargs)
-        # redeemed offers whose aurl.set_id is not blank (e.g. abs/pdf versions of the same article have the same set_id)
-        offers_setid = OrbitCmeOffer.objects.select_related('url').filter(~Q_offer_setid, **filter_kwargs)
-        aurl_kwargs = dict(
-            valid=True,
-            cmeTags=tag,
-            host__has_paywall=False, # omit paywalled articles since not all users have access to them
-            host__main_host__isnull=True, # omit proxy hosts
-        )
-        Q_setid = Q(set_id='')
-        # This query gets distinct AllowedUrls with blank set_id for the given tag and excludes
-        # any urls with the same pk as those contained in offers_blank_setid
-        aurls_blank_setid = AllowedUrl.objects \
-                .select_related('host') \
-                .filter(Q_setid, **aurl_kwargs) \
-                .exclude(pk__in=Subquery(offers_blank_setid.values('url'))) \
-                .order_by('-created')
-        # This query gets distinct AllowedUrls with non-blank set_id for the given tag and excludes
-        # any urls with the same set_id as those contained in exclude_offers
-        aurls_setid = AllowedUrl.objects \
-                .select_related('host') \
-                .filter(~Q_setid, **aurl_kwargs) \
-                .exclude(set_id__in=Subquery(offers_setid.values('url__set_id').distinct())) \
-                .order_by('-created')
-        # evaluate aurls_blank_setid first
-        for aurl in aurls_blank_setid:
-            m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
-            if created:
-                #print('blank set_id recaurl {0}'.format(m))
-                num_created += 1
-                if num_created >= num_recs:
-                    break
-        if num_created >= num_recs:
-            return num_created
-        #print('Num aurl blank set_id: {0}'.format(num_created))
-        # evalute aurls_setid if still need more recs
-        for aurl in aurls_setid:
-            if aurl.set_id:
-                # check if user already has a rec with this set_id
-                qs = user.recaurls.select_related('url').filter(url__set_id=aurl.set_id)
-                if qs.exists():
-                    continue
-            m, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
-            if created:
-                #print('set_id recaurl {0}'.format(m))
-                num_created += 1
-                if num_created >= num_recs:
-                    break
-        return num_created
+    class Meta:
+        managed = False
+        db_table = 'trackers_urltagfreq'
+        unique_together = ('url','tag')
+        verbose_name_plural = 'URL Tag Frequencies'
 
-@python_2_unicode_compatible
+    def __str__(self):
+        return "{0.tag}|{0.url}|{0.numOffers}".format(self)
+
+
 class RecAllowedUrl(models.Model):
     MAX_RECS_PER_USERTAG = 20
     id = models.AutoField(primary_key=True)
@@ -508,7 +453,6 @@ class RecAllowedUrl(models.Model):
     url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='recaurls')
     cmeTag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='recaurls')
     offer = models.ForeignKey(OrbitCmeOffer, on_delete=models.CASCADE, null=True, blank=True, related_name='recaurls')
-    objects = RecAllowedUrlManager()
 
     class Meta:
         managed = False

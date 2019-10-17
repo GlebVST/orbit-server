@@ -14,6 +14,11 @@ class CmeTagFilter(AutocompleteFilter):
     field_name = 'cmeTag'
     autocomplete_url = 'cmetag-autocomplete'
 
+class TagFilter(AutocompleteFilter):
+    title = 'CmeTag'
+    field_name = 'tag'
+    autocomplete_url = 'cmetag-autocomplete'
+
 class StateFilter(AutocompleteFilter):
     title = 'State'
     field_name = 'state'
@@ -33,3 +38,9 @@ class AllowedUrlFilter(AutocompleteFilter):
     title = 'AllowedUrl'
     field_name = 'url'
     autocomplete_url = 'aurl-autocomplete'
+
+class EligibleSiteFilter(AutocompleteFilter):
+    title = 'EligibleSite'
+    field_name = 'eligible_site'
+    autocomplete_url = 'esite-autocomplete'
+
