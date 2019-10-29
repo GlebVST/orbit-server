@@ -23,10 +23,11 @@ logger = logging.getLogger('gen.models')
 # constants (should match the database values)
 #
 CMETAG_SACME = 'SAM/SA-CME'
-# specialties that have SA-CME tag pre-selected on OrbitCmeOffer
+# Physician specialties that have SA-CME tag pre-selected on OrbitCmeOffer
 SACME_SPECIALTIES = (
     'Radiology',
     'Radiation Oncology',
+    'Osteopathic Radiology',
     'Pathology',
 )
 TEST_CARD_EMAIL_PATTERN = re.compile(r'testcode-(?P<code>\d+)')
