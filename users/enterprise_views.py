@@ -26,6 +26,7 @@ from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, Token
 # proj
 from common.logutils import *
 from common.signals import profile_saved
+from common.viewutils import ExtUpdateAPIView
 # app
 from .auth0_tools import Auth0Api
 from .models import *
@@ -384,7 +385,7 @@ class OrgMemberLicenseList(generics.ListAPIView):
         return Response(serializer.data)
 
 
-class OrgMemberUpdate(generics.UpdateAPIView):
+class OrgMemberUpdate(ExtUpdateAPIView):
     serializer_class = OrgMemberFormSerializer
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 

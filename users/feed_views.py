@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
+from common.viewutils import ExtUpdateAPIView
 # app
 from .models import *
 from .feed_serializers import *
@@ -105,7 +106,7 @@ class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
         return self.destroy(request, *args, **kwargs)
 
 
-class InvalidateEntry(generics.UpdateAPIView):
+class InvalidateEntry(ExtUpdateAPIView):
     serializer_class = EntryReadSerializer
     permission_classes = (CanInvalidateEntry, IsOwnerOrAuthenticated, TokenHasReadWriteScope)
 
@@ -123,7 +124,7 @@ class InvalidateEntry(generics.UpdateAPIView):
         return Response(context)
 
 
-class InvalidateOffer(generics.UpdateAPIView):
+class InvalidateOffer(ExtUpdateAPIView):
     serializer_class = OrbitCmeOfferSerializer
     permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
 
@@ -216,7 +217,7 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
         return Response(context, status=status.HTTP_201_CREATED)
 
 
-class UpdateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.UpdateAPIView):
+class UpdateBrowserCme(LogValidationErrorMixin, TagsMixin, ExtUpdateAPIView):
     """
     Update a BrowserCme Entry in the user's feed.
     This action does not change the credits earned from the original creation.
@@ -294,7 +295,7 @@ class CreateSRCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
 
-class UpdateSRCme(LogValidationErrorMixin, TagsMixin, generics.UpdateAPIView):
+class UpdateSRCme(LogValidationErrorMixin, TagsMixin, ExtUpdateAPIView):
     """
     Update an existing SRCme Entry in the user's feed.
     """
@@ -365,5 +366,3 @@ class StoryDetail(APIView):
         if qset.exists():
             story = qset[0]
         return self.serialize_and_render(user_id, story)
-
-

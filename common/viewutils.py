@@ -2,7 +2,21 @@
 import hashlib
 import uuid
 from urllib.parse import urlparse
+#from rest_framework import mixins
+from rest_framework.generics import UpdateAPIView, RetrieveUpdateAPIView
 
+class ExtUpdateAPIView(UpdateAPIView):
+    """Extended view that allow POST method to be
+    equivalent to PATCH method. This is because some users' firewalls
+    do not allow PATCH method. Added 2019-10-28.
+    """
+    def post(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
+class ExtRetrieveUpdateAPIView(RetrieveUpdateAPIView):
+    """Extended class that allows POST to be equivalent to PATCH"""
+    def post(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
 
 def getUrlLastPart(url):
     output = urlparse(url.strip('/')) # strip any trailing slash

@@ -20,6 +20,7 @@ from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, Token
 # proj
 from common.logutils import *
 from common.dateutils import LOCAL_TZ
+from common.viewutils import ExtUpdateAPIView, ExtRetrieveUpdateAPIView
 # app
 from .models import *
 from .serializers import *
@@ -129,7 +130,7 @@ class CmeTagList(generics.ListAPIView):
         return CmeTag.objects.all().prefetch_related('specialties').order_by('priority','name')
 
 # Update profile
-class ProfileUpdate(generics.UpdateAPIView):
+class ProfileUpdate(ExtUpdateAPIView):
     """Note: This used to be a RetrieveUpdateAPIView but we need to use
     different serializers for Retrieve vs. Update. Normally, this can be
     done using get_serializer_class. But, it does not work when using
@@ -157,7 +158,7 @@ class ProfileUpdate(generics.UpdateAPIView):
         out_serializer = ProfileReadSerializer(profile)
         return Response(out_serializer.data)
 
-class ProfileInitialUpdate(generics.UpdateAPIView):
+class ProfileInitialUpdate(ExtUpdateAPIView):
     """This is used to for the initial update of profile after user signup
     with the name, country and possibly a changed planId from the one selected
     on signup.
@@ -325,7 +326,7 @@ class SetProfileAccessedTour(APIView):
         context = {'success': True}
         return Response(context, status=status.HTTP_200_OK)
 
-class UserEmailUpdate(generics.UpdateAPIView):
+class UserEmailUpdate(ExtUpdateAPIView):
     """This view updates current session user's email in our database and calls auth0 backend to trigger email re-verification.
     Example JSON in the POST data:
         {"email": "someemail@orbitcme.com"}
@@ -406,7 +407,7 @@ class UserStateLicenseList(generics.ListAPIView):
         return StateLicense.objects.getLatestSetForUser(user)
 
 
-class UserStateLicenseDetail(generics.RetrieveUpdateAPIView):
+class UserStateLicenseDetail(ExtRetrieveUpdateAPIView):
     queryset = StateLicense.objects.all()
     serializer_class = StateLicenseSerializer
     permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
