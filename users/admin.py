@@ -616,6 +616,17 @@ class UrlTagFreqForm(forms.ModelForm):
                 }
             ),
         }
+
+    def save(self, commit=True):
+        """Sync AllowedUrl.numOffers to UrlTagFreq.numOffers if current value is less"""
+        m = super(UrlTagFreqForm, self).save(commit=False) # save w.o commit to get obj
+        aurl = m.url
+        if aurl.numOffers < m.numOffers:
+            aurl.numOffers = m.numOffers
+            aurl.save(update_fields=('numOffers',))
+        m.save() # final save. This is done to prevent object has no attribute 'save_m2m' error.
+        return m
+
 class UrlTagFreqInline(admin.StackedInline):
     model = UrlTagFreq
     extra = 1
