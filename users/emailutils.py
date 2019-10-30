@@ -621,7 +621,7 @@ def sendJoinTeamEmail(user, org, send_message=True):
 def makeCsvForAttachment(fieldnames, data):
     """"Return object to be used as attachment for EmailMessage"""
     output = StringIO()
-    writer = csv.DictWriter(output, delimiter=',', fieldnames=fieldnames)
+    writer = csv.DictWriter(output, delimiter=',', fieldnames=fieldnames, extrasaction='ignore')
     writer.writeheader()
     for row in data:
         writer.writerow(row)
