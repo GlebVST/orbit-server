@@ -703,7 +703,7 @@ class SubscriptionPlan(models.Model):
     billingCycleMonths = models.IntegerField(default=12,
             help_text='Billing Cycle in months')
     discountPrice = models.DecimalField(max_digits=6, decimal_places=2,
-            help_text='discounted price in USD')
+            help_text='discounted price in USD. Obsolete [no longer used].')
     active = models.BooleanField(default=True)
     plan_type = models.ForeignKey(SubscriptionPlanType,
         on_delete=models.PROTECT,
@@ -758,6 +758,7 @@ class SubscriptionPlan(models.Model):
         decimal_places=1,
         default=0,
         help_text='Maximum OrbitCME credits allowed in Trial period. -1 means: no redeeming allowed in Trial. 0 means: use default max_trial_credits in settings.py. A positive value: overrides default value in settings.py')
+    welcome_offer_url = models.URLField(max_length=500, blank=True, help_text='URL for initial welcome offer. Must be an existing AllowedUrl already. If blank, then the default vaping article is used as the welcome offer.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()

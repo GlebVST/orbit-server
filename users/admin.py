@@ -433,13 +433,15 @@ class PlanForm(forms.ModelForm):
         1. If given, check that maxCmeMonth < maxCmeYear
         2. If plan_type is Enterprise, then Org should be selected
         3. If Organization is selected, then plan_type should be Enterprise
-        and Org should only be assigned to 1 active plan at any time.
+            and Org should only be assigned to 1 active plan at any time.
+        4. If welcome_offer_url is given, check that it exists as a valid AllowedUrl.
         """
         cleaned_data = super(PlanForm, self).clean()
         maxCmeMonth = cleaned_data.get('maxCmeMonth')
         maxCmeYear = cleaned_data.get('maxCmeYear')
         plan_type = cleaned_data.get('plan_type')
         org = cleaned_data.get('organization')
+        welcome_offer_url = cleaned_data.get('welcome_offer_url')
         if maxCmeYear and maxCmeMonth and (maxCmeMonth >= maxCmeYear):
             self.add_error('maxCmeMonth', 'maxCmeMonth must be strictly less than maxCmeYear.')
         if maxCmeYear == 0 and maxCmeMonth != 0:
@@ -457,6 +459,15 @@ class PlanForm(forms.ModelForm):
                 if qs.exists():
                     p = qs[0]
                     self.add_error('organization', 'This Organization is already assigned to active plan: {0}.'.format(p))
+        if welcome_offer_url:
+            # check it exists as a valid AllowedUrl
+            qs = AllowedUrl.objects.filter(url=welcome_offer_url)
+            if not qs.exists():
+                self.add_error('welcome_offer_url', 'Enter this url into AllowedUrl first. Be sure to specify the pageTitle and DOI.')
+            else:
+                aurl = qs[0]
+                if not aurl.valid:
+                    self.add_error('welcome_offer_url', 'This url exists as an invalid AllowedUrl. Go to AllowedUrl and reset its valid flag first.')
 
     def save(self, commit=True):
         """Auto assign planId based on plan name and hashid of next id"""
@@ -478,7 +489,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'organization',
         'maxCmeYear',
         'billingCycleMonths',
-        'maxCmeMonth',
+        #'maxCmeMonth',
         'formatTags'
     )
     list_select_related = True
@@ -497,7 +508,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits', 'cmeTags')
         }),
         ('Other', {
-            'fields': ('trialDays','billingCycleMonths','active',)
+            'fields': ('trialDays','billingCycleMonths','welcome_offer_url', 'active',)
         })
     )
 
