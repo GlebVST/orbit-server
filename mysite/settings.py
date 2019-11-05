@@ -446,6 +446,6 @@ UI_LINK_FEEDBACK = '/feedback'
 UI_LINK_LOGIN = '/login'
 UI_LINK_JOINTEAM = '/join-team'
 
-WELCOME_ARTICLE_URL = 'https://www.ncbi.nlm.nih.gov/pubmed/30459182'
+WELCOME_ARTICLE_URL = 'https://www.ncbi.nlm.nih.gov/pubmed/26874316' # updated 2019-11-04
 MIN_CME_CREDIT_FOR_REFERRAL = 5
 MAX_TRIAL_CME_CREDIT = 2
