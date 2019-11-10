@@ -179,12 +179,7 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
         offerId = self.request.data.get('offerId')
         if offerId:
             qset = OrbitCmeOffer.objects.filter(pk=offerId)
-            if qset.exists():
-                offer = qset[0]
-                if offer.redeemed:
-                    error_msg = 'OfferId {0} already redeemed'
-                    raise serializers.ValidationError({'offerId': error_msg}, code='stale')
-            else:
+            if not qset.exists():
                 error_msg = 'Invalid OfferId {0} : does not exist'
                 raise serializers.ValidationError({'offerId': error_msg}, code='invalid')
         with transaction.atomic():

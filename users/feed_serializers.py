@@ -199,7 +199,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
     planText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     commercialBiasText = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
     offerId = serializers.PrimaryKeyRelatedField(
-        queryset=OrbitCmeOffer.objects.filter(redeemed=False)
+        queryset=OrbitCmeOffer.objects.all()
     )
     tags = serializers.PrimaryKeyRelatedField(
         queryset=CmeTag.objects.all(),
@@ -225,6 +225,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
         """Create parent Entry and BrowserCme instances.
         Note: this expects the following keys in validated_data:
             user: User instance
+        Returns: BrowserCme model instance
         """
         from goals.models import UserGoal
 
@@ -232,6 +233,14 @@ class BRCmeCreateSerializer(serializers.Serializer):
         ama1CreditType = CreditType.objects.get(name=CreditType.AMA_PRA_1)
         offer = validated_data['offerId']
         user=validated_data.get('user')
+        # check if offer is already redeemed
+        if offer.redeemed:
+            # do not create new entry, return existing instance
+            qs = BrowserCme.objects.select_related('entry').filter(entry__user=user, offerId=offer.pk)
+            if qs.exists():
+                return qs[0]
+            else:
+                logger.warning('No BrowserCme offer found for offerId: {0.pk} and user {1}".format(offer, user))
         # take care of user's CME credit limit
         userCredits = UserCmeCredit.objects.get(user=user)
         if not userCredits.enough(offer.credits):
