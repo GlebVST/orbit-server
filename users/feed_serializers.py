@@ -240,7 +240,7 @@ class BRCmeCreateSerializer(serializers.Serializer):
             if qs.exists():
                 return qs[0]
             else:
-                logger.warning('No BrowserCme offer found for offerId: {0.pk} and user {1}".format(offer, user))
+                logger.warning("No BrowserCme offer found for offerId: {0.pk} and user {1}".format(offer, user))
         # take care of user's CME credit limit
         userCredits = UserCmeCredit.objects.get(user=user)
         if not userCredits.enough(offer.credits):
