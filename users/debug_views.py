@@ -23,7 +23,7 @@ from .serializers import *
 from .enterprise_serializers import *
 from .dashboard_views import CertificateMixin
 from .pdf_tools import SAMPLE_CERTIFICATE_NAME, MDCertificate, NurseCertificate
-from .emailutils import sendJoinTeamEmail, sendWelcomeEmail
+from .emailutils import setCommonContext, sendJoinTeamEmail, sendWelcomeEmail
 from .license_tools import LicenseUpdater
 
 class ValidateLicenseFile(generics.UpdateAPIView):
@@ -140,8 +140,8 @@ class EmailSubscriptionReceipt(APIView):
             'transaction': subs_trans,
             'plan_name': plan_name,
             'plan_monthly_price': user_subs.plan.monthlyPrice(),
-            'support_email': settings.SUPPORT_EMAIL
         }
+        setCommonContext(ctx)
         message = get_template('email/receipt.html').render(ctx)
         msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
         msg.content_subtype = 'html'
@@ -194,9 +194,8 @@ class EmailSubscriptionPaymentFailure(APIView):
         ctx = {
             'username': username,
             'transaction': subs_trans,
-            'server_hostname': settings.SERVER_HOSTNAME,
-            'support_email': settings.SUPPORT_EMAIL
         }
+        setCommonContext(ctx)
         message = get_template('email/payment_failed.html').render(ctx)
         msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
         msg.content_subtype = 'html'
@@ -245,6 +244,7 @@ class PreEmail(APIView):
             'reportDate': now,
             'cutoff': cutoff
         }
+        setCommonContext(ctx)
         # setup premailer
         plog = StringIO()
         phandler = logging.StreamHandler(plog)

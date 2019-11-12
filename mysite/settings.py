@@ -440,6 +440,9 @@ COMPANY_NAME = 'Transcend Review Inc.'
 COMPANY_BRN_CEP = 'BRN CEP#16946'
 COMPANY_ADDRESS = '265 Cambridge Ave, #61224, Palo Alto CA 94306'
 
+ORBIT_LOGO_BLUE = 'https://orbitcme.com/assets/images/login-logo.png'
+ORBIT_LOGO_WHITE = 'https://orbitcme.com/assets/images/logo.png'
+
 # UI links (relative to SERVER_HOSTNAME)
 UI_LINK_SUBSCRIPTION = '/subscription'
 UI_LINK_FEEDBACK = '/feedback'

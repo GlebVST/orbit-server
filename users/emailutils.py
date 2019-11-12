@@ -42,6 +42,8 @@ def setCommonContext(ctx):
         'feedback_link': settings.UI_LINK_FEEDBACK,
         'subscription_link': settings.UI_LINK_SUBSCRIPTION,
         'support_email': settings.SUPPORT_EMAIL,
+        'orbit_logo_blue': settings.ORBIT_LOGO_BLUE,
+        'orbit_logo_white': settings.ORBIT_LOGO_WHITE,
     })
 
 def sendNewUserReportEmail(profiles, email_to):
@@ -422,9 +424,8 @@ def sendCardExpiredAlertEmail(user_subs, payment_method):
         'card_type': payment_method['type'],
         'card_last4': payment_method['number'][-4:],
         'expiry': payment_method['expiry'],
-        'support_email': settings.SUPPORT_EMAIL,
-        'server_hostname': settings.SERVER_HOSTNAME
     }
+    setCommonContext(ctx)
     orig_message = get_template('email/card_expired_alert.html').render(ctx)
     # setup premailer
     plog = StringIO()

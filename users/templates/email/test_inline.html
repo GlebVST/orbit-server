@@ -16,6 +16,14 @@
                 font-size: 24px;
                 margin: 5px;
             }
+            #banner div.icon {
+                background: url('https://orbitcme.com/assets/images/logo.png') no-repeat 0 0 !important;
+                background-size: 32px 32px !important;
+                display: block !important;
+                height: 32px !important;
+                width: 32px !important;
+                margin-left: 45%;
+            }
             #content {
                 border: 2px solid #9d3000;
                 padding: 5px;
@@ -32,6 +40,7 @@
     </head>
     <body>
         <div id="banner">
+            <div class="icon"></div>
             <h1>Orbit User Activity for {{ reportDate|date:"F Y" }}</h1>
         </div>
         <div id="content">
