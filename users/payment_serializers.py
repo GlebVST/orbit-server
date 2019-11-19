@@ -5,7 +5,7 @@ from .models import SubscriptionPlan, UserSubscription, CmeBoost, CmeBoostPurcha
 
 logger = logging.getLogger('gen.psrl')
 
-DISPLAY_PRICE_AS_MONTHLY = True
+DISPLAY_PRICE_AS_MONTHLY = False
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
     plan_type = serializers.StringRelatedField(read_only=True)
