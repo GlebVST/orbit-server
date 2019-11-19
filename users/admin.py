@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 
 from django import forms
-from django.contrib import admin
+from django.contrib import admin,messages
 from django.db.models import Count, Q, Subquery
 from django.utils import timezone
 from dal import autocomplete
@@ -14,7 +14,6 @@ from django.utils.html import format_html
 from django.urls import reverse, NoReverseMatch
 from django.http import HttpResponseRedirect
 from django.conf.urls import url
-from django.contrib import messages
 from users.csv_tools import ProviderCsvImport
 from io import StringIO
 
@@ -518,15 +517,48 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
-        'billingFirstDate', 'billingStartDate', 'billingEndDate', 'billingCycle', 'nextBillingAmount',
-        'modified')
+        'billingStartDate', 'billingEndDate', 'billingCycle', 'nextBillingAmount')
     list_select_related = ('user','plan')
-    list_filter = ('status', 'display_status', 'plan', UserFilter)
+    list_filter = ('status', 'display_status', UserFilter, 'plan')
     ordering = ('-modified',)
-
+    actions = ('terminal_cancel',)
     class Media:
         pass
 
+    def get_actions(self, request):
+        """Remove default bulk-delete operation since it does not know about BT. All subs should be in sync w. BT"""
+        actions = super().get_actions(request)
+        if 'delete_selected' in actions:
+            del actions['delete_selected']
+        return actions
+
+    def terminal_cancel(self, request, queryset):
+        userid = request.GET.get('user__id__exact', None)
+        #print('userid: {0}'.format(userid))
+        if not userid or len(queryset) != 1:
+            errmsg = 'First select a single user from the user dropdown, and then select one Braintree subscription to cancel'
+            self.message_user(request, errmsg, level=messages.ERROR)
+            return
+        user_subs = queryset[0]
+        # check this is a paid subs
+        if not user_subs.plan.isPaid():
+            errmsg = 'The subscription {0.subscriptionId} for {0.user} has plan_type: {0.plan.plan_type} (cannot be canceled by Braintree).'.format(user_subs)
+            self.message_user(request, errmsg, level=messages.ERROR)
+            return
+        # check status
+        if user_subs.status in (UserSubscription.CANCELED, UserSubscription.EXPIRED):
+            errmsg = 'The subscription {0.subscriptionId} for {0.user} is already in status: {0.status}.'.format(user_subs)
+            self.message_user(request, errmsg, level=messages.ERROR)
+            return
+        # process with terminal cancel
+        res = UserSubscription.objects.terminalCancelBtSubscription(user_subs)
+        if res.is_success:
+            msg = 'The subscription {0.subscriptionId} for {0.user} has been canceled.'.format(user_subs)
+            self.message_user(request, msg, level=messages.SUCCESS)
+        else:
+            errmsg = 'Cancel subscription {0.subscriptionId} Braintree error: {1.message}.'.format(user_subs, res.message)
+            self.message_user(request, errmsg, level=messages.ERROR)
+    terminal_cancel.short_description = 'Select single user and then select one subscription to cancel'
 
 class SubscriptionEmailAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscription', 'billingCycle', 'remind_renew_sent', 'expire_alert_sent')
