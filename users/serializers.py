@@ -220,6 +220,7 @@ class ProfileInitialUpdateSerializer(serializers.ModelSerializer):
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='user.id', read_only=True)
     npiNumber = serializers.CharField(max_length=20, allow_blank=True)
+    ABANumber = serializers.CharField(required=False, max_length=10, allow_blank=True)
     birthDate = serializers.DateField(required=False, allow_null=True)
     residencyEndDate = serializers.DateField(required=False, allow_null=True)
     country = serializers.PrimaryKeyRelatedField(
@@ -283,6 +284,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'inviteId',
             'socialId',
             'pictureUrl',
+            'ABANumber',
             'npiNumber',
             'npiFirstName',
             'npiLastName',
@@ -413,6 +415,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
     fluoroscopyStates = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
+    isABAComplete = serializers.SerializerMethodField()
     profileComplete = serializers.SerializerMethodField()
     cmeTags = serializers.SerializerMethodField()
     residency_program = serializers.SerializerMethodField()
@@ -422,6 +425,9 @@ class ProfileReadSerializer(serializers.ModelSerializer):
 
     def get_isNPIComplete(self, obj):
         return obj.isNPIComplete()
+
+    def get_isABAComplete(self, obj):
+        return obj.isABAComplete()
 
     def get_profileComplete(self, obj):
         return obj.measureComplete()
@@ -453,6 +459,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
             'inviteId',
             'socialId',
             'pictureUrl',
+            'ABANumber',
             'npiNumber',
             'npiFirstName',
             'npiLastName',
@@ -470,6 +477,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
             'accessedTour',
             'cmeStartDate',
             'cmeEndDate',
+            'isABAComplete',
             'isNPIComplete',
             'isSignupComplete',
             'profileComplete',

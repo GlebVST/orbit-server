@@ -2211,7 +2211,7 @@ class CmeBoost(models.Model):
     # fields
     name = models.CharField(max_length=50, unique=True)
     credits = models.IntegerField(default=0)
-    price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD', default=0)
+    price = models.DecimalField(max_digits=6, decimal_places=2, help_text='Price per credit in USD', default=0)
     active = models.BooleanField(default=True)
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)

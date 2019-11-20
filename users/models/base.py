@@ -343,6 +343,8 @@ class Degree(models.Model):
 class PracticeSpecialty(models.Model):
     """Names of practice specialties.
     """
+    ANESTHESIOLOGY = 'Anesthesiology'
+    # fields
     name = models.CharField(max_length=100, unique=True)
     cmeTags = models.ManyToManyField(CmeTag,
         blank=True,
@@ -536,6 +538,7 @@ class Profile(models.Model):
             help_text='User specified interests')
 
     planId = models.CharField(max_length=36, blank=True, help_text='planId selected at signup')
+    ABANumber = models.CharField(max_length=10, blank=True, help_text='ABA ID')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
     npiLastName = models.CharField(max_length=30, blank=True, help_text='Last name from NPI Registry')
@@ -593,6 +596,10 @@ class Profile(models.Model):
         qs  = self.user.groups.filter(name=GROUP_ENTERPRISE_ADMIN)
         return qs.exists()
 
+    def isAnesthesiologist(self):
+        """Returns True if specialties includes Anesthesiology"""
+        return self.specialties.filter(name=PracticeSpecialty.ANESTHESIOLOGY).exists()
+
     def shouldReqNPINumber(self):
         """
         If (country=USA) and (MD or DO in self.degrees),
@@ -612,6 +619,16 @@ class Profile(models.Model):
             return True
         return False
 
+    def shouldReqABANumber(self):
+        """True if:
+        Specialty includes Anesthesiology, and shouldReqNPINumber
+        """
+        if not self.isAnesthesiologist():
+            return False
+        if not self.shouldReqNPINumber():
+            return False
+        return True
+
     def isNPIComplete(self):
         """Returns True if npiNumber/LastName/FirstName are populated if required"""
         if self.shouldReqNPINumber():
@@ -620,11 +637,17 @@ class Profile(models.Model):
             return False # required and not filled
         return True # not required
 
+    def isABAComplete(self):
+        if self.shouldReqABANumber():
+            if self.ABANumber:
+                return True # required and filled
+            return False # required and not filled
+        return True # not required
+
     def isSignupComplete(self):
         """Signup is complete if:
             1. User has entered first and last name
             2. user has saved a UserSubscription
-
         """
         if not self.firstName or not self.lastName or not self.user.subscriptions.exists():
             return False
@@ -676,6 +699,11 @@ class Profile(models.Model):
         total += len(keys)
         for key in keys:
             if getattr(self, key): # count truthy values
+                filled += 1
+        # ABANumber
+        if self.shouldReqABANumber():
+            total += 1
+            if self.ABANumber:
                 filled += 1
         return int(round(100.0*filled/total))
 
