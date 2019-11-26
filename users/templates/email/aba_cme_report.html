@@ -1,0 +1,39 @@
+{% comment %}
+Email template used by sendABAReport management command.
+Context expected:
+    reportDate: datetime
+    ABA_ACCME_ID: str - used for Provider ID
+    companyName: str - used for Provider Name
+    support_email: Orbit support email address
+{% endcomment %}
+<html>
+    <body>
+        <p>Dear ABA,</p>
+        <p>Please find attached our latest Orbit Event File and Participation File:</p>
+        <table>
+            <tr>
+                <th align="left">Date:</th>
+                <td>{{ reportDate|date:"m/d/y" }}</td>
+            </tr>
+            <tr>
+                <th align="left">ABA Provider ID:</th>
+                <td>{{ ABA_ACCME_ID }}</td>
+            </tr>
+            <tr>
+                <th align="left">ABA Provider:</th>
+                <td>{{ companyName }}</td>
+            </tr>
+            <tr>
+                <th align="left">Activity:</th>
+                <td>Orbit CME</td>
+            </tr>
+            <tr>
+                <th align="left">Attached:</th>
+                <td>Event file, Participation file</td>
+            </tr>
+        </table>
+        <p>Thank you,</p>
+        <p>Orbit Support</p>
+        <p>Questions? Please email us at {{ support_email }}</p>
+    </body>
+</html>

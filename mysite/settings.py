@@ -427,6 +427,10 @@ CELERY_ACCEPT_CONTENT = ['json',]
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_IMPORTS = ['users.tasks',]
 
+# The ABA (ACCME) ID is used to submit CME data to ABA (American Board of Anesthesiology)
+ABA_ACCME_ID = 'LP392'
+# Email recipient for CME data submission
+ABA_CME_EMAIL = 'cme@theaba.org'
 
 # Tufts license start/end dates that are printed on Certificates
 CERT_ORIGINAL_RELEASE_DATE = datetime(2017, 8, 7, tzinfo=pytz.utc)

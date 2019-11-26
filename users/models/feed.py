@@ -130,6 +130,63 @@ class CreditType(models.Model):
 
 class EntryManager(models.Manager):
 
+    def prepareDataForABAReport(self, user):
+        """Prepare data to be submitted to American Board of Anesthesiology (ABA).
+        For the given user:
+            Find valid brcme entries whose submitABADate is null
+            Group these entries by tag and compute credit_sum.
+            Also generate EventID for each tag included in the resultset
+        Args:
+            user: User instance
+        Returns: list of dicts with keys:
+            id: int - tag pk,
+            eventId: str - abbreviated tag name,
+            eventDescription: str - Orbit-tag.description (Orbit hyphen tag.description)
+            brcme_sum: Decimal - sum of br-cme credits for this tag
+            entries: Queryset - Entry queryset for this tag
+            isCategory1: str - Y for all data
+        Note: only tags which appear in user's entries are present in the output.
+        """
+        ABA_TAG_DESCR_PREFIX = 'Orbit-'
+        EVENTID_MAX_CHARS = CmeTag.ABA_EVENTID_MAX_CHARS
+        etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
+        # Normal kwargs passed to filter are AND'd together
+        fkwargs = dict(
+                valid=True,
+                submitABADate__isnull=True,
+                entryType=etype
+            )
+        # entries is the related_name (see user field in Entry model)
+        subq = user.entries.filter(**fkwargs) # user's filtered entries
+        # find the distinct cmeTags used by this user. This returns a CmeTag queryset
+        distinctTags = CmeTag.objects.filter(entries__in=Subquery(subq.values('pk'))).distinct()
+        data = []
+        eventIds = set([])
+        for tag in distinctTags:
+            # construct EventId
+            eventId = tag.name.upper().replace(' ', '').replace('-','').replace('/', '').replace('(', '').replace(')','')
+            if len(eventId) > EVENTID_MAX_CHARS:
+                eventId = eventId[0:EVENTID_MAX_CHARS]
+            if eventId in eventIds:
+                # change eventId to make it unique
+                tagpk = str(tag.pk)
+                n = len(tagpk)
+                eventId = eventId[0:-n] + tagpk
+            eventIds.add(eventId)
+            # get entries having this tag in its tags list
+            fkwargs['tags__exact'] = tag
+            entriesForTag = user.entries.filter(**fkwargs).order_by('-activityDate')
+            data.append({
+                'id': tag.pk,
+                'eventId': eventId,
+                'eventDescription': ABA_TAG_DESCR_PREFIX+tag.description,
+                'brcme_sum': ARTICLE_CREDIT * entriesForTag.count(),
+                'entries': entriesForTag,
+                'isCategory1': 'Y',     # all OrbitCME qualifies as Category 1 credit
+            })
+        return data
+
+
     def prepareDataForAuditReport(self, user, startDate, endDate):
         """For the given user and activityDate range, group user entries by tag,
         compute credit_sum, and format entries for inclusion in audit report.
@@ -387,6 +444,8 @@ class Entry(models.Model):
             related_name='entries')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    submitABADate = models.DateTimeField(blank=True, null=True,
+        help_text='Set when entry is submitted to ABA organization for CME credit')
     objects = EntryManager()
 
     def __str__(self):
@@ -780,5 +839,3 @@ class AuditReport(models.Model):
 
     def __str__(self):
         return self.referenceId
-
-

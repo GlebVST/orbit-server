@@ -91,6 +91,7 @@ class CmeTagManager(models.Manager):
 
 @python_2_unicode_compatible
 class CmeTag(models.Model):
+    ABA_EVENTID_MAX_CHARS = 10 # Max number of characters to construct ABA EventId from tag name
     FLUOROSCOPY = 'Fluoroscopy'
     RADIATION_SAFETY = 'Radiation Safety'
     # fields
@@ -481,6 +482,20 @@ class ProfileManager(models.Manager):
             grouped[catg].append(tag)
         return grouped
 
+    def getProfilesForABA(self):
+        """Get profiles for American Board of Anesthesiology matching:
+        Country=USA (MD or DO), specialty includes Anesthesiology, and non-blank ABANumber.
+        Note: Some profiles returned may have inactive subscription - caller must filter out if needed.
+        Returns: queryset
+        """
+        usa = Country.objects.get(code=Country.USA)
+        ps_anes = PracticeSpecialty.objects.get(name=PracticeSpecialty.ANESTHESIOLOGY)
+        deg_md = Degree.objects.get(abbrev=Degree.MD)
+        deg_do = Degree.objects.get(abbrev=Degree.DO)
+        Q_deg = Q(degrees=deg_md) | Q(degrees=deg_do)
+        profiles = Profile.objects.filter(Q_deg, specialties=ps_anes, country=usa).exclude(ABANumber='').order_by('pk')
+        return profiles
+
 @python_2_unicode_compatible
 class Profile(models.Model):
     user = models.OneToOneField(User,
@@ -589,6 +604,12 @@ class Profile(models.Model):
         degrees = self.degrees.all()
         degree_str = ", ".join(str(degree.abbrev) for degree in degrees)
         return "{0} {1}, {2}".format(self.firstName, self.lastName, degree_str)
+
+    def formatABANumber(self):
+        """Return ABANumber formatted as xxxx-xxxx"""
+        if not self.ABANumber:
+            return ''
+        return "{0}-{1}".format(self.ABANumber[0:4], self.ABANumber[4:])
 
     def isEnterpriseAdmin(self):
         """Returns True if self.user.groups contains GROUP_ENTERPRISE_ADMIN, else False
