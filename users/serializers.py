@@ -415,7 +415,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
     fluoroscopyStates = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     isSignupComplete = serializers.SerializerMethodField()
     isNPIComplete = serializers.SerializerMethodField()
-    isABAComplete = serializers.SerializerMethodField()
+    shouldReqABANumber = serializers.SerializerMethodField()
     profileComplete = serializers.SerializerMethodField()
     cmeTags = serializers.SerializerMethodField()
     residency_program = serializers.SerializerMethodField()
@@ -426,8 +426,8 @@ class ProfileReadSerializer(serializers.ModelSerializer):
     def get_isNPIComplete(self, obj):
         return obj.isNPIComplete()
 
-    def get_isABAComplete(self, obj):
-        return obj.isABAComplete()
+    def get_shouldReqABANumber(self, obj):
+        return obj.shouldReqABANumber()
 
     def get_profileComplete(self, obj):
         return obj.measureComplete()
@@ -477,7 +477,7 @@ class ProfileReadSerializer(serializers.ModelSerializer):
             'accessedTour',
             'cmeStartDate',
             'cmeEndDate',
-            'isABAComplete',
+            'shouldReqABANumber',
             'isNPIComplete',
             'isSignupComplete',
             'profileComplete',

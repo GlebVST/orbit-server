@@ -642,11 +642,15 @@ class Profile(models.Model):
 
     def shouldReqABANumber(self):
         """True if:
-        Specialty includes Anesthesiology, and shouldReqNPINumber
+        Specialty includes Anesthesiology, and country is USA
+        Per Ram 11/26/19: skip check if degree is MD/DO
         """
         if not self.isAnesthesiologist():
             return False
-        if not self.shouldReqNPINumber():
+        if self.country is None:
+            return False
+        us = Country.objects.get(code=Country.USA)
+        if self.country.pk != us.pk:
             return False
         return True
 
@@ -654,13 +658,6 @@ class Profile(models.Model):
         """Returns True if npiNumber/LastName/FirstName are populated if required"""
         if self.shouldReqNPINumber():
             if self.npiNumber and self.npiLastName and self.npiFirstName:
-                return True # required and filled
-            return False # required and not filled
-        return True # not required
-
-    def isABAComplete(self):
-        if self.shouldReqABANumber():
-            if self.ABANumber:
                 return True # required and filled
             return False # required and not filled
         return True # not required
