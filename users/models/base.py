@@ -809,10 +809,11 @@ class Profile(models.Model):
         """Used to add/activate relevant cmeTags based on:
             specialties: tags whose name matches the specialty name
             subspecialties: subspec.cmeTags
-            states: state.cmeTags
-            deaStates: state.deaTags
-            state.doTags if DO degree
             fluoroscopyStates: add FLUOROSCOPY tag
+            2019-12-02: For enterprise users only
+                states: state.cmeTags
+                deaStates: state.deaTags
+                state.doTags if DO degree
         Returns: set of CmeTag instances
         """
         satag = CmeTag.objects.get(name=CMETAG_SACME)
@@ -830,29 +831,31 @@ class Profile(models.Model):
         for subspec in self.subspecialties.all():
             for t in subspec.cmeTags.all():
                 add_tags.add(t)
-        for state in self.states.all():
-            for t in state.cmeTags.all():
-                add_tags.add(t)
-            # deaTags
-            hasDEA = len(self.deaStateSet) > 0
-            dcts = StateDeatag.objects.filter(state=state)
-            for dct in dcts:
-                if dct.dea_in_state:
-                    # user must have DEA license in this state
-                    if state.pk in self.deaStateSet:
-                        add_tags.add(dct.tag)
-                elif hasDEA:
-                    # user has DEA license in some state
-                    add_tags.add(dct.tag)
-            # doTags
-            if is_do:
-                for t in state.doTags.all():
-                    add_tags.add(t)
         if self.fluoroscopyStates.exists():
             fluotag = CmeTag.objects.get(name=CmeTag.FLUOROSCOPY)
             add_tags.add(fluotag)
             rstag = CmeTag.objects.get(name=CmeTag.RADIATION_SAFETY)
             add_tags.add(rstag)
+        # State-specific tags (including StateDEAtag, State DO tags) for enterprise users only
+        if self.organization:
+            for state in self.states.all():
+                for t in state.cmeTags.all():
+                    add_tags.add(t)
+                # deaTags
+                hasDEA = len(self.deaStateSet) > 0
+                dcts = StateDeatag.objects.filter(state=state)
+                for dct in dcts:
+                    if dct.dea_in_state:
+                        # user must have DEA license in this state
+                        if state.pk in self.deaStateSet:
+                            add_tags.add(dct.tag)
+                    elif hasDEA:
+                        # user has DEA license in some state
+                        add_tags.add(dct.tag)
+                # doTags
+                if is_do:
+                    for t in state.doTags.all():
+                        add_tags.add(t)
         # Process add_tags
         for t in add_tags:
             # tag may exist from a previous assignment

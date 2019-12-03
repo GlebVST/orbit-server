@@ -1416,6 +1416,65 @@ class UserSubscriptionManager(models.Manager):
             return (result, None)
 
 
+    def restartTrial(self, user, numTrialDays=None):
+        """Re-start a trial for the given user. Use case: user accidentally
+        canceled their trial, and wants to re-start it. Once trial is completed,
+        user will start their first billingCycle, so check for any signup discounts.
+        Args:
+            user: User
+            numTrialDays: int - custom value. Default: plan.trialDays
+        Returns: UserSubscription instance / None if none created
+        """
+        profile = user.profile
+        last_subscription = UserSubscription.objects.getLatestSubscription(user)
+        if not last_subscription:
+            msg = "restartTrial: user {0} does not have a prior subscription".format(user)
+            print(msg)
+            logger.warning(msg)
+            return None
+        if not (last_subscription.display_status == UserSubscription.UI_TRIAL_CANCELED):
+            msg = "restartTrial: user {0.user} prior subscription is {0.display_status} which is not Trial-Canceled.".format(last_subscription)
+            print(msg)
+            logger.warning(msg)
+            return None
+        try:
+            pm = Customer.objects.getPaymentMethods(user.customer)[0]
+        except IndexError:
+            msg = "restartTrial: paymentMethod not found for user {0}".format(user)
+            print(msg)
+            logger.warning(msg)
+            return None
+        if pm['expired']:
+            msg = 'restartTrial: Payment method {type}/{number} is expired {expiry}.'.format(**pm)
+            print(msg)
+            logger.warning(msg)
+            return None
+        plan = last_subscription.plan
+        subs_params = {
+            'plan_id': plan.planId,
+            'trial_duration': numTrialDays or plan.trialDays,
+            'payment_method_token': pm['token'],
+        }
+        # check for discounts
+        invitee_discount = False
+        convertee_discount = False # used for affiliate conversion
+        if profile.inviter:
+            if profile.affiliateId and Affiliate.objects.filter(user=profile.inviter).exists():
+                # profile.inviter is an Affiliate and user was converted by one of their affiliateId
+                convertee_discount = True
+            else:
+                invitee_discount = True
+        subs_params['invitee_discount'] = invitee_discount
+        subs_params['convertee_discount'] = convertee_discount
+        result, user_subs = self.createBtSubscription(user, plan, subs_params)
+        if not result.is_success:
+            msg = 'restartTrial: create subscription failed. Result message: {0.message}'.format(result)
+            print(msg)
+            logger.warning(msg)
+            return None
+        logger.info('restartTrial: complete for subscriptionId={0.subscriptionId}'.format(user_subs))
+        return user_subs
+
     def getDiscountAmountForUpgrade(self, user_subs, new_plan, billingDay, numDaysInYear):
         """This should be called before current user_subs is canceled.
         It calculates the discount amount based on how much the user paid for their current
@@ -1927,6 +1986,55 @@ class UserSubscriptionManager(models.Manager):
             logger.error('completeDowngrade result: {0.is_success} for user {1} to plan {2}'.format(result, user, new_plan))
             return (result, None)
 
+    def switchPlanNoCharge(self, user_subs, new_plan):
+        """User is active on a plan, but wants to switch to another plan.
+        User is assumed to have paid in full, so set price to 0. Any refunds must be done through the Control Panel.
+        Args:
+            user_subs: UserSubscription to be canceled
+            new_plan: SubscriptionPlan
+        Returns: UserSubscription instance / None if none created
+        """
+        user = user_subs.user
+        try:
+            pm = Customer.objects.getPaymentMethods(user.customer)[0]
+        except IndexError:
+            msg = "switchPlanNoCharge: paymentMethod not found for user {0}".format(user)
+            print(msg)
+            logger.warning(msg)
+            return None
+        if pm['expired']:
+            msg = 'switchPlanNoCharge: Payment method {type}/{number} is expired {expiry}.'.format(**pm)
+            print(msg)
+            logger.warning(msg)
+            return None
+        baseDiscount = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
+        #print('baseDiscount: {0.discountId}|{0}'.format(baseDiscount))
+        if user_subs.status not in (UserSubscription.CANCELED, UserSubscription.EXPIRED):
+            cancel_res = UserSubscription.objects.terminalCancelBtSubscription(user_subs)
+            if not cancel_res.is_success:
+                if cancel_result.message == self.model.RESULT_ALREADY_CANCELED:
+                    logger.info('switchPlanNoCharge: existing bt_subs already canceled for: {0}'.format(user_subs))
+                    bt_subs = self.findBtSubscription(user_subs.subscriptionId)
+                    self.updateSubscriptionFromBt(user_subs, bt_subs)
+                else:
+                    logger.warning('switchPlanNoCharge: Cancel user_subs {0} failed with message: {1.message}'.format(user_subs, cancel_res))
+                    return None
+        subs_params = {
+            'plan_id': new_plan.planId,
+            'trial_duration': 0,
+            'payment_method_token': pm['token'],
+            'discounts': {
+                'add': [{
+                    'inherited_from_id': baseDiscount.discountId,
+                    'amount': new_plan.discountPrice
+                }]
+            }
+        }
+        #pprint(subs_params)
+        result = braintree.Subscription.create(subs_params)
+        new_user_subs = UserSubscription.objects.createSubscriptionFromBt(user, new_plan, result.subscription)
+        logger.info('switchPlanNoCharge: user {0}: Old: {1.pk}|{1} on {1.plan}. New: {2.pk}|{2}|{2.plan}'.format(user, user_subs, new_user_subs))
+        return new_user_subs
 
     def updateLatestUserSubsAndTransactions(self, user):
         """Get the latest UserSubscription for the given user

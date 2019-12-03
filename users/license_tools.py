@@ -354,7 +354,7 @@ class LicenseUpdater:
                 logmsg = "IntegrityError for existing_sl: {0.pk}. lkey:{1} and licenseNumber:{2}.".format(existing_sl, lkey, d['licenseNumber'])
                 logger.warning(logmsg)
                 # msg for end user
-                msg = "A {0.state.abbrev} {0.licenseType.name} license for {0.user} exists with a different licenseNumber: {0.licenseNumber}. Please re-verify the licenseNumber for this license, and if necessary, correct it using the Orbit website.".format(existing_sl)
+                msg = "A {0.state.abbrev} {0.licenseType.name} license for {0.user} exists with a different licenseNumber: {0.licenseNumber}. Please re-verify the licenseNumber for this license, and if necessary, edit or delete this license from your Orbit admin dashboard.".format(existing_sl)
                 errors.append(msg)
                 continue
             # Does uninitialized license exist that we can edit-in-place (created when a state is added to user's profile via UI)
