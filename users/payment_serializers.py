@@ -5,21 +5,15 @@ from .models import SubscriptionPlan, UserSubscription, CmeBoost, CmeBoostPurcha
 
 logger = logging.getLogger('gen.psrl')
 
-DISPLAY_PRICE_AS_MONTHLY = False
-
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
     plan_type = serializers.StringRelatedField(read_only=True)
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, min_value=Decimal('0.01'))
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
-    displayMonthlyPrice = serializers.SerializerMethodField()
+    displayMonthlyPrice = serializers.BooleanField(read_only=True)
     plan_key = serializers.PrimaryKeyRelatedField(read_only=True)
     plan_key_specialty = serializers.SerializerMethodField()
     upgrade_plan = serializers.PrimaryKeyRelatedField(read_only=True)
     needs_payment_method = serializers.BooleanField(source='plan_type.needs_payment_method')
-
-    def get_displayMonthlyPrice(self, obj):
-        """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
-        return DISPLAY_PRICE_AS_MONTHLY
 
     def get_plan_key_specialty(self, obj):
         """Return specialty name if not null, else degree abbrev from plan_key"""
@@ -60,11 +54,7 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
     needs_payment_method = serializers.BooleanField(source='plan_type.needs_payment_method')
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
-    displayMonthlyPrice = serializers.SerializerMethodField()
-
-    def get_displayMonthlyPrice(self, obj):
-        """Returns True if the price should be divided by 12 to be displayed as a monthly price."""
-        return DISPLAY_PRICE_AS_MONTHLY
+    displayMonthlyPrice = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = SubscriptionPlan

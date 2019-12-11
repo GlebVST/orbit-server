@@ -444,7 +444,8 @@ class PlanForm(forms.ModelForm):
         maxCmeYear = cleaned_data.get('maxCmeYear')
         plan_type = cleaned_data.get('plan_type')
         org = cleaned_data.get('organization')
-        welcome_offer_url = cleaned_data.get('welcome_offer_url')
+        #welcome_offer_url = cleaned_data.get('welcome_offer_url')
+        welcome_offer_url = '' # not implemented on frontend (which uses static pages)
         if maxCmeYear and maxCmeMonth and (maxCmeMonth >= maxCmeYear):
             self.add_error('maxCmeMonth', 'maxCmeMonth must be strictly less than maxCmeYear.')
         if maxCmeYear == 0 and maxCmeMonth != 0:
@@ -505,13 +506,13 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('plan_type', 'organization', 'plan_key','name','display_name', 'upgrade_plan','downgrade_plan'),
         }),
         ('Price', {
-            'fields': ('price', 'discountPrice')
+            'fields': ('price', 'discountPrice','displayMonthlyPrice')
         }),
         ('CME', {
             'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits', 'cmeTags')
         }),
         ('Other', {
-            'fields': ('trialDays','billingCycleMonths','welcome_offer_url', 'active',)
+            'fields': ('trialDays','billingCycleMonths','active',)
         })
     )
 

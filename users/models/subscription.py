@@ -704,7 +704,10 @@ class SubscriptionPlan(models.Model):
             help_text='Billing Cycle in months')
     discountPrice = models.DecimalField(max_digits=6, decimal_places=2,
             help_text='discounted price in USD. Obsolete [no longer used].')
-    active = models.BooleanField(default=True)
+    active = models.BooleanField(default=True,
+        help_text='If false, this plan will no longer be available for new signups')
+    displayMonthlyPrice = models.BooleanField(default=False,
+        help_text='Flag controls if UI displays price as per month in credit card screen')
     plan_type = models.ForeignKey(SubscriptionPlanType,
         on_delete=models.PROTECT,
         db_index=True,
