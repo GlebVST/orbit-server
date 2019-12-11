@@ -43,6 +43,15 @@ PARTICIPANT_FIELDS = (
 class Command(BaseCommand):
     help = "If there is data to send, create Event/Participant CSV files, and email them to ABA (American Board of Anesthesiology)."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--dry_run',
+            action='store_true',
+            dest='dry_run',
+            default=False,
+            help='Dry run. Send email to developer only, do not update submitABA on brcme entries.'
+        )
+
     def getEligibleProfiles(self):
         profiles = []
         qs = Profile.objects.getProfilesForABA() # Profile queryset
@@ -54,7 +63,7 @@ class Command(BaseCommand):
                 profiles.append(p)
         return profiles
 
-    def sendEmail(self, reportDate, eventData, participantData):
+    def sendEmail(self, options, reportDate, eventData, participantData):
         reportDateFname = reportDate.strftime("%m-%d-%y")
         # make csv attachments
         cfEvent = makeCsvForAttachment(EVENT_FIELDS, eventData)
@@ -65,16 +74,22 @@ class Command(BaseCommand):
         # create EmailMessage
         from_email = settings.SUPPORT_EMAIL
         if settings.ENV_TYPE == settings.ENV_PROD:
-            #to_emails = [settings.ABA_CME_EMAIL,]
-            to_emails = ['ram+ABAsync@orbitcme.com']
-            #cc_emails = ['ram+ABAsync@orbitcme.com']
-            bcc_emails = ['faria+ABAsync@orbitcme.com',]
+            if options['dry_run']:
+                to_emails = ['faria+ABAsync@orbitcme.com',]
+                cc_emails = []
+                bcc_emails = []
+            else:
+                to_emails = [settings.ABA_CME_EMAIL,]
+                cc_emails = ['ram+ABAsync@orbitcme.com',]
+                bcc_emails = ['faria+ABAsync@orbitcme.com',]
         else:
             to_emails = ['faria@orbitcme.com',]
             cc_emails = []
             bcc_emails = []
         reportDateStr = reportDate.strftime("%m/%d/%y")
         subject = "[Orbit-ABA LLS Data] {0}".format(reportDateStr)
+        if options['dry_run']:
+            subject += " [dry run]"
         ctx = {
             'reportDate': reportDate,
             'ABA_ACCME_ID': settings.ABA_ACCME_ID,
@@ -111,7 +126,7 @@ class Command(BaseCommand):
         entry_qsets = [] # list of Entry querysets to update after email is sent
         for profile in profiles:
             userABANumber = profile.formatABANumber()
-            print(profile.user)
+            print("{0.user} {1} {2}".format(profile, profile.getFullName(), userABANumber))
             userData = Entry.objects.prepareDataForABAReport(profile.user)
             userData.sort(key=itemgetter('eventId'))
             for d in userData:
@@ -133,9 +148,14 @@ class Command(BaseCommand):
         if not eventData:
             logger.info('No eventData for this run. Exiting.')
         else:
-            success = self.sendEmail(reportDate, eventData, participantData)
+            success = self.sendEmail(options, reportDate, eventData, participantData)
             if success:
-                # bulk-update of submitABADate field for the reported entries
-                for qs in entry_qsets:
-                    qs.update(submitABADate=reportDate)
-                logger.info('sendABAReport updated submitABAData on entries')
+                if options['dry_run']:
+                    logger.info('sendABAReport dry_run over')
+                else:
+                    # bulk-update of submitABADate field for the reported entries
+                    for qs in entry_qsets:
+                        num_entries = qs.count()
+                        user = qs[0].user
+                        qs.update(submitABADate=reportDate)
+                        logger.info('sendABAReport updated submitABADate on {0} entries for {1}'.format(num_entries, user))

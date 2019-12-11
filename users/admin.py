@@ -311,7 +311,7 @@ class DocumentAdmin(admin.ModelAdmin):
     list_select_related = True
 
 class EntryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'entryType', 'activityDate', 'valid', 'description', 'created')
+    list_display = ('id', 'user', 'description','formatTags','created')
     list_filter = ('entryType', 'valid', UserFilter, 'tags')
     list_select_related = True
     raw_id_fields = ('documents',)
@@ -320,6 +320,10 @@ class EntryAdmin(admin.ModelAdmin):
 
     class Media:
         pass
+
+    def get_queryset(self, request):
+        qs = super(EntryAdmin, self).get_queryset(request)
+        return qs.prefetch_related('tags')
 
 
 class ArticleTypeInline(admin.TabularInline):
