@@ -270,7 +270,7 @@ class OrbitCmeOfferManager(models.Manager):
         if qset.exists():
             aurl = qset[0]
         if not aurl:
-            logger.warn("No Welcome article listed in allowed urls!")
+            logger.error("No Welcome article listed in allowed urls!")
             return None
         now = timezone.now()
         activityDate = now - timedelta(seconds=10)
@@ -355,11 +355,15 @@ class OrbitCmeOffer(models.Model):
     valid = models.BooleanField(default=True)
     credits = models.DecimalField(max_digits=5, decimal_places=2,
         help_text='CME credits to be awarded upon redemption')
-    tags = models.ManyToManyField(
-        CmeTag,
+    tags = models.ManyToManyField(CmeTag,
         blank=True,
         related_name='offers',
-        help_text='Recommended tags'
+        help_text='Recommended/suggested tags'
+    )
+    selectedTags = models.ManyToManyField(CmeTag,
+        blank=True,
+        related_name='seloffers',
+        help_text='Pre-selected tags in the redeem offer form'
     )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -374,34 +378,83 @@ class OrbitCmeOffer(models.Model):
         return self.url.url
 
     def formatTags(self):
-        return ", ".join([t.name for t in self.tags.all()])
+        seltags = [t.name for t in self.selectedTags.all()]
+        rectags = [t.name for t in self.tags.all()]
+        return ",".join(seltags) + '|' + ", ".join(tags)
     formatTags.short_description = "Tags"
 
     def assignCmeTags(self):
-        """Assign tags based on: eligible_site, url, and user"""
+        """Assign selected tags, and other recommended tags based on the
+        intersection of the user's profile tags with url/esite default tags.
+        """
+        aurl = self.url
         esite = self.eligible_site
         profile = self.user.profile
+        # user's profile cmetags
+        pcts = ProfileCmetag.objects.filter(profile=profile, is_active=True)
+        pct_tags = set([pct.tag for pct in pcts])
+        # First check if can select SA-CME tag
+        if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
+            self.selectedTags.add(CmeTag.objects.get(name=CMETAG_SACME))
+        # 1. Intersection of aurl's default tags with pct_tags
+        urlUserTags = set([])
+        for t in self.url.cmeTags.all().order_by('name'):
+            if t in pct_tags: # aurl.tag is contained in user's tags
+                urlUserTags.add(t)
+        # 2. Intersection of esite spectags with user spectags
         profile_specs = set([s.name for s in profile.specialties.all()])
         esite_specs = set([s.name for s in esite.specialties.all()])
         int_specs = profile_specs.intersection(esite_specs)
-        spectags = CmeTag.objects.filter(name__in=int_specs) # tag.name matches ps.name for ps in int_specs
-        self.tags.set(list(spectags))
-        pcts = ProfileCmetag.objects.filter(profile=profile, is_active=True)
-        pct_tags = set([pct.tag for pct in pcts])
-        # tags from allowed_url
-        for t in self.url.cmeTags.all():
-            if t in pct_tags: # aurl.tag is contained in user's profilecmetags
+        spectags = CmeTag.objects.filter(name__in=int_specs).order_by('name')
+        # Determine selected tag from:
+        # 1: offer url matches a recommended article
+        recaurls = user.recaurls.filter(url=aurl).order_by('id')
+        if recaurls.exists():
+            # Assign recaurl.cmeTag as selected tag
+            recaurl = recaurls[0]
+            self.selectedTags.add(recaurl.cmeTag)
+            logger.info('SelectedTag from recaurl {0}'.format(recaurl))
+            # Add all spectags to recommendedTags
+            for t in spectags:
                 self.tags.add(t)
-        # check if can add SA-CME tag
-        if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
-            self.tags.add(CmeTag.objects.get(name=CMETAG_SACME))
+            # Add all urlUserTags to recommendedTags
+            for t in urlUserTags:
+                self.tags.add(t)
+            return
+        # No recaurl. Try spectags
+        elif spectags.exists():
+            selTag = spectags[0]
+            self.selectedTags.add(selTag)
+            logger.info('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, offer))
+            # add any remaining spectags to recommendedTags
+            if len(spectags) > 1:
+                for t in spectags[1:]:
+                    self.tags.add(t)
+            # Add all urlUserTags to recommendedTags
+            for t in urlUserTags:
+                self.tags.add(t)
+            return
+        # No spectags. Try urlUserTags
+        if urlUserTags:
+            selTag = urlUserTags.pop()
+            self.selectedTags.add(selTag)
+            logger.info('SelectedTag from url default tag {0} for offer {1.pk}'.format(selTag, offer))
+            # Add remaining urlUserTags to recommendedTags
+            for t in urlUserTags:
+                self.tags.add(t)
+            return
 
     def setTagsFromRedeem(self, tags):
-        """Called by redeem offer serializer to sync offer.tags with the given tags:
+        """Called by redeem offer serializer to sync offer.selectedTags with the given tags:
         Args:
             tags: CmeTag queryset from an entry
         """
-        self.tags.set(tags)
+        self.selectedTags.set(tags) # the actual selected tags
+        for t in tags: # update offer.tags (used by recommendation system)
+            qs = self.tags.filter(pk=t.pk)
+            if not qs.exists():
+                self.tags.add(t)
+
 
 # OrbitCmeOffer stats per org
 @python_2_unicode_compatible
@@ -431,7 +484,7 @@ class UrlTagFreq(models.Model):
     url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='urltagfreqs')
     tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='urltagfreqs')
     numOffers = models.PositiveIntegerField(default=MIN_VOTE_FOR_REC,
-        help_text='Specify a number gte to {0} in order to make this an article recommendation'.format(MIN_VOTE_FOR_REC)
+        help_text='Specify a number gte to {0} in order to make this a recommended article for this tag.'.format(MIN_VOTE_FOR_REC)
     )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
