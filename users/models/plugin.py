@@ -414,34 +414,37 @@ class OrbitCmeOffer(models.Model):
             recaurl = recaurls[0]
             self.selectedTags.add(recaurl.cmeTag)
             logger.info('SelectedTag from recaurl {0}'.format(recaurl))
-            print('SelectedTag from recaurl {0}'.format(recaurl))
-            # Add all spectags to recommendedTags
+            #print('SelectedTag from recaurl {0}'.format(recaurl))
+            # Add spectags to recommendedTags
             for t in spectags:
-                self.tags.add(t)
-            # Add all urlUserTags to recommendedTags
+                if t != recaurl.cmeTag:
+                    self.tags.add(t)
+            # Add urlUserTags to recommendedTags
             for t in urlUserTags:
-                self.tags.add(t)
+                if t != recaurl.cmeTag:
+                    self.tags.add(t)
             return
         # No recaurl. Try spectags
         if spectags.exists():
             selTag = spectags[0]
             self.selectedTags.add(selTag)
             logger.info('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, self))
-            print('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, self))
+            #print('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, self))
             # add any remaining spectags to recommendedTags
             if len(spectags) > 1:
                 for t in spectags[1:]:
                     self.tags.add(t)
-            # Add all urlUserTags to recommendedTags
+            # Add urlUserTags to recommendedTags
             for t in urlUserTags:
-                self.tags.add(t)
+                if t != selTag:
+                    self.tags.add(t)
             return
         # No intersection between esite.spectags and profile.spectags. Try urlUserTags
         if urlUserTags:
             selTag = urlUserTags.pop()
             self.selectedTags.add(selTag)
             logger.info('SelectedTag from url default tag {0} for offer {1.pk}'.format(selTag, self))
-            print('SelectedTag from url default tag {0} for offer {1.pk}'.format(selTag, self))
+            #print('SelectedTag from url default tag {0} for offer {1.pk}'.format(selTag, self))
             # Add remaining urlUserTags to recommendedTags
             for t in urlUserTags:
                 self.tags.add(t)
@@ -452,7 +455,7 @@ class OrbitCmeOffer(models.Model):
             selTag = spectags[0]
             self.selectedTags.add(selTag)
             logger.info('SelectedTag from profile specialty {0} for offer {1.pk}'.format(selTag, self))
-            print('SelectedTag from profile specialty {0} for offer {1.pk}'.format(selTag, self))
+            #print('SelectedTag from profile specialty {0} for offer {1.pk}'.format(selTag, self))
             # add any remaining spectags to recommendedTags
             if len(spectags) > 1:
                 for t in spectags[1:]:
@@ -462,7 +465,7 @@ class OrbitCmeOffer(models.Model):
             selTag = pct_tags.pop()
             self.selectedTags.add(selTag)
             logger.info('SelectedTag from pct {0} for offer {1.pk}'.format(selTag, self))
-            print('SelectedTag from pct {0} for offer {1.pk}'.format(selTag, self))
+            #print('SelectedTag from pct {0} for offer {1.pk}'.format(selTag, self))
             # add any remaining tags to recommendedTags
             for t in pct_tags:
                 self.tags.add(t)
