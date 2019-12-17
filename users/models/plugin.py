@@ -408,12 +408,13 @@ class OrbitCmeOffer(models.Model):
         spectags = CmeTag.objects.filter(name__in=int_specs).order_by('name')
         # Determine selected tag from:
         # 1: offer url matches a recommended article
-        recaurls = user.recaurls.filter(url=aurl).order_by('id')
+        recaurls = self.user.recaurls.filter(url=aurl).order_by('id')
         if recaurls.exists():
             # Assign recaurl.cmeTag as selected tag
             recaurl = recaurls[0]
             self.selectedTags.add(recaurl.cmeTag)
             logger.info('SelectedTag from recaurl {0}'.format(recaurl))
+            print('SelectedTag from recaurl {0}'.format(recaurl))
             # Add all spectags to recommendedTags
             for t in spectags:
                 self.tags.add(t)
@@ -422,10 +423,11 @@ class OrbitCmeOffer(models.Model):
                 self.tags.add(t)
             return
         # No recaurl. Try spectags
-        elif spectags.exists():
+        if spectags.exists():
             selTag = spectags[0]
             self.selectedTags.add(selTag)
-            logger.info('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, offer))
+            logger.info('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, self))
+            print('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, self))
             # add any remaining spectags to recommendedTags
             if len(spectags) > 1:
                 for t in spectags[1:]:
@@ -434,13 +436,35 @@ class OrbitCmeOffer(models.Model):
             for t in urlUserTags:
                 self.tags.add(t)
             return
-        # No spectags. Try urlUserTags
+        # No intersection between esite.spectags and profile.spectags. Try urlUserTags
         if urlUserTags:
             selTag = urlUserTags.pop()
             self.selectedTags.add(selTag)
-            logger.info('SelectedTag from url default tag {0} for offer {1.pk}'.format(selTag, offer))
+            logger.info('SelectedTag from url default tag {0} for offer {1.pk}'.format(selTag, self))
+            print('SelectedTag from url default tag {0} for offer {1.pk}'.format(selTag, self))
             # Add remaining urlUserTags to recommendedTags
             for t in urlUserTags:
+                self.tags.add(t)
+            return
+        # User read an article whose esite/url tags did not intersect with user's profile tags.
+        if profile_specs:
+            spectags = CmeTag.objects.filter(name__in=profile_specs).order_by('name')
+            selTag = spectags[0]
+            self.selectedTags.add(selTag)
+            logger.info('SelectedTag from profile specialty {0} for offer {1.pk}'.format(selTag, self))
+            print('SelectedTag from profile specialty {0} for offer {1.pk}'.format(selTag, self))
+            # add any remaining spectags to recommendedTags
+            if len(spectags) > 1:
+                for t in spectags[1:]:
+                    self.tags.add(t)
+            return
+        if pct_tags:
+            selTag = pct_tags.pop()
+            self.selectedTags.add(selTag)
+            logger.info('SelectedTag from pct {0} for offer {1.pk}'.format(selTag, self))
+            print('SelectedTag from pct {0} for offer {1.pk}'.format(selTag, self))
+            # add any remaining tags to recommendedTags
+            for t in pct_tags:
                 self.tags.add(t)
             return
 

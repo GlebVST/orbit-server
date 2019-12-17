@@ -481,6 +481,24 @@ class PlanForm(forms.ModelForm):
         m.save()
         return m
 
+class PlantagForm(forms.ModelForm):
+    class Meta:
+        model = Plantag
+        fields = ('__all__')
+        widgets = {
+            'tag': autocomplete.ModelSelect2(
+                url='cmetag-autocomplete',
+                attrs={
+                    'data-placeholder': 'CmeTag',
+                    'data-minimum-input-length': 1,
+                }
+            ),
+        }
+
+class PlantagInline(admin.TabularInline):
+    model = Plantag
+    form = PlantagForm
+
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ('id',
         'plan_type',
@@ -499,8 +517,11 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_select_related = True
     list_filter = ('active', 'plan_type', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
-    filter_horizontal = ('cmeTags',)
+    filter_horizontal = ('tags',)
     form = PlanForm
+    inlines = [
+        PlantagInline,
+    ]
     fieldsets = (
         (None, {
             'fields': ('plan_type', 'organization', 'plan_key','name','display_name', 'upgrade_plan','downgrade_plan'),
@@ -509,7 +530,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('price', 'discountPrice','displayMonthlyPrice')
         }),
         ('CME', {
-            'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits', 'cmeTags')
+            'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits')
         }),
         ('Other', {
             'fields': ('trialDays','billingCycleMonths','active',)
@@ -518,7 +539,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super(SubscriptionPlanAdmin, self).get_queryset(request)
-        return qs.prefetch_related('cmeTags')
+        return qs.prefetch_related('tags')
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
@@ -822,6 +843,7 @@ class OrbitCmeOfferAdmin(admin.ModelAdmin):
     list_select_related = True
     ordering = ('-modified',)
     list_filter = ('redeemed','valid', UserFilter, 'eligible_site')
+    filter_horizontal = ('tags', 'selectedTags')
 
     class Media:
         pass

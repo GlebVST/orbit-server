@@ -798,9 +798,9 @@ class Profile(models.Model):
             if self.isPhysician() and ps.name in SACME_SPECIALTIES:
                 satag = CmeTag.objects.get(name=CMETAG_SACME)
                 pct = ProfileCmetag.objects.create(tag=satag, profile=self, is_active=True)
-        # 2019-05-26: add any default tags by plan (used for fluoro plans).
+        # 2019-05-26: add any default tags set by plan
         plan = SubscriptionPlan.objects.get(planId=self.planId)
-        for t in plan.cmeTags.all():
+        for t in plan.tags.all():
             if not ProfileCmetag.objects.filter(tag=t, profile=self).exists():
                 pct = ProfileCmetag.objects.create(tag=t, profile=self, is_active=True)
                 logger.info('Add {0} tag from plan for userid {0.profile.pk}'.format(pct))

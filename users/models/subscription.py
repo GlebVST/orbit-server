@@ -731,6 +731,12 @@ class SubscriptionPlan(models.Model):
     )
     cmeTags = models.ManyToManyField(CmeTag,
         blank=True,
+        related_name='old_plans',
+        help_text='cmeTags to be added to profile for users on this plan'
+    )
+    tags = models.ManyToManyField(CmeTag,
+        through='Plantag',
+        blank=True,
         related_name='plans',
         help_text='cmeTags to be added to profile for users on this plan'
     )
@@ -761,7 +767,7 @@ class SubscriptionPlan(models.Model):
         decimal_places=1,
         default=0,
         help_text='Maximum OrbitCME credits allowed in Trial period. -1 means: no redeeming allowed in Trial. 0 means: use default max_trial_credits in settings.py. A positive value: overrides default value in settings.py')
-    welcome_offer_url = models.URLField(max_length=500, blank=True, help_text='URL for initial welcome offer. Must be an existing AllowedUrl already. If blank, then the default vaping article is used as the welcome offer.')
+    welcome_offer_url = models.URLField(max_length=500, blank=True, help_text='URL for initial welcome offer. Must be an existing AllowedUrl already. If blank, then the default hard-coded article is used as the welcome offer.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()
@@ -786,7 +792,7 @@ class SubscriptionPlan(models.Model):
         return self.maxCmeMonth > 0
 
     def formatTags(self):
-        return ", ".join([t.name for t in self.cmeTags.all()])
+        return ", ".join([t.name for t in self.tags.all()])
     formatTags.short_description = "cmeTags"
 
     def isEnterprise(self):
@@ -804,6 +810,22 @@ class SubscriptionPlan(models.Model):
         if self.max_trial_credits > 0: # a positive value override the settings default
             return self.max_trial_credits
         return settings.MAX_TRIAL_CME_CREDIT
+
+# Many-to-many through relation between SubscriptionPlan and CmeTag
+class Plantag(models.Model):
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, db_index=True)
+    tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
+    num_recs = models.PositiveIntegerField(default=0,
+        help_text='Number of article recommendations for this tag to users on this plan')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('plan','tag')
+        ordering = ['tag',]
+
+    def __str__(self):
+        return '{0.plan}|{0.tag}'.format(self)
 
 
 # User Subscription

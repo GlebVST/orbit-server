@@ -53,7 +53,7 @@ class OrbitCmeOfferSerializer(serializers.ModelSerializer):
     pageTitle = serializers.CharField(source='url.page_title', max_length=500, read_only=True, default='')
     logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
     recommendedTags = serializers.PrimaryKeyRelatedField(source='tags', many=True, read_only=True)
-    selectedTags = serializers.PrimaryKeyRelatedField(source='selectedTags', many=True, read_only=True)
+    selectedTags = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     class Meta:
         model = OrbitCmeOffer
         fields = (
