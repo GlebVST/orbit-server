@@ -639,6 +639,7 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
             'needs_payment_method',
             'next_plan',
             'video_url',
+            'has_article_recs',
             'created',
             'modified'
         )
