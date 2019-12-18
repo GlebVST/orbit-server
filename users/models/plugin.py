@@ -526,6 +526,27 @@ class UrlTagFreq(models.Model):
         return "{0.tag}|{0.url}|{0.numOffers}".format(self)
 
 
+class RecAllowedUrlManager(models.Manager):
+    def createRecsForNewIndivUser(self, user, tag, num_recs):
+        """This is intended for new users who have signed up on a plan that
+        offers recommended articles for a given tag.
+        Args:
+            user: User
+            tag: CmeTag
+            num_recs: int
+        """
+        welcome_url = AllowedUrl.objects.get(url=settings.WELCOME_ARTICLE_URL)
+        qs = UrlTagFreq.objects \
+            .filter(tag=tag, numOffers__gte=MIN_VOTE_FOR_REC) \
+            .exclude(url=welcome_url) \
+            .order_by('-numOffers')
+        num_created = 0
+        for utf in qs[0:num_recs]:
+            recaurl, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=utf.url)
+            if created:
+                num_created += 1
+        return num_created
+
 class RecAllowedUrl(models.Model):
     MAX_RECS_PER_USERTAG = 20
     id = models.AutoField(primary_key=True)
@@ -533,6 +554,7 @@ class RecAllowedUrl(models.Model):
     url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='recaurls')
     cmeTag = models.ForeignKey(CmeTag, on_delete=models.CASCADE, related_name='recaurls')
     offer = models.ForeignKey(OrbitCmeOffer, on_delete=models.CASCADE, null=True, blank=True, related_name='recaurls')
+    objects = RecAllowedUrlManager()
 
     class Meta:
         managed = False
