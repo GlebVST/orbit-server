@@ -356,6 +356,8 @@ class RecAllowedUrlList(APIView):
             s = RecAllowedUrlReadSerializer(qset, many=True)
             results.append({
                 'tag': tag.pk,
+                'name': tag.name,
+                'instructions': tag.instructions,
                 'recs': s.data
             })
         context = {
