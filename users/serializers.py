@@ -598,6 +598,7 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
     bt_status = serializers.ReadOnlyField(source='status')
     needs_payment_method = serializers.BooleanField(source='plan.plan_type.needs_payment_method')
     video_url = serializers.ReadOnlyField(source='plan.plan_key.video_url')
+    has_article_recs = serializers.SerializerMethodField()
 
     def get_display_name(self, obj):
         """If enterprise plan or display_status is UI_ENTERPRISE_CANCELED: return org name.
@@ -611,6 +612,13 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
             if qset.exists():
                 return qset[0].organization.name
         return obj.plan.display_name
+
+    def get_has_article_recs(self, obj):
+        """Returns True if there exists at least one Plantag with non-zero value for num_recs
+        for obj.plan
+        """
+        qs = Plantag.objects.filter(plan=obj.plan, num_recs__gt=0)
+        return qs.exists()
 
     class Meta:
         model = UserSubscription
