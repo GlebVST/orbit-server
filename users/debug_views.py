@@ -676,3 +676,29 @@ class CreateAuditReport(CertificateMixin, APIView):
         # set report.certificates ManyToManyField
         report.certificates.set([certificatesByTag[tagid] for tagid in certificatesByTag])
         return report
+
+class RecAllowedUrlListForUser(APIView):
+    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
+
+    def get(self, request, userid, *args, **kwargs):
+        from .feed_serializers import RecAllowedUrlReadSerializer
+        user = User.objects.get(pk=userid)
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        plan = user_subs.plan
+        results = []
+        plantags = Plantag.objects.filter(plan=plan, num_recs__gt=0).order_by('num_recs', 'id')
+        for pt in plantags:
+            tag = pt.tag
+            qset = user.recaurls \
+                .select_related('offer', 'url__eligible_site') \
+                .filter(cmeTag=tag) \
+                .order_by('-url__numOffers', 'id')
+            s = RecAllowedUrlReadSerializer(qset, many=True)
+            results.append({
+                'tag': tag.pk,
+                'recs': s.data
+            })
+        context = {
+            'results': results
+        }
+        return Response(context, status=status.HTTP_200_OK)

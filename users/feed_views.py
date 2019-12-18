@@ -338,26 +338,27 @@ class UpdateSRCme(LogValidationErrorMixin, TagsMixin, ExtUpdateAPIView):
         out_serializer = UpdateSRCmeOutSerializer(entry)
         return Response(out_serializer.data)
 
-
-class StoryDetail(APIView):
-    """Finds the latest non-expired Story and returns the info with the launch_url customized for the user.
-    Value is None if none exists.
-    """
+class RecAllowedUrlList(APIView):
     permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
-    def serialize_and_render(self, user_id, story):
-        context = {'story': None}
-        if story:
-            s = StorySerializer(story)
-            context['story'] = s.data
-            context['story']['launch_url'] += "={0}".format(user_id)
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        plan = user_subs.plan
+        results = []
+        plantags = Plantag.objects.filter(plan=plan, num_recs__gt=0).order_by('num_recs', 'id')
+        for pt in plantags:
+            tag = pt.tag
+            qset = user.recaurls \
+                .select_related('offer', 'url__eligible_site') \
+                .filter(cmeTag=tag) \
+                .order_by('-url__numOffers', 'id')
+            s = RecAllowedUrlReadSerializer(qset, many=True)
+            results.append({
+                'tag': tag.pk,
+                'recs': s.data
+            })
+        context = {
+            'results': results
+        }
         return Response(context, status=status.HTTP_200_OK)
-
-    def get(self, request, format=None):
-        story = None
-        user_id = request.user.profile.getAuth0Id()
-        now = timezone.now()
-        qset = Story.objects.filter(startDate__lte=now, endDate__gt=now).order_by('-created')
-        if qset.exists():
-            story = qset[0]
-        return self.serialize_and_render(user_id, story)

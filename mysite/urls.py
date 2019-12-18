@@ -126,7 +126,7 @@ api_patterns = [
     url(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', feed_views.UpdateBrowserCme.as_view()),
     url(r'^feed/cme/?$', feed_views.CreateSRCme.as_view()),
     url(r'^feed/cme/(?P<pk>[0-9]+)/?$', feed_views.UpdateSRCme.as_view()),
-    url(r'^story/?$', feed_views.StoryDetail.as_view()),
+    url(r'^feed/rec-articles/?$', feed_views.RecAllowedUrlList.as_view()),
 
     # dashboard
     url(r'^dashboard/cme-aggregate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', dashboard_views.CmeAggregateStats.as_view()),
@@ -188,6 +188,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/orgmembers/(?P<pk>[0-9]+)/email-set-password/?$', debug_views.EmailSetPassword.as_view()),
         url(r'^debug/audit-report/(?P<userid>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', debug_views.CreateAuditReport.as_view()),
         url(r'^debug/validate-license-file/(?P<pk>[0-9]+)/?$', debug_views.ValidateLicenseFile.as_view()),
+        url(r'^debug/recaurls-for-user/(?P<userid>[0-9]+)/?$', debug_views.RecAllowedUrlListForUser.as_view()),
     ])
 
 

@@ -506,25 +506,41 @@ class SRCmeFormSerializer(serializers.Serializer):
         instance.save()
         return instance
 
-
-class StorySerializer(serializers.ModelSerializer):
-    sponsor = serializers.PrimaryKeyRelatedField(read_only=True)
-    logo_url = serializers.URLField(source='sponsor.logo_url', max_length=1000, read_only=True, default='')
-    displayLabel = serializers.SerializerMethodField()
-
-    def get_displayLabel(self, obj):
-        return SACME_LABEL
+PUB_DATE_FORMAT = '%b %Y'
+class RecAllowedUrlReadSerializer(serializers.ModelSerializer):
+    domainTitle = serializers.ReadOnlyField(source='url.eligible_site.domain_title')
+    pageTitle = serializers.SerializerMethodField()
+    url = serializers.ReadOnlyField(source='url.url')
+    tag = serializers.PrimaryKeyRelatedField(source='cmeTag', read_only=True)
+    pubDate = serializers.SerializerMethodField()
+    numUsers = serializers.ReadOnlyField(source='url.numOffers')
+    offer = serializers.SerializerMethodField()
 
     class Meta:
-        model = Story
+        model = RecAllowedUrl
         fields = (
             'id',
-            'title',
-            'description',
-            'startDate',
-            'expireDate',
-            'launch_url',
-            'sponsor',
-            'logo_url',
-            'displayLabel'
+            'domainTitle',
+            'pageTitle',
+            'url',
+            'pubDate',
+            'numUsers',
+            'tag',
+            'offer'
         )
+        read_only_fields = fields
+
+    def get_pageTitle(self, obj):
+        return obj.url.cleanPageTitle()
+
+    def get_pubDate(self, obj):
+        if obj.url.pubDate:
+            return obj.url.pubDate.strftime(PUB_DATE_FORMAT)
+        return None
+
+    def get_offer(self, obj):
+        if obj.offer:
+            return OrbitCmeOfferSerializer(obj.offer).data
+        return None
+
+
