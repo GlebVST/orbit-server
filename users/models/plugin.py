@@ -385,28 +385,54 @@ class OrbitCmeOffer(models.Model):
 
     def assignCmeTags(self):
         """Assign selected tags, and other recommended tags based on the
-        intersection of the user's profile tags with url/esite default tags.
+        intersection of the user's profile tags with tags from url/esite.
         """
         aurl = self.url
         esite = self.eligible_site
         profile = self.user.profile
+        profile_specs = set([s.name for s in profile.specialties.all()])
         # user's profile cmetags
-        pcts = ProfileCmetag.objects.filter(profile=profile, is_active=True)
-        pct_tags = set([pct.tag for pct in pcts])
+        pcts = ProfileCmetag.objects.filter(profile=profile, is_active=True).order_by('pk')
+        pct_tags = [pct.tag for pct in pcts]
+        # partition into pct_spectags and pct_othertags
+        pct_spectags = set([]); pct_othertags = set([])
+        for tag in pct_tags:
+            if tag.name in profile_specs:
+                pct_spectags.add(tag)
+            else:
+                pct_othertags.add(tag)
+
+        sacmeTag = CmeTag.objects.get(name=CMETAG_SACME)
         # First check if can select SA-CME tag
         if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
-            self.selectedTags.add(CmeTag.objects.get(name=CMETAG_SACME))
-        # 1. Intersection of aurl's default tags with pct_tags
-        urlUserTags = set([])
-        for t in self.url.cmeTags.all().order_by('name'):
-            if t in pct_tags: # aurl.tag is contained in user's tags
-                urlUserTags.add(t)
-        # 2. Intersection of esite spectags with user spectags
-        profile_specs = set([s.name for s in profile.specialties.all()])
+            self.selectedTags.add(sacmeTag)
+        if not pct_tags:
+            logger.warning('assignCmeTags Offer {0.pk}: user {0.user} has no profile tags.'.format(self))
+            return
+        urlUserTags = []
+        # 1. Intersection of UrlTagFreq tags with pct_othertags
+        #   Exclude pct_spectags in order to give more weight to the other tags
+        #   Exclude SA-CME tag b/c that is handled separately
+        if pct_othertags:
+            qs = UrlTagFreq.objects \
+                .filter(url=aurl, tag__in=pct_othertags, numOffers__gte=MIN_VOTE_FOR_REC) \
+                .exclude(tag=sacmeTag) \
+                .order_by('-numOffers','id')
+            for utf in qs:
+                urlUserTags.append(utf.tag)
+        # Url default tags (usually present in UrlTagFreq, but in some cases, a default tag may have been manually assigned)
+        uut_set = set(urlUserTags)
+        for t in aurl.cmeTags.exclude(pk=sacmeTag.pk):
+            if t in pct_othertags and t not in uut_set: # aurl.tag is contained in user's tags and not already in set
+                urlUserTags.append(t)
+
+        # 2. Intersection of esite spectags with profile_specs
         esite_specs = set([s.name for s in esite.specialties.all()])
         int_specs = profile_specs.intersection(esite_specs)
-        spectags = CmeTag.objects.filter(name__in=int_specs).order_by('name')
+        specTags = CmeTag.objects.filter(name__in=int_specs).order_by('name')
+        #
         # Determine selected tag from:
+        #
         # 1: offer url matches a recommended article
         recaurls = self.user.recaurls.filter(url=aurl).order_by('id')
         if recaurls.exists():
@@ -414,62 +440,46 @@ class OrbitCmeOffer(models.Model):
             recaurl = recaurls[0]
             self.selectedTags.add(recaurl.cmeTag)
             logger.info('SelectedTag from recaurl {0}'.format(recaurl))
-            #print('SelectedTag from recaurl {0}'.format(recaurl))
-            # Add spectags to recommendedTags
-            for t in spectags:
-                if t != recaurl.cmeTag:
-                    self.tags.add(t)
             # Add urlUserTags to recommendedTags
             for t in urlUserTags:
                 if t != recaurl.cmeTag:
                     self.tags.add(t)
-            return
-        # No recaurl. Try spectags
-        if spectags.exists():
-            selTag = spectags[0]
-            self.selectedTags.add(selTag)
-            logger.info('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, self))
-            #print('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, self))
-            # add any remaining spectags to recommendedTags
-            if len(spectags) > 1:
-                for t in spectags[1:]:
-                    self.tags.add(t)
-            # Add urlUserTags to recommendedTags
-            for t in urlUserTags:
-                if t != selTag:
+            # Add specTags to recommendedTags
+            for t in specTags:
+                if t != recaurl.cmeTag:
                     self.tags.add(t)
             return
-        # No intersection between esite.spectags and profile.spectags. Try urlUserTags
+        # 2. No recaurl. Use top tag from urlUserTags
         if urlUserTags:
-            selTag = urlUserTags.pop()
+            selTag = urlUserTags.pop(0)
             self.selectedTags.add(selTag)
-            logger.info('SelectedTag from url default tag {0} for offer {1.pk}'.format(selTag, self))
-            #print('SelectedTag from url default tag {0} for offer {1.pk}'.format(selTag, self))
+            logger.info('SelectedTag from urlUserTag {0} for offer {1.pk}'.format(selTag, self))
             # Add remaining urlUserTags to recommendedTags
             for t in urlUserTags:
                 self.tags.add(t)
-            return
-        # User read an article whose esite/url tags did not intersect with user's profile tags.
-        if profile_specs:
-            spectags = CmeTag.objects.filter(name__in=profile_specs).order_by('name')
-            selTag = spectags[0]
-            self.selectedTags.add(selTag)
-            logger.info('SelectedTag from profile specialty {0} for offer {1.pk}'.format(selTag, self))
-            #print('SelectedTag from profile specialty {0} for offer {1.pk}'.format(selTag, self))
-            # add any remaining spectags to recommendedTags
-            if len(spectags) > 1:
-                for t in spectags[1:]:
+            # Add specTags to recommendedTags
+            for t in specTags:
+                if t != selTag:
                     self.tags.add(t)
             return
-        if pct_tags:
-            selTag = pct_tags.pop()
+        # 3. No urlUserTags. Try specTags queryset
+        if specTags.exists():
+            selTag = specTags[0]
             self.selectedTags.add(selTag)
-            logger.info('SelectedTag from pct {0} for offer {1.pk}'.format(selTag, self))
-            #print('SelectedTag from pct {0} for offer {1.pk}'.format(selTag, self))
-            # add any remaining tags to recommendedTags
-            for t in pct_tags:
-                self.tags.add(t)
+            logger.info('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, self))
+            # add any remaining spectags to recommendedTags
+            if len(specTags) > 1:
+                for t in specTags[1:]:
+                    self.tags.add(t)
             return
+        # 4. No specTags. User read an article whose esite/url tags do not intersect with user's profile tags.
+        if pct_spectags:
+            selTag = pct_spectags.pop()
+        elif pct_othertags:
+            selTag = pct_othertags.pop()
+        self.selectedTags.add(selTag)
+        logger.info('SelectedTag from non-match profileTag {0} for offer {1.pk}'.format(selTag, self))
+        return
 
     def setTagsFromRedeem(self, tags):
         """Called by redeem offer serializer to sync offer.selectedTags with the given tags:
@@ -477,10 +487,6 @@ class OrbitCmeOffer(models.Model):
             tags: CmeTag queryset from an entry
         """
         self.selectedTags.set(tags) # the actual selected tags
-        for t in tags: # update offer.tags (used by recommendation system)
-            qs = self.tags.filter(pk=t.pk)
-            if not qs.exists():
-                self.tags.add(t)
 
 
 # OrbitCmeOffer stats per org
