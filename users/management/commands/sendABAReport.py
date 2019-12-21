@@ -18,7 +18,7 @@ logger = logging.getLogger('mgmt.abarp')
 EVENT_ID = 'EVENT ID (Max 10 Characters)'
 EVENT_DESCR = 'EVENT DESCRIPTION'
 
-E_PROVIDER_ID = 'ABA Provider_ID'
+E_ABA_ID = 'ABA Provider_ID' # per Ram: this column is for Orbit's ABA ID
 E_CATG = 'Category1 - Y or N'
 P_ABA_ID = 'ABA (ACCME) ID'
 P_PROVIDER_ID = 'Provider ID'
@@ -26,7 +26,7 @@ P_DATE_COMPLETED = 'Date Completed'
 P_CREDITS = 'Credits Awarded'
 
 EVENT_FIELDS = (
-    E_PROVIDER_ID,
+    E_ABA_ID,
     EVENT_ID,
     EVENT_DESCR,
     E_CATG
@@ -57,6 +57,7 @@ class Command(BaseCommand):
         qs = Profile.objects.getProfilesForABA() # Profile queryset
         for p in qs:
             if not p.ABANumber:
+                logger.warning('No ABANumber for user {0}'.format(p.user))
                 continue
             us = UserSubscription.objects.getLatestSubscription(p.user)
             if us.display_status in (UserSubscription.UI_ACTIVE, UserSubscription.UI_ACTIVE_CANCELED, UserSubscription.UI_ACTIVE_DOWNGRADE):
@@ -132,7 +133,7 @@ class Command(BaseCommand):
             for d in userData:
                 print(" -- {eventId} {eventDescription} {brcme_sum}".format(**d))
                 eventData.append({
-                    E_PROVIDER_ID: userABANumber,
+                    E_ABA_ID: settings.ABA_ACCME_ID,
                     EVENT_ID: d['eventId'],
                     EVENT_DESCR: d['eventDescription'],
                     E_CATG: d['isCategory1']

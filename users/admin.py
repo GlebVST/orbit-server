@@ -716,11 +716,14 @@ class AllowedUrlAdmin(admin.ModelAdmin):
         pass
 
 class UrlTagFreqAdmin(admin.ModelAdmin):
-    list_display = ('id','tag','url','numOffers','modified')
+    list_display = ('id','url','page_title', 'tag', 'numOffers')
     list_selected_related = ('tag','url')
     list_filter = (TagFilter,)
-    ordering = ('-modified',)
+    ordering = ('-numOffers', '-modified',)
     form = UrlTagFreqForm
+
+    def page_title(self, obj):
+        return obj.url.page_title
 
     class Media:
         pass

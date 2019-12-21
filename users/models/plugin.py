@@ -325,6 +325,29 @@ class OrbitCmeOfferManager(models.Manager):
         numArticlesRead = int(creditsEarned/ARTICLE_CREDIT)
         return (numArticlesRead, creditsRedeemed)
 
+    def getRedeemedOffersForUser(self, user):
+        """Helper method for updateRecs
+        Returns tuple (
+            offers_blank_setid: query for redeemed offers w. blank setid
+            offers_setid: queryset for redeemed offers w. non-blank setid)
+        """
+        # offers redeemed by user since OFFER_LOOKBACK_DAYS.
+        now = timezone.now()
+        startdate = now - timedelta(days=OFFER_LOOKBACK_DAYS)
+        filter_kwargs = dict(
+            user=user,
+            redeemed=True,
+            valid=True,
+            activityDate__gte=startdate,
+        )
+        Q_setid = Q(url__set_id='')
+        # redeemed offers whose aurl.set_id is blank
+        offers_blank_setid = OrbitCmeOffer.objects.select_related('url').filter(Q_setid, **filter_kwargs)
+        # redeemed offers whose aurl.set_id is not blank (e.g. abs/pdf versions of the same article have the same set_id)
+        offers_setid = OrbitCmeOffer.objects.select_related('url').filter(~Q_setid, **filter_kwargs)
+        return (offers_blank_setid, offers_setid)
+
+
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.
 @python_2_unicode_compatible
@@ -512,6 +535,32 @@ class OrbitCmeOfferAgg(models.Model):
         return "{0.day}".format(self)
 
 MIN_VOTE_FOR_REC = 5 # should match with value in defined in plugin_server
+class UrlTagFreqManager(models.Manager):
+    def getFromUrlTagFreq(self, tag, exclude_offers_blank_setid, exclude_offers_setid):
+        """Get articles with the highest freq of the given tag and exclude already read.
+        This only considers articles that have numOffers >= MIN_VOTE for the given tag (in order to improve quality of recommendations).
+        Returns: UrlTagFreq queryset
+        """
+        fkwargs = {
+            'tag': tag,
+            'numOffers__gte': MIN_VOTE_FOR_REC, # voting mechanism
+            'url__host__has_paywall': False,
+            'url__host__main_host__isnull': True, # omit proxy hosts
+        }
+        Q_setid = Q(url__set_id='')
+        base_qs = UrlTagFreq.objects.select_related('url__host')
+        # urls with blank set_id
+        qs_blank_setid = base_qs.filter(Q_setid, **fkwargs) \
+            .exclude(url__in=Subquery(exclude_offers_blank_setid.values('url_id'))) \
+            .order_by('-numOffers', 'pk')
+        # offers with non-blank set_id
+        qs_setid = base_qs.filter(~Q_setid, **fkwargs) \
+            .exclude(url__set_id__in=Subquery(exclude_offers_setid.values('url__set_id').distinct())) \
+            .order_by('-numOffers', 'pk')
+        # union and order by numOffers desc
+        qs = qs_blank_setid.union(qs_setid).order_by('-numOffers', 'pk')
+        return qs
+
 class UrlTagFreq(models.Model):
     id = models.AutoField(primary_key=True)
     url = models.ForeignKey(AllowedUrl, on_delete=models.CASCADE, related_name='urltagfreqs')
@@ -521,6 +570,7 @@ class UrlTagFreq(models.Model):
     )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    objects = UrlTagFreqManager()
 
     class Meta:
         managed = False
@@ -549,6 +599,46 @@ class RecAllowedUrlManager(models.Manager):
         num_created = 0
         for utf in qs[0:num_recs]:
             recaurl, created = self.model.objects.get_or_create(user=user, cmeTag=tag, url=utf.url)
+            if created:
+                num_created += 1
+        return num_created
+
+    def updateRecsForUser(self, user, tag, total_recs, do_full_refresh=False):
+        """Maintain a list of upto total_recs recommended aurls for the given user and tag.
+        Args:
+            user: User instance
+            tag: CmeTag instance
+            total_recs: int
+            do_full_refresh:bool If True: all old recs are deleted and replaced with new ones
+                else, existing recs are retained and new ones added until num_recs is reached.
+        Returns: int - number of recs created
+        """
+        max_recs = total_recs if total_recs > 0 else self.model.MAX_RECS_PER_USERTAG
+        num_recs = max_recs*2 # padded number to query from db
+        # existing recs for (user, tag)
+        qs = user.recaurls.filter(cmeTag=tag)
+        if qs.count():
+            if do_full_refresh:
+                qs.delete()
+            else:
+                max_recs -= qs.count()
+        if max_recs <= 0:
+            return
+        profile = user.profile
+        # exclude_offers redeemed by user since OFFER_LOOKBACK_DAYS. This is used as a subquery below
+        exclude_offers_blank_setid, exclude_offers_setid = OrbitCmeOffer.objects.getRedeemedOffersForUser(user)
+        urls = []
+        qs_url = UrlTagFreq.objects.getFromUrlTagFreq(tag, exclude_offers_blank_setid, exclude_offers_setid)
+        data = qs_url[0:num_recs]
+        urls.extend([m.url for m in data])
+        # Finally: populate RecAllowedUrl from urls and as we iterate check that aurl is unique for this user
+        num_created = 0
+        for aurl in urls[0:max_recs]:
+            # check if user already has a rec for this aurl (for any tag)
+            qs = user.recaurls.filter(url=aurl)
+            if qs.exists():
+                continue
+            m, created = RecAllowedUrl.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
             if created:
                 num_created += 1
         return num_created
