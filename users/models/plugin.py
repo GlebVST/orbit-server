@@ -610,11 +610,10 @@ class RecAllowedUrlManager(models.Manager):
             tag: CmeTag instance
             total_recs: int
             do_full_refresh:bool If True: all old recs are deleted and replaced with new ones
-                else, existing recs are retained and new ones added until num_recs is reached.
+                else, existing recs are retained and new ones added until total_recs is reached.
         Returns: int - number of recs created
         """
         max_recs = total_recs if total_recs > 0 else self.model.MAX_RECS_PER_USERTAG
-        num_recs = max_recs*2 # padded number to query from db
         # existing recs for (user, tag)
         qs = user.recaurls.filter(cmeTag=tag)
         if qs.count():
@@ -629,6 +628,7 @@ class RecAllowedUrlManager(models.Manager):
         exclude_offers_blank_setid, exclude_offers_setid = OrbitCmeOffer.objects.getRedeemedOffersForUser(user)
         urls = []
         qs_url = UrlTagFreq.objects.getFromUrlTagFreq(tag, exclude_offers_blank_setid, exclude_offers_setid)
+        num_recs = 100 # limit queryset to top 100 entries
         data = qs_url[0:num_recs]
         urls.extend([m.url for m in data])
         # Finally: populate RecAllowedUrl from urls and as we iterate check that aurl is unique for this user

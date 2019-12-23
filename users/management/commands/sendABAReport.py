@@ -60,7 +60,12 @@ class Command(BaseCommand):
                 logger.warning('No ABANumber for user {0}'.format(p.user))
                 continue
             us = UserSubscription.objects.getLatestSubscription(p.user)
-            if us.display_status in (UserSubscription.UI_ACTIVE, UserSubscription.UI_ACTIVE_CANCELED, UserSubscription.UI_ACTIVE_DOWNGRADE):
+            if us.display_status in (
+                UserSubscription.UI_TRIAL,
+                UserSubscription.UI_ACTIVE,
+                UserSubscription.UI_ACTIVE_CANCELED,
+                UserSubscription.UI_ACTIVE_DOWNGRADE
+            ):
                 profiles.append(p)
         return profiles
 
@@ -122,7 +127,8 @@ class Command(BaseCommand):
         reportDateStr = reportDate.strftime("%m/%d/%y")
         # get eligible users whose data will be submitted
         profiles = self.getEligibleProfiles()
-        eventData = [] # data for Event file
+        eventIdSet = set([])
+        eventData = [] # data for Event file: 1 row per distinct eventId
         participantData = [] # data for Participant file
         entry_qsets = [] # list of Entry querysets to update after email is sent
         for profile in profiles:
@@ -132,12 +138,15 @@ class Command(BaseCommand):
             userData.sort(key=itemgetter('eventId'))
             for d in userData:
                 print(" -- {eventId} {eventDescription} {brcme_sum}".format(**d))
-                eventData.append({
-                    E_ABA_ID: settings.ABA_ACCME_ID,
-                    EVENT_ID: d['eventId'],
-                    EVENT_DESCR: d['eventDescription'],
-                    E_CATG: d['isCategory1']
-                })
+                eventId = d['eventId']
+                if eventId not in eventIdSet:
+                    eventData.append({
+                        E_ABA_ID: settings.ABA_ACCME_ID,
+                        EVENT_ID: eventId,
+                        EVENT_DESCR: d['eventDescription'],
+                        E_CATG: d['isCategory1']
+                    })
+                    eventIdSet.add(eventId)
                 participantData.append({
                     P_ABA_ID: settings.ABA_ACCME_ID,
                     P_PROVIDER_ID: userABANumber,
