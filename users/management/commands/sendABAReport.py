@@ -157,6 +157,7 @@ class Command(BaseCommand):
                 entry_qsets.append(d['entries'])
         if not eventData:
             logger.info('No eventData for this run. Exiting.')
+            print('No eventData for this run. Exiting.')
         else:
             success = self.sendEmail(options, reportDate, eventData, participantData)
             if success:
@@ -166,6 +167,7 @@ class Command(BaseCommand):
                     # bulk-update of submitABADate field for the reported entries
                     for qs in entry_qsets:
                         num_entries = qs.count()
-                        user = qs[0].user
-                        qs.update(submitABADate=reportDate)
-                        logger.info('sendABAReport updated submitABADate on {0} entries for {1}'.format(num_entries, user))
+                        if num_entries:
+                            user = qs[0].user
+                            qs.update(submitABADate=reportDate)
+                            logger.info('Updated submitABADate on {0} entries for {1}'.format(num_entries, user))
