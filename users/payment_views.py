@@ -548,13 +548,15 @@ class ActivatePaidSubscription(generics.CreateAPIView):
         pdata = UserSubscription.objects.serialize_permissions(user, user_subs)
         context['permissions'] = pdata['permissions']
         context['credits'] = pdata['credits']
-        # send out invoice email
-        try:
+        if user_subs.transactions.exists():
             subs_trans = user_subs.transactions.all()[0]
             paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
-            sendFirstSubsInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
-        except (IndexError, SMTPException) as e:
-            logException(logger, request, 'ActivatePaidSubscription: Send Invoice email failed.')
+            try:
+                sendFirstSubsInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
+            except SMTPException as e:
+                logException(logger, request, 'ActivatePaidSubscription: Send Invoice email failed.')
+        else:
+            logError('ActivatePaidSubs: no transaction found for subscription {0.pk}'.format(user_subs))
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -763,13 +765,15 @@ class UpgradePlan(generics.CreateAPIView):
         pdata = UserSubscription.objects.serialize_permissions(user, new_user_subs)
         context['permissions'] = pdata['permissions']
         context['credits'] = pdata['credits']
-        # send out invoice email
-        try:
+        if new_user_subs.transactions.exists():
             subs_trans = new_user_subs.transactions.all()[0]
             paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
-            sendUpgradePlanInvoiceEmail(user, new_user_subs, paymentMethod, subs_trans)
-        except (IndexError, SMTPException) as e:
-            logException(logger, request, 'UpgradePlan: Send Invoice email failed.')
+            try:
+                sendUpgradePlanInvoiceEmail(user, new_user_subs, paymentMethod, subs_trans)
+            except SMTPException as e:
+                logException(logger, request, 'UpgradePlan: Send Invoice email failed.')
+        else:
+            logError('UpgradePlan: no transaction found for subscription {0.pk}'.format(new_user_subs))
         return Response(context, status=status.HTTP_201_CREATED)
 
 
@@ -864,13 +868,15 @@ class SwitchTrialToActive(APIView):
         context['billingStartDate'] = user_subs.billingStartDate
         context['billingEndDate'] = user_subs.billingEndDate
         logInfo(logger, request, 'SwitchTrialToActive complete for subscriptionId={0.subscriptionId}'.format(user_subs))
-        # send out invoice email
-        try:
+        if user_subs.transactions.exists():
             subs_trans = user_subs.transactions.all()[0]
             paymentMethod = Customer.objects.getPaymentMethods(customer)[0]
-            sendFirstSubsInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
-        except (IndexError, SMTPException) as e:
-            logException(logger, request, 'SwitchTrialToActive: Send Invoice email failed.')
+            try:
+                sendFirstSubsInvoiceEmail(user, user_subs, paymentMethod, subs_trans)
+            except SMTPException as e:
+                logException(logger, request, 'SwitchTrialToActive: Send Invoice email failed.')
+        else:
+            logError('SwitchTrialToActive: no transaction found for subscription {0.pk}'.format(user_subs))
         return Response(context, status=status.HTTP_201_CREATED)
 
 

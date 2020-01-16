@@ -15,6 +15,8 @@ from users.emailutils import setCommonContext, makeCsvForAttachment
 
 logger = logging.getLogger('mgmt.abarp')
 
+DATE_FMT = '%m/%d/%y'
+
 EVENT_ID = 'EVENT ID (Max 10 Characters)'
 EVENT_DESCR = 'EVENT DESCRIPTION'
 
@@ -124,7 +126,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         reportDate = timezone.now()
-        reportDateStr = reportDate.strftime("%m/%d/%y")
+        reportDateStr = reportDate.strftime(DATE_FMT)
         # get eligible users whose data will be submitted
         profiles = self.getEligibleProfiles()
         eventIdSet = set([])
@@ -139,6 +141,8 @@ class Command(BaseCommand):
             for d in userData:
                 print(" -- {eventId} {eventDescription} {brcme_sum}".format(**d))
                 eventId = d['eventId']
+                entries = d['entries'] # queryset ordered by activityDate desc
+                dateCompletedStr = entries[0].activityDate.strftime(DATE_FMT)
                 if eventId not in eventIdSet:
                     eventData.append({
                         E_ABA_ID: settings.ABA_ACCME_ID,
@@ -151,10 +155,10 @@ class Command(BaseCommand):
                     P_ABA_ID: settings.ABA_ACCME_ID,
                     P_PROVIDER_ID: userABANumber,
                     EVENT_ID: d['eventId'],
-                    P_DATE_COMPLETED: reportDateStr,
+                    P_DATE_COMPLETED: dateCompletedStr,
                     P_CREDITS: str(d['brcme_sum'])
                 })
-                entry_qsets.append(d['entries'])
+                entry_qsets.append(entries)
         if not eventData:
             logger.info('No eventData for this run. Exiting.')
             print('No eventData for this run. Exiting.')
