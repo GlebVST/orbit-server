@@ -157,7 +157,9 @@ class EntryReadSerializer(serializers.ModelSerializer):
     documents = DocumentReadSerializer(many=True, required=False)
     creditTypeId = serializers.IntegerField(source='creditType.id', default=None)
     creditType = serializers.CharField(source='creditType.name', default='')
+    submitABADate = serializers.ReadOnlyField()
     extra = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
 
     def get_extra(self, obj):
         etype = obj.entryType.name
@@ -168,6 +170,14 @@ class EntryReadSerializer(serializers.ModelSerializer):
         else:
             s = NotificationSubSerializer(obj.notification)
         return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>
+
+    def get_can_edit(self, obj):
+        """User may not edit the entry if submitABADate is populated.
+        Other rules may be added in the future
+        """
+        if obj.submitABADate:
+            return False
+        return True
 
     class Meta:
         model = Entry
@@ -182,6 +192,8 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'documents',
             'creditType',
             'creditTypeId',
+            'submitABADate',
+            'can_edit',
             'extra',
             'sponsor',
             'logo_url',
