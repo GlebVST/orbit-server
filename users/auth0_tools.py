@@ -111,6 +111,7 @@ class Auth0Api(object):
             users: list of dicts from getUsers
         Returns: int - number of profiles updated
         """
+        from .models import Profile
         num_upd = 0
         for d in users:
             try:
