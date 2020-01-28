@@ -9,7 +9,7 @@ backports.shutil-get-terminal-size==1.0.0
 billiard==3.6.0.0
 boto3==1.9.229
 botocore==1.12.229
-braintree==3.57.1
+braintree==3.58.0
 cachetools==3.1.0
 celery==4.3.0
 certifi==2019.3.9
@@ -39,7 +39,7 @@ enum34==1.1.6
 fuzzywuzzy==0.17.0
 hashids==1.2.0
 idna==2.7
-ipython==7.9.0
+ipython==7.11.1
 ipython-genutils==0.2.0
 itypes==1.1.0
 jedi==0.15.1
