@@ -267,13 +267,13 @@ class ProfileAdmin(admin.ModelAdmin):
         'formatDegrees',
         'organization',
         'verified',
-        'npiNumber',
+        'professionalId',
         'planId',
         'formatSpecialties',
     )
     list_select_related = ('organization',)
-    list_filter = ('verified','npiType', 'organization')
-    search_fields = ['user__email', 'npiNumber', 'lastName']
+    list_filter = ('verified','npiType', 'degrees', 'organization', 'specialties')
+    search_fields = ['user__email', 'npiNumber', 'lastName', 'ABANumber']
     filter_horizontal = (
         'specialties',
         'subspecialties',
@@ -287,6 +287,13 @@ class ProfileAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super(ProfileAdmin, self).get_queryset(request)
         return qs.prefetch_related('degrees', 'specialties')
+
+    def professionalId(self, obj):
+        if obj.ABANumber:
+            return "aba:{0.ABANumber}".format(obj)
+        if obj.npiNumber:
+            return "npi:{0.npiNumber}".format(obj)
+        return ''
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'customerId', 'balance', 'modified')
