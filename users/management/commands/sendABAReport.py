@@ -16,6 +16,7 @@ from users.emailutils import setCommonContext, makeCsvForAttachment
 logger = logging.getLogger('mgmt.abarp')
 
 DATE_FMT = '%m/%d/%y'
+DATE_SUFFIX_FMT = '%y%m%d' # suffix for EventId
 
 EVENT_ID = 'EVENT ID (Max 10 Characters)'
 EVENT_DESCR = 'EVENT DESCRIPTION'
@@ -127,6 +128,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         reportDate = timezone.now()
         reportDateStr = reportDate.strftime(DATE_FMT)
+        reportDateSuffix = reportDate.strftime(DATE_SUFFIX_FMT)
         # get eligible users whose data will be submitted
         profiles = self.getEligibleProfiles()
         eventIdSet = set([])
@@ -136,7 +138,7 @@ class Command(BaseCommand):
         for profile in profiles:
             userABANumber = profile.formatABANumber()
             print("{0.user} {1} {2}".format(profile, profile.getFullName(), userABANumber))
-            userData = Entry.objects.prepareDataForABAReport(profile.user)
+            userData = Entry.objects.prepareDataForABAReport(profile.user, reportDateSuffix)
             userData.sort(key=itemgetter('eventId'))
             for d in userData:
                 print(" -- {eventId} {eventDescription} {brcme_sum}".format(**d))

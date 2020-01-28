@@ -130,7 +130,7 @@ class CreditType(models.Model):
 
 class EntryManager(models.Manager):
 
-    def prepareDataForABAReport(self, user):
+    def prepareDataForABAReport(self, user, eventIdSuffix):
         """Prepare data to be submitted to American Board of Anesthesiology (ABA).
         For the given user:
             Find valid brcme entries whose submitABADate is null
@@ -138,6 +138,7 @@ class EntryManager(models.Manager):
             Also generate EventID for each tag included in the resultset
         Args:
             user: User instance
+            eventIdSuffix: str YYMMDD.  EventId will be formatted as <tag.abbrev.upper><suffix>
         Returns: list of dicts with keys:
             id: int - tag pk,
             eventId: str - abbreviated tag name,
@@ -148,7 +149,6 @@ class EntryManager(models.Manager):
         Note: only tags which appear in user's entries are present in the output.
         """
         ABA_TAG_DESCR_PREFIX = 'Orbit-'
-        EVENTID_MAX_CHARS = CmeTag.ABA_EVENTID_MAX_CHARS
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
         # Normal kwargs passed to filter are AND'd together
         fkwargs = dict(
@@ -163,10 +163,10 @@ class EntryManager(models.Manager):
         data = []
         eventIds = set([])
         for tag in distinctTags:
-            # construct EventId
-            eventId = tag.name.upper().replace(' ', '').replace('-','').replace('/', '').replace('(', '').replace(')','')
-            if len(eventId) > EVENTID_MAX_CHARS:
-                eventId = eventId[0:EVENTID_MAX_CHARS]
+            if not tag.abbrev:
+                raise ValueError("Tag {0} needs an abbreviation to construct EventId".format(tag))
+                return None
+            eventId = tag.abbrev.upper() + eventIdSuffix # construct EventId
             if eventId in eventIds:
                 # change eventId to make it unique
                 tagpk = str(tag.pk)

@@ -203,11 +203,33 @@ class OrgReportAdmin(admin.ModelAdmin):
     ordering = ('id',)
     form = OrgReportForm
 
+class CmeTagForm(forms.ModelForm):
+
+    class Meta:
+        model = CmeTag
+        exclude = (
+            'created',
+            'modified'
+        )
+
+    def clean(self):
+        """Validation checks:
+        If abbrev given, check that abbrev (case-i) is unique
+        """
+        cleaned_data = super(CmeTagForm, self).clean()
+        lc_abbrev = cleaned_data.get('abbrev').lower()
+        if lc_abbrev:
+            cleaned_data['abbrev'] = lc_abbrev
+            qs = CmeTag.objects.filter(abbrev__iexact=lc_abbrev)
+            if qs.exists():
+                self.add_error('abbrev', 'Abbrevation for ABA EventId must be case-insensitive unique across all tags.')
+        return cleaned_data
 
 class CmeTagAdmin(admin.ModelAdmin):
-    list_display = ('id', 'category', 'name', 'description', 'srcme_only', 'priority', 'instructions')
+    list_display = ('id', 'category', 'abbrev', 'name', 'description', 'srcme_only', 'priority', 'instructions')
     list_filter = ('srcme_only','category')
     list_select_related = ('category',)
+    form = CmeTagForm
 
 class CountryAdmin(admin.ModelAdmin):
     list_display = ('id', 'code', 'name', 'created')
@@ -311,12 +333,13 @@ class DocumentAdmin(admin.ModelAdmin):
     list_select_related = True
 
 class EntryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'description','formatTags','created')
+    list_display = ('id', 'user', 'description','formatTags','created','submitABADate')
     list_filter = ('entryType', 'valid', UserFilter, 'tags')
     list_select_related = True
     raw_id_fields = ('documents',)
     ordering = ('-created',)
     filter_horizontal = ('tags',)
+    date_hierarchy = 'submitABADate'
 
     class Media:
         pass

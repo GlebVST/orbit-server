@@ -95,7 +95,8 @@ class CmeTag(models.Model):
     FLUOROSCOPY = 'Fluoroscopy'
     RADIATION_SAFETY = 'Radiation Safety'
     # fields
-    name= models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
+    name = models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
+    abbrev =  models.CharField(max_length=4, blank=True, default='', help_text='Abbreviation used in ABA EventId')
     priority = models.IntegerField(
         default=2,
         help_text='Used for non-alphabetical sort. 0=Specialty-name tag. 1=SA-CME. 2=Others.'
