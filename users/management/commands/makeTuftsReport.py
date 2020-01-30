@@ -342,12 +342,9 @@ class Command(BaseCommand):
                    'Yes - ' + planEffectNum, 'No - ' + planEffectNoNum]
 
         # Column D
-        planChangeDiffDiag = self.getVal(ctx, 'planText',
-                                            unicode('Differential diagnosis'))
-        planChangeDiagTest = self.getVal(ctx, 'planText',
-                                            unicode('Diagnostic tests'))
-        planChangeTreatPlan = self.getVal(ctx, 'planText',
-                                             unicode('Treatment plan'))
+        planChangeDiffDiag = self.getVal(ctx, 'planText', 'Differential diagnosis')
+        planChangeDiagTest = self.getVal(ctx, 'planText', 'Diagnostic tests')
+        planChangeTreatPlan = self.getVal(ctx, 'planText', 'Treatment plan')
         # Determine if we will need add any text to the 'Other (Please explain)'
         # cell and add it if we have any text in planTextOther
         planTextOther = ctx['planTextOther']
@@ -471,14 +468,9 @@ class Command(BaseCommand):
             help='Only email reports to MANAGERS. Default behavior is to include Tufts recipients in prod env. Test env never includes Tufts recipients.'
         )
 
-    def handle(self, *args, **options):
-        # options error check
-        if (options['report_month'] and not options['report_year']) or (options['report_year'] and not options['report_month']):
-            self.stderr.write('If specified, both report_month and report_year must be specified together')
-            return
-        if options['report_month'] and options['report_month'] not in DATE_RANGE_MAP:
-            self.stderr.write('Report month must be one of: 1, 4, 7, or 10')
-            return
+    def createReport(self, options):
+        """Calculate data and create EmailMessage
+        """
         startDate, endDate = self.calcReportDateRange(options)
         # get brcme entries
         qset, profiles, startDate, endDate = self.getEntries(startDate, endDate)
@@ -540,7 +532,8 @@ class Command(BaseCommand):
                 to_emails.extend(TUFTS_RECIPIENTS)
         else:
             # NOTE: below line is for testing
-            to_emails = ['ram@orbitcme.com']
+            to_emails = ['faria@orbitcme.com']
+            cc_emails = []; bcc_emails = []
         subject = "Orbit Quarterly Report ({0}-{1})".format(startSubjRds, endSubjRds)
         reportFileName = 'orbit-report-{0}-{1}.csv'.format(startRds, endRds)
         #
@@ -577,9 +570,22 @@ class Command(BaseCommand):
 
         msg.attach(reportFileName, cf, 'application/octet-stream')
         msg.attach(summaryFileName, summary, 'application/octet-stream')
+        return msg
+
+    def handle(self, *args, **options):
+        # options error check
+        if (options['report_month'] and not options['report_year']) or (options['report_year'] and not options['report_month']):
+            self.stderr.write('If specified, both report_month and report_year must be specified together')
+            return
+        if options['report_month'] and options['report_month'] not in DATE_RANGE_MAP:
+            self.stderr.write('Report month must be one of: 1, 4, 7, or 10')
+            return
         try:
+            msg = self.createReport(options)
             msg.send()
         except SMTPException as e:
             logger.exception('makeTuftsReport send email failed')
+        except Exception as e:
+            logger.exception('makeTuftsReport fatal exception')
         else:
             logger.info('makeTuftsReport send email done')
