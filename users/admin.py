@@ -483,7 +483,7 @@ class PlanForm(forms.ModelForm):
         pt_ent = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.ENTERPRISE)
         if plan_type == pt_ent and org is None:
             self.add_error('organization', 'Organization must be selected for Enterprise plan_type')
-        if org is not None and self.instance is not None:
+        if org is not None and self.instance and not self.instance.pk:
             # for new plan: check that org is assigned to only 1 active plan
             qs = SubscriptionPlan.objects.filter(organization=org, plan_type=plan_type, active=True).order_by('-pk')
             if qs.exists():
