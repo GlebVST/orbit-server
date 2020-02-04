@@ -661,9 +661,25 @@ class SubscriptionPlanManager(models.Manager):
         """This returns SubscriptionPlan assigned to the given org
         Raises IndexError if none found
         """
-        qset = self.model.objects.select_related('plan_type').filter(
+        qset = self.model.objects \
+            .select_related('plan_type') \
+            .filter(
                 organization=org,
-                plan_type__name=SubscriptionPlanType.ENTERPRISE, active=True)
+                plan_type__name=SubscriptionPlanType.ENTERPRISE, active=True) \
+            .order_by('-created')
+        return qset[0]
+
+    def getPaidPlanForOrg(self, org):
+        """This returns BT SubscriptionPlan assigned to the given org
+        (e.g. RP Advanced)
+        Raises IndexError if none found
+        """
+        qset = self.model.objects \
+            .select_related('plan_type') \
+            .filter(
+                organization=org,
+                plan_type__name=SubscriptionPlanType.BRAINTREE, active=True) \
+            .order_by('-created')
         return qset[0]
 
     def findPlanKeyForProfile(self, profile):
@@ -727,7 +743,7 @@ class SubscriptionPlan(models.Model):
         null=True,
         blank=True,
         related_name='plans',
-        help_text='Used to assign an enterprise plan to a particular Organization'
+        help_text='Associate plan with a particular Organization - used for Enterprise plans, and Braintree Advanced plans.'
     )
     cmeTags = models.ManyToManyField(CmeTag,
         blank=True,
@@ -767,7 +783,10 @@ class SubscriptionPlan(models.Model):
         decimal_places=1,
         default=0,
         help_text='Maximum OrbitCME credits allowed in Trial period. -1 means: no redeeming allowed in Trial. 0 means: use default max_trial_credits in settings.py. A positive value: overrides default value in settings.py')
-    welcome_offer_url = models.URLField(max_length=500, blank=True, help_text='URL for initial welcome offer. Must be an existing AllowedUrl already. If blank, then the default hard-coded article is used as the welcome offer.')
+    allowProfileStateTags = models.BooleanField(default=False,
+        help_text='For individual plans: check box if this plan allows users to have State-specific CME tags')
+    welcome_offer_url = models.URLField(max_length=500, blank=True,
+        help_text='(Not implemented in frontend). URL for initial welcome offer. Must be an existing AllowedUrl already. If blank, then the default hard-coded article is used as the welcome offer.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()

@@ -465,8 +465,8 @@ class PlanForm(forms.ModelForm):
         """Validation checks
         1. If given, check that maxCmeMonth < maxCmeYear
         2. If plan_type is Enterprise, then Org should be selected
-        3. If Organization is selected, then plan_type should be Enterprise
-            and Org should only be assigned to 1 active plan at any time.
+        3. If Organization is selected: org should be assigned to only 1 active
+            plan (of the given plan_type) at any time
         4. If welcome_offer_url is given, check that it exists as a valid AllowedUrl.
         """
         cleaned_data = super(PlanForm, self).clean()
@@ -480,19 +480,15 @@ class PlanForm(forms.ModelForm):
             self.add_error('maxCmeMonth', 'maxCmeMonth must be strictly less than maxCmeYear.')
         if maxCmeYear == 0 and maxCmeMonth != 0:
             self.add_error('maxCmeMonth', 'If maxCmeYear=0, then maxCmeMonth must also be 0 (for unlimited CME).')
-        pt = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.ENTERPRISE)
-        if plan_type == pt and org is None:
+        pt_ent = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.ENTERPRISE)
+        if plan_type == pt_ent and org is None:
             self.add_error('organization', 'Organization must be selected for Enterprise plan_type')
-        if org is not None:
-            # check plan_type
-            if plan_type != pt:
-                self.add_error('plan_type', 'If Organization is selected, then plan_type must be Enterprise.')
+        if org is not None and self.instance is not None:
             # for new plan: check that org is assigned to only 1 active plan
-            if not hasattr(self, 'instance'):
-                qs = SubscriptionPlan.objects.filter(organization=org, active=True)
-                if qs.exists():
-                    p = qs[0]
-                    self.add_error('organization', 'This Organization is already assigned to active plan: {0}.'.format(p))
+            qs = SubscriptionPlan.objects.filter(organization=org, plan_type=plan_type, active=True).order_by('-pk')
+            if qs.exists():
+                p = qs[0]
+                self.add_error('organization', 'This Organization is already assigned to active {0.plan_type} plan: {0.name}.'.format(p))
         if welcome_offer_url:
             # check it exists as a valid AllowedUrl
             qs = AllowedUrl.objects.filter(url=welcome_offer_url)
@@ -563,7 +559,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits')
         }),
         ('Other', {
-            'fields': ('trialDays','billingCycleMonths','active',)
+            'fields': ('trialDays','billingCycleMonths', 'allowProfileStateTags', 'active',)
         })
     )
 

@@ -811,12 +811,13 @@ class Profile(models.Model):
             specialties: tags whose name matches the specialty name
             subspecialties: subspec.cmeTags
             fluoroscopyStates: add FLUOROSCOPY tag
-            2019-12-02: For enterprise users only
+            For enterprise and indiv plans whose allowProfileStateTags is True:
                 states: state.cmeTags
                 deaStates: state.deaTags
                 state.doTags if DO degree
         Returns: set of CmeTag instances
         """
+        from .subscription import UserSubscription
         satag = CmeTag.objects.get(name=CMETAG_SACME)
         isPhysician = self.isPhysician()
         deg_abbrevs = [d.abbrev for d in self.degrees.all()]
@@ -837,8 +838,13 @@ class Profile(models.Model):
             add_tags.add(fluotag)
             rstag = CmeTag.objects.get(name=CmeTag.RADIATION_SAFETY)
             add_tags.add(rstag)
-        # State-specific tags (including StateDEAtag, State DO tags) for enterprise users only
-        if self.organization:
+        # State-specific tags (including StateDEAtag, State DO tags) for specific plans only
+        allowStateTags = True if self.organization else False
+        if not self.organization:
+            us = UserSubscription.objects.getLatestSubscription(self.user)
+            if us and us.plan.allowProfileStateTags:
+                allowStateTags = True
+        if allowStateTags:
             for state in self.states.all():
                 for t in state.cmeTags.all():
                     add_tags.add(t)
