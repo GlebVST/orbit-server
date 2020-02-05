@@ -402,6 +402,17 @@ class SubSpecialty(models.Model):
         unique_together = ('specialty', 'name')
         ordering = ['name',]
 
+class OrganizationManager(models.Manager):
+    def getOrgForEmail(self, email):
+        L = email.split('@')
+        if len(L) != 2:
+            return None
+        ed = L[1].lower()
+        qs = self.model.objects.filter(email_domain=ed).order_by('-created')
+        if qs.exists():
+            return qs[0]
+        return None
+
 @python_2_unicode_compatible
 class Organization(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -421,15 +432,36 @@ class Organization(models.Model):
     # Likewise, if value is changed to True after members already exist, a manual command must be run to assign them usergoals.
     activateGoals = models.BooleanField(default=True,
             help_text='If True: goal compliance checking is enabled for members of this enterprise org.')
-
+    # Added 2020-02-04: new users with an email domain matching org's email_domain are considered members
+    email_domain = models.CharField(max_length=40, blank=True, default='',
+        help_text='A new individual user is made a member of this org if their email_domain matches this value. e.g. radpartners.com')
+    objects = OrganizationManager()
+ 
     def __str__(self):
         return self.code
 
-    def getSubscriptionPlan(self):
-        """Find the latest SubscriptionPlan associated with self
+    def getEnterprisePlan(self):
+        """Find the latest Enterprise SubscriptionPlan for self
+        Used by admin UI on ModelAdmin
         Returns: SubscriptionPlan or None
         """
-        qs = self.plans.order_by('-created')
+        from .subscription import SubscriptionPlanType
+        qs = self.plans.select_related('plan_type') \
+            .filter(plan_type__name=SubscriptionPlanType.ENTERPRISE) \
+            .order_by('-created')
+        if qs.exists():
+            return qs[0]
+        return None
+
+    def getAdvancedPlan(self):
+        """Find the latest Advanced SubscriptionPlan for self
+        Used by admin UI on ModelAdmin
+        Returns: SubscriptionPlan or None
+        """
+        from .subscription import SubscriptionPlanType
+        qs = self.plans.select_related('plan_type') \
+            .filter(plan_type__name=SubscriptionPlanType.BRAINTREE, name__contains='Advanced') \
+            .order_by('-created')
         if qs.exists():
             return qs[0]
         return None

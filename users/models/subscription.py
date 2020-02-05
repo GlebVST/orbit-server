@@ -628,7 +628,7 @@ class SubscriptionPlanManager(models.Manager):
                 BT Pro Plan         # needs payment method at signup
             ]
         else:
-            Only Braintree-type plans are returned. These require a payment method at signup
+            Only public Braintree plans are returned. These require a payment method at signup
             return [
                 BT Basic Plan,
                 BT Pro Plan
@@ -638,7 +638,7 @@ class SubscriptionPlanManager(models.Manager):
         """
         pt_bt = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.BRAINTREE)
         pt_free = SubscriptionPlanType.objects.get(name=SubscriptionPlanType.FREE_INDIVIDUAL)
-        filter_kwargs = dict(active=True, plan_key=plan_key)
+        filter_kwargs = dict(active=True, is_public=True, plan_key=plan_key)
         if plan_key.use_free_plan:
             qset = self.model.objects.filter(
                 Q(plan_type=pt_free, display_name='Basic') | Q(plan_type=pt_bt, display_name='Pro'),
@@ -666,19 +666,6 @@ class SubscriptionPlanManager(models.Manager):
             .filter(
                 organization=org,
                 plan_type__name=SubscriptionPlanType.ENTERPRISE, active=True) \
-            .order_by('-created')
-        return qset[0]
-
-    def getPaidPlanForOrg(self, org):
-        """This returns BT SubscriptionPlan assigned to the given org
-        (e.g. RP Advanced)
-        Raises IndexError if none found
-        """
-        qset = self.model.objects \
-            .select_related('plan_type') \
-            .filter(
-                organization=org,
-                plan_type__name=SubscriptionPlanType.BRAINTREE, active=True) \
             .order_by('-created')
         return qset[0]
 
@@ -722,6 +709,8 @@ class SubscriptionPlan(models.Model):
             help_text='discounted price in USD. Obsolete [no longer used].')
     active = models.BooleanField(default=True,
         help_text='If false, this plan will no longer be available for new signups')
+    is_public = models.BooleanField(default=True,
+        help_text='If false, this plan is not available to the general public (e.g. RP Advanced).')
     displayMonthlyPrice = models.BooleanField(default=False,
         help_text='Flag controls if UI displays price as per month in credit card screen')
     plan_type = models.ForeignKey(SubscriptionPlanType,
@@ -846,6 +835,18 @@ class Plantag(models.Model):
     def __str__(self):
         return '{0.plan}|{0.tag}'.format(self)
 
+# Many-to-many through relation between SubscriptionPlan and Organization
+class OrgPlanset(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, db_index=True)
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, db_index=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('organization','plan')
+        ordering = ['organization','plan']
+
+    def __str__(self):
+        return '{0.organization}|{0.plan}'.format(self)
 
 # User Subscription
 # https://articles.braintreepayments.com/guides/recurring-billing/subscriptions
@@ -1122,7 +1123,7 @@ class UserSubscriptionManager(models.Manager):
         Set profile.organization to None
         Find the appropriate Free Basic Plan for this user based on profile.
         Create Free user_subs and set to ENTERPRISE_CANCELED state. This allow user to use UI
-        to enter in their payment info and activate a paid plan within the plan_key.
+        to enter in their payment info and activate an available paid plan.
         """
         user_subs = self.getLatestSubscription(user)
         if not user_subs.plan.isEnterprise():

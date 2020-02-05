@@ -101,10 +101,25 @@ class SubscriptionPlanList(generics.ListAPIView):
             if plan.isEnterprise():
                 return SubscriptionPlan.objects.filter(pk=plan.pk) # current plan only
             pks = [plan.pk,]
-            if plan.upgrade_plan:
-                pks.append(plan.upgrade_plan.pk)
-            if plan.downgrade_plan:
-                pks.append(plan.downgrade_plan.pk)
+            # is user an OrgMember
+            qs = OrgMember.objects.filter(user=user, pending=False).order_by('-created')
+            if qs.exists():
+                org = qs[0].organization
+                # get plans for this org
+                op_qs = OrgPlanset.objects.filter(organization=org).order_by('id')
+                for m in op_qs:
+                    if m.plan.pk not in pks:
+                        pks.append(m.plan.pk)
+                if user_subs and user_subs.display_status == UserSubscription.UI_ENTERPRISE_CANCELED:
+                    # user_subs should be on a free plan
+                    if plan.upgrade_plan and plan.upgrade_plan.pk not in pks:
+                        pks.append(plan.upgrade_plan.pk) # default upgrade_plan assigned to free plan
+            else:
+                # default logic: offer at most 1 upgrade plan, and at most 1 downgrade plan
+                if plan.upgrade_plan:
+                    pks.append(plan.upgrade_plan.pk)
+                if plan.downgrade_plan:
+                    pks.append(plan.downgrade_plan.pk)
             # Ensure user_subs.next_plan is contained in pks if non-null (UI_ACTIVE_DOWNGRADE status)
             # Normally user_subs.next_plan, if set, is plan.downgrade_plan, but in case it differs, then add it.
             if user_subs and user_subs.next_plan and user_subs.next_plan.pk not in pks:

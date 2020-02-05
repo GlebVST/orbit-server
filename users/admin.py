@@ -80,17 +80,27 @@ class OrgForm(forms.ModelForm):
 class OrgGroupInline(admin.TabularInline):
     model = OrgGroup
 
+class OrgPlansetInline(admin.TabularInline):
+    model = OrgPlanset
+
 class OrgAdmin(admin.ModelAdmin):
-    list_display = ('id', 'joinCode', 'code', 'name', 'activateGoals', 'credits', 'creditStartDate', 'subscriptionPlan')
+    list_display = ('id', 'joinCode', 'code', 'name', 'email_domain', 'activateGoals', 'credits', 'creditStartDate', 'enterprisePlan', 'advancedPlan')
     list_filter = ('activateGoals',)
     form = OrgForm
     ordering = ('joinCode',)
     inlines = [
         OrgGroupInline,
+        OrgPlansetInline,
     ]
 
-    def subscriptionPlan(self, obj):
-        p = obj.getSubscriptionPlan()
+    def enterprisePlan(self, obj):
+        p = obj.getEnterprisePlan()
+        if p:
+            return p.name
+        return ''
+
+    def advancedPlan(self, obj):
+        p = obj.getAdvancedPlan()
         if p:
             return p.name
         return ''
@@ -535,13 +545,13 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'price',
         'monthlyPrice',
         'organization',
+        'is_public',
         'maxCmeYear',
         'billingCycleMonths',
-        #'maxCmeMonth',
         'formatTags'
     )
     list_select_related = True
-    list_filter = ('active', 'plan_type', 'plan_key', 'organization')
+    list_filter = ('active', 'is_public', 'plan_type', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
     filter_horizontal = ('tags',)
     form = PlanForm
@@ -559,7 +569,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits')
         }),
         ('Other', {
-            'fields': ('trialDays','billingCycleMonths', 'allowProfileStateTags', 'active',)
+            'fields': ('is_public', 'trialDays','billingCycleMonths', 'allowProfileStateTags', 'active',)
         })
     )
 

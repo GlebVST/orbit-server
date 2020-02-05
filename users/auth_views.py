@@ -215,7 +215,8 @@ def login_via_token(request, access_token):
             msg = "Invalid planId: {0}. No plan found".format(planId)
             logWarning(logger, request, msg)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-    auth0_users = Users(settings.AUTH0_DOMAIN)
+    auth0_users = Users(settings.AUTH0_DOMAIN) # Authentication API
+    # https://auth0.com/docs/api/authentication#user-profile
     user_info_dict = auth0_users.userinfo(access_token) # returns dict as of auth0 v3.9.1
     user_info_dict['planId'] = planId
     user_info_dict['inviterId'] = inviterId

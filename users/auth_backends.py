@@ -15,7 +15,9 @@ from .models import (
         Plantag,
         UserSubscription,
         OrbitCmeOffer,
-        RecAllowedUrl
+        RecAllowedUrl,
+        Organization,
+        OrgMember
     )
 logger = logging.getLogger('gen.auth')
 # https://auth0.com/docs/user-profile/normalized
@@ -93,6 +95,10 @@ class Auth0Backend(object):
                 plantags = Plantag.objects.filter(plan=plan, num_recs__gt=0)
                 for pt in plantags:
                     nc = RecAllowedUrl.objects.createRecsForNewIndivUser(user, pt.tag, pt.num_recs)
+                # Does user match any Org based on email_domain?
+                org_match = Organization.objects.getOrgForEmail(user.email)
+                if org_match:
+                    orgm = OrgMember.objects.createMember(org_match, None, profile)
         else:
             profile = user.profile
             # profile.socialId must match user_id
