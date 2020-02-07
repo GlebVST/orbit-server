@@ -1126,7 +1126,8 @@ class UserSubscriptionManager(models.Manager):
         to enter in their payment info and activate an available paid plan.
         """
         user_subs = self.getLatestSubscription(user)
-        if not user_subs.plan.isEnterprise():
+        old_plan = user_subs.plan
+        if not old_plan.isEnterprise():
             logger.warning('endEnterpriseSubscription: UserSubscription {0.subscriptionId} is not ENTERPRISE.'.format(user_subs))
             return None
         profile = user.profile
@@ -1155,7 +1156,7 @@ class UserSubscriptionManager(models.Manager):
         # find appropriate plan_key for user
         plan_key = SubscriptionPlan.objects.findPlanKeyForProfile(profile)
         if not plan_key:
-            logger.warning('endEnterpriseSubscription: could not find plan_key for user {0}. Remove enterprise user_subs.'.format(user))
+            logger.error('endEnterpriseSubscription: could not find plan_key for user {0}. Remove enterprise user_subs.'.format(user))
             # delete enterprise user_subs so that user can join as individual user (or be re-added back to org)
             user_subs.delete()
             return
@@ -1178,10 +1179,18 @@ class UserSubscriptionManager(models.Manager):
         f_user_subs.display_status = self.model.UI_ENTERPRISE_CANCELED
         f_user_subs.billingEndDate = now
         f_user_subs.save()
-        # update available credit amount to conform with a new plan
-        self.setUserCmeCreditByPlan(user, free_plan)
-        profile.planId = free_plan.planId
-        profile.save(update_fields=('planId',))
+        # User has no plan_credits in Enterprise-Canceled state
+        try:
+            uc = UserCmeCredit.objects.get(user=user)
+        except UserCmeCredit.DoesNotExist:
+            pass
+        else:
+            uc.plan_credits = 0
+            uc.save()
+        try:
+            ret = profile.updateProfileForNewPlan(old_plan, free_plan)
+        except Exception as e:
+            logger.error('endEnterpriseSubscription: updateProfileForNewPlan exception for user {0}'.format(user))
         logger.info('endEnterpriseSubscription: transfer user {0} to plan {1.name}'.format(user, free_plan))
 
     def createSubscriptionFromBt(self, user, plan, bt_subs):
@@ -1845,11 +1854,13 @@ class UserSubscriptionManager(models.Manager):
             user_subs.status = self.model.CANCELED
             user_subs.display_status = self.model.UI_TRIAL_CANCELED
             user_subs.save()
+        old_plan = user_subs.plan
         # Create new BT subscription. Returns (result, new_user_subs)
+        # Note: createBtSubs sets profile.planId and sets UserCmeCredit
         (result, new_user_subs) = self.createBtSubscription(user, new_plan, subs_params)
-        # update profile after creating new_user_subs
+        # update profile: check for add/deactivate tags
         try:
-            ret = profile.updateProfileForNewPlan(new_plan)
+            ret = profile.updateProfileForNewPlan(old_plan, new_plan)
         except Exception as e:
             logger.error('startActivePaidPlan: updateProfileForNewPlan exception for user {0}'.format(user))
         return (result, new_user_subs)
@@ -1997,10 +2008,11 @@ class UserSubscriptionManager(models.Manager):
             user_subs: UserSubscription instance with status=UI_ACTIVE_DOWNGRADE and about to end.
             payment_token: Payment token to use for the new subscription.
         """
+        old_plan = user_subs.plan
         new_plan = user_subs.next_plan
         user = user_subs.user
         if not new_plan:
-            raise ValueError('completeDowngrade: next_plan not set on user subscription {0}'.format(user_subs))
+            raise ValueError('completeDowngrade: next_plan not set on user subscription {0.pk}|{0}'.format(user_subs))
         plan_discount = Discount.objects.get(discountType=new_plan.planId, activeForType=True)
         bt_subs = self.findBtSubscription(user_subs.subscriptionId)
         # get any earned discounts
@@ -2038,11 +2050,11 @@ class UserSubscriptionManager(models.Manager):
         result = braintree.Subscription.create(subs_params)
         if result.is_success:
             profile = user.profile
-            logger.info('completeDowngrade result: {0.is_success}'.format(result))
+            logger.info('completeDowngrade bt result: {0.is_success}'.format(result))
             new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
-            # update profile after creating new_user_subs
+            # update profile cmetags after creating new_user_subs
             try:
-                ret = profile.updateProfileForNewPlan(new_plan)
+                ret = profile.updateProfileForNewPlan(old_plan, new_plan)
             except Exception as e:
                 logger.error('completeDowngrade: updateProfileForNewPlan exception for user {0}'.format(user))
             return (result, new_user_subs)

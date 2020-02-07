@@ -908,33 +908,32 @@ class Profile(models.Model):
                 logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
         return add_tags
 
-    def updateProfileForNewPlan(self, new_plan):
+    def updateProfileForNewPlan(self, old_plan, new_plan):
         """Update profile.planId and check if need to add/deactivate
         tags based on new_plan
         Args:
+            old_plan: SubscriptionPlan instance
             new_plan: SubscriptionPlan instance
         """
-        old_plan = SubscriptionPlan.objects.get(planId=self.planId)
         self.planId = new_plan.planId
         self.save(update_fields=('planId',))
-        logger.info('updateProfile planId from {0.planId} to {1.planId}'.format(old_plan, new_plan))
         # check if need to deactivate tags
         deactivated_tags = set([])
         dpcts = []
-        if old_plan.allowProfileStateTags and not new_plan.allowProfileStateTags:
+        if not new_plan.allowProfileStateTags:
             # new plan does not allow state specific tags
             for state in self.states.all():
                 for t in state.cmeTags.all():
                     if ProfileCmetag.objects.filter(tag=t, profile=self).exists():
-                        dpcts.push(ProfileCmetag.objects.get(tag=t, profile=self))
+                        dpcts.append(ProfileCmetag.objects.get(tag=t, profile=self))
                 for t in state.doTags.all():
                     if ProfileCmetag.objects.filter(tag=t, profile=self).exists():
-                        dpcts.push(ProfileCmetag.objects.get(tag=t, profile=self))
+                        dpcts.append(ProfileCmetag.objects.get(tag=t, profile=self))
                 dcts = StateDeatag.objects.filter(state=state)
                 for dct in dcts:
                     t = dct.tag
                     if ProfileCmetag.objects.filter(tag=t, profile=self).exists():
-                        dpcts.push(ProfileCmetag.objects.get(tag=t, profile=self))
+                        dpcts.append(ProfileCmetag.objects.get(tag=t, profile=self))
         # process deactivated_tags
         for pct in dpcts:
             pct.is_active = False
