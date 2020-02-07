@@ -98,7 +98,7 @@ class Auth0Backend(object):
                 # Does user match any Org based on email_domain?
                 org_match = Organization.objects.getOrgForEmail(user.email)
                 if org_match:
-                    orgm = OrgMember.objects.createMember(org_match, None, profile)
+                    orgm = OrgMember.objects.createMember(org_match, None, profile, indiv_subscriber=True)
         else:
             profile = user.profile
             # profile.socialId must match user_id

@@ -620,6 +620,7 @@ class Profile(models.Model):
     verified = models.BooleanField(default=False, help_text='User has verified their email via Auth0')
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
+    syncDataToOrg = models.BooleanField(default=False, help_text='Used for indiv_subscriber OrgMember users to allow them to opt-in to share data wit the Org.')
     cmeStartDate = models.DateTimeField(null=True, blank=True, help_text='Start date for CME requirements calculation')
     cmeEndDate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
     affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')
@@ -877,11 +878,11 @@ class Profile(models.Model):
             if us and us.plan.allowProfileStateTags:
                 allowStateTags = True
         if allowStateTags:
+            hasDEA = len(self.deaStateSet) > 0
             for state in self.states.all():
                 for t in state.cmeTags.all():
                     add_tags.add(t)
                 # deaTags
-                hasDEA = len(self.deaStateSet) > 0
                 dcts = StateDeatag.objects.filter(state=state)
                 for dct in dcts:
                     if dct.dea_in_state:
@@ -906,6 +907,47 @@ class Profile(models.Model):
                 pct.save(update_fields=('is_active',))
                 logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
         return add_tags
+
+    def updateProfileForNewPlan(self, new_plan):
+        """Update profile.planId and check if need to add/deactivate
+        tags based on new_plan
+        Args:
+            new_plan: SubscriptionPlan instance
+        """
+        old_plan = SubscriptionPlan.objects.get(planId=self.planId)
+        self.planId = new_plan.planId
+        self.save(update_fields=('planId',))
+        logger.info('updateProfile planId from {0.planId} to {1.planId}'.format(old_plan, new_plan))
+        # check if need to deactivate tags
+        deactivated_tags = set([])
+        dpcts = []
+        if old_plan.allowProfileStateTags and not new_plan.allowProfileStateTags:
+            # new plan does not allow state specific tags
+            for state in self.states.all():
+                for t in state.cmeTags.all():
+                    if ProfileCmetag.objects.filter(tag=t, profile=self).exists():
+                        dpcts.push(ProfileCmetag.objects.get(tag=t, profile=self))
+                for t in state.doTags.all():
+                    if ProfileCmetag.objects.filter(tag=t, profile=self).exists():
+                        dpcts.push(ProfileCmetag.objects.get(tag=t, profile=self))
+                dcts = StateDeatag.objects.filter(state=state)
+                for dct in dcts:
+                    t = dct.tag
+                    if ProfileCmetag.objects.filter(tag=t, profile=self).exists():
+                        dpcts.push(ProfileCmetag.objects.get(tag=t, profile=self))
+        # process deactivated_tags
+        for pct in dpcts:
+            pct.is_active = False
+            pct.save()
+            deactivated_tags.add(pct.tag)
+            logger.info('updateProfileForNewPlan: deactivate tag {0.tag} for userid {0.profile.pk}'.format(pct))
+        # add any default plantags from new_plan
+        for t in new_plan.tags.all():
+            if not ProfileCmetag.objects.filter(tag=t, profile=self).exists():
+                pct = ProfileCmetag.objects.create(tag=t, profile=self, is_active=True)
+                logger.info('Add {0} plantag for userid {0.profile.pk}'.format(pct))
+        add_tags = self.addOrActivateCmeTags()
+        return (add_tags, deactivated_tags)
 
     @cached_property
     def activeCmeTagSet(self):

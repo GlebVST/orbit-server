@@ -101,19 +101,28 @@ class SubscriptionPlanList(generics.ListAPIView):
             if plan.isEnterprise():
                 return SubscriptionPlan.objects.filter(pk=plan.pk) # current plan only
             pks = [plan.pk,]
-            # is user an OrgMember
-            qs = OrgMember.objects.filter(user=user, pending=False).order_by('-created')
-            if qs.exists():
-                org = qs[0].organization
+            fkwargs = dict(user=user, pending=False)
+            org = None
+            if user_subs and user_subs.display_status == UserSubscription.UI_ENTERPRISE_CANCELED:
+                # get OrgMember
+                qs = OrgMember.objects.filter(**fkwargs).order_by('-created')
+                if qs.exists():
+                    org = qs[0].organization
+                else:
+                    logWarning(logger, self.request, "PlanList: could not find OrgMember for {0.display_status} user {0.user}".format(user_subs))
+            else:
+                # is user currently an indiv_subscriber OrgMember
+                fkwargs['indiv_subscriber'] = True
+                fkwargs['removeDate__isnull'] = True
+                qs = OrgMember.objects.filter(**fkwargs).order_by('-created')
+                if qs.exists():
+                    org = qs[0].organization
+            if org:
                 # get plans for this org
                 op_qs = OrgPlanset.objects.filter(organization=org).order_by('id')
                 for m in op_qs:
                     if m.plan.pk not in pks:
                         pks.append(m.plan.pk)
-                if user_subs and user_subs.display_status == UserSubscription.UI_ENTERPRISE_CANCELED:
-                    # user_subs should be on a free plan
-                    if plan.upgrade_plan and plan.upgrade_plan.pk not in pks:
-                        pks.append(plan.upgrade_plan.pk) # default upgrade_plan assigned to free plan
             else:
                 # default logic: offer at most 1 upgrade plan, and at most 1 downgrade plan
                 if plan.upgrade_plan:
@@ -464,9 +473,9 @@ class NewSubscription(generics.CreateAPIView):
 
 class ActivatePaidSubscription(generics.CreateAPIView):
     """
-    This expects a nonce in the POST data:
-        {"payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9"}
-    Switch user from free plan to their first active subscription on partner paid plan
+    This expects a JSON object in the POST data in the form:
+        {"plan": 3, "payment_method_nonce":"cd36493e_f883_48c2_aef8_3789ee3569a9"}
+    Switch user from free plan to their first active subscription on a paid plan.
     It creates new active BT subscription with no trial period (billing starts immediately).
     """
     serializer_class = ActivatePaidUserSubsSerializer
@@ -493,18 +502,6 @@ class ActivatePaidSubscription(generics.CreateAPIView):
             message = context['message'] + ' last_subscription id: {0}'.format(last_subscription.pk)
             logError(logger, request, message)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        # get the partner paid standard plan
-        try:
-            new_plan = SubscriptionPlan.objects.getPaidPlanForFreePlan(old_plan)
-        except SubscriptionPlan.DoesNotExist:
-            context = {
-                'success': False,
-                'message': 'Partner paid plan does not exist.'
-            }
-            message = context['message'] + ' last_subscription id: {0}'.format(last_subscription.pk)
-            logError(logger, request, message)
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-
         # get local customer object and braintree customer
         customer = user.customer
         try:
@@ -546,7 +543,6 @@ class ActivatePaidSubscription(generics.CreateAPIView):
         payment_token = tokens[0]
         # finally update form_data for serializer
         form_data['payment_method_token'] = payment_token
-        form_data['plan'] = new_plan.pk
         logDebug(logger, request, str(form_data))
         in_serializer = self.get_serializer(data=form_data)
         in_serializer.is_valid(raise_exception=True)

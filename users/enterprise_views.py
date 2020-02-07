@@ -206,10 +206,12 @@ class OrgMemberList(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
     def get_queryset(self):
+        """Note: this excludes indiv_subscriber users
+        """
         orderByFields = ['user__profile__lastName', 'user__profile__firstName', 'created']
         return OrgMember.objects \
             .select_related('organization','group','user__profile') \
-            .filter(organization=self.request.user.profile.organization) \
+            .filter(organization=self.request.user.profile.organization, indiv_subscriber=False) \
             .order_by(*orderByFields)
 
 class OrgMemberCreate(generics.CreateAPIView):
@@ -886,7 +888,7 @@ class OrgMemberRoster(APIView):
 
     def get(self, request):
         org = self.request.user.profile.organization
-        fieldnames, data = OrgMember.objects.listMembersOfOrg(org)
+        fieldnames, data = OrgMember.objects.listEnterpriseMembersOfOrg(org)
         context = {
             'fieldnames': fieldnames,
             'results': data

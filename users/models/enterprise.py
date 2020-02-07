@@ -112,14 +112,15 @@ class OrgMemberManager(models.Manager):
     def makeFullName(self, firstName, lastName):
         return "{0} {1}".format(firstName.upper(), lastName.upper())
 
-    def createMember(self, org, group, profile, is_admin=False, pending=False):
+    def createMember(self, org, group, profile, is_admin=False, pending=False, indiv_subscriber=False):
         """Create new OrgMember instance.
         Args:
             org: Organization instance
             group: OrgGroup instance or None
             profile: Profile instance
             is_admin: bool default is False
-            is_pending: bool default is False
+            is_pending: bool default is False (True when an existing subscriber has not yet accepted joinTeam invite)
+            indiv_subscriber: bool default is False (True for individual signup whose email_domain matches the org)
         Returns: OrgMember instance
         """
         user = profile.user
@@ -135,7 +136,8 @@ class OrgMemberManager(models.Manager):
                 fullname=fullName,
                 compliance=compliance,
                 is_admin=is_admin,
-                pending=pending
+                pending=pending,
+                indiv_subscriber=indiv_subscriber
             )
         m.inviteDate = m.created
         m.save(update_fields=('inviteDate',))
@@ -205,9 +207,9 @@ class OrgMemberManager(models.Manager):
                 logger.warning(error_msg)
         return member
 
-    def listMembersOfOrg(self, org):
+    def listEnterpriseMembersOfOrg(self, org):
         """Org member roster of providers (including removed providers).
-        Admin users are excluded.
+        Admin users and individual subscribers are excluded.
         List columns: NPINumber, FirstName, LastName, Email, Status
         Returns: tuple (fieldnames, results)
             fieldnames: tuple of column names
@@ -216,7 +218,7 @@ class OrgMemberManager(models.Manager):
         fieldnames = ('Status', 'NPINumber', 'Email', 'First Name', 'Last Name')
         data = []
         qs = self.model.objects.select_related('user__profile') \
-            .filter(organization=org, is_admin=False) \
+            .filter(organization=org, is_admin=False, indiv_subscriber=False) \
             .order_by('user__profile__lastName', 'user__profile__firstName', 'pk')
         for m in qs:
             user = m.user; profile = user.profile
@@ -269,6 +271,8 @@ class OrgMember(models.Model):
     orgfiles = models.ManyToManyField(OrgFile, blank=True, related_name='orgmembers')
     pending = models.BooleanField(default=False,
             help_text='Set to True when invitation is sent to existing user to join team.')
+    indiv_subscriber = models.BooleanField(default=False,
+            help_text='Set to True when individual subscriber signs up with email that matches Org email domain.')
     snapshot = JSONField(default='', blank=True,
             help_text='A snapshot of the goals status for this user. It is computed by a management command run periodically.')
     snapshotDate = models.DateTimeField(null=True, blank=True,
@@ -284,7 +288,7 @@ class OrgMember(models.Model):
 
     class Meta:
         unique_together = ('organization', 'user')
-        verbose_name_plural = 'Enterprise Members'
+        verbose_name_plural = 'Organization Members'
 
     def getEnterpriseStatus(self):
         """Return one of:
@@ -322,6 +326,8 @@ class OrgAggManager(models.Manager):
             OrgMember.STATUS_INACTIVE: 0
         }
         for m in members:
+            if m.indiv_subscriber:
+                continue
             entStatus = m.getEnterpriseStatus()
             stats[entStatus] += 1
         qs = OrgAgg.objects.filter(organization=org, day=today)

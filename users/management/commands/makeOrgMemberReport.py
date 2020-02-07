@@ -13,7 +13,7 @@ from users.emailutils import makeCsvForAttachment, sendEmailWithAttachment
 logger = logging.getLogger('mgmt.orgmr')
 
 class Command(BaseCommand):
-    help = "Generate report of the members (NPI, Name, Email, Status) for the specified Org."
+    help = "Generate report of the enterprise members (NPI, Name, Email, Status) for the specified Org."
 
     def add_arguments(self, parser):
         # positional arguments
@@ -28,7 +28,7 @@ class Command(BaseCommand):
             self.stderr.write('Invalid Organization joinCode: {0} (does not exist)'.format(options['orgcode']))
             return
         # get member list
-        fieldnames, results = OrgMember.objects.listMembersOfOrg(org) # list of dicts
+        fieldnames, results = OrgMember.objects.listEnterpriseMembersOfOrg(org) # list of dicts
         # write results to contentfile
         cf = makeCsvForAttachment(fieldnames, results)
         # create EmailMessage

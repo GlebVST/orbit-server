@@ -865,7 +865,7 @@ class UserSubscriptionManager(models.Manager):
         # has user ever had an active paid subs
         qset = UserSubscription.objects.select_related('plan').filter(user=user).order_by('created')
         for m in qset:
-            if m.plan.isPaid() and m.display_status not in (self.model.UI_TRIAL, self.model.UI_TRIAL_CANCELED, self.model.UI_SUSPENDED):
+            if m.plan.isPaid() and m.display_status not in (self.model.UI_TRIAL, self.model.UI_TRIAL_CANCELED, self.model.UI_SUSPENDED, self.model.UI_ENTERPRISE_CANCELED):
                 return False
         return True
 
@@ -1831,12 +1831,28 @@ class UserSubscriptionManager(models.Manager):
             else:
                 subs_params['invitee_discount'] = True
                 logger.info('startActivePaidPlan: apply invitee discount to new subscription for {0}'.format(user))
-        # cancel existing subs (status is consistent with the new active subs being eligible for discounts)
-        user_subs.status = self.model.CANCELED
-        user_subs.display_status = self.model.UI_TRIAL_CANCELED
-        user_subs.save()
+        if user_subs.display_status == self.model.UI_ENTERPRISE_CANCELED:
+            # user is indiv_subscriber OrgMember
+            qs = user.orgmembers.all().order_by('-created')
+            if qs.exists():
+                orgm = qs[0]
+                orgm.removeDate = None
+                orgm.indiv_subscriber = True
+                orgm.save(update_fields=('removeDate','indiv_subscriber'))
+                logger.info('startActivePaidPlan: indiv_subscriber OrgMember: {0}'.format(orgm))
+        else:
+            # cancel existing subs (status is consistent with the new active subs being eligible for discounts)
+            user_subs.status = self.model.CANCELED
+            user_subs.display_status = self.model.UI_TRIAL_CANCELED
+            user_subs.save()
         # Create new BT subscription. Returns (result, new_user_subs)
-        return self.createBtSubscription(user, new_plan, subs_params)
+        (result, new_user_subs) = self.createBtSubscription(user, new_plan, subs_params)
+        # update profile after creating new_user_subs
+        try:
+            ret = profile.updateProfileForNewPlan(new_plan)
+        except Exception as e:
+            logger.error('startActivePaidPlan: updateProfileForNewPlan exception for user {0}'.format(user))
+        return (result, new_user_subs)
 
 
     def updateSubscriptionFromBt(self, user_subs, bt_subs):
@@ -2022,14 +2038,17 @@ class UserSubscriptionManager(models.Manager):
         result = braintree.Subscription.create(subs_params)
         if result.is_success:
             profile = user.profile
-            profile.planId = new_plan.planId
-            profile.save(update_fields=('planId',))
             logger.info('completeDowngrade result: {0.is_success}'.format(result))
             new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
+            # update profile after creating new_user_subs
+            try:
+                ret = profile.updateProfileForNewPlan(new_plan)
+            except Exception as e:
+                logger.error('completeDowngrade: updateProfileForNewPlan exception for user {0}'.format(user))
             return (result, new_user_subs)
-        else:
-            logger.error('completeDowngrade result: {0.is_success} for user {1} to plan {2}'.format(result, user, new_plan))
-            return (result, None)
+        #else
+        logger.error('completeDowngrade result: {0.is_success} for user {1} to plan {2}'.format(result, user, new_plan))
+        return (result, None)
 
     def switchPlanNoCharge(self, user_subs, new_plan):
         """User is active on a plan, but wants to switch to another plan.
