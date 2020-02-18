@@ -201,7 +201,7 @@ class ProfileInitialUpdate(ExtUpdateAPIView):
         if plan.plan_key.name.startswith('radiology'):
             # does profile name match any not-already-synced OrgEnrollee
             lcfname = OrgEnrollee.objects.makeSearchName(profile.firstName, profile.lastName)
-            qs = OrgEnrollee.objects.filter(lcFullname=lcfname, user__isnull=True).order_by('id')
+            qs = OrgEnrollee.objects.filter(lcFullName=lcfname, user__isnull=True).order_by('id')
             if qs.exists():
                 oe = qs[0]
                 msg = "Match OrgEnrollee {0} to profile {1}".format(oe, profile)
