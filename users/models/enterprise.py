@@ -481,6 +481,7 @@ class OrgEnrollee(models.Model):
             profile.affiliationText = self.organization.name
         profile.save(update_fields=('npiNumber','affiliationText'))
         # update self
+        self.user = profile.user
         self.planName = plan.name
         self.enrollDate = timezone.now()
         self.save(update_fields=('planName','enrollDate'))

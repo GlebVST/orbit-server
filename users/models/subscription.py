@@ -1826,6 +1826,7 @@ class UserSubscriptionManager(models.Manager):
             Create new Active paid subscription with any signup discounts for which the user is eligible.
         Returns: (Braintree result object, UserSubscription)
         """
+        from .enterprise import OrgEnrollee
         user = user_subs.user
         profile = user.profile
         subs_params = {
@@ -1849,6 +1850,14 @@ class UserSubscriptionManager(models.Manager):
                 orgm.indiv_subscriber = True
                 orgm.save(update_fields=('removeDate','indiv_subscriber'))
                 logger.info('startActivePaidPlan: indiv_subscriber OrgMember: {0}'.format(orgm))
+            # does user exist in OrgEnrollee
+            qs = OrgEnrollee.objects.filter(user=user)
+            if qs.exists():
+                oe = qs[0]
+                oe.planName = new_plan.name
+                oe.enrollDate = timezone.now()
+                oe.save()
+                logger.info('startActivePaidPlan: update OrgEnrollee: {0}'.format(oe))
         else:
             # cancel existing subs (status is consistent with the new active subs being eligible for discounts)
             user_subs.status = self.model.CANCELED
