@@ -74,8 +74,14 @@ class OrgFileList(generics.ListAPIView):
         return OrgFile.objects.filter(organization=req_user.profile.organization).order_by('-created')
 
 # OrgEnrollee (tracks the enrollment of specific providers into Individual Plans)
+class OrgEnrolleeListPagination(PageNumberPagination):
+    page_size = 2000
+    page_size_query_param = 'page_size'
+    max_page_size = 3000
+
 class OrgEnrolleeList(LogValidationErrorMixin, generics.ListAPIView):
     serializer_class = OrgEnrolleeReadSerializer
+    pagination_class = OrgEnrolleeListPagination
     permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
 
     def get_queryset(self):
