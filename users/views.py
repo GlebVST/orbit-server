@@ -164,6 +164,8 @@ class ProfileInitialUpdate(ExtUpdateAPIView):
     on signup.
     If new planId is FreeIndividual (and user has no subscription yet), then
     create UserSubs.
+    2020-02-17: for RP enrollment: check if profile matches any entry in
+    OrgEnrollee, and if so: sync profile with OrgEnrollee.
     """
     queryset = Profile.objects.all().select_related('country')
     serializer_class = ProfileInitialUpdateSerializer
@@ -195,6 +197,16 @@ class ProfileInitialUpdate(ExtUpdateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         profile = self.get_object()
+        plan = SubscriptionPlan.objects.get(planId=profile.planId)
+        if plan.plan_key.name.startswith('radiology'):
+            # does profile name match any not-already-synced OrgEnrollee
+            lcfname = OrgEnrollee.objects.makeSearchName(profile.firstName, profile.lastName)
+            qs = OrgEnrollee.objects.filter(lcFullname=lcfname, enrollDate__isnull=True).order_by('id')
+            if qs.exists():
+                oe = qs[0]
+                msg = "Match OrgEnrollee {0} to profile {1}".format(oe, profile)
+                logInfo(logger, request, msg)
+                oe.syncToProfile(profile, plan)
         out_serializer = ProfileReadSerializer(profile)
         return Response(out_serializer.data)
 

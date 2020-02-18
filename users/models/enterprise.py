@@ -403,3 +403,85 @@ class OrgReport(models.Model):
 
     def __str__(self):
         return self.name
+
+# OrgEnrollee: tracks potential providers who subscriber to Individual Plans
+# Added 2020-02-17 to track RP enrollment into Individual Plans.
+class OrgEnrolleeManager(models.Manager):
+
+    def makeSearchName(self, firstName, lastName):
+        """Create and return string used for lcFullName field"""
+        lcfname = "{0}{1}".format(firstName, lastName)
+        lcfname = lcfname.lower()
+        L = lcfname.split()
+        lcfname = ''.join(L) # all whitespace removed
+        return lcfname
+
+    def findEnrollee(self, firstName, lastName, npiNumber):
+        """Finds the model instance matching the given args
+        Returns: OrgEnrollee instance/None if none found
+        """
+        # first search by npiNumber
+        if npiNumber:
+            qs = self.model.objects.filter(npiNumber=npiNumber).order_by('id')
+            if qs.exists():
+                return qs[0]
+        # else search by name
+        lcfname = self.makeSearchName(firstName, lastName)
+        qs = self.model.objects.filter(lcFullName=lcfname).order_by('id')
+        if qs.exists():
+            return qs[0]
+        return None
+
+class OrgEnrollee(models.Model):
+    organization = models.ForeignKey(Organization,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='orgenrollees'
+    )
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='orgenrollees',
+    )
+    group = models.ForeignKey(OrgGroup,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='orgenrollees',
+    )
+    firstName = models.CharField(max_length=30)
+    lastName = models.CharField(max_length=30)
+    middleName = models.CharField(max_length=30)
+    lcFullName = models.CharField(max_length=60,
+        help_text='lowercase fullname whitespace removed')
+    npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
+    planName = models.CharField(max_length=80, blank=True, default='',
+        help_text='Set to plan name when user subscribes to an Individual Plan')
+    enrollDate = models.DateTimeField(null=True, blank=True,
+        help_text='Set when user subscribes to individual plan')
+    created = models.DateTimeField(auto_now_add=True)
+    objects = OrgEnrolleeManager()
+
+    class Meta:
+        unique_together = ('organization', 'npiNumber', 'lastName')
+
+    def __str__(self):
+        return "{0.npiNumber} {0.lastName} {0.firstName}".format(self)
+
+    def syncToProfile(self, profile, plan):
+        """Called by ProfileInitialUpdate to sync profile with self"""
+        # update profile
+        profile.npiNumber = self.npiNumber
+        if self.group:
+            profile.affiliationText = self.group.name
+        else:
+            profile.affiliationText = self.organization.name
+        profile.save(update_fields=('npiNumber','affiliationText'))
+        # update self
+        self.planName = plan.name
+        self.enrollDate = timezone.now()
+        self.save(update_fields=('planName','enrollDate'))
+

@@ -167,6 +167,7 @@ api_patterns = [
     url(r'^enterprise/team-stats/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.TeamStats.as_view()),
     url(r'^enterprise/join-team/?$', enterprise_views.JoinTeam.as_view()),
     url(r'^enterprise/report/?$', enterprise_views.OrgReportList.as_view(), name='enterprise-report-list'),
+    url(r'^enterprise/enrollment/?$', enterprise_views.OrgEnrolleeList.as_view(), name='enterprise-enrollee-list'),
     # reports - must specify name for reverse (used as value for OrgReport.resource field)
     url(r'^enterprise/report/roster/?$', enterprise_views.OrgMemberRoster.as_view(), name='enterprise-report-roster'),
 ]

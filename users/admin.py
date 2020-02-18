@@ -194,6 +194,14 @@ class OrgMemberAdmin(admin.ModelAdmin):
     class Media:
         pass
 
+class OrgEnrolleeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'organization', 'group', 'npiNumber', 'lastName','firstName','user','planName','enrollDate')
+    list_select_related = True
+    ordering = ('enrollDate','lastName')
+
+    class Media:
+        pass
+
 class OrgReportForm(forms.ModelForm):
     class Meta:
         model = OrgReport
@@ -921,6 +929,7 @@ admin_site.register(Organization, OrgAdmin)
 admin_site.register(OrgAgg, OrgAggAdmin)
 admin_site.register(OrgFile, OrgFileAdmin)
 admin_site.register(OrgMember, OrgMemberAdmin)
+admin_site.register(OrgEnrollee, OrgEnrolleeAdmin)
 admin_site.register(OrgReport, OrgReportAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)

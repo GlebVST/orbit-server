@@ -57,6 +57,37 @@ class OrgGroupSerializer(serializers.ModelSerializer):
         instance = OrgGroup.objects.create(organization=org, name=name)
         return instance
 
+class OrgEnrolleeReadSerializer(serializers.ModelSerializer):
+    group = serializers.PrimaryKeyRelatedField(read_only=True)
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    lastName = serializers.ReadOnlyField()
+    firstName = serializers.ReadOnlyField()
+    middleName = serializers.ReadOnlyField()
+    npiNumber = serializers.ReadOnlyField()
+    planName = serializers.ReadOnlyField()
+    enrollDate = serializers.ReadOnlyField()
+    groupName = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrgEnrollee
+        fields = (
+            'id',
+            'group',
+            'user',
+            'lastName',
+            'firstName',
+            'middleName',
+            'npiNumber',
+            'planName',
+            'enrollDate',
+            'groupName',
+        )
+
+    def get_groupName(self, obj):
+        if obj.group:
+            return obj.group.name
+        return ''
+
 class OrgMemberReadSerializer(serializers.ModelSerializer):
     organization = serializers.PrimaryKeyRelatedField(read_only=True)
     group = serializers.PrimaryKeyRelatedField(read_only=True)

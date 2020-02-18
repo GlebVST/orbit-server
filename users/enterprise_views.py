@@ -73,6 +73,16 @@ class OrgFileList(generics.ListAPIView):
         req_user = self.request.user # OrgMember user with is_admin=True
         return OrgFile.objects.filter(organization=req_user.profile.organization).order_by('-created')
 
+# OrgEnrollee (tracks the enrollment of specific providers into Individual Plans)
+class OrgEnrolleeList(LogValidationErrorMixin, generics.ListAPIView):
+    serializer_class = OrgEnrolleeReadSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        """Return only the entries belonging to the same Org as request.user"""
+        return OrgEnrollee.objects.filter(organization=self.request.user.profile.organization).order_by('enrollDate','lastName','firstName','pk')
+
+
 # OrgGroup (Enterprise Practice Divisions)
 class OrgGroupList(LogValidationErrorMixin, generics.ListCreateAPIView):
     serializer_class = OrgGroupSerializer
