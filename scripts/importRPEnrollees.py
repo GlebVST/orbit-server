@@ -1,5 +1,7 @@
 import pandas as pd
 import logging
+from datetime import datetime
+import pytz
 from users.models import *
 
 logger = logging.getLogger('mgmt.rpenr')
@@ -67,3 +69,24 @@ def insertEnrollees(org, groups, data):
         else:
             print('! Found {0} profile matches for {npiNumber} {lastName}'.format(**d)) 
     return enrollees
+
+def endEnterpriseSubscription(org):
+    """End enterprise subscription for all providers in org"""
+    newEndDate = datetime(2020,4,1, tzinfo=pytz.utc)
+    profiles = Profile.objects.filter(organization=org).order_by('pk')
+    for profile in profiles:
+        user = profile.user
+        qs = OrgMember.objects.filter(organization=org, user=user).order_by('-pk')
+        if not qs.exists():
+            print('! No OrgMember found for {0}'.format(profile))
+            continue
+        # handle admin users separately because they need to still see the admin reports for enrollment
+        if orgm.is_admin:
+            print('Adjust admin {0}'.format(orgm))
+            user_subs = UserSubscription.objects.getLatestSubscription(user)
+            user_subs.billingEndDate = newEndDate
+            user_subs.save()
+            continue
+        # regular provider
+        UserSubscription.objects.endEnterpriseSubscription(user)
+    return profiles

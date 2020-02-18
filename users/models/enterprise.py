@@ -484,5 +484,5 @@ class OrgEnrollee(models.Model):
         self.user = profile.user
         self.planName = plan.name
         self.enrollDate = timezone.now()
-        self.save(update_fields=('planName','enrollDate'))
+        self.save(update_fields=('user','planName','enrollDate'))
 
