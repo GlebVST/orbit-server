@@ -60,13 +60,9 @@ class OrgGroupSerializer(serializers.ModelSerializer):
 class OrgEnrolleeReadSerializer(serializers.ModelSerializer):
     group = serializers.PrimaryKeyRelatedField(read_only=True)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
-    lastName = serializers.ReadOnlyField()
-    firstName = serializers.ReadOnlyField()
-    middleName = serializers.ReadOnlyField()
-    npiNumber = serializers.ReadOnlyField()
     planName = serializers.ReadOnlyField()
-    enrollDate = serializers.ReadOnlyField()
     groupName = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = OrgEnrollee
@@ -74,18 +70,20 @@ class OrgEnrolleeReadSerializer(serializers.ModelSerializer):
             'id',
             'group',
             'user',
-            'lastName',
-            'firstName',
-            'middleName',
-            'npiNumber',
             'planName',
-            'enrollDate',
             'groupName',
+            'status',
         )
 
     def get_groupName(self, obj):
         if obj.group:
             return obj.group.name
+        return ''
+
+    def get_status(self, obj):
+        if obj.user and obj.planName:
+            user_subs = UserSubscription.objects.getLatestSubscription(obj.user)
+            return user_subs.display_status
         return ''
 
 class OrgMemberReadSerializer(serializers.ModelSerializer):

@@ -86,7 +86,7 @@ class OrgEnrolleeList(LogValidationErrorMixin, generics.ListAPIView):
 
     def get_queryset(self):
         """Return only the entries belonging to the same Org as request.user"""
-        return OrgEnrollee.objects.filter(organization=self.request.user.profile.organization).order_by('enrollDate','lastName','firstName','pk')
+        return OrgEnrollee.objects.filter(organization=self.request.user.profile.organization).order_by('pk')
 
 
 # OrgGroup (Enterprise Practice Divisions)
