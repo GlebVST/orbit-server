@@ -83,7 +83,8 @@ class OrgEnrolleeReadSerializer(serializers.ModelSerializer):
     def get_status(self, obj):
         if obj.user and obj.planName:
             user_subs = UserSubscription.objects.getLatestSubscription(obj.user)
-            return user_subs.display_status
+            if user_subs:
+                return user_subs.display_status
         return ''
 
 class OrgMemberReadSerializer(serializers.ModelSerializer):
