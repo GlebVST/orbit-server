@@ -81,6 +81,7 @@ def endEnterpriseSubscription(org):
             print('! No OrgMember found for {0}'.format(profile))
             continue
         # handle admin users separately because they need to still see the admin reports for enrollment
+        orgm = qs[0]
         if orgm.is_admin:
             print('Adjust admin {0}'.format(orgm))
             user_subs = UserSubscription.objects.getLatestSubscription(user)
