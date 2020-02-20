@@ -206,9 +206,10 @@ class ProfileInitialUpdate(ExtUpdateAPIView):
                 oe = qs[0]
                 try:
                     oe.syncToProfile(profile, plan)
-                    orgm = OrgMember.objects.createMember(oe.organization, oe.group, profile, indiv_subscriber=True)
+                    if not OrgMember.objects.filter(organization=oe.organization, user=profile.user).exists():
+                        orgm = OrgMember.objects.createMember(oe.organization, oe.group, profile, indiv_subscriber=True)
                 except Exception as e:
-                    logger.exception('ProfileInitialUpdate exception')
+                    logException(logger, request, 'ProfileInitialUpdate exception')
                 else:
                     msg = "Match OrgEnrollee {0} to profile {1}".format(oe, profile)
                     logInfo(logger, request, msg)
