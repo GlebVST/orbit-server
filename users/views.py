@@ -197,8 +197,10 @@ class ProfileInitialUpdate(ExtUpdateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         profile = self.get_object()
-        plan = SubscriptionPlan.objects.get(planId=profile.planId)
-        if plan.plan_key.name.startswith('radiology'):
+        plan = None
+        if profile.planId:
+            plan = SubscriptionPlan.objects.get(planId=profile.planId)
+        if plan and plan.plan_key and plan.plan_key.name.startswith('radiology'):
             # does profile name match any not-already-synced OrgEnrollee
             lcfname = OrgEnrollee.objects.makeSearchName(profile.firstName, profile.lastName)
             qs = OrgEnrollee.objects.filter(lcFullName=lcfname, user__isnull=True).order_by('id')
