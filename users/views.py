@@ -206,8 +206,15 @@ class ProfileInitialUpdate(ExtUpdateAPIView):
                 oe = qs[0]
                 try:
                     oe.syncToProfile(profile, plan)
-                    if not OrgMember.objects.filter(organization=oe.organization, user=profile.user).exists():
+                    qset = OrgMember.objects.filter(organization=oe.organization, user=profile.user)
+                    if not qset.exists():
                         orgm = OrgMember.objects.createMember(oe.organization, oe.group, profile, indiv_subscriber=True)
+                    else:
+                        # already created (e.g. by auth_backends)
+                        orgm = qset[0]
+                        if orgm.group != oe.group:
+                            orgm.group = oe.group
+                            orgm.save(update_fields=('group',))
                 except Exception as e:
                     logException(logger, request, 'ProfileInitialUpdate exception')
                 else:
