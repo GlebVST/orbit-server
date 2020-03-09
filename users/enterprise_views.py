@@ -211,9 +211,9 @@ class OrgMemberFilterBackend(BaseFilterBackend):
 
 
 class OrgMemberListPagination(PageNumberPagination):
-    page_size = 500
+    page_size = 1000
     page_size_query_param = 'page_size'
-    max_page_size = 1000
+    max_page_size = 2000
 
 class OrgMemberList(generics.ListAPIView):
     queryset = OrgMember.objects.all()
@@ -225,10 +225,16 @@ class OrgMemberList(generics.ListAPIView):
         """Note: this excludes indiv_subscriber users
         """
         orderByFields = ['user__profile__lastName', 'user__profile__firstName', 'created']
-        return OrgMember.objects \
+        org = self.request.user.profile.organization
+        fkwargs = dict(organization=org, indiv_subscriber=False)
+        if org.joinCode == 'cpr':
+            fkwargs['removeDate__isnull'] = True # non-removed members only
+        qs = OrgMember.objects \
             .select_related('organization','group','user__profile') \
-            .filter(organization=self.request.user.profile.organization, indiv_subscriber=False) \
+            .filter(**fkwargs) \
             .order_by(*orderByFields)
+        logInfo(logger, self.request, 'Org {0} num members: {1}.'.format(org, qs.count()))
+        return qs
 
 class OrgMemberCreate(generics.CreateAPIView):
     queryset = OrgMember.objects.all()
