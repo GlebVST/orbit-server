@@ -80,7 +80,7 @@ class Auth0Api(object):
         """
         list_kwargs = {
                 'page': 0,
-                'per_page': 25,
+                'per_page': 100,
                 'sort':"created_at:-1",
                 'include_totals': True
         }
