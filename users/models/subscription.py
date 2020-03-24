@@ -1156,10 +1156,8 @@ class UserSubscriptionManager(models.Manager):
         # find appropriate plan_key for user
         plan_key = SubscriptionPlan.objects.findPlanKeyForProfile(profile)
         if not plan_key:
-            logger.error('endEnterpriseSubscription: could not find plan_key for user {0}. Remove enterprise user_subs.'.format(user))
-            # delete enterprise user_subs so that user can join as individual user (or be re-added back to org)
-            user_subs.delete()
-            return
+            plan_key = SubscriptionPlanKey.objects.get(name='radiology/pricing')
+            logger.warning('endEnterpriseSubscription: could not find plan_key for user {0}. Use fallback plan_key.'.format(user))
         # Assign user to the FREE_INDIVIDUAL Basic plan under plan_key
         filter_kwargs = dict(
                 active=True,
