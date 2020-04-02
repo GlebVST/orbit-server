@@ -19,7 +19,8 @@ logger = logging.getLogger('mgmt.tuftsqr')
 TUFTS_RECIPIENTS = [
     'Mirosleidy.Tejeda@tufts.edu',
     'Karin.Pearson@tufts.edu',
-    'Jennifer.Besaw@tufts.edu'
+    'Katelyn.McBurney@tufts.edu',
+    'Karlee.Pedemonti@tufts.edu'
 ]
 
 outputFields = (
