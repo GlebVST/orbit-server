@@ -105,9 +105,9 @@ class MDCertificate(BaseCertificate):
     CERT_TEMPLATE_VERIFIED = 'cme-certificate-verified.pdf'
     CERT_TEMPLATE_PARTICIPATION = 'cme-certificate-participation.pdf'
 
-    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented in<br/> accordance with the accreditation requirements and policies of the Accreditation Council for Continuing Medical Education<br/> (ACCME) through the joint providership of Tufts University School of Medicine (TUSM) and Orbit. TUSM is accredited by the<br/> ACCME to provide continuing education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
+    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented in<br/> accordance with the accreditation requirements and policies of the Accreditation Council for Continuing Medical Education<br/> (ACCME) through the joint providership of Tufts University School of Medicine Office of Continuing Education (TUSM OCE) and Transcend Review, Inc. TUSM OCE is accredited by the<br/> ACCME to provide continuing education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
 
-    VERIFIED_TEXT_TEMPLATE = string.Template("""This activity has been planned and implemented in accordance with the accreditation requirements and policies of the<br/> Accreditation Council for Continuing Medical Education (ACCME) through the joint providership of Tufts University<br/> School of Medicine (TUSM) and Orbit. TUSM is accredited by the ACCME to provide continuing medical education for<br/> physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
+    VERIFIED_TEXT_TEMPLATE = string.Template("""This activity has been planned and implemented in accordance with the accreditation requirements and policies of the<br /> Accreditation Council for Continuing Medical Education (ACCME) through the joint providership of Tufts University School<br /> of Medicine Office of Continuing Education (TUSM OCE) and Transcend Review, Inc. TUSM OCE is accredited by the ACCME<br /> to provide continuing medical education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
 
     CREDIT_TEXT_VERIFIED_TEMPLATE = string.Template("${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded")
     SPECIALTY_CREDIT_TEXT_VERIFIED_TEMPLATE = string.Template("${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i> Awarded in ${tag}")
@@ -118,6 +118,8 @@ class MDCertificate(BaseCertificate):
     def __init__(self, certificate, verified):
         """
         verified: bool  If True: use verified template, else use participation template.
+            Note: verified is determined by caller from the user's degrees. Only
+                some degrees can use the verified template.
         """
         BaseCertificate.__init__(self, certificate)
         self.verified = verified
@@ -182,7 +184,7 @@ class MDCertificate(BaseCertificate):
         # CERT NAME
         paragraph = self.makeCertNameParagraph()
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
+        paragraph.drawOn(pdfCanvas, 14 * mm, 120 * mm)
         # return color to normal in case it was changed
         self.styleOpenSans.textColor = colors.Color(0, 0, 0)
 
@@ -208,16 +210,16 @@ class MDCertificate(BaseCertificate):
         paragraph = Paragraph("Issued: {0}".format(
             DateFormat(self.certificate.created).format(LONG_DATE_FORMAT)), self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 12 * mm)
+        paragraph.drawOn(pdfCanvas, 14.2 * mm, 12 * mm)
 
         # Link to this certificate
         certUrl = self.certificate.getAccessUrl()
         paragraph = Paragraph(certUrl, self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 127.5 * mm, 12 * mm)
+        paragraph.drawOn(pdfCanvas, 78.5 * mm, 12 * mm)
 
         # Large description text block with variable substitutions
-        self.styleOpenSansLight.fontSize = 10.5
+        self.styleOpenSansLight.fontSize = 8.5
         self.styleOpenSansLight.leading = 15
         self.styleOpenSansLight.textColor = colors.Color(
             0.6, 0.6, 0.6)
