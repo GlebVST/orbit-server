@@ -440,7 +440,7 @@ STORY_CERT_ORIGINAL_RELEASE_DATE = datetime(2018, 3, 1, tzinfo=pytz.utc)
 STORY_CERT_EXPIRE_DATE = datetime(2019, 3, 1, tzinfo=pytz.utc)
 
 # Company details (printed on Certificate)
-COMPANY_NAME = 'Transcend Review Inc.'
+COMPANY_NAME = 'Transcend Review, Inc.'
 COMPANY_BRN_CEP = 'BRN CEP#16946'
 COMPANY_ADDRESS = '265 Cambridge Ave, #61224, Palo Alto CA 94306'
 

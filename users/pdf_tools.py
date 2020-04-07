@@ -103,9 +103,7 @@ class MDCertificate(BaseCertificate):
 
     # files in settings.PDF_TEMPLATES_DIR
     CERT_TEMPLATE_VERIFIED = 'cme-certificate-verified.pdf'
-    CERT_TEMPLATE_PARTICIPATION = 'cme-certificate-participation.pdf'
-
-    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented in<br/> accordance with the accreditation requirements and policies of the Accreditation Council for Continuing Medical Education<br/> (ACCME) through the joint providership of Tufts University School of Medicine Office of Continuing Education (TUSM OCE) and Transcend Review, Inc. TUSM OCE is accredited by the<br/> ACCME to provide continuing education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
+    CERT_TEMPLATE_PARTICIPATION = 'cme-certificate-verified.pdf' # uses same as verified as of 2020-04-06
 
     VERIFIED_TEXT_TEMPLATE = string.Template("""This activity has been planned and implemented in accordance with the accreditation requirements and policies of the<br /> Accreditation Council for Continuing Medical Education (ACCME) through the joint providership of Tufts University School<br /> of Medicine Office of Continuing Education (TUSM OCE) and Transcend Review, Inc. TUSM OCE is accredited by the ACCME<br /> to provide continuing medical education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
 
@@ -118,8 +116,7 @@ class MDCertificate(BaseCertificate):
     def __init__(self, certificate, verified):
         """
         verified: bool  If True: use verified template, else use participation template.
-            Note: verified is determined by caller from the user's degrees. Only
-                some degrees can use the verified template.
+            Note: verified is determined by caller from the user's degrees.
         """
         BaseCertificate.__init__(self, certificate)
         self.verified = verified
@@ -156,6 +153,7 @@ class MDCertificate(BaseCertificate):
         Returns: Paragraph object to be drawn on the overlay
         """
         if self.certificate.name == SAMPLE_CERTIFICATE_NAME:
+            self.styleOpenSans.fontSize = 20
             self.styleOpenSans.textColor = colors.Color(0, 0, 0.9) # blue
             text = """<u><a href="https://{0}{1}">{2}</a></u>""".format(
                     settings.SERVER_HOSTNAME,
@@ -170,12 +168,12 @@ class MDCertificate(BaseCertificate):
         """Populate self.overlayBuffer"""
         pdfCanvas = canvas.Canvas(self.overlayBuffer, pagesize=landscape(A4))
         # initialize font styles
-        self.styleOpenSans.fontSize = 20
+        self.styleOpenSans.fontSize = 24
         self.styleOpenSans.leading = 10
         self.styleOpenSans.textColor = colors.Color(0, 0, 0)
         self.styleOpenSans.alignment = TA_LEFT
 
-        self.styleOpenSansLight.fontSize = 12
+        self.styleOpenSansLight.fontSize = 14
         self.styleOpenSansLight.leading = 10
         self.styleOpenSansLight.textColor = colors.Color(
             0.1, 0.1, 0.1)
@@ -184,25 +182,28 @@ class MDCertificate(BaseCertificate):
         # CERT NAME
         paragraph = self.makeCertNameParagraph()
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 14 * mm, 120 * mm)
+        paragraph.drawOn(pdfCanvas, 15 * mm, 122 * mm)
         # return color to normal in case it was changed
         self.styleOpenSans.textColor = colors.Color(0, 0, 0)
 
-        # dates
+        # dates - uses OpenSansLight
         paragraph = Paragraph("Total credits earned between {0} - {1}".format(
             DateFormat(self.certificate.startDate).format(LONG_DATE_FORMAT),
             DateFormat(self.certificate.endDate).format(LONG_DATE_FORMAT)),
             self.styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 65 * mm)
+        paragraph.drawOn(pdfCanvas, 14 * mm, 75 * mm)
 
         # credits
-        self.styleOpenSans.fontSize = 14
+        if self.certificate.tag:
+            self.styleOpenSans.fontSize = 14 # smaller font b/c tag can be long
+        else:
+            self.styleOpenSans.fontSize = 16
         self.styleOpenSans.leading = 17
         creditText = self.getCreditText()
         paragraph = Paragraph(creditText, self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, (WIDTH - 40) * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 48.83 * mm)
+        paragraph.drawOn(pdfCanvas, 14 * mm, 58 * mm)
 
         # issued
         self.styleOpenSans.fontSize = 9
@@ -220,23 +221,16 @@ class MDCertificate(BaseCertificate):
 
         # Large description text block with variable substitutions
         self.styleOpenSansLight.fontSize = 8.5
-        self.styleOpenSansLight.leading = 15
+        self.styleOpenSansLight.leading = 15 # increase line spacing for readability
         self.styleOpenSansLight.textColor = colors.Color(
             0.6, 0.6, 0.6)
-        if not self.verified:
-            descriptionText = self.__class__.PARTICIPATION_TEXT_TEMPLATE.substitute({
-                'numCredits': self.certificate.credits,
-                'releaseDate': DateFormat(self.releaseDate).format(SHORTEST_DATE_FORMAT),
-                'expireDate': DateFormat(self.expireDate).format(SHORTEST_DATE_FORMAT)
-                })
-        else:
-            descriptionText = self.__class__.VERIFIED_TEXT_TEMPLATE.substitute({
-                'releaseDate': DateFormat(self.releaseDate).format(SHORTEST_DATE_FORMAT),
-                'expireDate': DateFormat(self.expireDate).format(SHORTEST_DATE_FORMAT)
-            })
+        descriptionText = self.__class__.VERIFIED_TEXT_TEMPLATE.substitute({
+            'releaseDate': DateFormat(self.releaseDate).format(SHORTEST_DATE_FORMAT),
+            'expireDate': DateFormat(self.expireDate).format(SHORTEST_DATE_FORMAT)
+        })
         paragraph = Paragraph(descriptionText, self.styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 24 * mm)
+        paragraph.drawOn(pdfCanvas, 14 * mm, 24 * mm)
 
         pdfCanvas.showPage()
         pdfCanvas.save() # write to overlayBuffer
@@ -248,10 +242,10 @@ class NurseCertificate(BaseCertificate):
     # files in settings.PDF_TEMPLATES_DIR
     CERT_TEMPLATE = 'nurse-cme-certificate.pdf'
 
-    CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded")
-    SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Contact Hours / Hours of Participation Awarded in ${tag}")
+    CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Hours of Participation Awarded")
+    SPECIALTY_CREDIT_TEXT_PARTICIPATION_TEMPLATE = string.Template("${numCredits} Hours of Participation Awarded in ${tag}")
 
-    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity is designated for ${numCredits} Contact Hours by ${companyName} (${companyCep}), 265 Cambridge Ave, #61224,<br />Palo Alto CA 94306. This certificate must be retained by the nurse licensee for a period of four years after the course ends.<br />This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented in accordance<br/> with the accreditation requirements and policies of the Accreditation Council for Continuing Medical Education (ACCME)<br/> through the joint providership of Tufts University School of Medicine (TUSM) and Orbit. TUSM is accredited by the ACCME to<br/> provide continuing education for physicians. Activity Original Release Date: ${releaseDate}, Activity Expiration Date: ${expireDate}.""")
+    PARTICIPATION_TEXT_TEMPLATE = string.Template("""This activity is designated for ${numCredits} Contact Hours by ${companyName} (${companyCep}), 265 Cambridge Ave, #61224,<br />Palo Alto CA 94306. This certificate must be retained by the nurse licensee for a period of four years after the course ends.<br />This activity was designated for ${numCredits} <i>AMA PRA Category 1 Credits<sup>TM</sup></i>. This activity has been planned and implemented in accordance<br/> with the accreditation requirements and policies of the Accreditation Council for Continuing Medical Education (ACCME) through<br /> the joint providership of Tufts University School of Medicine Office of Continuing Education (TUSM OCE) and ${companyName}.<br />TUSM OCE is accredited by the ACCME to provide continuing education for physicians. Activity Original Release Date: ${releaseDate},<br /> Activity Expiration Date: ${expireDate}.""")
 
     def __init__(self, certificate):
         super(NurseCertificate, self).__init__(certificate)
@@ -281,6 +275,7 @@ class NurseCertificate(BaseCertificate):
         Returns: Paragraph object to be drawn on the overlay
         """
         if self.certificate.name == SAMPLE_CERTIFICATE_NAME:
+            self.styleOpenSans.fontSize = 20
             self.styleOpenSans.textColor = colors.Color(0, 0, 0.9) # blue
             text = """<u><a href="https://{0}{1}">{2}</a></u>""".format(
                     settings.SERVER_HOSTNAME,
@@ -303,7 +298,7 @@ class NurseCertificate(BaseCertificate):
         self.styleOpenSans.textColor = colors.Color(0, 0, 0)
         self.styleOpenSans.alignment = TA_LEFT
 
-        self.styleOpenSansLight.fontSize = 12
+        self.styleOpenSansLight.fontSize = 14
         self.styleOpenSansLight.leading = 10
         self.styleOpenSansLight.textColor = colors.Color(
             0.1, 0.1, 0.1)
@@ -312,41 +307,46 @@ class NurseCertificate(BaseCertificate):
         # CERT NAME
         paragraph = self.makeCertNameParagraph()
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12 * mm, 120 * mm)
+        paragraph.drawOn(pdfCanvas, 14 * mm, 122 * mm)
         # return color to normal in case it was changed
         self.styleOpenSans.textColor = colors.Color(0, 0, 0)
 
-        # dates
+        # dates - uses OpenSansLight
         paragraph = Paragraph("Total credits earned between {0} - {1}".format(
             DateFormat(self.certificate.startDate).format(LONG_DATE_FORMAT),
             DateFormat(self.certificate.endDate).format(LONG_DATE_FORMAT)),
             self.styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 75 * mm)
+        paragraph.drawOn(pdfCanvas, 14 * mm, 78 * mm)
 
         # credits
-        self.styleOpenSans.fontSize = 14
+        if self.certificate.tag:
+            self.styleOpenSans.fontSize = 14 # smaller font b/c tag can be long
+        else:
+            self.styleOpenSans.fontSize = 16
+        self.styleOpenSans.leading = 17
         creditText = self.getCreditText()
         paragraph = Paragraph(creditText, self.styleOpenSans)
-        paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 63.83 * mm)
+        paragraph.wrapOn(pdfCanvas, (WIDTH - 40) * mm, HEIGHT * mm)
+        paragraph.drawOn(pdfCanvas, 14 * mm, 64 * mm)
 
         # issued
         self.styleOpenSans.fontSize = 9
+        self.styleOpenSans.leading = 10
         paragraph = Paragraph("Issued: {0}".format(
             DateFormat(self.certificate.created).format(LONG_DATE_FORMAT)), self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.4 * mm, 12 * mm)
+        paragraph.drawOn(pdfCanvas, 14.2 * mm, 12 * mm)
 
         # Link to this certificate
         certUrl = self.certificate.getAccessUrl()
         paragraph = Paragraph(certUrl, self.styleOpenSans)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 114.5 * mm, 12 * mm)
+        paragraph.drawOn(pdfCanvas, 78.5 * mm, 12 * mm)
 
         # Large description text block with variable substitutions
-        self.styleOpenSansLight.fontSize = 10.5
-        self.styleOpenSansLight.leading = 15
+        self.styleOpenSansLight.fontSize = 8.5
+        self.styleOpenSansLight.leading = 15 # increase line spacing for readability
         self.styleOpenSansLight.textColor = colors.Color(
             0.6, 0.6, 0.6)
         descriptionText = self.__class__.PARTICIPATION_TEXT_TEMPLATE.substitute({
@@ -358,7 +358,7 @@ class NurseCertificate(BaseCertificate):
         })
         paragraph = Paragraph(descriptionText, self.styleOpenSansLight)
         paragraph.wrapOn(pdfCanvas, WIDTH * mm, HEIGHT * mm)
-        paragraph.drawOn(pdfCanvas, 12.2 * mm, 24 * mm)
+        paragraph.drawOn(pdfCanvas, 14 * mm, 23 * mm)
 
         pdfCanvas.showPage()
         pdfCanvas.save() # write to overlayBuffer
