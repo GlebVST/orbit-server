@@ -30,6 +30,10 @@ SACME_SPECIALTIES = (
     'Osteopathic Radiology',
     'Pathology',
 )
+# Physician specialties eligible for ABIM MOC Points
+ABIM_MOC_SPECIALTIES = (
+    'Internal Medicine',
+)
 TEST_CARD_EMAIL_PATTERN = re.compile(r'testcode-(?P<code>\d+)')
 HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@' # extend alphabet with ! and @
 
@@ -92,8 +96,12 @@ class CmeTagManager(models.Manager):
 @python_2_unicode_compatible
 class CmeTag(models.Model):
     ABA_EVENTID_MAX_CHARS = 10 # Max number of characters to construct ABA EventId from tag name
+    # named tags used by various methods
     FLUOROSCOPY = 'Fluoroscopy'
     RADIATION_SAFETY = 'Radiation Safety'
+    SACME = 'SAM/SA-CME'
+    ABIM_MOC = 'ABIM MOC Points'
+
     # fields
     name = models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
     abbrev =  models.CharField(max_length=4, blank=True, default='', help_text='Abbreviation used in ABA EventId')
@@ -104,6 +112,8 @@ class CmeTag(models.Model):
     description = models.CharField(max_length=200, unique=True, help_text='Long-form name. Must be unique. Used on certificates.')
     srcme_only = models.BooleanField(default=False,
             help_text='True if tag is only valid for self-reported cme')
+    exemptFrom1Tag = models.BooleanField(default=False,
+            help_text='True if tag is exempt from the 1-tag-only policy on redeeming offers.')
     instructions = models.TextField(default='', help_text='Instructions to provider. May contain Markdown-formatted text.')
     category = models.ForeignKey(CmeTagCategory,
         on_delete=models.SET_NULL,
@@ -346,6 +356,7 @@ class PracticeSpecialty(models.Model):
     """Names of practice specialties.
     """
     ANESTHESIOLOGY = 'Anesthesiology'
+    INT_MED = 'Internal Medicine'
     # fields
     name = models.CharField(max_length=100, unique=True)
     cmeTags = models.ManyToManyField(CmeTag,
@@ -529,6 +540,24 @@ class ProfileManager(models.Manager):
         profiles = Profile.objects.filter(Q_deg, specialties=ps_anes, country=usa).exclude(ABANumber='').order_by('pk')
         return profiles
 
+    def getProfilesForTuftsABIM(self):
+        """Get profiles for ABIM reporting to Tufts.
+        Country=USA (MD or DO), specialty includes INT_MED, and non-blank ABIMNumber/NPI/birthDate.
+        Note: Some profiles returned may have inactive subscription - caller must filter out if needed.
+        Returns: queryset
+        """
+        usa = Country.objects.get(code=Country.USA)
+        ps_im = PracticeSpecialty.objects.get(name=PracticeSpecialty.INT_MED)
+        deg_md = Degree.objects.get(abbrev=Degree.MD)
+        deg_do = Degree.objects.get(abbrev=Degree.DO)
+        Q_deg = Q(degrees=deg_md) | Q(degrees=deg_do)
+        Q_reject = Q(ABIMNumber='') | Q(npiNumber='') | Q(birthDate__isnull=True)
+        profiles = Profile.objects \
+            .filter(Q_deg, specialties=ps_im, country=usa) \
+            .exclude(Q_reject) \
+            .order_by('pk')
+        return profiles
+
 @python_2_unicode_compatible
 class Profile(models.Model):
     user = models.OneToOneField(User,
@@ -586,7 +615,8 @@ class Profile(models.Model):
             help_text='User specified interests')
 
     planId = models.CharField(max_length=36, blank=True, help_text='planId selected at signup')
-    ABANumber = models.CharField(max_length=10, blank=True, help_text='ABA ID')
+    ABANumber = models.CharField(max_length=10, blank=True, help_text='ABA ID (American Board of Anesthesiology)')
+    ABIMNumber = models.CharField(max_length=10, blank=True, help_text='ABIM ID (American Board of Internal Medicine)')
     npiNumber = models.CharField(max_length=20, blank=True, help_text='Professional ID')
     npiFirstName = models.CharField(max_length=30, blank=True, help_text='First name from NPI Registry')
     npiLastName = models.CharField(max_length=30, blank=True, help_text='Last name from NPI Registry')
@@ -655,6 +685,10 @@ class Profile(models.Model):
         """Returns True if specialties includes Anesthesiology"""
         return self.specialties.filter(name=PracticeSpecialty.ANESTHESIOLOGY).exists()
 
+    def isIntMed(self):
+        """Returns True if specialties includes INT_MED"""
+        return self.specialties.filter(name=PracticeSpecialty.INT_MED).exists()
+
     def shouldReqNPINumber(self):
         """
         If (country=USA) and (MD or DO in self.degrees),
@@ -680,6 +714,20 @@ class Profile(models.Model):
         Per Ram 11/26/19: skip check if degree is MD/DO
         """
         if not self.isAnesthesiologist():
+            return False
+        if self.country is None:
+            return False
+        us = Country.objects.get(code=Country.USA)
+        if self.country.pk != us.pk:
+            return False
+        return True
+
+    def shouldReqABIMNumber(self):
+        """True if: MD/DO, specialty includes INT_MED, and country is USA
+        """
+        if not self.isPhysician():
+            return False
+        if not self.isIntMed():
             return False
         if self.country is None:
             return False
@@ -747,7 +795,7 @@ class Profile(models.Model):
                 if self.subspecialties.exists():
                     filled += 1
         # single-value fields
-        keys = ('country','birthDate','affiliationText','interestText','npiNumber','residency_program', 'residencyEndDate')
+        keys = ('country','birthDate','npiNumber','residency_program', 'residencyEndDate')
         total += len(keys)
         for key in keys:
             if getattr(self, key): # count truthy values
@@ -756,6 +804,11 @@ class Profile(models.Model):
         if self.shouldReqABANumber():
             total += 1
             if self.ABANumber:
+                filled += 1
+        # ABIMNumber
+        if self.shouldReqABIMNumber():
+            total += 1
+            if self.ABIMNumber:
                 filled += 1
         return int(round(100.0*filled/total))
 
@@ -844,23 +897,29 @@ class Profile(models.Model):
             specialties: tags whose name matches the specialty name
             subspecialties: subspec.cmeTags
             fluoroscopyStates: add FLUOROSCOPY tag
-            For enterprise and indiv plans whose allowProfileStateTags is True:
+            For plans having allowProfileStateTags=true:
                 states: state.cmeTags
                 deaStates: state.deaTags
                 state.doTags if DO degree
         Returns: set of CmeTag instances
         """
         from .subscription import UserSubscription
-        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        satag = CmeTag.objects.get(name=CmeTag.SACME)
+        moctag = CmeTag.objects.get(name=CmeTag.ABIM_MOC)
         isPhysician = self.isPhysician()
         deg_abbrevs = [d.abbrev for d in self.degrees.all()]
         is_do = Degree.DO in deg_abbrevs
         add_tags = set([]) # tags to be added (or re-activated if already exist)
         specnames = [ps.name for ps in self.specialties.all()]
+        if isPhysician:
+            for specname in specnames:
+                # Criteria for adding SA-CME tag
+                if specname in SACME_SPECIALTIES:
+                    add_tags.add(satag)
+                # Criteria for adding ABIM_MOC tag
+                elif specname in ABIM_MOC_SPECIALTIES and self.npiNumber and self.birthDate:
+                    add_tags.add(moctag)
         spectags = CmeTag.objects.filter(name__in=specnames)
-        for specname in specnames:
-            if isPhysician and specname in SACME_SPECIALTIES:
-                add_tags.add(satag)
         for t in spectags:
             add_tags.add(t)
         for subspec in self.subspecialties.all():

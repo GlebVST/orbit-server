@@ -244,8 +244,8 @@ class CmeTagForm(forms.ModelForm):
         return cleaned_data
 
 class CmeTagAdmin(admin.ModelAdmin):
-    list_display = ('id', 'category', 'abbrev', 'name', 'description', 'srcme_only', 'priority', 'instructions')
-    list_filter = ('srcme_only','category')
+    list_display = ('id', 'category', 'abbrev', 'name', 'description', 'srcme_only', 'priority', 'exemptFrom1Tag', 'instructions')
+    list_filter = ('exemptFrom1Tag', 'srcme_only','category')
     list_select_related = ('category',)
     form = CmeTagForm
 
@@ -291,7 +291,7 @@ class ProfileAdmin(admin.ModelAdmin):
     )
     list_select_related = ('organization',)
     list_filter = ('verified','npiType', 'degrees', 'organization', 'specialties')
-    search_fields = ['user__email', 'npiNumber', 'lastName', 'ABANumber']
+    search_fields = ['user__email', 'npiNumber', 'lastName', 'ABANumber', 'ABIMNumber']
     filter_horizontal = (
         'specialties',
         'subspecialties',
@@ -307,6 +307,8 @@ class ProfileAdmin(admin.ModelAdmin):
         return qs.prefetch_related('degrees', 'specialties')
 
     def professionalId(self, obj):
+        if obj.ABIMNumber:
+            return "abim:{0.ABIMNumber}".format(obj)
         if obj.ABANumber:
             return "aba:{0.ABANumber}".format(obj)
         if obj.npiNumber:
