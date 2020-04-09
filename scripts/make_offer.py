@@ -67,7 +67,8 @@ def makeOffers(user, num_offers=None):
                 sponsor=sponsor
             )
             offer.assignCmeTags()
-        print('{0.pk}|{0.url}|{0.activityDate:%Y-%m-%d}'.format(offer))
+        seltagstr = ','.join([t.name for t in offer.selectedTags.all()])
+        print('{0.pk}|{0.url}|{0.activityDate:%Y-%m-%d} {1}'.format(offer, seltagstr))
         print(offer.tags.all())
 
 def makeOffersForRecs(user, tag):

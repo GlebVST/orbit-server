@@ -736,6 +736,13 @@ class Profile(models.Model):
             return False
         return True
 
+    def isProfileCompleteForMOC(self):
+        if not self.shouldReqABIMNumber():
+            return False
+        if self.ABIMNumber and self.npiNumber and self.birthDate:
+            return True
+        return False
+
     def isNPIComplete(self):
         """Returns True if npiNumber/LastName/FirstName are populated if required"""
         if self.shouldReqNPINumber():
@@ -883,7 +890,7 @@ class Profile(models.Model):
                 pct = ProfileCmetag.objects.create(tag=t, profile=self, is_active=True)
             # check if can add SA-CME tag
             if self.isPhysician() and ps.name in SACME_SPECIALTIES:
-                satag = CmeTag.objects.get(name=CMETAG_SACME)
+                satag = CmeTag.objects.get(name=CmeTag.SACME)
                 pct = ProfileCmetag.objects.create(tag=satag, profile=self, is_active=True)
         # 2019-05-26: add any default tags set by plan
         plan = SubscriptionPlan.objects.get(planId=self.planId)
@@ -891,6 +898,26 @@ class Profile(models.Model):
             if not ProfileCmetag.objects.filter(tag=t, profile=self).exists():
                 pct = ProfileCmetag.objects.create(tag=t, profile=self, is_active=True)
                 logger.info('Add {0} tag from plan for userid {0.profile.pk}'.format(pct))
+
+    def getConditionalTags(self, specnames):
+        """Used by self.addOrActivateTags to check if SACME or MOC tag can be added.
+        Args:
+            specnames: list/set of PracticeSpecialty names from profile.specialties
+        Returns: set
+        """
+        add_tags = set([])
+        if not self.isPhysician():
+            return add_tags
+        satag = CmeTag.objects.get(name=CmeTag.SACME)
+        moctag = CmeTag.objects.get(name=CmeTag.ABIM_MOC)
+        for specname in specnames:
+            # Criteria for adding SA-CME tag
+            if specname in SACME_SPECIALTIES:
+                add_tags.add(satag)
+            # Criteria for adding ABIM_MOC tag (can apply in addition to sacme)
+            if specname in ABIM_MOC_SPECIALTIES and self.ABIMNumber and self.npiNumber and self.birthDate:
+                add_tags.add(moctag)
+        return add_tags
 
     def addOrActivateCmeTags(self):
         """Used to add/activate relevant cmeTags based on:
@@ -904,21 +931,14 @@ class Profile(models.Model):
         Returns: set of CmeTag instances
         """
         from .subscription import UserSubscription
-        satag = CmeTag.objects.get(name=CmeTag.SACME)
-        moctag = CmeTag.objects.get(name=CmeTag.ABIM_MOC)
-        isPhysician = self.isPhysician()
         deg_abbrevs = [d.abbrev for d in self.degrees.all()]
         is_do = Degree.DO in deg_abbrevs
         add_tags = set([]) # tags to be added (or re-activated if already exist)
         specnames = [ps.name for ps in self.specialties.all()]
-        if isPhysician:
-            for specname in specnames:
-                # Criteria for adding SA-CME tag
-                if specname in SACME_SPECIALTIES:
-                    add_tags.add(satag)
-                # Criteria for adding ABIM_MOC tag
-                elif specname in ABIM_MOC_SPECIALTIES and self.npiNumber and self.birthDate:
-                    add_tags.add(moctag)
+        cond_tags = self.getConditionalTags(specnames)
+        for t in cond_tags:
+            add_tags.add(t)
+
         spectags = CmeTag.objects.filter(name__in=specnames)
         for t in spectags:
             add_tags.add(t)

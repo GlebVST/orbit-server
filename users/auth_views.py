@@ -133,7 +133,7 @@ def make_login_context(token, user):
     user_subs = UserSubscription.objects.getLatestSubscription(user)
     if user_subs:
         UserSubscription.objects.checkTrialStatus(user_subs)
-    sacme_tag = CmeTag.objects.get(name=CMETAG_SACME)
+    sacme_tag = CmeTag.objects.get(name=CmeTag.SACME)
     context = {
         'success': True,
         'token': token,

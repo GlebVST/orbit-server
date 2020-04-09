@@ -598,7 +598,7 @@ class CreateAuditReport(CertificateMixin, APIView):
         # list of dicts: one for each tag having non-zero credits in date range
         auditData = Entry.objects.prepareDataForAuditReport(user, startdt, enddt)
         certificatesByTag = {} # tag.pk => Certificate instance
-        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        satag = CmeTag.objects.get(name=CmeTag.SACME)
         saCmeTotal = 0  # credit sum for SA-CME tag
         otherCmeTotal = 0 # credit sum for all other tags
         for d in auditData:

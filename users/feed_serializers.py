@@ -6,7 +6,6 @@ from .models import (
     ENTRYTYPE_SRCME,
     ENTRYTYPE_STORY_CME,
     ENTRYTYPE_NOTIFICATION,
-    CMETAG_SACME,
     CmeTag,
     CreditType,
     Document,

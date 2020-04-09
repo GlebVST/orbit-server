@@ -13,8 +13,6 @@ from django.contrib.postgres.fields import JSONField
 
 from common.appconstants import MAX_URL_LENGTH
 from .base import (
-    CMETAG_SACME,
-    SACME_SPECIALTIES,
     CmeTag,
     ProfileCmetag,
     EligibleSite,
@@ -413,39 +411,40 @@ class OrbitCmeOffer(models.Model):
         aurl = self.url
         esite = self.eligible_site
         profile = self.user.profile
-        profile_specs = set([s.name for s in profile.specialties.all()])
-        # user's profile cmetags
+        specnames = [ps.name for ps in profile.specialties.all()]
+        profile_specs = set(specnames)
+        # user's active profile cmetags
         pcts = ProfileCmetag.objects.filter(profile=profile, is_active=True).order_by('pk')
         pct_tags = [pct.tag for pct in pcts]
-        # partition into pct_spectags and pct_othertags
+        if not pct_tags:
+            logger.warning('assignCmeTags Offer {0.pk}: user {0.user} has no profile tags.'.format(self))
+            return
+        # partition into pct_spectags, pct_condtags, and pct_othertags
         pct_spectags = set([]); pct_othertags = set([])
         for tag in pct_tags:
             if tag.name in profile_specs:
                 pct_spectags.add(tag)
+            elif tag.exemptFrom1Tag: # sacme/moc
+                pct_condtags.add(tag)
             else:
                 pct_othertags.add(tag)
 
-        sacmeTag = CmeTag.objects.get(name=CMETAG_SACME)
-        # First check if can select SA-CME tag
-        if profile.isPhysician() and profile.specialties.filter(name__in=SACME_SPECIALTIES).exists():
-            self.selectedTags.add(sacmeTag)
-        if not pct_tags:
-            logger.warning('assignCmeTags Offer {0.pk}: user {0.user} has no profile tags.'.format(self))
-            return
+        # If sacme/moc exist: they are pre-selected
+        for t in pct_condtags:
+            self.selectedTags.add(t)
+
         urlUserTags = []
         # 1. Intersection of UrlTagFreq tags with pct_othertags
-        #   Exclude pct_spectags in order to give more weight to the other tags
-        #   Exclude SA-CME tag b/c that is handled separately
+        #   Exclude pct_spectags in order to give more weight to pct_othertags
         if pct_othertags:
             qs = UrlTagFreq.objects \
                 .filter(url=aurl, tag__in=pct_othertags, numOffers__gte=MIN_VOTE_FOR_REC) \
-                .exclude(tag=sacmeTag) \
                 .order_by('-numOffers','id')
             for utf in qs:
                 urlUserTags.append(utf.tag)
         # Url default tags (usually present in UrlTagFreq, but in some cases, a default tag may have been manually assigned)
         uut_set = set(urlUserTags)
-        for t in aurl.cmeTags.exclude(pk=sacmeTag.pk):
+        for t in aurl.cmeTags.all():
             if t in pct_othertags and t not in uut_set: # aurl.tag is contained in user's tags and not already in set
                 urlUserTags.append(t)
 

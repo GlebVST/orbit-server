@@ -17,7 +17,6 @@ from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from .base import (
     ACTIVE_OFFDATE,
-    CMETAG_SACME,
     SACME_SPECIALTIES,
     CmeTag,
     Degree,
@@ -202,7 +201,7 @@ class EntryManager(models.Manager):
             entries: list of dicts - entries for this tag. An entry appears under all tags given by entry.tags
         Note: only tags which appear in user's entries for the given activityDate range are present in the output.
         """
-        satag = CmeTag.objects.get(name=CMETAG_SACME) # special SA-CME tag
+        satag = CmeTag.objects.get(name=CmeTag.SACME) # special SA-CME tag
         # Normal kwargs passed to filter are AND'd together
         fkwargs = dict(
                 valid=True,
@@ -265,14 +264,14 @@ class EntryManager(models.Manager):
         """
         Filter entries by user and activityDate range, and order by activityDate desc.
         Partition the qset into:
-            saEntries: entries with tag=CMETAG_SACME
+            saEntries: entries with tag=SACME
             The non SA-CME entries are further partitioned into:
             brcmeEntries: entries with entryType=ENTRYTYPE_BRCME
             otherSrCmeEntries: non SA-CME entries (sr-cme only)
         Note that for some users, their br-cme entries will fall into the saEntries bucket.
         Returns AuditReportResult
         """
-        satag = CmeTag.objects.get(name=CMETAG_SACME)
+        satag = CmeTag.objects.get(name=CmeTag.SACME)
         filter_kwargs = dict(
             user=user,
             activityDate__gte=startDate,
@@ -289,7 +288,7 @@ class EntryManager(models.Manager):
             .exclude(entryType__name=ENTRYTYPE_NOTIFICATION) \
             .prefetch_related('tags', p_docs) \
             .order_by('-activityDate')
-        saEntries = []  # list of Entry instances having CMETAG_SACME in their tags
+        saEntries = []  # list of Entry instances having SACME in their tags
         brcmeEntries = []
         otherSrCmeEntries = []
         creditSumByTag = {}
@@ -459,7 +458,7 @@ class Entry(models.Model):
 
     def formatNonSATags(self):
         """Returns a comma-separated string of self.tags ordered by tag name excluding SA-CME"""
-        names = [t.name for t in self.tags.all() if t.name != CMETAG_SACME]  # should use default ordering on CmeTag model
+        names = [t.name for t in self.tags.all() if t.name != CmeTag.SACME]  # should use default ordering on CmeTag model
         return ', '.join(names)
 
     def formatCreditType(self):

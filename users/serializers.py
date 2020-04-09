@@ -68,6 +68,7 @@ class ActiveCmeTagSerializer(serializers.ModelSerializer):
             'description',
             'is_active',
             'srcme_only',
+            'exemptFrom1Tag',
             'instructions',
             'categoryid',
             'category_name'
@@ -125,6 +126,7 @@ class ProfileCmetagSerializer(serializers.ModelSerializer):
     priority = serializers.ReadOnlyField(source='tag.priority')
     description = serializers.ReadOnlyField(source='tag.description')
     srcme_only = serializers.ReadOnlyField(source='tag.srcme_only')
+    exemptFrom1Tag = serializers.ReadOnlyField(source='tag.exemptFrom1Tag')
     instructions = serializers.ReadOnlyField(source='tag.instructions')
     categoryid = serializers.ReadOnlyField(source='tag.category.id')
     category_name = serializers.ReadOnlyField(source='tag.category.name')
@@ -138,6 +140,7 @@ class ProfileCmetagSerializer(serializers.ModelSerializer):
             'description',
             'is_active',
             'srcme_only',
+            'exemptFrom1Tag',
             'instructions',
             'categoryid',
             'category_name'
@@ -378,6 +381,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                     del_tags.add(t)
                 for t in state.deaTags.all():
                     del_tags.add(t)
+        moctag = CmeTag.objects.get(name=CmeTag.ABIM_MOC)
+        if ProfileCmetag.objects.filter(profile=instance, tag=moctag).exists():
+            if not instance.isProfileCompleteForMOC():
+                logger.info('User {0}: no longer eligible for CmeTag: {1}'.format(user, moctag))
+                del_tags.add(moctag)
         # Filter del_tags so it does not contain anything in add_tags
         rtags = add_tags.intersection(del_tags)
         for t in rtags:
