@@ -420,7 +420,7 @@ class OrbitCmeOffer(models.Model):
             logger.warning('assignCmeTags Offer {0.pk}: user {0.user} has no profile tags.'.format(self))
             return
         # partition into pct_spectags, pct_condtags, and pct_othertags
-        pct_spectags = set([]); pct_othertags = set([])
+        pct_spectags = set([]); pct_condtags = set([]); pct_othertags = set([])
         for tag in pct_tags:
             if tag.name in profile_specs:
                 pct_spectags.add(tag)
