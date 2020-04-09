@@ -338,7 +338,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         #newFluoroStates = ",".join([m.abbrev for m in instance.fluoroscopyStates.all()])
         #logger.info('User {0.pk} fluoroscopyStates: {0}'.format(user, newFluoroStates))
 
-        add_tags = instance.addOrActivateCmeTags() # tags added/reactivated based on updated instance
+        add_tags, created_tags = instance.addOrActivateCmeTags() # (active tags, newly created tags)
         del_tags = set([]) # tags to be removed or deactivated
         fieldName = 'degrees'
         if fieldName in validated_data:
@@ -405,6 +405,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 pct.is_active = False
                 pct.save(update_fields=('is_active',))
                 logger.info('Inactivate ProfileCmetag: {0}'.format(pct))
+        # Process created_tags
+        for t in created_tags:
+            if t.pk == moctag.pk:
+                # Apply tag to any existing offers for user
+                OrbitCmeOffer.objects.addTagToUserOffers(user, t)
         # emit profile_saved signal
         if instance.allowUserGoals():
             ret = profile_saved.send(sender=instance.__class__, user_id=user.pk)

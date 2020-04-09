@@ -18,7 +18,7 @@ from .base import (
     EligibleSite,
     Organization
 )
-from .feed import Sponsor, ARTICLE_CREDIT
+from .feed import ARTICLE_CREDIT, BrowserCme, Sponsor
 
 logger = logging.getLogger('gen.models')
 
@@ -345,6 +345,44 @@ class OrbitCmeOfferManager(models.Manager):
         offers_setid = OrbitCmeOffer.objects.select_related('url').filter(~Q_setid, **filter_kwargs)
         return (offers_blank_setid, offers_setid)
 
+    def addTagToUserOffers(self, user, add_tag):
+        """Used by ProfileUpdateSerializer to add a new tag to existing offers
+            for the given user.
+        Args:
+            user: User instance
+            add_tag: CmeTag instance
+        Returns: tuple (num_redeemed_updated:int, num_unredeemed_updated:int)
+        """
+        num_upd_redeemed = 0
+        num_upd_unredeemed = 0
+        # Get unredeemed offers that don't already have add_tag as a pre-selected tag
+        qs_unredeemed = OrbitCmeOffer.objects \
+            .filter(user=user, valid=True, redeemed=False) \
+            .exclude(selectedTags=add_tag) \
+            .order_by('pk')
+        num_upd_unredeemed = qs_unredeemed.count()
+        for offer in qs_unredeemed:
+            offer.selectedTags.add(add_tag)
+            offer.tags.remove(add_tag) # remove from the un-selected pool if exists (else it does not do anything)
+        # Get redeemed offers that don't already have add_tag as a pre-selected tag
+        qs_redeemed = OrbitCmeOffer.objects \
+            .filter(user=user, valid=True, redeemed=True) \
+            .exclude(selectedTags=add_tag) \
+            .order_by('pk')
+        num_upd_redeemed = qs_redeemed.count()
+        for offer in qs_redeemed:
+            offer.selectedTags.add(add_tag)
+            offer.tags.remove(add_tag) # remove from the un-selected pool if exists (else it does not do anything)
+            # update the associated brcme Entry
+            try:
+                brcme = BrowserCme.objects.get(offerId=offer.pk)
+            except BrowserCme.DoesNotExist:
+                logger.warning('addTagToUserOffers: no BrowerCme Entry found for offerid {0.pk}'.format(offer))
+            else:
+                entry = brcme.entry
+                entry.tags.add(add_tag)
+                logger.info('addTagToUserOffers: add {0} to BrowerCme Entry {1.pk}'.format(add_tag, entry))
+        return (num_upd_redeemed, num_upd_unredeemed)
 
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.

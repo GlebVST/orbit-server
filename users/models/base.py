@@ -933,7 +933,7 @@ class Profile(models.Model):
         from .subscription import UserSubscription
         deg_abbrevs = [d.abbrev for d in self.degrees.all()]
         is_do = Degree.DO in deg_abbrevs
-        add_tags = set([]) # tags to be added (or re-activated if already exist)
+        add_tags = set([]) # active tags
         specnames = [ps.name for ps in self.specialties.all()]
         cond_tags = self.getConditionalTags(specnames)
         for t in cond_tags:
@@ -975,17 +975,19 @@ class Profile(models.Model):
                 if is_do:
                     for t in state.doTags.all():
                         add_tags.add(t)
-        # Process add_tags
+        # Process add_tags: these are the active tags
+        created_tags = set([]) # newly created tags
         for t in add_tags:
             # tag may exist from a previous assignment
             pct, created = ProfileCmetag.objects.get_or_create(profile=self, tag=t)
             if created:
                 logger.info('New ProfileCmetag: {0}'.format(pct))
+                created_tags.add(t)
             elif not pct.is_active:
                 pct.is_active = True
                 pct.save(update_fields=('is_active',))
                 logger.info('Re-activate ProfileCmetag: {0}'.format(pct))
-        return add_tags
+        return (add_tags, created_tags)
 
     def updateProfileForNewPlan(self, old_plan, new_plan):
         """Update profile.planId and check if need to add/deactivate
@@ -1024,7 +1026,7 @@ class Profile(models.Model):
             if not ProfileCmetag.objects.filter(tag=t, profile=self).exists():
                 pct = ProfileCmetag.objects.create(tag=t, profile=self, is_active=True)
                 logger.info('Add {0} plantag for userid {0.profile.pk}'.format(pct))
-        add_tags = self.addOrActivateCmeTags()
+        add_tags, created_tags = self.addOrActivateCmeTags()
         return (add_tags, deactivated_tags)
 
     @cached_property
