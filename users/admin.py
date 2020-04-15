@@ -360,7 +360,7 @@ class DocumentAdmin(admin.ModelAdmin):
     list_select_related = True
 
 class EntryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'description','formatTags','created','submitABADate')
+    list_display = ('id', 'user', 'description','formatTags','created','submitABADate','submitABIMDate')
     list_filter = ('entryType', 'valid', UserFilter, 'tags')
     list_select_related = True
     raw_id_fields = ('documents',)

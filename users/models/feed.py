@@ -444,7 +444,9 @@ class Entry(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     submitABADate = models.DateTimeField(blank=True, null=True,
-        help_text='Set when entry is submitted to ABA organization for CME credit')
+        help_text='Set when entry is submitted to ABA for CME credit')
+    submitABIMDate = models.DateTimeField(blank=True, null=True,
+        help_text='Set when entry is submitted to ABIM for MOC credit')
     objects = EntryManager()
 
     def __str__(self):

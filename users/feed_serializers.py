@@ -157,6 +157,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
     creditTypeId = serializers.IntegerField(source='creditType.id', default=None)
     creditType = serializers.CharField(source='creditType.name', default='')
     submitABADate = serializers.ReadOnlyField()
+    submitABIMDate = serializers.ReadOnlyField()
     extra = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
 
@@ -171,10 +172,12 @@ class EntryReadSerializer(serializers.ModelSerializer):
         return s.data  # <class 'rest_framework.utils.serializer_helpers.ReturnDict'>
 
     def get_can_edit(self, obj):
-        """User may not edit the entry if submitABADate is populated.
+        """User may not edit the entry if:
+            submitABADate is populated.
+            submitABIMDate is populated.
         Other rules may be added in the future
         """
-        if obj.submitABADate:
+        if obj.submitABADate or obj.submitABIMDate:
             return False
         return True
 
@@ -192,6 +195,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
             'creditType',
             'creditTypeId',
             'submitABADate',
+            'submitABIMDate',
             'can_edit',
             'extra',
             'sponsor',
