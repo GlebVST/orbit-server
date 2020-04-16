@@ -135,7 +135,7 @@ def sendFirstSubsInvoiceEmail(user, user_subs, payment_method, subs_trans=None):
             message,
             from_email=from_email,
             to=[user.email],
-            bcc=['faria@orbitcme.com',]
+            bcc=['ap+provider_receipts@orbitcme.com','faria@orbitcme.com']
         )
     msg.content_subtype = 'html'
     msg.send()
@@ -179,7 +179,7 @@ def sendUpgradePlanInvoiceEmail(user, user_subs, payment_method, subs_trans):
             message,
             from_email=from_email,
             to=[user.email],
-            bcc=['faria@orbitcme.com',]
+            bcc=['ap+provider_receipts@orbitcme.com','faria@orbitcme.com']
         )
     msg.content_subtype = 'html'
     msg.send()
@@ -255,7 +255,7 @@ def sendBoostPurchaseEmail(user, boost_purchase):
             message,
             from_email=from_email,
             to=[user.email],
-            bcc=['faria@orbitcme.com',]
+            bcc=['ap+provider_receipts@orbitcme.com','faria@orbitcme.com']
         )
     msg.content_subtype = 'html'
     msg.send()
