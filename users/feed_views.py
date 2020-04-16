@@ -205,6 +205,7 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
             'id': entry.pk,
             'logo_url': entry.sponsor.logo_url,
             'created': entry.created,
+            'can_edit': True,
             'brcme': model_to_dict(brcme),
             'permissions': pdata['permissions'],
             'credits': pdata['credits']
