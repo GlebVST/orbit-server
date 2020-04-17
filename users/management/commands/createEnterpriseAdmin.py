@@ -7,6 +7,7 @@ from users.enterprise_serializers import OrgMemberFormSerializer
 from users.emailutils import sendPasswordTicketEmail
 from users.models import (
         User,
+        Country,
         Degree,
         Organization,
         OrgMember,
@@ -54,6 +55,7 @@ class Command(BaseCommand):
             u = qset[0]
             self.stderr.write('Found existing user with email: {0.email}'.format(u))
             return
+        country_usa = Country.objects.get(code=Country.USA)
         degree = Degree.objects.get(abbrev='Other')
         api = Auth0Api()
         do_password_ticket = settings.ENV_TYPE == settings.ENV_PROD
@@ -64,6 +66,7 @@ class Command(BaseCommand):
             'firstName': options['firstname'],
             'lastName': options['lastname'],
             'email': email,
+            'country': country_usa.pk,
             'degrees': [degree.pk,],
             'specialties': [],
             'subspecialties': [],
