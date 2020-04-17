@@ -11,7 +11,8 @@ from users.models import (
         Degree,
         Organization,
         OrgMember,
-        SubscriptionPlan
+        SubscriptionPlan,
+        OrgAgg
     )
 logger = logging.getLogger('mgmt.eadmin')
 
@@ -84,3 +85,6 @@ class Command(BaseCommand):
             msg = "Created Enterprise Admin: {0} with plan: {1}".format(orgmember, plan)
             logger.info(msg)
             self.stdout.write(msg)
+            # store first OrgAgg entry (TeamStats view expects at least one entry)
+            oa = OrgAgg.objects.compute_user_stats(org)
+            self.stdout.write('Initialized first OrgAgg entry for TeamStats: {0}'.format(oa))
