@@ -56,15 +56,23 @@ class Command(BaseCommand):
             return
         degree = Degree.objects.get(abbrev='Other')
         api = Auth0Api()
-        # password_ticket = settings.ENV_TYPE == settings.ENV_PROD
+        do_password_ticket = settings.ENV_TYPE == settings.ENV_PROD
         form_data = {
+            'is_admin': True,
+            'group': None,
+            'password_ticket': do_password_ticket,
             'firstName': options['firstname'],
             'lastName': options['lastname'],
             'email': email,
             'degrees': [degree.pk,],
-            # 'password_ticket': password_ticket,
-            'is_admin': True,
-            'group': None
+            'specialties': [],
+            'subspecialties': [],
+            'states': [],
+            'deaStates': [],
+            'fluoroscopyStates': [],
+            'hospitals': [],
+            'residency_program': None,
+            'npiNumber': ''
         }
         ser = OrgMemberFormSerializer(data=form_data)
         ser.is_valid(raise_exception=True)
