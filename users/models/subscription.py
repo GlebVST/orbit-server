@@ -710,7 +710,7 @@ class SubscriptionPlan(models.Model):
     active = models.BooleanField(default=True,
         help_text='If false, this plan will no longer be available for new signups')
     is_public = models.BooleanField(default=True,
-        help_text='If false, this plan is not available to the general public (e.g. RP Advanced).')
+        help_text='If false, this plan is not available to the general public (e.g. RP Advanced). Used for Braintree plans.')
     displayMonthlyPrice = models.BooleanField(default=False,
         help_text='Flag controls if UI displays price as per month in credit card screen')
     plan_type = models.ForeignKey(SubscriptionPlanType,
@@ -775,7 +775,7 @@ class SubscriptionPlan(models.Model):
     allowProfileStateTags = models.BooleanField(default=False,
         help_text='For individual plans: check box if this plan allows users to have State-specific CME tags')
     welcome_offer_url = models.URLField(max_length=500, blank=True,
-        help_text='(Not implemented in frontend). URL for initial welcome offer. Must be an existing AllowedUrl already. If blank, then the default hard-coded article is used as the welcome offer.')
+        help_text='URL for initial welcome offer. Must be an existing AllowedUrl in db. If blank, then the default hard-coded article is used as the welcome offer.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()

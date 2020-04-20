@@ -239,6 +239,8 @@ class CmeTagForm(forms.ModelForm):
         if lc_abbrev:
             cleaned_data['abbrev'] = lc_abbrev
             qs = CmeTag.objects.filter(abbrev__iexact=lc_abbrev)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk) # exclude self
             if qs.exists():
                 self.add_error('abbrev', 'Abbrevation for ABA EventId must be case-insensitive unique across all tags.')
         return cleaned_data
@@ -494,8 +496,7 @@ class PlanForm(forms.ModelForm):
         maxCmeYear = cleaned_data.get('maxCmeYear')
         plan_type = cleaned_data.get('plan_type')
         org = cleaned_data.get('organization')
-        #welcome_offer_url = cleaned_data.get('welcome_offer_url')
-        welcome_offer_url = '' # not implemented on frontend (which uses static pages)
+        welcome_offer_url = cleaned_data.get('welcome_offer_url')
         if maxCmeYear and maxCmeMonth and (maxCmeMonth >= maxCmeYear):
             self.add_error('maxCmeMonth', 'maxCmeMonth must be strictly less than maxCmeYear.')
         if maxCmeYear == 0 and maxCmeMonth != 0:
@@ -579,7 +580,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits')
         }),
         ('Other', {
-            'fields': ('is_public', 'trialDays','billingCycleMonths', 'allowProfileStateTags', 'active',)
+            'fields': ('is_public', 'trialDays','billingCycleMonths', 'allowProfileStateTags', 'active', 'welcome_offer_url')
         })
     )
 

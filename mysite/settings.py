@@ -453,6 +453,10 @@ UI_LINK_FEEDBACK = '/feedback'
 UI_LINK_LOGIN = '/login'
 UI_LINK_JOINTEAM = '/join-team'
 
+# This is the default welcome article used to generate the first offer.
+#It can be overriden by SubscriptionPlan.welcome_offer_url
 WELCOME_ARTICLE_URL = 'https://pubmed.ncbi.nlm.nih.gov/26874316/'
+WELCOME_ARTICLE_TITLE = 'Prospective Assessment of Radiation in Pediatric Urology: The Pediatric Urology Radiation Safety Evaluation Study'
+
 MIN_CME_CREDIT_FOR_REFERRAL = 5
 MAX_TRIAL_CME_CREDIT = 2

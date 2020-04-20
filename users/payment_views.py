@@ -37,6 +37,33 @@ class GetToken(APIView):
         }
         return Response(context, status=status.HTTP_200_OK)
 
+# 2020-04-19: added for UI to get per-plan welcome_offer_url for authenticated user
+class SubscriptionPlanWelcomeInfo(APIView):
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
+    def get(self, request):
+        user = request.user
+        default_urlpath = settings.WELCOME_ARTICLE_URL
+        default_page_title = settings.WELCOME_ARTICLE_TITLE
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
+        try:
+            if user_subs and user_subs.plan.welcome_offer_url:
+                plan = user_subs.plan
+                aurl = AllowedUrl.objects.get(url=plan.welcome_offer_url)
+                urlpath = aurl.url
+                page_title = aurl.page_title
+            else:
+                urlpath = default_urlpath
+                page_title = default_page_title
+        except AllowedUrl.DoesNotExist:
+            urlpath = default_urlpath
+            page_title = default_page_title
+        context = {
+            'welcome_offer_url': urlpath,
+            'page_title': page_title
+        }
+        return Response(context, status=status.HTTP_200_OK)
+
 class SubscriptionPlanList(generics.ListAPIView):
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
