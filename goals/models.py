@@ -1484,7 +1484,7 @@ class UserGoalManager(models.Manager):
                 composite_goals.add(cug)
         # now recompute composite goals
         for cug in composite_goals:
-            ug.recompute()
+            cug.recompute()
             logger.info('Recomputed {0.pk}|{0}'.format(ug))
 
 
