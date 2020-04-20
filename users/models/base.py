@@ -100,7 +100,7 @@ class CmeTag(models.Model):
     FLUOROSCOPY = 'Fluoroscopy'
     RADIATION_SAFETY = 'Radiation Safety'
     SACME = 'SAM/SA-CME'
-    ABIM_MOC = 'ABIM MOC Points'
+    ABIM_MOC = 'MOC Points (ABIM)'
 
     # fields
     name = models.CharField(max_length=80, unique=True, help_text='Short-form name. Used in tag button')
