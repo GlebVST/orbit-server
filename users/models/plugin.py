@@ -19,6 +19,7 @@ from .base import (
     Organization
 )
 from .feed import ARTICLE_CREDIT, BrowserCme, Sponsor
+from .subscription import UserSubscription
 
 logger = logging.getLogger('gen.models')
 
@@ -263,12 +264,17 @@ class OrbitCmeOfferManager(models.Manager):
 
     def makeWelcomeOffer(self, user):
         aurl = None
+        user_subs = UserSubscription.objects.getLatestSubscription(user)
         # Need to be sure that welcome article exists in this db instance
-        qset = AllowedUrl.objects.filter(url=settings.WELCOME_ARTICLE_URL)
-        if qset.exists():
-            aurl = qset[0]
-        if not aurl:
-            logger.error("No Welcome article listed in allowed urls!")
+        try:
+            if user_subs and user_subs.plan.welcome_offer_url:
+                plan = user_subs.plan
+                urlpath = plan.welcome_offer_url
+            else:
+                urlpath = settings.WELCOME_ARTICLE_URL
+            aurl = AllowedUrl.objects.get(url=urlpath)
+        except AllowedUrl.DoesNotExist:
+            logger.error("makeWelcomeOffer: URL {0} does not exist in AllowedUrl".format(urlpath))
             return None
         now = timezone.now()
         activityDate = now - timedelta(seconds=10)
