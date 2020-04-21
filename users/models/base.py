@@ -5,12 +5,13 @@ from datetime import datetime, timedelta
 from hashids import Hashids
 import pytz
 import re
+from dateutil.relativedelta import *
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import JSONField
 from django.contrib.postgres.search import SearchVector
 from django.db import models
-from django.db.models import Q
+from django.db.models import Q, Subquery
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
@@ -251,7 +252,7 @@ class Hospital(models.Model):
         db_index=True
     )
     name = models.CharField(max_length=120, db_index=True)
-    display_name = models.CharField(max_length=200, help_text='Used for display')
+    display_name = models.CharField(max_length=200, help_text='UPPERCASE. Used for search and display')
     city = models.CharField(max_length=80, db_index=True)
     website = models.URLField(max_length=500, blank=True)
     county = models.CharField(max_length=60, blank=True)
@@ -446,6 +447,8 @@ class Organization(models.Model):
     # Added 2020-02-04: new users with an email domain matching org's email_domain are considered members
     email_domain = models.CharField(max_length=40, blank=True, default='',
         help_text='A new individual user is made a member of this org if their email_domain matches this value. e.g. radpartners.com')
+    computeTeamStats = models.BooleanField(default=True,
+            help_text='If True: provider stats will be computed daily. Set to False if org is not an active Enterprise org.')
     objects = OrganizationManager()
  
     def __str__(self):
@@ -476,6 +479,86 @@ class Organization(models.Model):
         if qs.exists():
             return qs[0]
         return None
+
+    def computeCreditsEarned(self):
+        """Compute and update self.credits and credit dates"""
+        from .feed import Entry
+        firstMember = self.orgmembers.all().order_by('created')[0]
+        startDate = firstMember.created
+        filter_kwargs = {
+            'user__profile__organization': org,
+            'valid': True
+        }
+        if self.creditEndDate:
+            # if credits have been computed before, then just add credits from entries created since the last calculation
+            filter_kwargs['created__gt'] = self.creditEndDate
+        entries = Entry.objects \
+            .select_related('entryType', 'user__profile') \
+            .filter(**filter_kwargs) \
+            .order_by('id')
+        credits = 0
+        doSave = False
+        now = timezone.now()
+        for entry in entries:
+            credits += entry.getCredits()
+        credits = float(credits)
+        if credits:
+            self.credits += credits
+            self.creditEndDate = now
+            doSave = True
+        if not self.creditStartDate:
+            self.creditStartDate = startDate
+            doSave = True
+        if doSave:
+            self.save(update_fields=('credits', 'creditStartDate', 'creditEndDate'))
+            logger.info('Org {0.code} credits {0.credits} until EndDate: {0.creditEndDate}'.format(self))
+
+    def computeProviderStats(self):
+        """Update self.providerStats: current vs end-of-prior-month"""
+        providerStat = dict()
+        degrees = Degree.objects.all()
+        for d in degrees:
+            providerStat[d.abbrev] = {'count': 0, 'lastCount': 0, 'diff': 0}
+        # filter out pending org users
+        members = self.orgmembers.filter(removeDate__isnull=True, pending=False)
+        # Per request of Ram: do not exclude unverified profiles.
+        profiles = Profile.objects \
+            .filter(user__in=Subquery(members.values('user'))) \
+            .only('user','degrees') \
+            .prefetch_related('degrees')
+        for profile in profiles:
+            if profile.degrees.exists():
+                d = profile.degrees.all()[0]
+                providerStat[d.abbrev]['count'] += 1
+        # get datetime of end of last month
+        cutoffDate = datetime(now.year, now.month, 1, 23, 59, 59, tzinfo=pytz.utc) - relativedelta(days=1)
+        # members existing at that time
+        members = self.orgmembers.filter(
+            Q(removeDate__isnull=True) | Q(removeDate__gte=cutoffDate),
+            created__lte=cutoffDate,
+            pending=False
+        )
+        profiles = Profile.objects \
+            .filter(user__in=Subquery(members.values('user'))) \
+            .only('user','degrees') \
+            .prefetch_related('degrees')
+        for profile in profiles:
+            if profile.degrees.exists(): # need this check otherwise get IndexError on next line if profile has no degrees
+                d = profile.degrees.all()[0]
+                providerStat[d.abbrev]['lastCount'] += 1
+        # calculate diff percentage
+        for abbrev in providerStat:
+            count = providerStat[abbrev]['count']
+            lastCount = providerStat[abbrev]['lastCount']
+            diff = 0
+            if lastCount:
+                diff = (count - lastCount)*1.0/lastCount
+            else:
+                diff = count
+            providerStat[abbrev]['diff'] = diff*100
+        self.providerStat = providerStat
+        self.save(update_fields=('providerStat',))
+        logger.info('Updated providerStat for org {0}'.format(org))
 
 def orgfile_document_path(instance, filename):
     """Used as the OrgFile document FileField upload_to value

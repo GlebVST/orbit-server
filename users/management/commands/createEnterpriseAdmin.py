@@ -85,6 +85,9 @@ class Command(BaseCommand):
             msg = "Created Enterprise Admin: {0} with plan: {1}".format(orgmember, plan)
             logger.info(msg)
             self.stdout.write(msg)
+            # initialize stats used by UI
+            org.computeCreditsEarned()
+            org.computeProviderStats()
             # store first OrgAgg entry (TeamStats view expects at least one entry)
             oa = OrgAgg.objects.compute_user_stats(org)
             self.stdout.write('Initialized first OrgAgg entry for TeamStats: {0}'.format(oa))
