@@ -209,7 +209,7 @@ class EntryReadSerializer(serializers.ModelSerializer):
 class BRCmeCreateSerializer(serializers.Serializer):
     id = serializers.IntegerField(label='ID', read_only=True)
     description = serializers.CharField(max_length=500)
-    planEffect = serializers.IntegerField(min_value=0, max_value=1)
+    planEffect = serializers.IntegerField(min_value=0, max_value=2)
     competence = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
     performance = serializers.IntegerField(min_value=0, max_value=2, allow_null=True)
     commercialBias = serializers.IntegerField(min_value=0, max_value=2)

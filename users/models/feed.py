@@ -623,7 +623,8 @@ class BrowserCme(models.Model):
     )
     PLAN_EFFECT_CHOICES = (
         (RESPONSE_NO, 'No change'),
-        (RESPONSE_YES, 'Change')
+        (RESPONSE_YES, 'Change'),
+        (RESPONSE_UNSURE, 'Unsure')
     )
     DIFFERENTIAL_DIAGNOSIS = 'Differential diagnosis'
     TREATMENT_PLAN = 'Treatment plan'
