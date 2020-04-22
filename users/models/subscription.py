@@ -1328,6 +1328,8 @@ class UserSubscriptionManager(models.Manager):
         discounts = self.getDiscountsForNewSubscription(user)
         for d in discounts:
             owed -= d['discount'].amount
+        if owed < 0:
+            owed = Decimal(0)
         return owed
 
 
@@ -1367,6 +1369,8 @@ class UserSubscriptionManager(models.Manager):
                 affl = Affiliate.objects.get(user=inviter) # used below in saving AffiliatePayout instance
             # used below in saving InvitationDiscount/AffiliatePayout model instance
             inv_discount = Discount.objects.get(discountType=INVITEE_DISCOUNT_TYPE, activeForType=True)
+        discount_amount = 0
+        subs_price_fixed = False
         allow_signup = UserSubscription.objects.allowSignupDiscount(user)
         if allow_signup:
             # Check for SignupEmailPromo: it overrides any other discounts
@@ -1375,43 +1379,38 @@ class UserSubscriptionManager(models.Manager):
                 if promo.first_year_price:
                     subs_price = promo.first_year_price
                     discount_amount = plan.discountPrice - subs_price
+                    subs_price_fixed = True
                 else:
                     discount_amount = promo.first_year_discount
-                    subs_price -= discount_amount
-                    if subs_price < 0:
-                        subs_price = Decimal('0')
-                        discount_amount = plan.discountPrice
-                        logger.warning('SignupEmailPromo first_year_discount: {0.first_year_discount} exceeds plan price {1.discountPrice}.'.format(promo, plan))
-                # Add discounts:add key to subs_params
-                baseDiscount = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
-                subs_params['discounts'] = {
-                    'add': [
-                        {
-                            "inherited_from_id": baseDiscount.discountId,
-                            "amount": discount_amount
-                        }
-                    ]
-                }
-                logger.info('SignupEmailPromo subs_price: {0}'.format(subs_price))
+                logger.info('SignupEmailPromo: {0}'.format(promo))
             else:
                 # no promo, check other signup discounts
                 if is_invitee or is_convertee:
-                    discounts.append(inv_discount)
-                    subs_price -= inv_discount.amount # update subs_price
+                    discount_amount += inv_discount.amount
+                    logger.info('Invite discount: {0} for user {1}'.format(inv_discount, user))
                 sd = SignupDiscount.objects.getForUser(user)
                 if sd:
                     discount = sd.discount
-                    discounts.append(discount)
+                    discount_amount += discount.amount
                     logger.info('Signup discount: {0} for user {1}'.format(discount, user))
-                    subs_price -= discount.amount # signup discount stacks on top of any inv_discount
-            if discounts:
-                # Add discounts:add key to subs_params
-                subs_params['discounts'] = {
-                    'add': [
-                        {"inherited_from_id": m.discountId} for m in discounts
-                    ]
-                }
-                logger.info('Discounted subs_price: {0}'.format(subs_price))
+        if discount_amount:
+            if not subs_price_fixed:
+                subs_price -= discount_amount
+                if subs_price < 0:
+                    subs_price = Decimal('0') # lower limit
+                    discount_amount = plan.discountPrice # clamp it
+                    logger.warning('Clamp discount_amount to plan price for user {0} on plan {1}'.format(user, plan))
+            logger.info('createBtSubscription subs_price: {0}'.format(subs_price))
+            # Add discounts:add key to subs_params
+            baseDiscount = Discount.objects.get(discountType=BASE_DISCOUNT_TYPE, activeForType=True)
+            subs_params['discounts'] = {
+                'add': [
+                    {
+                        "inherited_from_id": baseDiscount.discountId,
+                        "amount": discount_amount
+                    }
+                ]
+            }
         result = braintree.Subscription.create(subs_params)
         logger.info('createBtSubscription result: {0.is_success}'.format(result))
         if result.is_success:
