@@ -1,9 +1,8 @@
 import logging
 import csv
+import gspread
+from google.oauth2.service_account import Credentials
 from io import StringIO
-import io
-import pytz
-from django.conf import settings
 from django.db.models import Subquery
 from django.utils import timezone
 from users.models import (
@@ -38,18 +37,6 @@ IGNORE_USERS = (
     'testsand@weppa.org',
 )
 
-OUTPUT_FIELDS = (
-    'LastName',
-    'FirstName',
-    'Degree',
-    'NPI #',
-    'Search Date',
-    'Credit Earned',
-    'Attendee Type (Physician or Other)',
-    'TopicSearched',
-    'Article/Website Consulted',
-)
-
 OTHER = 'Other (combined)'
 RESPONSE_MAP = {
         BrowserCme.RESPONSE_YES: 'Yes',
@@ -75,6 +62,13 @@ PLAN_TEXT_CHOICES = (
 )
 J = ': American Journal of Roentgenology'
 
+def formatRange(arr):
+    """Transform a list [a,b,c,...] into: [[a,],[b,],[c,],...]
+    This is used to update cells of a single column in the gsheet
+    Returns: list of lists
+    """
+    return [[v,] for v in arr]
+
 def cleanDescription(d):
     d2 = d
     if J in d:
@@ -83,17 +77,65 @@ def cleanDescription(d):
     return d2
 
 class BaseReport:
+    PROFILE_FIELDS = (
+        'LastName',
+        'FirstName',
+        'Degree',
+        'NPI #',
+    )
+    ENTRY_FIELDS = (
+        'Search Date',
+        'Credit Earned',
+        'Attendee Type (Physician or Other)',
+        'TopicSearched',
+        'Article/Website Consulted',
+    )
 
-    def __init__(self, startDate, endDate):
+    def __init__(self, startDate, endDate, cred_fpath, docid):
         """
         Args:
             startDate: utc datetime
             endDate: utc datetime
+            cred_path: str filepath to the credentials file for google-auth
+            docid: document key/id - this Google Doc should already exist and shared
+                with the service account email listed in the credentials file.
         """
         self.startDate = startDate
         self.endDate = endDate
         msg = "Report date range: {0.startDate:%Y-%m-%d} to {0.endDate:%Y-%m-%d}".format(self)
         logger.info(msg)
+        scopes = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
+        credentials = Credentials.from_service_account_file(cred_fpath, scopes=scopes)
+        gc = gspread.authorize(credentials)
+        self.sheet = gc.open_by_key(docid).sheet1
+
+
+    def initializeSummarySheet(self):
+        """Clear the sheet and initialize with the heading values
+        """
+        self.sheet.clear()
+        # Column A
+        self.sheet.update('A1', 'Quarterly Report:')
+        self.sheet.update('A2', 'Overall Evaluation Participants N =')
+        self.sheet.update('A3', 'Total # of responses =')
+        self.sheet.update('A4', 'For what clinical information were you searching?')
+        
+        # Column B
+        self.sheet.update('B1', 'Date Range (actual dates)')
+        self.sheet.update('B4', 'Conducting this search will result in a change in my:')
+        # Column C
+        self.sheet.update('C4', 'Did this information change your clinical plan (Diagnosis/Treatment)? ')
+        # Column D
+        self.sheet.update('D4', 'If yes, how?')
+        # Column E
+        self.sheet.update('E4', 'Select relevant specialty tags to categorize this credit ')
+        # Column F
+        self.sheet.update('F4', 'Did you perceive commercial bias in the content?')
+        # Column G
+        self.sheet.update('G4', 'If yes,  explain.')
+        # Column H
+        self.sheet.update('H4', 'Please provide any feedback/comments regarding the articles, or the overall system effectiveness')
+
 
     def makeEntryQuerySet(self):
         """Get and return Entry queryset for self.startDate,self.endDate range.
@@ -119,7 +161,7 @@ class BaseReport:
         """
         entries = self.makeEntryQuerySet()
         self.entries = entries.order_by('activityDate', 'pk')
-        print(self.entries.query)
+        #print(self.entries.query)
         # get BrowserCme instances for entries
         self.qset_brcme = BrowserCme.objects \
             .select_related('entry') \
@@ -149,8 +191,8 @@ class BaseReport:
             filter_kwargs = {clause: v}
             cnt = qset.filter(**filter_kwargs).count()
             pct = 100.0*cnt/num_entries
-            nv = RESPONSE_MAP[v]
-            stats.append(dict(value=nv, count=cnt, pct=pct))
+            mapped_value = RESPONSE_MAP[v]
+            stats.append(dict(value=mapped_value, count=cnt, pct=pct))
         if (fieldname == "commercialBias"):
             for m in qset:
                 cb = m.commercialBiasText
@@ -174,8 +216,8 @@ class BaseReport:
             filter_kwargs = {'planEffect': v}
             cnt = qset.filter(**filter_kwargs).count()
             pct = 100.0*cnt/num_entries
-            nv = RESPONSE_MAP[v]
-            planEffectStats.append(dict(value=nv, count=cnt, pct=pct))
+            mapped_value = RESPONSE_MAP[v]
+            planEffectStats.append(dict(value=mapped_value, count=cnt, pct=pct))
         # planText: partition into keyed responses vs Other
         planTextDict = {
             BrowserCme.DIFFERENTIAL_DIAGNOSIS: 0,
@@ -184,12 +226,12 @@ class BaseReport:
         }
         planTextOther = []
         for m in qset:
-            pt = m.planText
+            pt = m.planText.strip()
             if pt in planTextDict:
                 # keyed response
                 planTextDict[pt] += 1
-            else:
-                planTextOther.append(pt)
+            elif pt:
+                planTextOther.append(pt) # non-empty other values
         # calculate pct
         planTextStats = []
         for v in PLAN_TEXT_CHOICES:
@@ -202,6 +244,8 @@ class BaseReport:
     def calcTagStats(self):
         """Calculate tag statistics from self.entries queryset
         Returns: list of dicts w. keys: tagname, pct, count
+            for tags whose percentage of total is at least 1 percent.
+            The remaining tags are combined into OTHER (cnt/pct).
         """
         qset = self.entries
         counts = {
@@ -229,8 +273,10 @@ class BaseReport:
             if tagpct < 1:
                 counts[OTHER]['count'] += tagcount
                 counts[OTHER]['pct'] += tagpct
-        tag_stats = []
+        tag_stats = [] # sorted by tagname (w. OTHER at the end). filter by pct >=1
         for tagname in sorted(counts):
+            if tagname == OTHER:
+                continue
             tagpct = counts[tagname]['pct']
             if tagpct < 1:
                 continue
@@ -239,37 +285,44 @@ class BaseReport:
                 pct=tagpct,
                 count=counts[tagname]['count']
             ))
+        # add OTHER at the end
+        tagname = OTHER
+        tag_stats.append(dict(
+            tagname=tagname,
+            pct=counts[tagname]['pct'],
+            count=counts[tagname]['count']
+        ))
         return tag_stats
 
     def getEntryDescriptions(self):
         """Clean entry description from self.entries
-        Returns: list of strs
+        Returns: list of strs (duplicates removed)
         """
         qset = self.entries
         descriptions = []
+        # Note: distinct removes duplicates
         vqset = qset.values_list('description', flat=True).distinct().order_by('description')
         for v in vqset:
             descr = v.strip()
-            if descr.startswith('www.') and (descr.endswith('.org') or descr.endswith('.gov') or descr.endswith('.com')):
-                continue
             descr = cleanDescription(descr)
-            if not descr:
-                continue
             descriptions.append(descr)
         return descriptions
 
     def makeReportData(self):
-        """Calculate report data
-        Returns: list of dicts w. keys from OUTPUT_FIELDS
+        """Calculate report data for participant report
+        This should be called after getEntries is called.
+        Returns: list of dicts w. keys from PROFILE_FIELDS + ENTRY_FIELDS
         """
-        self.getEntries()
+        cls = self.__class__
         results = []
+        all_fields = cls.PROFILE_FIELDS + cls.ENTRY_FIELDS
         for (entry, brcme) in zip(self.entries, self.qset_brcme):
             user = entry.user
             profile = self.profilesById[user.pk]
             d = dict()
-            for k in OUTPUT_FIELDS:
+            for k in all_fields:
                 d[k] = ''
+            d['id'] = profile.pk
             d['NPI #'] = profile.npiNumber
             if profile.isPhysician():
                 d['Attendee Type (Physician or Other)'] = 'Physician'
@@ -297,8 +350,11 @@ class BaseReport:
 
     def createReportCsv(self, results):
         """Returns csv file as StringIO""" 
+        cls = self.__class__
         output = StringIO()
-        writer = csv.DictWriter(output, delimiter=',', fieldnames=OUTPUT_FIELDS)
+        out_fields = cls.PROFILE_FIELDS + cls.ENTRY_FIELDS
+        #print(out_fields)
+        writer = csv.DictWriter(output, delimiter=',', fieldnames=out_fields, extrasaction='ignore')
         writer.writeheader()
         for row in results:
             writer.writerow(row)
@@ -310,9 +366,16 @@ class BaseReport:
         """
         planEffectStats, planTextStats, planTextOther = self.calcPlanStats()
         (commBiasStats, commBiasComments) = self.calcResponseStats('commercialBias')
+        # UserFeedback associated with entries (entrySpecific)
+        entryFeedback = UserFeedback.objects.filter(
+            entry__isnull=False,
+            created__gte=self.startDate,
+            created__lte=self.endDate
+            ).order_by('created')
         ctx = {
             'startDate': self.startDate,
             'endDate': self.endDate,
+            'numEntries': self.entries.count(),
             'numUsers': self.profiles.count(),
             'tags': self.calcTagStats(),
             'competence': self.calcResponseStats('competence')[0],
@@ -323,6 +386,7 @@ class BaseReport:
             'planEffect': planEffectStats,
             'planText': planTextStats,
             'planTextOther': planTextOther,
+            'entryFeedback': entryFeedback
         }
         return ctx
 
@@ -343,152 +407,108 @@ class BaseReport:
                 numEntries = '%d' % int(k['count'])
         return numEntries
 
-    def getTagEntry(self, ctx, tagList, tagIdx): 
-        """ Gets the tagEntry corresponding to the tagIdx in tagList
-            Also returns an updated tagIdx
-        Args:
-            ctx: dictionary containing the stats
-            tagList: list of specialty tags
-            tagIdx: index into list 
-        """
-        tagEntry = ''
-        if (tagIdx < len(tagList)):
-            tagCnt = self.getVal(ctx, 'tags', tagList[tagIdx], 'tagname')
-            tagEntry = tagList[tagIdx] + ' - ' + tagCnt
-            tagIdx += 1
-        return (tagEntry, tagIdx)
 
     def createSummaryCsv(self, ctx, startReportDate, endReportDate):
         """Create a summary of the stats in csv format. To be used as an attachment
         Args:
             ctx: dictionary containing the stats
-        Returns: stats in csv format
+        Returns: StringIO object containing the csv data
+        Note: The return value is meant to be included as an email attachment.
+          To write result to a local file, use:
+          with open('filename.csv', mode='w') as f:
+              print(csvfile.getvalue(), file=f)
         """
+        self.initializeSummarySheet()
         # string formatted dates
         startSubjRds = startReportDate.strftime('%b/%d/%Y')
         endSubjRds = endReportDate.strftime('%b/%d/%Y')
-
+        START_ROW_IDX = 5 # default start row index for data
         # Column A
-        columnA = ['Report Timeframe: ' + startSubjRds + ' - ' + endSubjRds, 'Overall Evaluation Participants N = ']
+        numDescr = len(ctx['descriptions'])
+        startIndex = START_ROW_IDX
+        if numDescr:
+            colRange = 'A{0}:A{1}'.format(startIndex, startIndex+numDescr-1)
+            self.sheet.update(colRange, formatRange(ctx['descriptions']))
+        else:
+            self.sheet.update('A{0}'.format(startIndex), 'No data')
 
         # Column B
-        competenceNum = self.getVal(ctx, 'competence', 'Yes')
-        performanceNum = self.getVal(ctx, 'performance', 'Yes')
-        competenceUnsureNum = self.getVal(ctx, 'competence', 'Unsure')
-        performanceUnsureNum = self.getVal(ctx, 'performance', 'Unsure')
-        unsureNum = int(competenceUnsureNum) + int(performanceUnsureNum)
-        columnB = ['', str(ctx['numUsers']), 'Conducting this search will result in a change in my:', 
-                   'Competence - ' + competenceNum, 'Performance - ' + performanceNum,
-                   'Unsure - ' + '%d' % unsureNum]
+        self.sheet.update('B1', '{0} - {1}'.format(startSubjRds, endSubjRds)) # report date range
+        self.sheet.update('B2', ctx['numUsers']) # participant count
+        self.sheet.update('B3', ctx['numEntries']) # responses count
+        # competence
+        key = 'competence'
+        competence_str = "Competence - Yes:{0} No:{1} Unsure:{2}".format(
+            self.getVal(ctx, key, 'Yes'),
+            self.getVal(ctx, key, 'No'),
+            self.getVal(ctx, key, 'Unsure')
+        )
+        self.sheet.update('B5', competence_str)
+        # performance
+        key = 'performance'
+        performance_str = "Performance - Yes:{0} No:{1} Unsure:{2}".format(
+            self.getVal(ctx, key, 'Yes'),
+            self.getVal(ctx, key, 'No'),
+            self.getVal(ctx, key, 'Unsure')
+        )
+        self.sheet.update('B6', performance_str)
 
         # Column C
-        planEffectNum = self.getVal(ctx, 'planEffect', 'Yes')
-        planEffectNoNum = self.getVal(ctx, 'planEffect', 'No')
-        columnC = ['', '', 'Did this information change your clinical plan?',
-                   'Yes - ' + planEffectNum, 'No - ' + planEffectNoNum]
+        key = 'planEffect'
+        self.sheet.update('C5', 'Yes - {0}'.format(self.getVal(ctx, key, 'Yes')))
+        self.sheet.update('C6', 'No - {0}'.format(self.getVal(ctx, key, 'No')))
+        self.sheet.update('C7', 'Unsure - {0}'.format(self.getVal(ctx, key, 'Unsure')))
 
         # Column D
-        planChangeDiffDiag = self.getVal(ctx, 'planText', 'Differential diagnosis')
-        planChangeDiagTest = self.getVal(ctx, 'planText', 'Diagnostic tests')
-        planChangeTreatPlan = self.getVal(ctx, 'planText', 'Treatment plan')
-        # Determine if we will need add any text to the 'Other (Please explain)'
-        # cell and add it if we have any text in planTextOther
-        planTextOther = ctx['planTextOther']
-        nonEmptyPlanTextOther = []
-        for text in planTextOther:
-            if text != '':
-                nonEmptyPlanTextOther.append(text)
-        otherPleaseExplainAdd = '' if (len(nonEmptyPlanTextOther) == 0) else nonEmptyPlanTextOther[0]
-        columnD = ['', '', 'If yes, how?', 'Differential diagnosis - ' + planChangeDiffDiag,
-                   'Diagnostic tests - ' + planChangeDiagTest, 'Treatment plan - ' + planChangeTreatPlan,
-                   'Other (Please explain)' + otherPleaseExplainAdd]
-        # Add the other text, if any, in the column in the rows that follow
-        planTextOtherIdx = 1
-        while (planTextOtherIdx < len(nonEmptyPlanTextOther)):
-            columnD.append(nonEmptyPlanTextOther[planTextOtherIdx])
-            planTextOtherIdx += 1
+        key = 'planText'
+        self.sheet.update('D5', 'Will change prescription: 0')
+        self.sheet.update('D6', 'Will change diagnostic tests: {0}'.format(self.getVal(ctx, key, BrowserCme.DIAGNOSTIC_TEST)))
+        self.sheet.update('D7', 'Will change treatment plan: {0}'.format(self.getVal(ctx, key, BrowserCme.TREATMENT_PLAN)))
+        self.sheet.update('D8', 'Will change differential diagnosis: {0}'.format(self.getVal(ctx, key, BrowserCme.DIFFERENTIAL_DIAGNOSIS)))
+        self.sheet.update('D9', 'Other (please specify):')
+        startIdx = 10 # for planTextOther
+        # If we have any text in planTextOther, then add it
+        num_text = len(ctx['planTextOther'])
+        if num_text:
+            colRange = 'D{0}:D{1}'.format(startIdx, startIdx+num_text-1)
+            self.sheet.update(colRange, formatRange(ctx['planTextOther']))
 
-        # Column E
-        columnE = ['', '', 'Select relevant specialty tags to categorize this credit']
-        # this is for the specialty tags column, it needs to be alphabetized
-        # (except for the Other (combined) tag which I put at the end)
-        tagnames = [''] * len(ctx['tags'])
-        addOther = 0
-        i = 0
-        for tag in ctx['tags']:
-            if (tag['pct'] > 0):
-                if (tag['tagname'] != 'Other (combined)'):
-                    tagnames[i] = tag['tagname']
-                    i += 1
-                else:
-                    addOther = 1
+        # Column E (tags)
+        tagStats = ctx['tags']
+        tagData = ['{tagname} - {count}'.format(**d) for d in tagStats]
+        num_tags = len(tagData)
+        startIdx = START_ROW_IDX
+        colRange = 'E{0}:E{1}'.format(startIdx, startIdx+num_tags-1)
+        self.sheet.update(colRange, formatRange(tagData))
 
-        tagnames.sort()
-
-        if (addOther):
-            tagnames.append('Other (combined)')
-
-        # calibrate tagnameIdx to point to the first non-empty tagname
-        # we have empty tag-names b/c some tagnames may be associated
-        # with a 0 percent, in which case we should not list them
-        # and they are marked with a blank string
-        tagnameIdx = 0
-        while (tagnames[tagnameIdx] == ''):
-            tagnameIdx += 1
-
-        while (tagnameIdx < len(tagnames)):
-            (tagEntry, tagnameIdx) = self.getTagEntry(ctx, tagnames,
-                                                      tagnameIdx)
-            columnE.append(tagEntry)
-
-        # Column F
-        commBiasYesNum = self.getVal(ctx, 'commBias', 'Yes')
-        commBiasNoNum = self.getVal(ctx, 'commBias', 'No')
-        commBiasUnsureNum = self.getVal(ctx, 'commBias', 'Unsure')
-
-        columnF = ['', '', 'Did you perceive commercial bias in the content?',
-                   'Yes - ' + commBiasYesNum, 'No - ' + commBiasNoNum, 
-                   'Unsure - ' + commBiasUnsureNum]
+        # Column F (commBias)
+        key = 'commBias'
+        self.sheet.update('F5', 'Yes - {0}'.format(self.getVal(ctx, key, 'Yes')))
+        self.sheet.update('F6', 'No - {0}'.format(self.getVal(ctx, key, 'No')))
+        self.sheet.update('F7', 'Unsure - {0}'.format(self.getVal(ctx, key, 'Unsure')))
         
-        # Column G
-        columnG = ['', '', 'If yes, explain']
+        # Column G (commBiasComments)
+        numComments = len(ctx['commBiasComments'])
+        if (numComments):
+            startIdx = START_ROW_IDX
+            colRange = 'G{0}:G{1}'.format(startIdx, startIdx+numComments-1)
+            self.sheet.update(colRange, formatRange(ctx['commBiasComments']))
 
-        # Grab the comments list of commercial bias
-        columnG += ctx['commBiasComments']
+        # Column H (entryFeedback)
+        numComments = len(ctx['entryFeedback'])
+        if (numComments):
+            startIdx = START_ROW_IDX
+            colRange = 'H{0}:H{1}'.format(startIdx, startIdx+numComments-1)
+            self.sheet.update(colRange, formatRange(ctx['entryFeedback']))
 
-        # Column H
-        columnH = ['', '', 'Please provide any feedback/comments regarding the articles, or the overall system effectiveness']
-
-        # entrySpecific entries have an article url inside of them
-        entrySpecific = UserFeedback.objects.filter(entry__isnull=False, created__gte=startReportDate, created__lte=endReportDate).order_by('created')
-
-        columnH += entrySpecific
-
-        # Determine max length so we can create a matrix that can be transposed
-        maxLength = max(len(columnA), len(columnB), len(columnC), len(columnD), 
-                        len(columnE), len(columnF), len(columnG), len(columnH))
-
-
-        columnA += [''] * (maxLength - len(columnA) + 1)
-        columnB += [''] * (maxLength - len(columnB) + 1)
-        columnC += [''] * (maxLength - len(columnC) + 1)
-        columnD += [''] * (maxLength - len(columnD) + 1)
-        columnE += [''] * (maxLength - len(columnE) + 1)
-        columnF += [''] * (maxLength - len(columnF) + 1)
-        columnG += [''] * (maxLength - len(columnG) + 1)
-        columnH += [''] * (maxLength - len(columnH) + 1)
-
-        columnA[maxLength] = "Total # of respondents - " + str(ctx['numUsers'])  
-
-        columnBased = [columnA, columnB, columnC, columnD, columnE, columnF, columnG, columnH]
-        # Transpose this array of columns to an array of rows that can be easily
-        # written as a csv
+        # get all data
+        rowData = self.sheet.get_all_values() # [row1, row2, ...rowN] where row_j is a list
+        # write to csv
         csvfile = StringIO()
         wr = csv.writer(csvfile)
-        rowBased = zip(*columnBased)
-        for row in rowBased:
+        for row in rowData:
             wr.writerow(row)
-        return csvfile
+        return csvfile # StringIO contained in memory
 
 
 class MainReport(BaseReport):
@@ -508,7 +528,12 @@ class MainReport(BaseReport):
 class IntMedReport(BaseReport):
     """This report is used by the makeTuftsIntMedReport management command. It includes only Internal Medicine users with completed profile
     """
-    
+
+    PROFILE_FIELDS = BaseReport.PROFILE_FIELDS + (
+        'ABIMNumber',
+        'Birthdate MM/DD'
+    )
+
     def makeEntryQuerySet(self, profiles):
         """Get not-yet-submitted brcme entries for the given profiles. Note: this does not use self.startDate/endDate. It returns all
         entries (for the given profiles) that have not yet been
@@ -543,3 +568,15 @@ class IntMedReport(BaseReport):
         self.profilesById = dict()
         for p in self.profiles:
             self.profilesById[p.pk] = p
+
+
+    def makeReportData(self):
+        """
+        """
+        results = super().makeReportData()
+        for d in results:
+            profile = self.profilesById[d['id']]
+            d['ABIMNumber'] = profile.ABIMNumber
+            if profile.birthDate:
+                d['Birthdate MM/DD'] = profile.strftime('%m/%d')
+        return results

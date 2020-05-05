@@ -81,7 +81,11 @@ class Command(BaseCommand):
         """
         startDate, endDate = self.calcReportDateRange(options)
         
-        mainReport = MainReport(startDate, endDate)
+        mainReport = MainReport(startDate, endDate,
+            settings.GAUTH_SERVICE_CREDENTIALS_FILE,
+            settings.GSHEET_TUFTS_EVAL_DOCID,
+        )
+        mainReport.getEntries()
         results = mainReport.makeReportData()
         # write results to StringIO csv file
         cf = mainReport.createReportCsv(results)
