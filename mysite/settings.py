@@ -152,6 +152,10 @@ ORBIT_EMAIL_SYNC_LIST_ID = get_environment_variable('ORBIT_MAILCHIMP_LIST_ID')
 
 DEFAULT_ESP = "Mailchimp"
 
+# Google auth service account
+GAUTH_SERVICE_CREDENTIALS_FILE = os.path.join(BASE_DIR, 'conf', 'orbit-274702-1a3cc79cd678.json')
+GSHEET_TUFTS_EVAL_DOCID = get_environment_variable('ORBIT_GSHEET_TUFTS_EVAL_DOCID')
+
 AUTHENTICATION_BACKENDS = (
     'users.auth_backends.ImpersonateBackend',
     'users.auth_backends.Auth0Backend',
