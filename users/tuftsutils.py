@@ -173,6 +173,16 @@ class BaseReport:
         for p in self.profiles:
             self.profilesById[p.pk] = p
 
+    def calcNumUsers(self):
+        """Calculate distinct number of users from self.entries
+        Note: this value can be less than profiles.count because
+        not every eligible profile may have an entry for this period.
+        """
+        userids = set([])
+        for entry in self.entries:
+            userids.add(entry.user.pk)
+        return len(userids)
+
     def calcResponseStats(self, fieldname):
         """Calculate YES/NO/UNSURE stats for the given field.
         Uses self.qset_brcme
@@ -376,7 +386,6 @@ class BaseReport:
             'startDate': self.startDate,
             'endDate': self.endDate,
             'numEntries': self.entries.count(),
-            'numUsers': self.profiles.count(),
             'tags': self.calcTagStats(),
             'competence': self.calcResponseStats('competence')[0],
             'performance': self.calcResponseStats('performance')[0],
@@ -388,6 +397,7 @@ class BaseReport:
             'planTextOther': planTextOther,
             'entryFeedback': entryFeedback
         }
+        ctx['numUsers'] = self.calcNumUsers()
         return ctx
 
     def getVal(self, ctx, key, subvalue, subkey = 'value'):
@@ -461,12 +471,12 @@ class BaseReport:
 
         # Column D
         key = 'planText'
-        self.sheet.update('D5', 'Will change prescription: 0')
+        #self.sheet.update('D5', 'Will change prescription: 0')
+        self.sheet.update('D5', 'Will change differential diagnosis: {0}'.format(self.getVal(ctx, key, BrowserCme.DIFFERENTIAL_DIAGNOSIS)))
         self.sheet.update('D6', 'Will change diagnostic tests: {0}'.format(self.getVal(ctx, key, BrowserCme.DIAGNOSTIC_TEST)))
         self.sheet.update('D7', 'Will change treatment plan: {0}'.format(self.getVal(ctx, key, BrowserCme.TREATMENT_PLAN)))
-        self.sheet.update('D8', 'Will change differential diagnosis: {0}'.format(self.getVal(ctx, key, BrowserCme.DIFFERENTIAL_DIAGNOSIS)))
-        self.sheet.update('D9', 'Other (please specify):')
-        startIdx = 10 # for planTextOther
+        self.sheet.update('D8', 'Other (please specify):')
+        startIdx = 9 # for planTextOther
         # If we have any text in planTextOther, then add it
         num_text = len(ctx['planTextOther'])
         if num_text:
@@ -558,7 +568,7 @@ class IntMedReport(BaseReport):
         self.profiles = Profile.objects.getProfilesForTuftsABIM()
         entries = self.makeEntryQuerySet(self.profiles)
         self.entries = entries.order_by('activityDate', 'pk')
-        print(self.entries.query)
+        #print(self.entries.query)
         # get BrowserCme instances for entries
         self.qset_brcme = BrowserCme.objects \
             .select_related('entry') \
@@ -569,7 +579,6 @@ class IntMedReport(BaseReport):
         for p in self.profiles:
             self.profilesById[p.pk] = p
 
-
     def makeReportData(self):
         """
         """
@@ -578,5 +587,11 @@ class IntMedReport(BaseReport):
             profile = self.profilesById[d['id']]
             d['ABIMNumber'] = profile.ABIMNumber
             if profile.birthDate:
-                d['Birthdate MM/DD'] = profile.strftime('%m/%d')
+                d['Birthdate MM/DD'] = profile.birthDate.strftime('%m/%d')
         return results
+
+    def updateSubmitDate(self, submitDate):
+        """Set submitABIMDate on self.entries
+        """
+        ret = self.entries.update(submitABIMDate=submitDate)
+        print(ret)

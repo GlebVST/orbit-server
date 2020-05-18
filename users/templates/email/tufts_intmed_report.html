@@ -1,0 +1,8 @@
+<div>
+    <h4>Orbit Internal Medicine Report for {{ startDate|date:"d M Y" }} to {{ endDate|date:"d M Y" }} UTC inclusive</h4>
+    {% if numEntries %}
+        <p>Please review the attached files for the Orbit Participant Report and Summary Report.</p>
+    {% else %}
+        <p>No data for this period.</p>
+    {% endif %}
+</div>
