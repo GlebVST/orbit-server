@@ -418,6 +418,8 @@ class OrbitCmeOffer(models.Model):
     expireDate = models.DateTimeField()
     redeemed = models.BooleanField(default=False)
     valid = models.BooleanField(default=True)
+    requireUserTag = models.BooleanField(default=False,
+        help_text='If True, user must select a non-SACME/MOC tag for the article because the system could not pre-select one.')
     credits = models.DecimalField(max_digits=5, decimal_places=2,
         help_text='CME credits to be awarded upon redemption')
     tags = models.ManyToManyField(CmeTag,
@@ -464,7 +466,9 @@ class OrbitCmeOffer(models.Model):
             logger.warning('assignCmeTags Offer {0.pk}: user {0.user} has no profile tags.'.format(self))
             return
         # partition into pct_spectags, pct_condtags, and pct_othertags
-        pct_spectags = set([]); pct_condtags = set([]); pct_othertags = set([])
+        pct_spectags = set([]) # specialty name tags
+        pct_condtags = set([]) # conditional tags (sacme/moc)
+        pct_othertags = set([]) # other
         for tag in pct_tags:
             if tag.name in profile_specs:
                 pct_spectags.add(tag)
@@ -473,23 +477,22 @@ class OrbitCmeOffer(models.Model):
             else:
                 pct_othertags.add(tag)
 
-        # If sacme/moc exist: they are pre-selected
+        # If condtags exist: they are pre-selected
         for t in pct_condtags:
             self.selectedTags.add(t)
 
-        urlUserTags = []
         # 1. Intersection of UrlTagFreq tags with pct_othertags
-        #   Exclude pct_spectags in order to give more weight to pct_othertags
+        urlUserTags = [] # Exclude pct_spectags in order to give more weight to pct_othertags
         if pct_othertags:
             qs = UrlTagFreq.objects \
                 .filter(url=aurl, tag__in=pct_othertags, numOffers__gte=MIN_VOTE_FOR_REC) \
-                .order_by('-numOffers','id')
+                .order_by('-numOffers','id') # tag has met or exceeded the MIN_VOTE count
             for utf in qs:
                 urlUserTags.append(utf.tag)
         # Url default tags (usually present in UrlTagFreq, but in some cases, a default tag may have been manually assigned)
         uut_set = set(urlUserTags)
         for t in aurl.cmeTags.all():
-            if t in pct_othertags and t not in uut_set: # aurl.tag is contained in user's tags and not already in set
+            if t in pct_othertags and t not in uut_set: # aurl.tag is contained in othertags and not already in set
                 urlUserTags.append(t)
 
         # 2. Intersection of esite spectags with profile_specs
@@ -502,7 +505,7 @@ class OrbitCmeOffer(models.Model):
         # 1: offer url matches a recommended article
         recaurls = self.user.recaurls.filter(url=aurl).order_by('id')
         if recaurls.exists():
-            # Assign recaurl.cmeTag as selected tag
+            # Assign recaurl.cmeTag as pre-selected tag
             recaurl = recaurls[0]
             self.selectedTags.add(recaurl.cmeTag)
             logger.info('SelectedTag from recaurl {0}'.format(recaurl))
@@ -515,7 +518,7 @@ class OrbitCmeOffer(models.Model):
                 if t != recaurl.cmeTag:
                     self.tags.add(t)
             return
-        # 2. No recaurl. Use top tag from urlUserTags
+        # 2. No recaurl. Use top tag from urlUserTags (tag with the most votes)
         if urlUserTags:
             selTag = urlUserTags.pop(0)
             self.selectedTags.add(selTag)
@@ -528,24 +531,12 @@ class OrbitCmeOffer(models.Model):
                 if t != selTag:
                     self.tags.add(t)
             return
-        # 3. No urlUserTags. Try specTags queryset
-        if specTags.exists():
-            selTag = specTags[0]
-            self.selectedTags.add(selTag)
-            logger.info('SelectedTag from specialty {0} for offer {1.pk}'.format(selTag, self))
-            # add any remaining spectags to recommendedTags
-            if len(specTags) > 1:
-                for t in specTags[1:]:
-                    self.tags.add(t)
-            return
-        # 4. No specTags. User read an article whose esite/url tags do not intersect with user's profile tags.
-        if pct_spectags:
-            selTag = pct_spectags.pop()
-        elif pct_othertags:
-            selTag = pct_othertags.pop()
-        self.selectedTags.add(selTag)
-        logger.info('SelectedTag from non-match profileTag {0} for offer {1.pk}'.format(selTag, self))
-        return
+        # 3. No good assignment of pre-selected tag. User must explicitly select one.
+        # 2020-05-26: Previously, we used to default to any of the user's specialty tags
+        #  but this did not work for users who weren't aware that they needed to
+        #  explicitly select a different tag for their own needs.
+        self.requireUserTag = true
+        self.save(update_fields=('requireUserTag',))
 
     def setTagsFromRedeem(self, tags):
         """Called by redeem offer serializer to sync offer.selectedTags with the given tags:

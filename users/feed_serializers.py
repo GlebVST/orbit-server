@@ -66,6 +66,7 @@ class OrbitCmeOfferSerializer(serializers.ModelSerializer):
             'credits',
             'sponsor',
             'logo_url',
+            'requireUserTag',
             'recommendedTags',
             'selectedTags',
         )
