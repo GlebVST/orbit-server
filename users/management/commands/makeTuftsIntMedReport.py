@@ -9,28 +9,48 @@ from django.template.loader import get_template
 from django.utils import timezone
 from users.tuftsutils import IntMedReport, TUFTS_RECIPIENTS
 
-logger = logging.getLogger('mgmt.tuftim')
+logger = logging.getLogger('mgmt.abim')
+
+DEV_EMAILS = settings.DEV_EMAILS[0:1]
+MANAGER_EMAILS = [settings.MANAGERS[0][1]]
 
 class Command(BaseCommand):
-    help = "Generate Tufts Report for Internal Medicine providers with completed profile."
+    help = "Generate Tufts Report for Internal Medicine providers with completed profile. The command should be called daily by a cron task. The bi-monthly report will execute on days 1 and 16 of each month."
 
-    def calcReportDateRange(self, curDate=None):
+    def calcBiMonthReportDateRange(self, fixDate=None):
         """Calculate bimonthly report date range
+        Args:
+            fixDate: None/datetime from which to set endDate
+              e.g. if fixDate = 2020-05-16 => endDate = 2020-05-15 23:59:59
+            else endDate = now-1day 23:59:59 when now.day is the
+              1st and 16th of the month
         Returns tuple: (startDate: datetime, endDate: datetime)
         """
         startDate = None
         endDate = None
-        if not curDate:
-            curDate = timezone.now()
-        today = curDate.day
+        if not fixDate:
+            fixDate = timezone.now()
+        today = fixDate.day
         if (today == 1) or (today == 16):
-            ydt = curDate - timedelta(days=1)
+            ydt = fixDate - timedelta(days=1)
             endDate = datetime(ydt.year, ydt.month, ydt.day, 23, 59, 59, tzinfo=pytz.utc)
             if (today == 16):
                 sday = 1
             else:
                 sday = 16
             startDate = datetime(ydt.year, ydt.month, sday, tzinfo=pytz.utc)
+        return (startDate, endDate)
+
+    def calcYearReportDateRange(self):
+        """Calculate yearly report date range
+        Returns tuple: (startDate: datetime, endDate: datetime)
+        """
+        startDate = None
+        endDate = None
+        fixDate = timezone.now()
+        year = fixDate.year - 1
+        endDate = datetime(year, 12, 31, 23, 59, 59, tzinfo=pytz.utc)
+        startDate = datetime(year, 1, 1, tzinfo=pytz.utc)
         return (startDate, endDate)
 
     def add_arguments(self, parser):
@@ -48,6 +68,20 @@ class Command(BaseCommand):
             default=False,
             help='Only email reports to MANAGERS. Default behavior is to include Tufts recipients in prod env. Test env never includes Tufts recipients.'
         )
+        parser.add_argument(
+            '--end_of_year',
+            action='store_true',
+            dest='end_of_year',
+            default=False,
+            help='If True: all entries from the previous year are included in the report. This option is set by the cron task that should execute on Jan 1 each year.'
+        )
+        parser.add_argument(
+            '--bimonthly_enddate',
+            type=str,
+            dest='bimonthly_enddate',
+            nargs='?',
+            help='YYYYMMDD format. EndDate will be set to arg-1day 23:59:59. If not given, endDate is auto-set from current timestamp.'
+        )
 
 
     def createReport(self, startDate, endDate, options):
@@ -59,7 +93,7 @@ class Command(BaseCommand):
             settings.GSHEET_TUFTS_EVAL_DOCID,
         )
         self.mainReport = mainReport
-        mainReport.getEntries()
+        mainReport.getEntries(isEndOfYearReport=self.isEndOfYearReport)
         if mainReport.entries.exists():
             results = mainReport.makeReportData()
             # write results to StringIO csv file
@@ -80,19 +114,19 @@ class Command(BaseCommand):
         self.stdout.write('Num entries for date range {0} to {1}: {2}'.format(startDate, endDate, ctx['numEntries']))
         # create EmailMessage
         from_email = settings.EMAIL_FROM
-        cc_emails = ['ram@orbitcme.com']
-        bcc_emails = ['faria@orbitcme.com', 'logicalmath333@gmail.com']
+        cc_emails = MANAGER_EMAILS
+        bcc_emails = DEV_EMAILS
         if settings.ENV_TYPE == settings.ENV_PROD:
             if options['dry_run']:
-                to_emails = ['faria@orbitcme.com']
+                to_emails = DEV_EMAILS
                 cc_emails = []; bcc_emails = []
             else:
-                to_emails = ['ram@orbitcme.com']
+                to_emails = MANAGER_EMAILS
                 if not options['managers_only']:
                     to_emails.extend(TUFTS_RECIPIENTS)
         else:
             # NOTE: below line is for testing
-            to_emails = ['faria@orbitcme.com']
+            to_emails = DEV_EMAILS
             cc_emails = []; bcc_emails = []
         subject = "Orbit Internal Medicine Report ({0}-{1})".format(
             startReportDate.strftime('%b/%d/%Y'),
@@ -118,9 +152,23 @@ class Command(BaseCommand):
         return msg
 
     def handle(self, *args, **options):
-        #curdate = datetime(2020,5,16,tzinfo=pytz.utc)
-        curdata = None
-        startDate, endDate = self.calcReportDateRange(curdate)
+        endDate = None
+        if options['end_of_year']:
+            # Report contains all entries whose submitABIMDate is set (i.e. all entries submitted
+            # in bi-monthly reports) from Jan 1 to Dec 31 23:59:59.
+            self.isEndOfYearReport = True
+            startDate, endDate = self.calcYearReportDateRange()
+        else:
+            self.isEndOfYearReport = False
+            curDate = None
+            if options['bimonthly_enddate']:
+                # parse date
+                try:
+                    curDate = datetime.strptime(options['bimonthly_enddate'], '%Y%m%d').replace(tzinfo=pytz.utc)
+                except ValueError:
+                    self.stdout.write("ERROR. Invalid date value: {bimonthly_enddate}. Format is YYYYMMDD.".format(**options))
+                    return
+            startDate, endDate = self.calcBiMonthReportDateRange(curDate)
         if not endDate:
             self.stdout.write('Exit without running')
             return
@@ -136,6 +184,6 @@ class Command(BaseCommand):
             logger.info('makeTuftsIntMedReport send email done')
             if options['dry_run']:
                 logger.info('makeTuftsIntMedReport dry_run over')
-            else:
+            elif not self.isEndOfYearReport:
                 # bulk-update submitABIMDate on the reported entries
                 self.mainReport.updateSubmitDate(endDate)

@@ -545,28 +545,51 @@ class IntMedReport(BaseReport):
     )
 
     def makeEntryQuerySet(self, profiles):
-        """Get not-yet-submitted brcme entries for the given profiles. Note: this does not use self.startDate/endDate. It returns all
-        entries (for the given profiles) that have not yet been
-        submitted.
+        """Get not-yet-submitted brcme entries for the given profiles.
+        It returns all entries (for the given profiles) less than or equal to
+        self.endDate that have not yet been submitted.
+        Note: this does not use self.startDate.
         Returns: Entry queryset
         """
         fkwargs = dict(
             valid=True,
             entryType=EntryType.objects.get(name=ENTRYTYPE_BRCME),
-            submitABIMDate__isnull=True
+            submitABIMDate__isnull=True,
+            activityDate__lte=self.endDate
         )
         entries = Entry.objects.filter(**fkwargs) \
             .filter(user__in=Subquery(profiles.values('pk')))
         return entries
 
-    def getEntries(self):
+    def makeEndOfYearEntryQuerySet(self, profiles):
+        """The End of Year report includes all entries from
+        self.startDate to self.endDate for the given profiles
+        and whose submitABIMDate is set (e.g. already submitted
+        in a bimonthly report).
+        Returns: Entry queryset
+        """
+        fkwargs = dict(
+            valid=True,
+            entryType=EntryType.objects.get(name=ENTRYTYPE_BRCME),
+            submitABIMDate__isnull=False,
+            activityDate__gte=self.startDate,
+            activityDate__lte=self.endDate
+        )
+        entries = Entry.objects.filter(**fkwargs) \
+            .filter(user__in=Subquery(profiles.values('pk')))
+        return entries
+
+    def getEntries(self, isEndOfYearReport=False):
         """Override method to limit profiles to IntMed users who
         have completed their profile.
         Sets self.entries, self.qset_brcme, self.profiles, and 
             self.profilesById
         """
         self.profiles = Profile.objects.getProfilesForTuftsABIM()
-        entries = self.makeEntryQuerySet(self.profiles)
+        if not isEndOfYearReport:
+            entries = self.makeEntryQuerySet(self.profiles)
+        else:
+            entries = self.makeEndOfYearEntryQuerySet(self.profiles)
         self.entries = entries.order_by('activityDate', 'pk')
         #print(self.entries.query)
         # get BrowserCme instances for entries
@@ -580,7 +603,7 @@ class IntMedReport(BaseReport):
             self.profilesById[p.pk] = p
 
     def makeReportData(self):
-        """
+        """Add ABIMNumber and Birthdate keys to the data for the participant report.
         """
         results = super().makeReportData()
         for d in results:
@@ -594,4 +617,3 @@ class IntMedReport(BaseReport):
         """Set submitABIMDate on self.entries
         """
         ret = self.entries.update(submitABIMDate=submitDate)
-        print(ret)
