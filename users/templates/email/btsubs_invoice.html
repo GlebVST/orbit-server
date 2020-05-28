@@ -26,14 +26,20 @@
     <body>
     <div>
         <p>Dear {{ profile.firstName|default:"Provider" }},</p>
-        <p>This is an invoice for your recent purchase at Orbit.</p>
-        
-        <p>Your subscription to the {{ plan.display_name }} plan begins on {{ subscription.billingStartDate|date:" d M Y" }} or earlier if you activate a subscription early during a trial from the subscription view, at which time your {{ card.type }} card ending in {{ card.last4 }} expiring on {{ card.expiry }} will be charged  ${{ billingAmount }}.
-        </p>
-        {% if nextBillingDate %}
-            <p>Your subscription will renew on {{ nextBillingDate|date:" d M Y" }}, or earlier as indicated on the subscription view if you activate a subscription during a trial period.</p>
+        {% if isTrial %}
+            <p>This is a confirmation email for the start of your trial period in Orbit.</p>
+            <p>Your card will not be charged until your trial period ends, or if you activate a subscription early during the trial.<p> 
+            <p>Your subscription to the {{ plan.display_name }} plan begins on {{ subscription.billingStartDate|date:" d M Y" }} or earlier if you activate a subscription early during your trial, at which time your {{ card.type }} card ending in {{ card.last4 }} expiring on {{ card.expiry }} will be charged  ${{ billingAmount }}.
+            </p>
+        {% else %}
+            <p>This is an invoice for your recent purchase at Orbit.</p>
+            <p>Your subscription to the {{ plan.display_name }} plan begins on {{ subscription.billingStartDate|date:" d M Y" }} at which time your {{ card.type }} card ending in {{ card.last4 }} expiring on {{ card.expiry }} will be charged  ${{ billingAmount }}.
+            </p>
+            {% if nextBillingDate %}
+                <p>Your subscription will renew on {{ nextBillingDate|date:" d M Y" }}.</p>
+            {% endif %}
         {% endif %}
-        <p>To access your subscription view, please click <a class="orbit-href" target="_blank" rel="noreferrer" href="https://{{ server_hostname }}{{ subscription_link }}">here</a>.</p>
+        <p>To access or change your subscription, please click: <a class="orbit-href" target="_blank" rel="noreferrer" href="https://{{ server_hostname }}{{ subscription_link }}">Access My Orbit Subscription</a>.</p>
 
         {% include "email/mailto_support_snippet.html" %}
         {% include "email/basic_footer.html" %}

@@ -120,6 +120,7 @@ def sendFirstSubsInvoiceEmail(user, user_subs, payment_method, subs_trans=None):
         'plan': plan,
         'nextBillingDate': nextBillingDate,
         'billingAmount': billingAmount,
+        'isTrial': user_subs.display_status == UserSubscription.UI_TRIAL,
     }
     setCommonContext(ctx)
     orig_message = get_template('email/btsubs_invoice.html').render(ctx)
