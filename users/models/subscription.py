@@ -62,14 +62,34 @@ class Affiliate(models.Model):
         on_delete=models.CASCADE,
         primary_key=True
     )
-    displayLabel = models.CharField(max_length=60, blank=True, default='', help_text='identifying label used in display')
+    displayLabel = models.CharField(max_length=60, blank=True, default='', help_text='Identifying label used by UI for display')
     paymentEmail = models.EmailField(help_text='Valid email address to be used for Payouts.')
-    bonus = models.DecimalField(max_digits=3, decimal_places=2, default=0.15, help_text='Fractional multipler on fully discounted priced paid by convertee')
+    bonus = models.DecimalField(max_digits=3, decimal_places=2, default=None,
+        blank=True,
+        null=True,
+        help_text='Fractional multipler on fully discounted price paid by convertee. Either bonus or payout must be specified.')
+    payout = models.DecimalField(max_digits=5, decimal_places=2, default=None,
+        blank=True,
+        null=True,
+        help_text='Fixed payout. Is capped by the fully discounted price paid by convertee. Either bonus or payout must be specified.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return '{0.displayLabel}'.format(self)
+
+    def calculatePayout(self, price):
+        """Args:
+            price: price paid by convertee (all discounts applied)
+        Returns: Decimal
+        """
+        if self.bonus:
+            return self.bonus*price
+        if self.payout:
+            if self.payout < price:
+                return self.payout
+            return price # payout capped by price
+        return 0
 
 class AffiliateDetail(models.Model):
     affiliate = models.ForeignKey(Affiliate,
@@ -455,7 +475,7 @@ class BatchPayout(models.Model):
         return 'SBID:{0.sender_batch_id}|PBID:{0.payout_batch_id}'.format(self)
 
 # An convertee is given the invitee-discount once for the 1st billing cycle.
-# An affiliate is paid the per-user bonus once the convertee begins an Active subscription.
+# An affiliate is paid the per-user bonus/payout once the convertee begins an Active subscription.
 class AffiliatePayoutManager(models.Manager):
     def calcTotalByAffiliate(self):
         """Find rows with batchpayout=null (rows that have not been processed yet).
@@ -541,7 +561,7 @@ class AffiliatePayout(models.Model):
             help_text='PayPal-generated item identifier. Exists even if there is no transactionId.')
     transactionId = models.CharField(max_length=36, blank=True, default='',
             help_text='PayPal-generated id for the transaction.')
-    amount = models.DecimalField(max_digits=5, decimal_places=2, help_text='per_user bonus paid to affiliate in USD.')
+    amount = models.DecimalField(max_digits=5, decimal_places=2, help_text='per-user payout paid to affiliate in USD.')
     status = models.CharField(max_length=20, blank=True, choices=STATUS_CHOICES, default=UNSET,
             help_text='PayPal-defined item transaction status')
     created = models.DateTimeField(auto_now_add=True)
@@ -1423,8 +1443,8 @@ class UserSubscriptionManager(models.Manager):
                         invitee=user,
                         inviteeDiscount=inv_discount
                     )
-                elif is_convertee and affl.bonus > 0 and not AffiliatePayout.objects.filter(convertee=user).exists():
-                    afp_amount = affl.bonus*subs_price
+                elif is_convertee and not AffiliatePayout.objects.filter(convertee=user).exists():
+                    afp_amount = affl.calculatePayout(subs_price)
                     AffiliatePayout.objects.create(
                         convertee=user,
                         converteeDiscount=inv_discount,

@@ -321,8 +321,31 @@ class CustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'customerId', 'balance', 'modified')
     search_fields = ['customerId',]
 
+class AffiliateForm(forms.ModelForm):
+
+    class Meta:
+        model = Affiliate
+        exclude = (
+            'created',
+            'modified'
+        )
+
+    def clean(self):
+        """Validation checks
+        """
+        cleaned_data = super(AffiliateForm, self).clean()
+        bonus = cleaned_data.get('bonus')
+        payout = cleaned_data.get('payout')
+        if bonus and payout:
+            self.add_error('bonus', 'Bonus and Fixed Payout are mutually exclusive. Exactly one must be specified and the other left blank.')
+        if bonus < 0:
+            self.add_error('bonus', 'Bonus must be a value between 0 and 1.')
+        if payout < 0:
+            self.add_error('payout', 'Fixed payout must be a positive number.')
+
 class AffiliateAdmin(admin.ModelAdmin):
-    list_display = ('user', 'displayLabel', 'paymentEmail', 'bonus', 'modified')
+    list_display = ('user', 'displayLabel', 'paymentEmail', 'bonus', 'payout', 'modified')
+    form = AffiliateForm
     ordering = ('displayLabel',)
 
 class AffiliateDetailAdmin(admin.ModelAdmin):
