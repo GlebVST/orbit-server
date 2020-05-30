@@ -535,7 +535,7 @@ class OrbitCmeOffer(models.Model):
         # 2020-05-26: Previously, we used to default to any of the user's specialty tags
         #  but this did not work for users who weren't aware that they needed to
         #  explicitly select a different tag for their own needs.
-        self.requireUserTag = true
+        self.requireUserTag = True
         self.save(update_fields=('requireUserTag',))
 
     def setTagsFromRedeem(self, tags):
