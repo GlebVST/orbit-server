@@ -114,16 +114,15 @@ class Command(BaseCommand):
         self.stdout.write('Num entries for date range {0} to {1}: {2}'.format(startDate, endDate, ctx['numEntries']))
         # create EmailMessage
         from_email = settings.EMAIL_FROM
-        cc_emails = MANAGER_EMAILS
-        bcc_emails = DEV_EMAILS
         if settings.ENV_TYPE == settings.ENV_PROD:
             if options['dry_run']:
                 to_emails = DEV_EMAILS
                 cc_emails = []; bcc_emails = []
             else:
-                to_emails = MANAGER_EMAILS
+                to_emails = MANAGER_EMAILS[:] # make copy before calling extend
                 if not options['managers_only']:
                     to_emails.extend(TUFTS_RECIPIENTS)
+                cc_emails = []; bcc_emails = DEV_EMAILS
         else:
             # NOTE: below line is for testing
             to_emails = DEV_EMAILS
