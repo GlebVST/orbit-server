@@ -1596,7 +1596,9 @@ class UserSubscriptionManager(models.Manager):
         Returns (Braintree result object, UserSubscription)
         """
         old_plan = user_subs.plan
-        logger.info('Upgrading from {0.planId} {0.name} ({0.plan_type.name}) to {1.planId} {1.name} ({1.plan_type.name})'.format(old_plan, new_plan))
+        user = user_subs.user
+        profile = user.profile
+        logger.info('Upgrading from {0.planId} {0.name} ({0.plan_type.name}) to {1.planId} {1.name} ({1.plan_type.name}) for user:{2}'.format(old_plan, new_plan, user))
         # check if a Free Trial subs then skip BT lookup
         if not old_plan.isFreeIndividual() and not settings.ENV_TYPE == settings.ENV_PROD:
             # In test env, we deliberately make db different from bt (e.g. to test suspended accounts)
@@ -1657,6 +1659,11 @@ class UserSubscriptionManager(models.Manager):
         if result.is_success:
             logger.info('upgradePlan result: {0.is_success}'.format(result))
             new_user_subs = self.createSubscriptionFromBt(user, new_plan, result.subscription)
+            # update profile: check for add/deactivate tags
+            try:
+                ret = profile.updateProfileForNewPlan(old_plan, new_plan)
+            except Exception as e:
+                logger.error('upgradePlan: updateProfileForNewPlan exception for user {0}'.format(user))
             return (result, new_user_subs)
         else:
             logger.warning('upgradePlan result: {0.is_success}'.format(result))
@@ -2096,7 +2103,9 @@ class UserSubscriptionManager(models.Manager):
             new_plan: SubscriptionPlan
         Returns: UserSubscription instance / None if none created
         """
+        old_plan = user_subs.plan
         user = user_subs.user
+        profile = user.profile
         try:
             pm = Customer.objects.getPaymentMethods(user.customer)[0]
         except IndexError:
@@ -2136,6 +2145,11 @@ class UserSubscriptionManager(models.Manager):
         result = braintree.Subscription.create(subs_params)
         new_user_subs = UserSubscription.objects.createSubscriptionFromBt(user, new_plan, result.subscription)
         logger.info('switchPlanNoCharge: user {0}: Old: {1.pk}|{1} on {1.plan}. New: {2.pk}|{2}|{2.plan}'.format(user, user_subs, new_user_subs))
+        # update profile: check for add/deactivate tags
+        try:
+            ret = profile.updateProfileForNewPlan(old_plan, new_plan)
+        except Exception as e:
+            logger.error('switchPlan: updateProfileForNewPlan exception for user {0}'.format(user))
         return new_user_subs
 
     def updateLatestUserSubsAndTransactions(self, user):

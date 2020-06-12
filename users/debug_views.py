@@ -348,6 +348,13 @@ class EmailSubscriptionCancelReminder(APIView):
             return Response(context, status=status.HTTP_200_OK)
 
 
+class DocumentList(generics.ListAPIView):
+    serializer_class = DocumentReadSerializer
+    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
+
+    def get_queryset(self):
+        return Document.objects.filter(user=self.request.user)
+
 class OrgMemberFilterBackend(BaseFilterBackend):
     def get_schema_fields(self, view):
         return [

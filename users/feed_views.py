@@ -224,6 +224,20 @@ class UpdateBrowserCme(LogValidationErrorMixin, TagsMixin, ExtUpdateAPIView):
     def get_queryset(self):
         return BrowserCme.objects.select_related('entry')
 
+    def perform_update(self, serializer, format=None):
+        """Raise ValidationError is submitABADate or submitABIMDate
+        is set (entry may not be edited)
+        """
+        brcme = self.get_object()
+        entry = brcme.entry
+        if entry.submitABADate or entry.submitABIMDate:
+            error_msg = 'EntryId {0.pk} is read-only.'.format(entry)
+            logWarning(logger, self.request, error_msg)
+            raise serializers.ValidationError({'id': error_msg}, code='invalid')
+        with transaction.atomic():
+            instance = serializer.save()
+        return instance
+
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()

@@ -478,7 +478,7 @@ class DeleteDocument(APIView):
     It finds the associated documents and deletes them.
     This also checks that request.user owns the document-id, else return 400.
     Example JSON:
-        {"document-ids": [1,2,3]}
+        {"document-id": [1,2,3]}
     """
     permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):

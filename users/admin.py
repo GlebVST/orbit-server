@@ -39,12 +39,16 @@ class DegreeAdmin(admin.ModelAdmin):
 
 
 class PracticeSpecialtyAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'formatTags', 'formatSubSpecialties')
+    list_display = ('id', 'name', 'gsearchEngineid', 'formatTags', 'formatSubSpecialties')
     filter_horizontal = ('cmeTags',)
 
     def get_queryset(self, request):
         qs = super(PracticeSpecialtyAdmin, self).get_queryset(request)
         return qs.prefetch_related('cmeTags', 'subspecialties')
+
+    def gsearchEngineid(self, obj):
+        return obj.gsearchengid
+    gsearchEngineid.short_description = 'GSearchEngineID'
 
 class SubSpecialtyAdmin(admin.ModelAdmin):
     list_display = ('id', 'specialty', 'name', 'formatTags')

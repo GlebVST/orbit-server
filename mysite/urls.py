@@ -191,6 +191,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
         url(r'^debug/audit-report/(?P<userid>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', debug_views.CreateAuditReport.as_view()),
         url(r'^debug/validate-license-file/(?P<pk>[0-9]+)/?$', debug_views.ValidateLicenseFile.as_view()),
         url(r'^debug/recaurls-for-user/(?P<userid>[0-9]+)/?$', debug_views.RecAllowedUrlListForUser.as_view()),
+        url(r'^debug/documents/?$', debug_views.DocumentList.as_view()),
     ])
 
 

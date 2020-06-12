@@ -369,6 +369,8 @@ class PracticeSpecialty(models.Model):
     is_primary = models.BooleanField(default=False, help_text='True if this is a Primary Specialty Certificate')
     planText = models.CharField(max_length=500, blank=True, default='',
             help_text='Default response for changes to clinical plan')
+    gsearchengid = models.CharField(max_length=50, blank=True, default='',
+            help_text='Google search engine ID to use for this specialty. Must match a valid ID defined in the google console.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
