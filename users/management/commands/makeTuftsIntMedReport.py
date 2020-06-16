@@ -88,6 +88,8 @@ class Command(BaseCommand):
         """Calculate data and create EmailMessage.
         If no results for this period, we still send an email notification.
         """
+        startReportDate = startDate
+        endReportDate = endDate
         mainReport = IntMedReport(startDate, endDate,
             settings.GAUTH_SERVICE_CREDENTIALS_FILE,
             settings.GSHEET_TUFTS_EVAL_DOCID,
@@ -98,8 +100,6 @@ class Command(BaseCommand):
             results = mainReport.makeReportData()
             # write results to StringIO csv file
             cf = mainReport.createReportCsv(results)
-            startReportDate = startDate
-            endReportDate = endDate
             # make summaryCsv
             ctx = mainReport.makeContext()
             summaryCsvFile = mainReport.createSummaryCsv(ctx, startReportDate, endReportDate)
