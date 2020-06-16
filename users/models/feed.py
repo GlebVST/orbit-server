@@ -507,6 +507,23 @@ class Entry(models.Model):
         """Returns number of associated documents"""
         return self.documents.all().count()
 
+    def checkAddUserSpecTag(self):
+        """Checks if should add user specialty-name tag to self.tags
+        Returns: bool - True if spectag was added, else False.
+        """
+        num_tags = self.tags.all().count()
+        if num_tags > 1:
+            return False
+        entryTag = self.tags.all()[0]
+        # The exempt tags are pre-selected, so check if any other tag is present
+        if not entryTag.exemptFrom1Tag:
+            return False
+        # entry has only an exempt tag, so can add specialty tag
+        ps = self.user.profile.specialties.all()[0]
+        spectag = CmeTag.objects.get(name=ps.name)
+        self.tags.add(spectag)
+        return True
+
     class Meta:
         verbose_name_plural = 'Entries'
         # custom permissions

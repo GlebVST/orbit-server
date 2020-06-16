@@ -298,6 +298,8 @@ class BRCmeCreateSerializer(serializers.Serializer):
         tag_ids = validated_data.get('tags', [])
         if tag_ids:
             entry.tags.set(tag_ids)
+        if offer.requireUserTag:
+            entry.checkAddUserSpecTag()
         # Using parent entry, create BrowserCme instance
         aurl = offer.url # AllowedUrl instance
         instance = BrowserCme.objects.create(
