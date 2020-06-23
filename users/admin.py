@@ -930,6 +930,39 @@ class OrbitCmeOfferAdmin(admin.ModelAdmin):
     lastModified.short_description = 'Modified'
     lastModified.admin_order_field = 'modified'
 
+class HashTagAdmin(admin.ModelAdmin):
+    list_display = ('id', 'code', 'description', 'formatSpecialties', 'formatSubSpecialties')
+    ordering = ('code',)
+    filter_horizontal = ('specialties', 'subspecialties')
+
+
+class InfluencerGroupAdmin(admin.ModelAdmin):
+    list_display = ('id','name','twitter_handle','tweet_template')
+    ordering = ('name',)
+
+class InfluencerMembershipForm(forms.ModelForm):
+    class Meta:
+        model = InfluencerMembership
+        fields = ('__all__')
+        widgets = {
+            'user': autocomplete.ModelSelect2(
+                url='useremail-autocomplete',
+                attrs={
+                    'data-placeholder': 'User',
+                    'data-minimum-input-length': 2,
+                }
+            ),
+        }
+
+class InfluencerMembershipAdmin(admin.ModelAdmin):
+    list_display = ('id','group','user','created')
+    list_filter = ('group', UserFilter)
+    ordering = ('-created',)
+    form = InfluencerMembershipForm
+
+    class Media:
+        pass
+
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
 admin_site.register(AffiliateDetail, AffiliateDetailAdmin)
@@ -976,6 +1009,12 @@ admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 admin_site.register(SubSpecialty, SubSpecialtyAdmin)
 admin_site.register(UserCmeCredit, UserCmeCreditAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
+#
+# social models
+#
+admin_site.register(HashTag, HashTagAdmin)
+admin_site.register(InfluencerGroup, InfluencerGroupAdmin)
+admin_site.register(InfluencerMembership, InfluencerMembershipAdmin)
 #
 # plugin models
 #
