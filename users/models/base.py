@@ -45,9 +45,8 @@ Q_ADMIN = Q(username__in=('admin','radmin')) # django admin users not in auth0
 Q_IMPERSONATOR = Q(is_staff=True) & ~Q_ADMIN
 
 def default_expire():
-    """1 hour from now"""
+    """Used by AuthImpersonation"""
     return timezone.now() + timedelta(seconds=3600)
-
 
 @python_2_unicode_compatible
 class AuthImpersonation(models.Model):
