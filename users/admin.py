@@ -340,11 +340,11 @@ class AffiliateForm(forms.ModelForm):
         cleaned_data = super(AffiliateForm, self).clean()
         bonus = cleaned_data.get('bonus')
         payout = cleaned_data.get('payout')
-        if bonus and payout:
+        if bonus and payout or (not bonus and not payout):
             self.add_error('bonus', 'Bonus and Fixed Payout are mutually exclusive. Exactly one must be specified and the other left blank.')
-        if bonus < 0:
+        if bonus and bonus < 0:
             self.add_error('bonus', 'Bonus must be a value between 0 and 1.')
-        if payout < 0:
+        if payout and payout < 0:
             self.add_error('payout', 'Fixed payout must be a positive number.')
 
 class AffiliateAdmin(admin.ModelAdmin):
