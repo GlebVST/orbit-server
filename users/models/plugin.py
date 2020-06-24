@@ -15,6 +15,7 @@ from common.appconstants import MAX_URL_LENGTH
 from .base import (
     CmeTag,
     ProfileCmetag,
+    PracticeSpecialty,
     EligibleSite,
     Organization
 )
@@ -112,6 +113,7 @@ class AllowedUrl(models.Model):
     valid = models.BooleanField(default=True)
     page_title = models.TextField(blank=True, default='')
     metadata = models.TextField(blank=True, default='')
+    diff_diagnosis = models.TextField(blank=True, default='')
     doi = models.CharField(max_length=100, blank=True,
         help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
     pmid = models.CharField(max_length=20, blank=True, help_text='PubMed Identifier (PMID)')
@@ -693,3 +695,106 @@ class RecAllowedUrl(models.Model):
 
     def __str__(self):
         return '{0.user}|{0.cmeTag}|{0.url}'.format(self)
+
+#
+# Models for related article recommendation
+#
+class Topic(models.Model):
+    name= models.CharField(max_length=100, help_text='Topic name')
+    lcname= models.CharField(max_length=100, help_text='Topic name - all lowercased')
+    specialty = models.ForeignKey(PracticeSpecialty,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='topics',
+    )
+    source_aurl= models.ForeignKey(AllowedUrl,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='topics',
+        help_text='AllowedUrl source of this topic'
+    )
+    diffdiag_topics = models.ManyToManyField('self',
+        related_name='diffdiag_parents',
+        symmetrical=False,
+        through='DiffDiagnosis',
+        blank=True,
+        help_text='Related topics listed under Differential Diagnosis for this topic'
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_topic'
+        unique_together = ('specialty', 'lcname')
+        ordering = ('specialty', 'name')
+
+    def __str__(self):
+        return "{0.name}|{0.specialty}".format(self)
+
+class DiffDiagnosis(models.Model):
+    from_topic = models.ForeignKey(Topic, related_name='from_topics', on_delete=models.CASCADE, db_index=True)
+    to_topic = models.ForeignKey(Topic, related_name='to_topics', on_delete=models.CASCADE)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_diffdiagnosis'
+        unique_together = ('from_topic','to_topic')
+
+    def __str__(self):
+        return "{0.from_topic.name} to {0.to_topic.name}".format(self)
+
+class GArticleSearch(models.Model):
+    SEARCH_TERM_MAX_LENGTH = 500
+    search_term = models.CharField(max_length=SEARCH_TERM_MAX_LENGTH, help_text='search term passed to the query')
+    gsearchengid = models.CharField(max_length=50, help_text='Google search engineid passed to the query')
+    specialties = models.ManyToManyField(PracticeSpecialty,
+        blank=True,
+        related_name='garticlesearches')
+    users = models.ManyToManyField(User,
+        related_name='garticlesearches',
+        through='GArticleSearchLog',
+        blank=True,
+    )
+    results = JSONField(blank=True)
+    processed_results = JSONField(blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_garticlesearch'
+        unique_together = ('search_term','gsearchengid')
+        verbose_name = 'Google Article Search'
+        verbose_name_plural = 'Google Article Searches'
+
+    def __str__(self):
+        return self.search_term
+
+class GArticleSearchLog(models.Model):
+    user = models.ForeignKey(User,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='garticlesearchlogs',
+    )
+    search = models.ForeignKey(GArticleSearch,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='garticlesearchlogs',
+    )
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_garticlesearchlog'
+        unique_together = ('user','search')
+        verbose_name = 'Google Article Search Log'
+        verbose_name_plural = 'Google Article Search Logs'
+
+    def __str__(self):
+        return "{0.user} on {0.created}".format(self)
