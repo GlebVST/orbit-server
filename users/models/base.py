@@ -735,6 +735,8 @@ class Profile(models.Model):
     is_affiliate = models.BooleanField(default=False, help_text='True if user is an approved affiliate')
     accessedTour = models.BooleanField(default=False, help_text='User has commenced the online product tour')
     syncDataToOrg = models.BooleanField(default=False, help_text='Used for indiv_subscriber OrgMember users to allow them to opt-in to share data wit the Org.')
+    allowArticleSearch = models.BooleanField(default=False,
+        help_text='Enable Related Article rail in plugin for this user.')
     cmeStartDate = models.DateTimeField(null=True, blank=True, help_text='Start date for CME requirements calculation')
     cmeEndDate = models.DateTimeField(null=True, blank=True, help_text='Due date for CME requirements fulfillment')
     affiliateId = models.CharField(max_length=20, blank=True, default='', help_text='If conversion, specify Affiliate ID')

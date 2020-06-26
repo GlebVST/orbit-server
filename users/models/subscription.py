@@ -733,6 +733,8 @@ class SubscriptionPlan(models.Model):
         help_text='If false, this plan is not available to the general public (e.g. RP Advanced). Used for Braintree plans.')
     displayMonthlyPrice = models.BooleanField(default=False,
         help_text='Flag controls if UI displays price as per month in credit card screen')
+    allowArticleSearch = models.BooleanField(default=False,
+        help_text='Enable Related Article rail in plugin for users on this plan.')
     plan_type = models.ForeignKey(SubscriptionPlanType,
         on_delete=models.PROTECT,
         db_index=True,

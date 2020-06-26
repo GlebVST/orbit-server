@@ -296,7 +296,7 @@ class ProfileAdmin(admin.ModelAdmin):
         'formatSpecialties',
     )
     list_select_related = ('organization',)
-    list_filter = ('verified','npiType', 'degrees', 'organization', 'specialties')
+    list_filter = ('verified','npiType', 'allowArticleSearch', 'degrees', 'organization', 'specialties')
     search_fields = ['user__email', 'npiNumber', 'lastName', 'ABANumber', 'ABIMNumber']
     filter_horizontal = (
         'specialties',
@@ -589,7 +589,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'formatTags'
     )
     list_select_related = True
-    list_filter = ('active', 'is_public', 'plan_type', 'plan_key', 'organization')
+    list_filter = ('active', 'is_public', 'plan_type', 'allowArticleSearch', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
     filter_horizontal = ('tags',)
     form = PlanForm
@@ -607,7 +607,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits')
         }),
         ('Other', {
-            'fields': ('is_public', 'trialDays','billingCycleMonths', 'allowProfileStateTags', 'active', 'welcome_offer_url')
+            'fields': ('is_public', 'trialDays','billingCycleMonths', 'allowArticleSearch', 'allowProfileStateTags', 'active', 'welcome_offer_url')
         })
     )
 

@@ -21,7 +21,7 @@ class InfluencerGroupManager(models.Manager):
 
 class InfluencerGroup(models.Model):
     name = models.CharField(max_length=80, unique=True, help_text='Influencer group name.')
-    twitter_handle = models.CharField(max_length=20, blank=True, default='', help_text="Twitter handle (including the '@').")
+    twitter_handle = models.CharField(max_length=20, blank=True, default='', help_text="Twitter handle (do not include the '@').")
     tweet_template = models.TextField(blank=True, default='',
         help_text='Tweet template. Template variables must be valid/be recognized by client/server code.')
     users = models.ManyToManyField(User,
@@ -88,7 +88,7 @@ class HashTagManager(models.Manager):
         return qs
 
 class HashTag(models.Model):
-    code = models.CharField(max_length=30, unique=True, help_text='#hastag_code. Must be unique.')
+    code = models.CharField(max_length=30, unique=True, help_text="Unique Code (do not include the '#').")
     description = models.TextField(blank=True, default='', help_text='Description')
     specialties = models.ManyToManyField(PracticeSpecialty,
         blank=True,
