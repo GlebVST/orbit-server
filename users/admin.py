@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 from django import forms
 from django.contrib import admin,messages
 from django.db.models import Count, Q, Subquery
+from django.utils.safestring import mark_safe
 from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
@@ -296,7 +297,7 @@ class ProfileAdmin(admin.ModelAdmin):
         'formatSpecialties',
     )
     list_select_related = ('organization',)
-    list_filter = ('verified','npiType', 'allowArticleSearch', 'degrees', 'organization', 'specialties')
+    list_filter = ('verified', 'allowArticleSearch', UserFilter,'degrees', 'organization', 'specialties')
     search_fields = ['user__email', 'npiNumber', 'lastName', 'ABANumber', 'ABIMNumber']
     filter_horizontal = (
         'specialties',
@@ -307,6 +308,37 @@ class ProfileAdmin(admin.ModelAdmin):
     inlines = [
         ProfileCmetagInline,
     ]
+    actions = ('toggleAllowArticleSearch',)
+    class Media:
+        pass
+
+
+    def get_actions(self, request):
+        """Remove default bulk-delete operation since it should be in sync w. auth0"""
+        actions = super().get_actions(request)
+        if 'delete_selected' in actions:
+            del actions['delete_selected']
+        return actions
+
+    def toggleAllowArticleSearch(self, request, queryset):
+        num_users = len(queryset)
+        if num_users == 0:
+            errmsg = 'Select user profile (use the User Filter dropdown menu if needed), and then select this action to toggle permission.'
+            self.message_user(request, errmsg, level=messages.ERROR)
+            return
+        data = []
+        for profile in queryset:
+            profile.allowArticleSearch = not profile.allowArticleSearch
+            profile.save(update_fields=('allowArticleSearch',))
+            if profile.allowArticleSearch:
+                status = "ON"
+            else:
+                status = "OFF"
+            data.append("{0}: {1}".format(profile, status))
+        msg = "Toggled Related Article Rail permission for num_users: {0}<br />".format(num_users)
+        msg += "<br />".join(data)
+        self.message_user(request, mark_safe(msg), level=messages.SUCCESS)
+    toggleAllowArticleSearch.short_description = 'Select user profile to toggle Related Article rail permission'
 
     def get_queryset(self, request):
         qs = super(ProfileAdmin, self).get_queryset(request)

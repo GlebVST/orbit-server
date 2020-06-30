@@ -734,7 +734,7 @@ class SubscriptionPlan(models.Model):
     displayMonthlyPrice = models.BooleanField(default=False,
         help_text='Flag controls if UI displays price as per month in credit card screen')
     allowArticleSearch = models.BooleanField(default=False,
-        help_text='Enable Related Article rail in plugin for users on this plan.')
+        help_text="Enable Related Article rail in plugin for users on this plan. This field is OR'd with the per-profile allowArticleSearch to decide the permission.")
     plan_type = models.ForeignKey(SubscriptionPlanType,
         on_delete=models.PROTECT,
         db_index=True,
