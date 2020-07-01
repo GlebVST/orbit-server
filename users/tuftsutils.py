@@ -2,7 +2,7 @@ import logging
 import csv
 import gspread
 from io import StringIO
-from django.db.models import Subquery
+from django.db.models import Q, Subquery
 from django.utils import timezone
 from users.models import (
     ENTRYTYPE_BRCME,
@@ -367,17 +367,27 @@ class BaseReport:
         cf = output.getvalue() # to be used as attachment for EmailMessage
         return cf
 
+    def getEntryFeedback(self):
+        """Get list of entry-specific UserFeedback messages having either hasBias or UnfairContent = true.
+        Returns: list of strs
+        """
+        qf = Q(hasBias=True) | Q(hasUnfairContent=True)
+        fkwargs = dict(
+            entry__isnull=False,
+            created__gte=self.startDate,
+            created__lte=self.endDate
+        )
+        qs = UserFeedback.objects.filter(qf, **fkwargs).order_by('created')
+        data = [m.message for m in qs]
+        return data
+
     def makeContext(self):
         """Returns context dictionary - used by getSummaryCsv
         """
         planEffectStats, planTextStats, planTextOther = self.calcPlanStats()
         (commBiasStats, commBiasComments) = self.calcResponseStats('commercialBias')
         # UserFeedback associated with entries (entrySpecific)
-        entryFeedback = UserFeedback.objects.filter(
-            entry__isnull=False,
-            created__gte=self.startDate,
-            created__lte=self.endDate
-            ).order_by('created')
+        entryFeedback = self.getEntryFeedback()
         ctx = {
             'startDate': self.startDate,
             'endDate': self.endDate,
