@@ -1,7 +1,6 @@
 import logging
 import csv
 import gspread
-from google.oauth2.service_account import Credentials
 from io import StringIO
 from django.db.models import Subquery
 from django.utils import timezone
@@ -103,9 +102,7 @@ class BaseReport:
         self.endDate = endDate
         msg = "Report date range: {0.startDate:%Y-%m-%d} to {0.endDate:%Y-%m-%d}".format(self)
         logger.info(msg)
-        scopes = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
-        credentials = Credentials.from_service_account_file(cred_fpath, scopes=scopes)
-        gc = gspread.authorize(credentials)
+        gc = gspread.authorize(cred_fpath)
         self.sheet = gc.open_by_key(docid).sheet1
 
 
