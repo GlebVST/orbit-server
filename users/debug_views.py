@@ -331,11 +331,8 @@ class EmailSubscriptionCancelReminder(APIView):
         paymentMethods = Customer.objects.getPaymentMethods(user.customer)
         pm = paymentMethods[0]
         user_subs = UserSubscription.objects.getLatestSubscription(user)
-        extra_data = {
-            'totalCredits': int(BrowserCme.objects.totalCredits())
-        }
         try:
-            sendCancelReminderEmail(user_subs, pm, extra_data)
+            sendCancelReminderEmail(user_subs, pm)
         except SMTPException as e:
             logException(logger, request, 'EmailSubscriptionCancelReminder failed.')
             context = {'success': False, 'message': 'Failure sending email'}

@@ -14,10 +14,6 @@ class Command(BaseCommand):
     help = "Find all active susbcriptions within CUTOFF days of billingEndDate and send out reminder email."
 
     def handle(self, *args, **options):
-        # calculate once (used for all emails in this executation) the total BrowserCme credits earned
-        extra_data = {
-            'totalCredits': int(BrowserCme.objects.totalCredits())
-        }
         now = timezone.now()
         cutoffDate = now + timedelta(days=CUTOFF)
         f_status = (
@@ -45,10 +41,9 @@ class Command(BaseCommand):
                     else:
                         emailFunc = sendRenewalReminderEmail
                     if emailFunc:
-                        emailFunc(m, pm, extra_data)
+                        emailFunc(m, pm)
+                        subs_email.remind_renew_sent = True
+                        subs_email.save()
+                        logger.info('Reminder email to {0.email} sent.'.format(user))
                 except SMTPException as e:
                     logger.exception('Reminder email to {0.email} failed.'.format(user))
-                else:
-                    subs_email.remind_renew_sent = True
-                    subs_email.save()
-                    logger.info('Reminder email to {0.email} sent.'.format(user))

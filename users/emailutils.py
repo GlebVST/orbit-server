@@ -447,13 +447,12 @@ def sendCardExpiredAlertEmail(user_subs, payment_method):
     msg.send()
 
 
-def sendRenewalReminderEmail(user_subs, payment_method, extra_data):
+def sendRenewalReminderEmail(user_subs, payment_method):
     """Send reminder email about subscription renewal.
     If payment_method has expired, then inform user.
     Args:
         user_subs: UserSubscription instance
         payment_method:dict from Customer vault (getPaymentMethods)
-        extra_data:dict {totalCredits:Decimal}
     """
     from_email = settings.EMAIL_FROM
     user = user_subs.user
@@ -468,7 +467,6 @@ def sendRenewalReminderEmail(user_subs, payment_method, extra_data):
         'plan': user_subs.plan,
         'nextBillingDate': nextBillingDate,
         'nextBillingAmount': user_subs.nextBillingAmount,
-        'totalCredits': extra_data['totalCredits']
     }
     setCommonContext(ctx)
     orig_message = get_template('email/renewal_reminder.html').render(ctx)
@@ -489,13 +487,12 @@ def sendRenewalReminderEmail(user_subs, payment_method, extra_data):
     msg.content_subtype = 'html'
     msg.send()
 
-def sendCancelReminderEmail(user_subs, payment_method, extra_data):
+def sendCancelReminderEmail(user_subs, payment_method):
     """Send reminder email to user that their subscription is set to expire at billingEndDate and will not renew.
     This is called when user_subs status is ACTIVE_CANCELED.
     Args:
         user_subs: UserSubscription instance
         payment_method:dict from Customer vault (getPaymentMethods)
-        extra_data:dict {totalCredits:Decimal}
     """
     from_email = settings.EMAIL_FROM
     user = user_subs.user
@@ -505,7 +502,6 @@ def sendCancelReminderEmail(user_subs, payment_method, extra_data):
         'profile': user.profile,
         'subscription': user_subs,
         'plan': user_subs.plan,
-        'totalCredits': extra_data['totalCredits']
     }
     setCommonContext(ctx)
     orig_message = get_template('email/cancel_reminder.html').render(ctx)

@@ -22,6 +22,10 @@
                 font-size: 11px;
                 color: #999;
             }
+            .footer p.timestamp {
+                font-size: 10px;
+                color: #888;
+            }
         </style>
     </head>
     <body>
@@ -35,9 +39,7 @@
             <p>Best regards,</p>
             <p>The Orbit Team</p>
         </div>
-        <div class="footer">
-            <p>You are receiving this email because you made a purchase at <a href="https://{{ server_hostname }}" class="orbit-href" target="_blank" rel="noreferrer">Orbit</a>.</p>
-        </div>
+        {% include "email/basic_footer.html" %}
     </div>
     </body>
 </html>

@@ -24,6 +24,10 @@
                 font-size: 11px;
                 color: #999;
             }
+            .footer p.timestamp {
+                font-size: 10px;
+                color: #888;
+            }
         </style>
     </head>
     <body>
@@ -36,7 +40,6 @@
 
         <p>To resume your subscription, please click <a class="orbit-href" target="_blank" rel="noreferrer" href="https://{{ server_hostname }}{{ subscription_link }}">here</a>.</p>
 
-        {% include "email/orbit_highlights.html" %}
         {% include "email/mailto_support_snippet.html" %}
         {% include "email/basic_footer.html" %}
     </div>
