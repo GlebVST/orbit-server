@@ -1,4 +1,4 @@
-amqp==2.5.2
+amqp==2.6.0
 appdirs==1.4.3
 appnope==0.1.0
 argon2-cffi==19.1.0
@@ -11,7 +11,7 @@ boto3==1.9.229
 botocore==1.12.229
 braintree==4.1.0
 cachetools==3.1.0
-celery==4.4.2
+celery==4.4.6
 certifi==2019.3.9
 cffi==1.12.2
 chardet==3.0.4
@@ -36,6 +36,7 @@ django-storages==1.9.1
 djangorestframework==3.8.2
 docutils==0.14
 enum34==1.1.6
+future==0.18.2
 fuzzywuzzy==0.18.0
 google-auth==1.14.1
 google-auth-oauthlib==0.4.1
@@ -49,9 +50,9 @@ itypes==1.1.0
 jedi==0.15.1
 Jinja2==2.9.6
 jmespath==0.9.3
-kombu==4.6.8
+kombu==4.6.10
 logdna==1.5.3
-lxml==4.3.4
+lxml==4.5.1
 MarkupSafe==1.0
 numpy==1.18.1
 oauthlib==2.0.7
@@ -63,8 +64,9 @@ parso==0.5.1
 pathlib2==2.3.3
 pexpect==4.6.0
 pickleshare==0.7.5
-Pillow==7.1.1
-premailer==3.6.1
+Pillow==7.1.2
+pkg-resources==0.0.0
+premailer==3.7.0
 prompt-toolkit==2.0.9
 psycopg2-binary==2.8.5
 ptyprocess==0.6.0
@@ -76,10 +78,10 @@ pyparsing==2.2.0
 PyPDF2==1.26.0
 python-dateutil==2.8.1
 python-openid==2.2.5
-pytz==2019.3
+pytz==2020.1
 PyYAML==3.12
-redis==3.4.1
-reportlab==3.5.42
+redis==3.5.3
+reportlab==3.5.44
 requests==2.21.0
 requests-oauthlib==0.8.0
 rsa==4.0
