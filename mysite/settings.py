@@ -459,8 +459,8 @@ UI_LINK_JOINTEAM = '/join-team'
 
 # This is the default welcome article used to generate the first offer.
 #It can be overriden by SubscriptionPlan.welcome_offer_url
-WELCOME_ARTICLE_URL = 'https://pubmed.ncbi.nlm.nih.gov/26874316/'
-WELCOME_ARTICLE_TITLE = 'Prospective Assessment of Radiation in Pediatric Urology: The Pediatric Urology Radiation Safety Evaluation Study'
+WELCOME_ARTICLE_URL = 'https://jamanetwork.com/journals/jamadermatology/fullarticle/412635'
+WELCOME_ARTICLE_TITLE = 'Fluoroscopy-Induced Chronic Radiation Skin Injury: A Disease Perhaps Often Overlooked'
 
 MIN_CME_CREDIT_FOR_REFERRAL = 5
 MAX_TRIAL_CME_CREDIT = 2
