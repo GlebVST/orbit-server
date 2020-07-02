@@ -459,8 +459,8 @@ UI_LINK_JOINTEAM = '/join-team'
 
 # This is the default welcome article used to generate the first offer.
 #It can be overriden by SubscriptionPlan.welcome_offer_url
-WELCOME_ARTICLE_URL = 'https://pubs.rsna.org/doi/10.1148/radiographics.21.4.g01jl271033'
-WELCOME_ARTICLE_TITLE = 'Fluoroscopy: Patient Radiation Exposure Issues'
+WELCOME_ARTICLE_URL = 'https://pubmed.ncbi.nlm.nih.gov/26874316/'
+WELCOME_ARTICLE_TITLE = 'Prospective Assessment of Radiation in Pediatric Urology: The Pediatric Urology Radiation Safety Evaluation Study'
 
 MIN_CME_CREDIT_FOR_REFERRAL = 5
 MAX_TRIAL_CME_CREDIT = 2
