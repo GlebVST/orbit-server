@@ -441,7 +441,7 @@ class ArticleTypeInline(admin.TabularInline):
     model = ArticleType
 
 class EligibleSiteAdmin(admin.ModelAdmin):
-    list_display = ('id', 'domain_name', 'domain_title', 'page_title_suffix', 'issn', 'formatArticleTypes')
+    list_display = ('id', 'domain_name', 'domain_title', 'page_title_suffix', 'page_title_prefix', 'strip_title_after', 'formatArticleTypes')
     list_filter = ('needs_ad_block', 'all_specialties', 'is_unlisted', 'verify_journal')
     ordering = ('domain_name',)
     filter_horizontal = ('specialties',)

@@ -1211,7 +1211,10 @@ class EligibleSite(models.Model):
     needs_ad_block = models.BooleanField(default=False)
     all_specialties = models.BooleanField(default=False)
     is_unlisted = models.BooleanField(default=False, blank=True, help_text='True if site should be unlisted')
-    page_title_suffix = models.CharField(max_length=60, blank=True, default='', help_text='Common suffix for page titles will be stripped from the offer description.')
+    page_title_prefix = models.CharField(max_length=100, blank=True, default='', help_text='Common prefix in page titles will be stripped from the offer description.')
+    page_title_suffix = models.CharField(max_length=100, blank=True, default='', help_text='Common suffix in page titles will be stripped from the offer description.')
+    strip_title_after = models.CharField(max_length=60, blank=True, default='',
+        help_text='Strip all characters from the page title after the given term. (e.g. the pipe symbol: |). Used for sites like Nature.')
     doi_prefixes = models.CharField(max_length=80, blank=True, default='',
             help_text='Comma separated list of common doi prefixes of articles of this site')
     created = models.DateTimeField(auto_now_add=True)

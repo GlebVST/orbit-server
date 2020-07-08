@@ -744,7 +744,7 @@ class StoryCme(models.Model):
 
 @python_2_unicode_compatible
 class UserFeedback(models.Model):
-    SNIPPET_MAX_CHARS = 80
+    SNIPPET_MAX_CHARS = 200
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         db_index=True
