@@ -758,6 +758,9 @@ class UserCmeCreditAdmin(admin.ModelAdmin):
 #
 # plugin models
 #
+class ProxyPatternAdmin(admin.ModelAdmin):
+    list_display = ('id', 'proxyname', 'delimiter', 'created', 'modified')
+
 class AllowedHostAdmin(admin.ModelAdmin):
     list_display = ('id', 'hostname', 'is_secure', 'description', 'has_paywall', 'allow_page_download', 'accept_query_keys', 'created')
     ordering = ('hostname',)
@@ -1060,3 +1063,4 @@ admin_site.register(ActivityLog, ActivityLogAdmin)
 admin_site.register(RecAllowedUrl, RecAllowedUrlAdmin)
 admin_site.register(UrlTagFreq, UrlTagFreqAdmin)
 admin_site.register(OrbitCmeOffer, OrbitCmeOfferAdmin)
+admin_site.register(ProxyPattern, ProxyPatternAdmin)

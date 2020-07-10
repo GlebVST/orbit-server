@@ -30,7 +30,7 @@ OFFER_LOOKBACK_DAYS = 365*3
 class AllowedHost(models.Model):
     id = models.AutoField(primary_key=True)
     hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
-    main_host = models.ForeignKey('self', null=True, blank=True, help_text='Main host for which this host is a proxy')
+    main_host = models.ForeignKey('self', null=True, blank=True, help_text='Canonical host for which this host is a proxy')
     description = models.CharField(max_length=500, blank=True, default='')
     accept_query_keys = models.TextField(blank=True, default='', help_text='accepted keys in url query')
     has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
@@ -798,3 +798,19 @@ class GArticleSearchLog(models.Model):
 
     def __str__(self):
         return "{0.user} on {0.created}".format(self)
+
+class ProxyPattern(models.Model):
+    proxyname = models.CharField(max_length=100, unique=True,
+        help_text='proxy part of netloc only. Example: offcampus.lib.washington.edu')
+    delimiter = models.CharField(max_length=10,
+        help_text='delimiter used in the domain name. Example: -')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_proxypattern'
+        ordering = ['proxyname',]
+
+    def __str__(self):
+        return self.proxyname
