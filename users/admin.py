@@ -297,7 +297,7 @@ class ProfileAdmin(admin.ModelAdmin):
         'formatSpecialties',
     )
     list_select_related = ('organization',)
-    list_filter = ('verified', 'allowArticleSearch', UserFilter,'degrees', 'organization', 'specialties')
+    list_filter = ('verified', UserFilter,'degrees', 'organization', 'specialties')
     search_fields = ['user__email', 'npiNumber', 'lastName', 'ABANumber', 'ABIMNumber']
     filter_horizontal = (
         'specialties',
@@ -321,6 +321,7 @@ class ProfileAdmin(admin.ModelAdmin):
         return actions
 
     def toggleAllowArticleSearch(self, request, queryset):
+        """TODO: change this to assign user to the RelatedArticle group"""
         num_users = len(queryset)
         if num_users == 0:
             errmsg = 'Select user profile (use the User Filter dropdown menu if needed), and then select this action to toggle permission.'
@@ -621,7 +622,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'formatTags'
     )
     list_select_related = True
-    list_filter = ('active', 'is_public', 'plan_type', 'allowArticleSearch', 'plan_key', 'organization')
+    list_filter = ('active', 'is_public', 'plan_type', 'allowArticleHistory', 'allowArticleSearch', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
     filter_horizontal = ('tags',)
     form = PlanForm
@@ -639,7 +640,16 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits')
         }),
         ('Other', {
-            'fields': ('is_public', 'trialDays','billingCycleMonths', 'allowArticleSearch', 'allowProfileStateTags', 'active', 'welcome_offer_url')
+            'fields': (
+                'is_public',
+                'trialDays',
+                'billingCycleMonths',
+                'allowArticleHistory',
+                'allowArticleSearch',
+                'allowProfileStateTags',
+                'active',
+                'welcome_offer_url'
+            )
         })
     )
 
@@ -998,6 +1008,10 @@ class InfluencerMembershipAdmin(admin.ModelAdmin):
     class Media:
         pass
 
+class GArticleSearchAdmin(admin.ModelAdmin):
+    list_display = ('id','search_term','gsearchengid','modified')
+    ordering = ('-modified',)
+
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
 admin_site.register(AffiliateDetail, AffiliateDetailAdmin)
@@ -1064,3 +1078,4 @@ admin_site.register(RecAllowedUrl, RecAllowedUrlAdmin)
 admin_site.register(UrlTagFreq, UrlTagFreqAdmin)
 admin_site.register(OrbitCmeOffer, OrbitCmeOfferAdmin)
 admin_site.register(ProxyPattern, ProxyPatternAdmin)
+admin_site.register(GArticleSearch, GArticleSearchAdmin)

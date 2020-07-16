@@ -26,7 +26,23 @@ logger = logging.getLogger('gen.models')
 
 OFFER_LOOKBACK_DAYS = 365*3
 
-@python_2_unicode_compatible
+class ProxyPattern(models.Model):
+    proxyname = models.CharField(max_length=100, unique=True,
+        help_text='proxy part of netloc only. Example: offcampus.lib.washington.edu')
+    delimiter = models.CharField(max_length=10,
+        help_text='delimiter used in the domain name. Example: -')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_proxypattern'
+        ordering = ['proxyname',]
+
+    def __str__(self):
+        return self.proxyname
+
+
 class AllowedHost(models.Model):
     id = models.AutoField(primary_key=True)
     hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
@@ -47,7 +63,6 @@ class AllowedHost(models.Model):
     def __str__(self):
         return self.hostname
 
-@python_2_unicode_compatible
 class ArticleType(models.Model):
     id = models.AutoField(primary_key=True)
     eligible_site = models.ForeignKey(EligibleSite,
@@ -69,7 +84,6 @@ class ArticleType(models.Model):
         return '{0.eligible_site}|{0.name}|{0.is_allowed}'.format(self)
 
 
-@python_2_unicode_compatible
 class HostPattern(models.Model):
     id = models.AutoField(primary_key=True)
     host = models.ForeignKey(AllowedHost,
@@ -97,7 +111,6 @@ class HostPattern(models.Model):
     def __str__(self):
         return '{0.host}|{0.eligible_site.domain_name}|{0.pattern_key}|pc:{0.path_contains}|pr: {0.path_reject}'.format(self)
 
-@python_2_unicode_compatible
 class AllowedUrl(models.Model):
     id = models.AutoField(primary_key=True)
     host = models.ForeignKey(AllowedHost,
@@ -157,7 +170,6 @@ class RejectedUrl(models.Model):
         return self.url
 
 # ActivitySet is a collection of 1+ ActivityLogs for a (user, url)
-@python_2_unicode_compatible
 class ActivitySet(models.Model):
     MAX_EXTENT_SECONDS = 60*60*8 # max time extent of an activity set
     TOTAL_SECONDS_THRESHOLD = 20
@@ -183,7 +195,6 @@ class ActivitySet(models.Model):
         return self.total_tracking_seconds >= ActivitySet.TOTAL_SECONDS_THRESHOLD and self.computed_value >= ActivitySet.ENGAGED_SECONDS_THRESHOLD
 
 # ActivityLog is a log sent by the plugin client upon page load and every x_tracking_seconds while user is on the page
-@python_2_unicode_compatible
 class ActivityLog(models.Model):
     id = models.AutoField(primary_key=True)
     activity_set = models.ForeignKey(ActivitySet, on_delete=models.CASCADE, related_name='logs')
@@ -209,7 +220,6 @@ class ActivityLog(models.Model):
         return self.valid and any([self.num_highlight + self.num_mouse_click + self.num_mouse_move + self.num_start_scroll])
 
 # Requests made by plugin users for new AllowedUrl entries
-@python_2_unicode_compatible
 class RequestedUrl(models.Model):
     id = models.AutoField(primary_key=True)
     url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
@@ -226,7 +236,6 @@ class RequestedUrl(models.Model):
         return self.url
 
 # User-RequestedUrl association
-@python_2_unicode_compatible
 class WhitelistRequest(models.Model):
     id = models.AutoField(primary_key=True)
     req_url = models.ForeignKey(RequestedUrl, on_delete=models.CASCADE)
@@ -394,7 +403,6 @@ class OrbitCmeOfferManager(models.Manager):
 
 # OrbitCmeOffer
 # An offer for a user is generated based on the user's plugin activity.
-@python_2_unicode_compatible
 class OrbitCmeOffer(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User,
@@ -549,7 +557,6 @@ class OrbitCmeOffer(models.Model):
 
 
 # OrbitCmeOffer stats per org
-@python_2_unicode_compatible
 class OrbitCmeOfferAgg(models.Model):
     id = models.AutoField(primary_key=True)
     organization = models.ForeignKey(Organization,
@@ -699,56 +706,6 @@ class RecAllowedUrl(models.Model):
 #
 # Models for related article recommendation
 #
-class Topic(models.Model):
-    name= models.CharField(max_length=100, help_text='Topic name')
-    lcname= models.CharField(max_length=100, help_text='Topic name - all lowercased')
-    specialty = models.ForeignKey(PracticeSpecialty,
-        on_delete=models.SET_NULL,
-        db_index=True,
-        null=True,
-        blank=True,
-        related_name='topics',
-    )
-    source_aurl= models.ForeignKey(AllowedUrl,
-        on_delete=models.SET_NULL,
-        db_index=True,
-        null=True,
-        blank=True,
-        related_name='topics',
-        help_text='AllowedUrl source of this topic'
-    )
-    diffdiag_topics = models.ManyToManyField('self',
-        related_name='diffdiag_parents',
-        symmetrical=False,
-        through='DiffDiagnosis',
-        blank=True,
-        help_text='Related topics listed under Differential Diagnosis for this topic'
-    )
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_topic'
-        unique_together = ('specialty', 'lcname')
-        ordering = ('specialty', 'name')
-
-    def __str__(self):
-        return "{0.name}|{0.specialty}".format(self)
-
-class DiffDiagnosis(models.Model):
-    from_topic = models.ForeignKey(Topic, related_name='from_topics', on_delete=models.CASCADE, db_index=True)
-    to_topic = models.ForeignKey(Topic, related_name='to_topics', on_delete=models.CASCADE)
-    created = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_diffdiagnosis'
-        unique_together = ('from_topic','to_topic')
-
-    def __str__(self):
-        return "{0.from_topic.name} to {0.to_topic.name}".format(self)
-
 class GArticleSearch(models.Model):
     SEARCH_TERM_MAX_LENGTH = 500
     search_term = models.CharField(max_length=SEARCH_TERM_MAX_LENGTH, help_text='search term passed to the query')
@@ -799,18 +756,52 @@ class GArticleSearchLog(models.Model):
     def __str__(self):
         return "{0.user} on {0.created}".format(self)
 
-class ProxyPattern(models.Model):
-    proxyname = models.CharField(max_length=100, unique=True,
-        help_text='proxy part of netloc only. Example: offcampus.lib.washington.edu')
-    delimiter = models.CharField(max_length=10,
-        help_text='delimiter used in the domain name. Example: -')
+class Topic(models.Model):
+    name= models.CharField(max_length=100, help_text='Topic name')
+    lcname= models.CharField(max_length=100, help_text='Topic name - all lowercased')
+    specialty = models.ForeignKey(PracticeSpecialty,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='topics',
+    )
+    source_aurl= models.ForeignKey(AllowedUrl,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='topics',
+        help_text='AllowedUrl source of this topic'
+    )
+    diffdiag_topics = models.ManyToManyField('self',
+        related_name='diffdiag_parents',
+        symmetrical=False,
+        through='DiffDiagnosis',
+        blank=True,
+        help_text='Related topics listed under Differential Diagnosis for this topic'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     class Meta:
         managed = False
-        db_table = 'trackers_proxypattern'
-        ordering = ['proxyname',]
+        db_table = 'trackers_topic'
+        unique_together = ('specialty', 'lcname')
+        ordering = ('specialty', 'name')
 
     def __str__(self):
-        return self.proxyname
+        return "{0.name}|{0.specialty}".format(self)
+
+class DiffDiagnosis(models.Model):
+    from_topic = models.ForeignKey(Topic, related_name='from_topics', on_delete=models.CASCADE, db_index=True)
+    to_topic = models.ForeignKey(Topic, related_name='to_topics', on_delete=models.CASCADE)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_diffdiagnosis'
+        unique_together = ('from_topic','to_topic')
+
+    def __str__(self):
+        return "{0.from_topic.name} to {0.to_topic.name}".format(self)
