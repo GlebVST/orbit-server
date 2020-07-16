@@ -102,7 +102,7 @@ class BaseReport:
         self.endDate = endDate
         msg = "Report date range: {0.startDate:%Y-%m-%d} to {0.endDate:%Y-%m-%d}".format(self)
         logger.info(msg)
-        gc = gspread.authorize(cred_fpath)
+        gc = gspread.service_account(cred_fpath)
         self.sheet = gc.open_by_key(docid).sheet1
 
 
