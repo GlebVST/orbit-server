@@ -3,9 +3,11 @@ MAX_URL_LENGTH = 500
 
 # Note: all groups must be created in the database using the Django Group model.
 GROUP_CONTENTADMIN = 'ContentAdmin' # Whitelist Admin (and other admin-level site content)
-GROUP_CMEREQADMIN = 'CmeReqAdmin'   # to edit Cme Requirements per Specialty (no model yet)
+GROUP_CMEREQADMIN = 'CmeReqAdmin'   # to edit Cme Requirements per Specialty (group not used atm)
 GROUP_ENTERPRISE_ADMIN = 'EnterpriseAdmin'
 GROUP_ENTERPRISE_MEMBER = 'EnterpriseMember'
+GROUP_ARTICLEHISTORY = 'ArticleHistory'  # group w. permission for ArticleHistory rail
+GROUP_RELATEDARTICLE = 'RelatedArticle'  # group w. permission for RelatedArticle rail
 
 # codenames for permissions
 PERM_VIEW_OFFER = u'view_offer'
