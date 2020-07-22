@@ -44,3 +44,7 @@ class EligibleSiteFilter(AutocompleteFilter):
     field_name = 'eligible_site'
     autocomplete_url = 'esite-autocomplete'
 
+class PracticeSpecialtyFilter(AutocompleteFilter):
+    title = 'specialty'
+    field_name = 'specialty'
+    autocomplete_url = 'specialty-autocomplete'

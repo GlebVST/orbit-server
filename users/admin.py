@@ -9,7 +9,7 @@ from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
 from common.appconstants import GROUP_ARTICLEHISTORY, GROUP_RELATEDARTICLE
-from common.ac_filters import UserFilter, CmeTagFilter, TagFilter, StateFilter, EligibleSiteFilter 
+from common.ac_filters import UserFilter, CmeTagFilter, TagFilter, StateFilter, EligibleSiteFilter, PracticeSpecialtyFilter 
 from common.dateutils import fmtLocalDatetime
 from .models import *
 from django.utils.html import format_html
@@ -857,7 +857,7 @@ class UrlTagFreqInline(admin.StackedInline):
 class AllowedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'eligible_site', 'url', 'valid', 'set_id', 'modified')
     list_select_related = ('host', 'eligible_site')
-    list_filter = ('valid',EligibleSiteFilter, 'host',)
+    list_filter = ('valid',EligibleSiteFilter, 'host','studyTopics')
     filter_horizontal = ('cmeTags',)
     search_fields = ['page_title','set_id']
     ordering = ('-modified',)
@@ -1046,6 +1046,18 @@ class GArticleSearchAdmin(admin.ModelAdmin):
     list_display = ('id','search_term','gsearchengid','modified')
     ordering = ('-modified',)
 
+class StudyTopicGroupAdmin(admin.ModelAdmin):
+    list_display = ('groupID','name','description','modified')
+    ordering = ('groupID',)
+
+class StudyTopicAdmin(admin.ModelAdmin):
+    list_display = ('topicID','specialty', 'group', 'name', 'long_name','alternate_name')
+    ordering = ('topicID',)
+    list_filter = (PracticeSpecialtyFilter, 'group')
+
+    class Media:
+        pass
+
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
 admin_site.register(AffiliateDetail, AffiliateDetailAdmin)
@@ -1113,3 +1125,5 @@ admin_site.register(UrlTagFreq, UrlTagFreqAdmin)
 admin_site.register(OrbitCmeOffer, OrbitCmeOfferAdmin)
 admin_site.register(ProxyPattern, ProxyPatternAdmin)
 admin_site.register(GArticleSearch, GArticleSearchAdmin)
+admin_site.register(StudyTopicGroup, StudyTopicGroupAdmin)
+admin_site.register(StudyTopic, StudyTopicAdmin)

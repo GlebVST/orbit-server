@@ -137,6 +137,10 @@ class AllowedUrl(models.Model):
     cmeTags = models.ManyToManyField(CmeTag, blank=True, related_name='aurls')
     pubDate = models.DateField(null=True, blank=True, help_text='article publication date')
     numOffers = models.IntegerField(default=1, help_text='cached number of redeemed offers')
+    studyTopics = models.ManyToManyField('StudyTopic',
+        blank=True,
+        help_text='Study Topics for the article',
+        related_name='aurls')
     created = models.DateTimeField(auto_now_add=True, blank=True)
     modified = models.DateTimeField(auto_now=True, blank=True)
 
@@ -704,10 +708,63 @@ class RecAllowedUrl(models.Model):
         return '{0.user}|{0.cmeTag}|{0.url}'.format(self)
 
 #
+# Models for study topics (used for residency users)
+#
+class StudyTopicGroup(models.Model):
+    id = models.AutoField(primary_key=True)
+    groupID = models.PositiveIntegerField(unique=True,
+        help_text='User-assigned numerical ID for this group. Must be unique.')
+    name = models.CharField(max_length=60, unique=True,
+        help_text='Group name. Must be unique')
+    description = models.CharField(max_length=100, blank=True, default='',
+        help_text='Optional description')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_studytopicgroup'
+
+    def __str__(self):
+        return self.name
+
+class StudyTopic(models.Model):
+    id = models.AutoField(primary_key=True)
+    topicID = models.PositiveIntegerField(unique=True,
+        help_text='User-assigned numerical ID for this topic. Must be unique.')
+    name= models.CharField(max_length=60,
+        help_text='Topic short name. The tuple (specialty, name) must be unique.')
+    long_name= models.CharField(max_length=80,
+        help_text='Topic long name')
+    alternate_name= models.CharField(max_length=60, blank=True, default='',
+        help_text='Alternate name (e.g. from radiopaedia). Used to map from a different source.')
+    specialty = models.ForeignKey(PracticeSpecialty,
+        db_index=True,
+        related_name='studytopics',
+    )
+    group = models.ForeignKey(StudyTopicGroup,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='studytopics',
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_studytopic'
+        unique_together = ('specialty','name')
+
+    def __str__(self):
+        return self.name
+#
 # Models for related article recommendation
 #
 class GArticleSearch(models.Model):
     SEARCH_TERM_MAX_LENGTH = 500
+    id = models.AutoField(primary_key=True)
     search_term = models.CharField(max_length=SEARCH_TERM_MAX_LENGTH, help_text='search term passed to the query')
     gsearchengid = models.CharField(max_length=50, help_text='Google search engineid passed to the query')
     specialties = models.ManyToManyField(PracticeSpecialty,
@@ -734,6 +791,7 @@ class GArticleSearch(models.Model):
         return self.search_term
 
 class GArticleSearchLog(models.Model):
+    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User,
         on_delete=models.CASCADE,
         db_index=True,
@@ -756,7 +814,9 @@ class GArticleSearchLog(models.Model):
     def __str__(self):
         return "{0.user} on {0.created}".format(self)
 
+
 class Topic(models.Model):
+    id = models.AutoField(primary_key=True)
     name= models.CharField(max_length=100, help_text='Topic name')
     lcname= models.CharField(max_length=100, help_text='Topic name - all lowercased')
     specialty = models.ForeignKey(PracticeSpecialty,
@@ -794,6 +854,7 @@ class Topic(models.Model):
         return "{0.name}|{0.specialty}".format(self)
 
 class DiffDiagnosis(models.Model):
+    id = models.AutoField(primary_key=True)
     from_topic = models.ForeignKey(Topic, related_name='from_topics', on_delete=models.CASCADE, db_index=True)
     to_topic = models.ForeignKey(Topic, related_name='to_topics', on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True)
