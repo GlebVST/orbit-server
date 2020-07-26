@@ -914,7 +914,7 @@ class SwitchTrialToActive(APIView):
             except SMTPException as e:
                 logException(logger, request, 'SwitchTrialToActive: Send Invoice email failed.')
         else:
-            logError('SwitchTrialToActive: no transaction found for subscription {0.pk}'.format(user_subs))
+            logInfo(logger, request, 'SwitchTrialToActive: no transaction found for subscription {0.pk}'.format(user_subs))
         return Response(context, status=status.HTTP_201_CREATED)
 
 

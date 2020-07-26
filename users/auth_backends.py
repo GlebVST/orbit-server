@@ -45,13 +45,13 @@ class Auth0Backend(object):
                 logger.error('New user signup error for {0}: planId was not provided.'.format(email))
                 return None
             plan = SubscriptionPlan.objects.get(planId=planId)
-            inviter = None
-            with transaction.atomic():
+            inviter = None # if set, must be a User instance
+            try:
                 if affiliateId:
                     qset = AffiliateDetail.objects.filter(affiliateId=affiliateId)
                     if qset.exists():
-                        inviter = qset[0].affiliate # Affiliate instance
-                        logger.info('User {0} was converted by {1}'.format(email, affiliateId))
+                        logger.info('User {0} was converted by affiliateId: {1}'.format(email, affiliateId))
+                        inviter = qset[0].affiliate.user # User instance (from Affiliate instance)
                     else:
                         logger.warning('Invalid affiliateId: {0}'.format(affiliateId))
                 elif inviterId:
@@ -61,11 +61,15 @@ class Auth0Backend(object):
                         logger.info('User {0} was invited by {1.email}'.format(email, inviter))
                     else:
                         logger.warning('Invalid inviterId: {0}'.format(inviterId))
+            except Exception as e:
+                logger.exception('Failed to get inviter')
+                inviter = None
+            with transaction.atomic():
                 # Create User and Profile instance
                 profile = Profile.objects.createUserAndProfile(
                     email,
                     planId=planId,
-                    inviter=inviter,
+                    inviter=inviter, # User instance or None
                     affiliateId=affiliateId,
                     socialId=user_id,
                     pictureUrl=picture,
