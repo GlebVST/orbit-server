@@ -17,9 +17,11 @@ MANAGER_EMAILS = [settings.MANAGERS[0][1]]
 # reportType (used by email subject)
 REPORT_QUARTER = 'Quarterly'
 REPORT_ANNUAL = 'Annual'
-# used by calcYearReportDateRange
-ANNUAL_REPORT_MONTH = 6
-ANNUAL_REPORT_DAY = 30
+# used by calcYearReportDateRange (7/1/yyyy 00:00:00 utc - 06/30/yyyy+1 23:59:59 utc)
+ANNUAL_REPORT_START_MONTH = 7
+ANNUAL_REPORT_START_DAY = 1
+ANNUAL_REPORT_END_MONTH = 6
+ANNUAL_REPORT_END_DAY = 30
 
 # quarterly month ranges
 DATE_RANGE_MAP = {
@@ -66,12 +68,13 @@ class Command(BaseCommand):
         """Calculate annual report date range
         Args:
             year: int - used for the year of endDate
-        e.g. endDate = 2020-06-30 23:59:59 utc
-         startDate = 2019-06-30 00:00:00 utc
+        e.g.
+         startDate: 2019-07-01 00:00:00 utc
+         endDate:   2020-06-30 23:59:59 utc
         Returns tuple: (startDate: datetime, endDate: datetime)
         """
-        endDate = datetime(year, ANNUAL_REPORT_MONTH, ANNUAL_REPORT_DAY, 23, 59, 59, tzinfo=pytz.utc)
-        startDate = datetime(year-1, ANNUAL_REPORT_MONTH, ANNUAL_REPORT_DAY, tzinfo=pytz.utc)
+        startDate = datetime(year-1, ANNUAL_REPORT_START_MONTH, ANNUAL_REPORT_START_DAY, tzinfo=pytz.utc)
+        endDate = datetime(year, ANNUAL_REPORT_END_MONTH, ANNUAL_REPORT_END_DAY, 23, 59, 59, tzinfo=pytz.utc)
         return (startDate, endDate)
 
     def add_arguments(self, parser):
@@ -108,9 +111,14 @@ class Command(BaseCommand):
     def createReport(self, startDate, endDate, options):
         """Calculate data and create EmailMessage
         """
-        reportType = REPORT_QUARTER
+        startReportDate = startDate
         if self.isEndOfYearReport:
             reportType = REPORT_ANNUAL
+            endReportDate = endDate # through endDate
+        else:
+            reportType = REPORT_QUARTER
+            # endDate is y-m-d 23:59:59 so display shows d+1
+            endReportDate = endDate + timedelta(days=1)
         mainReport = MainReport(startDate, endDate,
             settings.GAUTH_SERVICE_CREDENTIALS_FILE,
             settings.GSHEET_TUFTS_EVAL_DOCID,
@@ -120,10 +128,6 @@ class Command(BaseCommand):
         # write results to StringIO csv file
         cf = mainReport.createReportCsv(results)
         
-        startReportDate = startDate
-        # endDate is y-m-d 23:59:59 so display shows d+1
-        endReportDate = endDate + timedelta(days=1)
-        
         # make summaryCsv
         ctx = mainReport.makeContext()
         summaryCsvFile = mainReport.createSummaryCsv(ctx, startReportDate, endReportDate)
@@ -131,8 +135,6 @@ class Command(BaseCommand):
         
         # create EmailMessage
         from_email = settings.EMAIL_FROM
-        to_emails = DEV_EMAILS
-        cc_emails = []; bcc_emails = []
         if settings.ENV_TYPE == settings.ENV_PROD:
             to_emails = MANAGER_EMAILS[:] # make copy before calling extend
             if not options['managers_only']:

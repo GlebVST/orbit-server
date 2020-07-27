@@ -817,8 +817,8 @@ class GArticleSearchLog(models.Model):
 
 class Topic(models.Model):
     id = models.AutoField(primary_key=True)
-    name= models.CharField(max_length=100, help_text='Topic name')
-    lcname= models.CharField(max_length=100, help_text='Topic name - all lowercased')
+    name= models.CharField(max_length=300, help_text='Topic name')
+    lcname= models.CharField(max_length=300, help_text='Topic name - all lowercased')
     specialty = models.ForeignKey(PracticeSpecialty,
         on_delete=models.SET_NULL,
         db_index=True,
