@@ -529,15 +529,16 @@ class BaseReport:
 
 class MainReport(BaseReport):
     """This report is used the makeTuftsReport management command.
-    This report excludes users with Internal Medicine specialty
     """
 
     def makeEntryQuerySet(self):
-        """Add exclude clause to omit Internal Medicine users"""
+        """
+        2020-07-26: This query no longer excludes Internal Medicine users
+        """
         entries = super().makeEntryQuerySet()
-        ps_intmed = PracticeSpecialty.objects.get(name=PracticeSpecialty.INT_MED)
-        q_intmed = Profile.objects.filter(specialties=ps_intmed)
-        entries = entries.exclude(user__in=Subquery(q_intmed.values('user')))
+        #ps_intmed = PracticeSpecialty.objects.get(name=PracticeSpecialty.INT_MED)
+        #q_intmed = Profile.objects.filter(specialties=ps_intmed)
+        #entries = entries.exclude(user__in=Subquery(q_intmed.values('user')))
         return entries
 
 
