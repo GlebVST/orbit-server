@@ -16,8 +16,12 @@ from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
 from django.db import transaction
-from common.appconstants import GROUP_ENTERPRISE_ADMIN, GROUP_ENTERPRISE_MEMBER
-
+from common.appconstants import (
+    GROUP_ENTERPRISE_ADMIN,
+    GROUP_ENTERPRISE_MEMBER,
+    GROUP_ARTICLEHISTORY,
+    GROUP_RELATEDARTICLE
+)
 logger = logging.getLogger('gen.models')
 
 #
@@ -641,6 +645,36 @@ class ProfileManager(models.Manager):
             .exclude(Q_reject) \
             .order_by('pk')
         return profiles
+
+    def allowArticleHistory(self, user, user_subs):
+        """User belongs to ArticleHistory group OR plan.allowArticleHistory is True
+        Args:
+            user: User instance
+            user_subs: UserSubscription instance (can be None)
+        Returns bool - True if allowed, else False
+        """
+        in_group = user.groups.filter(name=GROUP_ARTICLEHISTORY).exists()
+        if in_group:
+            return True
+        # else check plan
+        if user_subs:
+            return user_subs.plan.allowArticleHistory
+        return False
+
+    def allowRelatedArticle(self, user, user_subs):
+        """User belongs to RelatedArticle group OR plan.allowArticleSearch is True
+        Args:
+            user: User instance
+            user_subs: UserSubscription instance (can be None)
+        Returns bool - True if allowed, else False
+        """
+        in_group = user.groups.filter(name=GROUP_RELATEDARTICLE).exists()
+        if in_group:
+            return True
+        # else check plan
+        if user_subs:
+            return user_subs.plan.allowArticleSearch
+        return False
 
 @python_2_unicode_compatible
 class Profile(models.Model):

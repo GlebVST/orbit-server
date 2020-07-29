@@ -21,7 +21,8 @@ from .base import (
     CmeTag,
     Organization,
     Degree,
-    PracticeSpecialty
+    PracticeSpecialty,
+    Profile
 )
 from .feed import BrowserCme
 from common.appconstants import (
@@ -36,7 +37,9 @@ from common.appconstants import (
     PERM_DELETE_BRCME,
     PERM_EDIT_BRCME,
     PERM_ALLOW_INVITE,
-    PERM_EDIT_PROFILECMETAG
+    PERM_EDIT_PROFILECMETAG,
+    PERM_VIEW_ARTICLE_HISTORY,
+    PERM_VIEW_RELATED_ARTICLE
 )
 
 logger = logging.getLogger('gen.models')
@@ -1004,9 +1007,13 @@ class UserSubscriptionManager(models.Manager):
 
             if user_subs.display_status == UserSubscription.UI_TRIAL and userCredits and userCredits.total_credits_earned >= user_subs.plan.getMaxTrialCredits():
                 is_trial_cme_limit = True
-
-
         allowed_codes = set(allowed_codes)
+        # ArticleHistory rail permission
+        if Profile.objects.allowArticleHistory(user, user_subs):
+            allowed_codes.add(PERM_VIEW_ARTICLE_HISTORY)
+        # RelatedArticle rail permission
+        if Profile.objects.allowRelatedArticle(user, user_subs):
+            allowed_codes.add(PERM_VIEW_RELATED_ARTICLE)
         for codename in discard_codes:
             allowed_codes.discard(codename) # remove from set if exist
         perms = [{

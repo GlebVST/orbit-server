@@ -28,8 +28,13 @@ PERM_POST_REQUESTED_URL = u'add_requestedurl'
 PERM_MANAGE_ORGMEMBER = u'add_orgmember'
 # default add permission on InvitationDiscount model
 PERM_ALLOW_INVITE = u'add_invitationdiscount'
-# default change permission on ProfileCmetga model
+# default change permission on ProfileCmetag model
 PERM_EDIT_PROFILECMETAG = u'change_profilecmetag'
+# permission to view ArticleHistory rail sourced from ArticleSet
+PERM_VIEW_ARTICLE_HISTORY = u'view_articlehistory'
+# permission to view RelatedArticle rail sourced from GArticleSearch
+PERM_VIEW_RELATED_ARTICLE = u'view_articlesearch'
+
 ALL_PERMS = (
     PERM_VIEW_OFFER,
     PERM_VIEW_FEED,
@@ -46,6 +51,8 @@ ALL_PERMS = (
     PERM_MANAGE_ORGMEMBER,
     PERM_ALLOW_INVITE,
     PERM_EDIT_PROFILECMETAG,
+    PERM_VIEW_ARTICLE_HISTORY,
+    PERM_VIEW_RELATED_ARTICLE
 )
 
 SELF_REPORTED_AUTHORITY = u'Self Reported'
