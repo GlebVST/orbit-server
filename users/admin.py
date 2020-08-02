@@ -143,7 +143,10 @@ class OrgFileAdmin(admin.ModelAdmin):
     form = OrgFileForm
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Limit choice of user"""
@@ -198,7 +201,10 @@ class OrgMemberAdmin(admin.ModelAdmin):
     ordering = ('-created','fullname')
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class OrgEnrolleeAdmin(admin.ModelAdmin):
     list_display = ('id', 'organization', 'group', 'npiNumber', 'lastName','firstName','user','planName','enrollDate')
@@ -206,7 +212,10 @@ class OrgEnrolleeAdmin(admin.ModelAdmin):
     ordering = ('enrollDate','lastName')
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class OrgReportForm(forms.ModelForm):
     class Meta:
@@ -279,7 +288,10 @@ class HospitalAdmin(admin.ModelAdmin):
     list_select_related = ('state',)
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 
 class ProfileCmetagInline(admin.TabularInline):
@@ -311,7 +323,10 @@ class ProfileAdmin(admin.ModelAdmin):
     ]
     actions = ('toggleArticleHistoryPermission','toggleRelatedArticlePermission')
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 
     def get_actions(self, request):
@@ -434,7 +449,10 @@ class StateLicenseAdmin(admin.ModelAdmin):
     ordering = ('-expireDate','user')
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class SponsorAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'url', 'logo_url', 'modified')
@@ -465,7 +483,10 @@ class EntryAdmin(admin.ModelAdmin):
     date_hierarchy = 'submitABADate'
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
     def get_queryset(self, request):
         qs = super(EntryAdmin, self).get_queryset(request)
@@ -512,7 +533,10 @@ class UserFeedbackAdmin(admin.ModelAdmin):
     clear_reviewed.short_description = "Clear reviewed flag of selected rows"
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 
 class DiscountAdmin(admin.ModelAdmin):
@@ -699,7 +723,10 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
     ordering = ('-modified',)
     actions = ('terminal_cancel',)
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
     def get_actions(self, request):
         """Remove default bulk-delete operation since it does not know about BT. All subs should be in sync w. BT"""
@@ -757,7 +784,10 @@ class CertificateAdmin(admin.ModelAdmin):
     ordering = ('-created',)
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class AuditReportAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'referenceId', 'name', 'startDate', 'endDate', 'created')
@@ -767,7 +797,10 @@ class AuditReportAdmin(admin.ModelAdmin):
     ordering = ('-created',)
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 
 class BatchPayoutAdmin(admin.ModelAdmin):
@@ -797,7 +830,10 @@ class UserCmeCreditAdmin(admin.ModelAdmin):
     list_filter = (UserFilter,)
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 #
 # plugin models
@@ -816,7 +852,10 @@ class HostPatternAdmin(admin.ModelAdmin):
     list_filter = (EligibleSiteFilter, 'host')
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class UrlTagFreqForm(forms.ModelForm):
     class Meta:
@@ -866,7 +905,10 @@ class AllowedUrlAdmin(admin.ModelAdmin):
     ]
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class UrlTagFreqAdmin(admin.ModelAdmin):
     list_display = ('id','url','page_title', 'tag', 'numOffers')
@@ -879,7 +921,10 @@ class UrlTagFreqAdmin(admin.ModelAdmin):
         return obj.url.page_title
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class RejectedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'host', 'url', 'created')
@@ -910,7 +955,10 @@ class ActivitySetAdmin(admin.ModelAdmin):
     ordering = ('-created',)
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
     def engaged_seconds(self, obj):
         return obj.computed_value
@@ -991,7 +1039,10 @@ class RecAllowedUrlAdmin(admin.ModelAdmin):
         return obj.offer.pk if obj.offer else None
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class OrbitCmeOfferAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'activityDate', 'redeemed', 'url', 'suggestedDescr', 'valid', 'lastModified')
@@ -1002,7 +1053,10 @@ class OrbitCmeOfferAdmin(admin.ModelAdmin):
     filter_horizontal = ('tags', 'selectedTags')
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
     def lastModified(self, obj):
         return fmtLocalDatetime(obj.modified)
@@ -1040,7 +1094,10 @@ class InfluencerMembershipAdmin(admin.ModelAdmin):
     form = InfluencerMembershipForm
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class GArticleSearchAdmin(admin.ModelAdmin):
     list_display = ('id','search_term','gsearchengid','modified')
@@ -1056,7 +1113,10 @@ class StudyTopicAdmin(admin.ModelAdmin):
     list_filter = (PracticeSpecialtyFilter, 'group')
 
     class Media:
-        pass
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
