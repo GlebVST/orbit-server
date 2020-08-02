@@ -273,7 +273,7 @@ class OrgMember(models.Model):
             help_text='Set to True when invitation is sent to existing user to join team.')
     indiv_subscriber = models.BooleanField(default=False,
             help_text='Set to True when individual subscriber signs up with email that matches Org email domain.')
-    snapshot = JSONField(default='', blank=True,
+    snapshot = JSONField(default='dict', blank=True,
             help_text='A snapshot of the goals status for this user. It is computed by a management command run periodically.')
     snapshotDate = models.DateTimeField(null=True, blank=True,
             help_text='Timestamp of the snapshot generation')

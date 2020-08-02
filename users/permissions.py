@@ -28,7 +28,7 @@ class IsAdminOrAuthenticated(permissions.BasePermission):
             user, but update/destroy requires admin user.
     """
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         if request.method in permissions.SAFE_METHODS:
             return True
@@ -43,7 +43,7 @@ class IsContentAdminOrAny(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return True
-        elif not (request.user and request.user.is_active and request.user.is_authenticated()):
+        elif not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         return request.user.groups.filter(name=GROUP_CONTENTADMIN).exists()
 
@@ -52,13 +52,13 @@ class IsEnterpriseAdmin(permissions.BasePermission):
     """Global permission to check that User belongs to EnterpriseAdmin group (for all methods, safe or otherwise).
     """
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         return request.user.groups.filter(name=GROUP_ENTERPRISE_ADMIN).exists()
 
 class IsOwnerOrEnterpriseAdmin(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         is_owner = obj.user.pk == request.user.pk
         return is_owner or request.user.groups.filter(name=GROUP_ENTERPRISE_ADMIN).exists()
@@ -73,7 +73,7 @@ class IsOwnerOrAuthenticated(permissions.BasePermission):
         Owner: for other methods
     """
     def has_object_permission(self, request, view, obj):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         if request.method in permissions.SAFE_METHODS:
             return True
@@ -89,7 +89,7 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         Owner: for other methods
     """
     def has_object_permission(self, request, view, obj):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         is_owner = obj.user.pk == request.user.pk
         if request.method in permissions.SAFE_METHODS:
@@ -103,7 +103,7 @@ class IsEntryOwner(permissions.BasePermission):
     Assumes the model instance has a `entry.user` attribute.
     """
     def has_object_permission(self, request, view, obj):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         is_owner = obj.entry.user.pk == request.user.pk
         return is_owner
@@ -131,7 +131,7 @@ class CanViewOffer(permissions.BasePermission):
         latest subscription.
     """
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         return hasUserSubscriptionPerm(request.user, codename=PERM_VIEW_OFFER)
 
@@ -141,7 +141,7 @@ class CanViewFeed(permissions.BasePermission):
         latest subscription.
     """
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         return hasUserSubscriptionPerm(request.user, codename=PERM_VIEW_FEED)
 
@@ -150,7 +150,7 @@ class CanViewDashboard(permissions.BasePermission):
         PERM_VIEW_DASH via the latest subscription.
     """
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         return hasUserSubscriptionPerm(request.user, codename=PERM_VIEW_DASH)
 
@@ -159,7 +159,7 @@ class CanPrintCert(permissions.BasePermission):
         PERM_PRINT_BRCME_CERT via the latest subscription.
     """
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         return hasUserSubscriptionPerm(request.user, codename=PERM_PRINT_BRCME_CERT)
 
@@ -168,7 +168,7 @@ class CanPrintAuditReport(permissions.BasePermission):
         PERM_PRINT_AUDIT_REPORT via the latest subscription.
     """
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         return hasUserSubscriptionPerm(request.user, codename=PERM_PRINT_AUDIT_REPORT)
 
@@ -177,7 +177,7 @@ class CanPostSRCme(permissions.BasePermission):
         PERM_POST_SRCME via the latest subscription.
     """
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         return hasUserSubscriptionPerm(request.user, codename=PERM_POST_SRCME)
 
@@ -186,7 +186,7 @@ class CanPostBRCme(permissions.BasePermission):
         PERM_POST_BRCME via the latest subscription.
     """
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_active and request.user.is_authenticated()):
+        if not (request.user and request.user.is_active and request.user.is_authenticated):
             return False
         return hasUserSubscriptionPerm(request.user, codename=PERM_POST_BRCME)
 

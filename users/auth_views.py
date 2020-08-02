@@ -169,7 +169,7 @@ def auth_status(request):
 
     """
     user = request.user
-    if not user.is_authenticated():
+    if not user.is_authenticated:
         context = {
             'success': False,
             'message': 'User not authenticated'
@@ -248,7 +248,7 @@ def login_via_token(request, access_token):
 @api_view()
 @permission_classes((IsAuthenticated,))
 def logout_via_token(request):
-    if request.user.is_authenticated():
+    if request.user.is_authenticated:
         logDebug(logger, request, 'logout')
         token = get_access_token(request.user)
         delete_access_token(request.user, token.get('access_token'))

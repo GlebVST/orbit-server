@@ -46,7 +46,11 @@ class ProxyPattern(models.Model):
 class AllowedHost(models.Model):
     id = models.AutoField(primary_key=True)
     hostname = models.CharField(max_length=100, unique=True, help_text='netloc only. No scheme')
-    main_host = models.ForeignKey('self', null=True, blank=True, help_text='Canonical host for which this host is a proxy')
+    main_host = models.ForeignKey('self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text='Canonical host for which this host is a proxy')
     description = models.CharField(max_length=500, blank=True, default='')
     accept_query_keys = models.TextField(blank=True, default='', help_text='accepted keys in url query')
     has_paywall = models.BooleanField(blank=True, default=False, help_text='True if full text is behind paywall')
@@ -160,7 +164,9 @@ class AllowedUrl(models.Model):
 
 class RejectedUrl(models.Model):
     id = models.AutoField(primary_key=True)
-    host = models.ForeignKey(AllowedHost, db_index=True)
+    host = models.ForeignKey(AllowedHost,
+        on_delete=models.CASCADE,
+        db_index=True)
     url = models.URLField(max_length=MAX_URL_LENGTH, unique=True)
     starts_with = models.BooleanField(default=False, help_text='True if any sub URL under it should also be rejected')
     created = models.DateTimeField(auto_now_add=True, blank=True)
@@ -739,6 +745,7 @@ class StudyTopic(models.Model):
     alternate_name= models.CharField(max_length=60, blank=True, default='',
         help_text='Alternate name (e.g. from radiopaedia). Used to map from a different source.')
     specialty = models.ForeignKey(PracticeSpecialty,
+        on_delete=models.CASCADE,
         db_index=True,
         related_name='studytopics',
     )
