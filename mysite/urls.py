@@ -191,7 +191,7 @@ if settings.ENV_TYPE != settings.ENV_PROD:
 def swagger_view(request):
     patterns = re_path(r'^api/v1/', include(api_patterns)),
     generator = schemas.SchemaGenerator(title='Orbit API', patterns=patterns)
-    return response.Response(generator.get_schema())
+    return response.Response(generator.get_schema(request=request))
 
 
 urlpatterns = [
