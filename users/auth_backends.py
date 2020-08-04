@@ -3,6 +3,7 @@ import logging
 import braintree
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.contrib.auth.backends import RemoteUserBackend
 from django.db import transaction
 from django.utils import timezone
 from .models import (
@@ -23,27 +24,33 @@ logger = logging.getLogger('gen.auth')
 # https://auth0.com/docs/user-profile/normalized
 # format of user_id: {identity provider id}|{unique id in the provider}
 
-class Auth0Backend(object):
-    def authenticate(self, request, user_info):
-        # check if this is an Auth0 authentication attempt
-        if 'user_id' not in user_info or 'email' not in user_info:
+class Auth0Backend(RemoteUserBackend):
+    def authenticate(self, request, remote_user):
+        """Args:
+            request: request object or None 
+            remote_user: dict
+        """
+        if 'email' not in remote_user:
             return None
-        user_id = user_info['user_id']
-        email = user_info['email']
-        email_verified = user_info.get('email_verified', None)
-        picture = user_info.get('picture', '')
-        # optional keys passed by login_via_token
-        inviterId = user_info.get('inviterId', None)
-        affiliateId = user_info.get('affiliateId', '')
-        if affiliateId is None: # cast None to '' to prevent not-null error when saving profile
-            affiliateId = ''
-        planId = user_info.get('planId', None) # required for new user creation (signup)
+        username = remote_user['email']
         try:
-            user = User.objects.get(username__iexact=email) # the unique constraint is on the username field in the users table
+            user = User.objects.get(username__iexact=username) # the unique constraint is on the username field in the users table
         except User.DoesNotExist:
+            # New user signup
+            # required keys in remote_user for signup
+            planId = remote_user.get('planId', None) # planId for the user-select subscription plan
             if not planId:
-                logger.error('New user signup error for {0}: planId was not provided.'.format(email))
+                logger.error('New user signup error for {0}: planId was not provided.'.format(username))
                 return None
+            auth0Id = remote_user.get('socialId', None) # auth0 id for the user
+            if not auth0Id:
+                logger.error('New user signup error for {0}: auth0Id was not provided.'.format(username))
+                return None
+            # optional keys passed by signup
+            inviterId = remote_user.get('inviterId', None)
+            affiliateId = remote_user.get('affiliateId', '')
+            if affiliateId is None: # cast None to '' to prevent not-null error when saving profile
+                affiliateId = ''
             plan = SubscriptionPlan.objects.get(planId=planId)
             inviter = None # if set, must be a User instance
             try:
@@ -71,10 +78,8 @@ class Auth0Backend(object):
                     planId=planId,
                     inviter=inviter, # User instance or None
                     affiliateId=affiliateId,
-                    socialId=user_id,
-                    pictureUrl=picture,
-                    verified=bool(email_verified)
-                    )
+                    socialId=auth0Id,
+                )
                 # after saving profile instance, can add m2m rows
                 profile.initializeFromPlanKey(plan.plan_key)
                 # create local customer object
@@ -104,24 +109,7 @@ class Auth0Backend(object):
                 if org_match:
                     orgm = OrgMember.objects.createMember(org_match, None, profile, indiv_subscriber=True)
         else:
-            profile = user.profile
-            # profile.socialId must match user_id
-            if profile.socialId != user_id:
-                # We expect only one method of login (e.g. user/pass via auth0 provider), so only 1 socialId per user.
-                # If this changes in the future, we need multiple socialIds per user.
-                logger.warning('user_id {0} does not match profile.socialId: {1} for user email: {2}'.format(user_id, profile.socialId, user.email))
-            saveProfile = False
-            # Check verified
-            if email_verified is not None:
-                ev = bool(email_verified)
-                if ev != profile.verified:
-                    profile.verified = ev
-                    profile.save(update_fields=('verified',))
-                    saveProfile = True
-            # Check picture
-            if picture and profile.pictureUrl != picture:
-                profile.pictureUrl = picture
-                profile.save(update_fields=('pictureUrl',))
+            logger.info('Got user: {0.pk}|{0}'.format(user))
         return user
 
     def get_user(self, user_id):
@@ -133,13 +121,12 @@ class Auth0Backend(object):
 
 
 class ImpersonateBackend(object):
-    def authenticate(self, request, user_info):
-        if 'user_id' not in user_info or 'email' not in user_info:
+    def authenticate(self, request, remote_user):
+        if 'email' not in remote_user:
             return None
-        user_id = user_info['user_id']
-        email = user_info['email']
+        username = remote_user['email'] # equivalent to email b/c we only ask for email during signup
         try:
-            staff_user = User.objects.get(username=email) 
+            staff_user = User.objects.get(username__iexact=username) 
         except User.DoesNotExist:
             return None
         if not staff_user.is_staff:

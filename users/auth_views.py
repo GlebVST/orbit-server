@@ -16,8 +16,8 @@ from rest_framework.response import Response
 # proj
 from common.logutils import *
 # app
-from .oauth_tools import new_access_token, get_access_token, delete_access_token
 from .models import *
+from .jwtauthutils import get_token_auth_header, decode_token
 from .serializers import ProfileReadSerializer, ActiveCmeTagSerializer, UserSubsReadSerializer, InvitationDiscountReadSerializer
 from .feed_serializers import CreditTypeSerializer
 
@@ -55,8 +55,7 @@ def ss_logout(request):
 def login_via_code(request):
     """
     This view expects a query parameter called code.
-    Server logs in the user, and returns user info, and internal access_token
-
+    Server logs in the user, and redirects to api-docs.
     """
     code = request.GET.get('code')
     if not code:
@@ -71,11 +70,11 @@ def login_via_code(request):
         CALLBACK_URL
     )
     user_info_dict = auth0_users.userinfo(token['access_token'])
+    print(user_info_dict)
     logInfo(logger, request, 'user_id: {user_id} email:{email}'.format(**user_info_dict))
-    user = authenticate(request, user_info=user_info_dict) # must specify the keyword user_info
+    user = authenticate(request, remote_user=user_info_dict)
     if user:
         auth_login(request, user)
-        token = new_access_token(user)
         logDebug(logger, request, 'login from ip: ' + remote_addr)
         return redirect('api-docs')
     else:
@@ -123,10 +122,9 @@ def serialize_creditTypes(profile):
     s = CreditTypeSerializer(qset, many=True)
     return s.data
 
-def make_login_context(token, user):
+def make_login_context(user):
     """Create context dict for response.
     Args:
-        token: dict - internal access token details
         user: User instance
     """
     profile = Profile.objects.get(user=user)
@@ -136,7 +134,7 @@ def make_login_context(token, user):
     sacme_tag = CmeTag.objects.get(name=CmeTag.SACME)
     context = {
         'success': True,
-        'token': token,
+        'token': None,
         'user': serialize_user(user),
         'profile': serialize_profile(profile),
         'sacmetag': serialize_active_cmetag(sacme_tag),
@@ -158,47 +156,68 @@ def make_login_context(token, user):
         }
     return context
 
-
 @api_view()
-@permission_classes((AllowAny,))
-def auth_status(request):
+def auth_debug(request):
+    """To test decode_token
     """
-    This checks if there is a user session already (given OAuth token for example)
-    and if yes return user info with a previously generated token.
-    If no user session yet - respond with 401 status so client has to login.
-
-    """
-    user = request.user
-    if not user.is_authenticated:
+    access_token = get_token_auth_header(request)
+    if not access_token:
         context = {
             'success': False,
-            'message': 'User not authenticated'
+            'message': 'Invalid or missing access_token'
         }
         return Response(context, status=status.HTTP_401_UNAUTHORIZED)
-    token = get_access_token(user)
-    if not token:
-        context = {
-            'success': False,
-            'message': 'User not authenticated'
-        }
-        return Response(context, status=status.HTTP_401_UNAUTHORIZED)
-    context = make_login_context(token, user)
+    decoded = decode_token(access_token) # dict (same as the payload dict passed to jwt_get_username_from_payload)
+    #print(decoded)
+    context = {
+        'success': True,
+        'message': 'OK'
+    }
     return Response(context, status=status.HTTP_200_OK)
 
 
 @api_view()
 @permission_classes((AllowAny,))
-def login_via_token(request, access_token):
+def auth_status(request):
+    """Called by UI
     """
-    This view expects an auth0 access_token parameter as part of the URL.
-    Server logs in the user, and returns user info, and internal access_token.
-    2018-02-14: For new user signup, this expects GET parameter 'plan' which contains a valid planId.
-    parameters:
-        - name: access_token
-          description: auth0 access token obtained via external means like Javascript SDK
-          required: true
-          type: string
-          paramType: form
+    access_token = get_token_auth_header(request)
+    if not access_token:
+        context = {
+            'success': False,
+            'message': 'Invalid or missing access_token'
+        }
+        return Response(context, status=status.HTTP_401_UNAUTHORIZED)
+    decoded = decode_token(access_token) # dict (same as the payload dict passed to jwt_get_username_from_payload)
+    logger.info('auth_status: decoded sub: {sub}'.format(**decoded))
+    username = decoded.get('sub').replace('|', '.')
+    user_info_dict = dict(username=username, email=username)
+    # User should already exist (this is not a signup)
+    user = authenticate(request, remote_user=user_info_dict)
+    if user:
+        auth_login(request, user)
+        logDebug(logger, request, 'login from ip: ' + remote_addr)
+        context = make_login_context(user)
+        return Response(context, status=status.HTTP_200_OK)
+    # else
+    context = {
+        'success': False,
+        'message': 'User not signed up'
+    }
+    return Response(context, status=status.HTTP_401_UNAUTHORIZED)
+
+
+@api_view()
+@permission_classes((AllowAny,))
+def signup(request):
+    """Called by UI for new user signup.
+    Expected GET parameters (make this part of url?):
+        'plan': planId of the plan selected by user
+    Optional GET parameters:
+        inviteid:
+        affiliateId
+    Create new user and profile
+    Return user context
     """
     remote_addr = request.META.get('REMOTE_ADDR')
     inviterId = request.GET.get('inviteid') # if present, this is the inviteId of the inviter
@@ -215,6 +234,7 @@ def login_via_token(request, access_token):
             msg = "Invalid planId: {0}. No plan found".format(planId)
             logWarning(logger, request, msg)
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
+    access_token = get_token_auth_header(request)
     auth0_users = Users(settings.AUTH0_DOMAIN) # Authentication API
     # https://auth0.com/docs/api/authentication#user-profile
     user_info_dict = auth0_users.userinfo(access_token) # returns dict as of auth0 v3.9.1
@@ -229,10 +249,9 @@ def login_via_token(request, access_token):
     elif inviterId:
         msg += " invitedBy:{inviterId}".format(**user_info_dict)
     logInfo(logger, request, msg)
-    user = authenticate(request, user_info=user_info_dict) # must specify the keyword user_info
+    user = authenticate(request, remote_user=user_info_dict) # creates User (and Profile)
     if user:
         auth_login(request, user)
-        token = new_access_token(user)
         logDebug(logger, request, 'login from ip: ' + remote_addr)
         context = make_login_context(token, user)
         return Response(context, status=status.HTTP_200_OK)
@@ -246,12 +265,8 @@ def login_via_token(request, access_token):
         return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view()
-@permission_classes((IsAuthenticated,))
-def logout_via_token(request):
-    if request.user.is_authenticated:
-        logDebug(logger, request, 'logout')
-        token = get_access_token(request.user)
-        delete_access_token(request.user, token.get('access_token'))
-        auth_logout(request)
+def logout(request):
+    logDebug(logger, request, 'logout')
+    auth_logout(request)
     context = {'success': True}
     return Response(context, status=status.HTTP_200_OK)

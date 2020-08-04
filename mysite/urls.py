@@ -55,11 +55,12 @@ api_patterns = [
     re_path(r'^ping/?$', views.PingTest.as_view(), name='ping-pong'),
 
     # AUTH
-    re_path(r'^auth/status/?$', auth_views.auth_status, name='get-auth-status'),
-    # client gets access token and exchanges it for internal token, and login user
-    re_path(r'^auth/login/(?P<access_token>[^/]+)/?$', auth_views.login_via_token, name='login-via-token'),
+    re_path(r'^auth/debug/?$', auth_views.auth_debug, name='auth-debug'),
+    re_path(r'^auth/status/?$', auth_views.auth_status, name='auth-status'),
+    # new user signup
+    re_path(r'^auth/signup/?$', auth_views.signup, name='auth-signup'),
     # client requests to revoke internal token and logout user
-    re_path(r'^auth/logout/?$', auth_views.logout_via_token, name='logout-via-token'),
+    re_path(r'^auth/logout/?$', auth_views.logout, name='auth-logout'),
 
     # payment views
     re_path(r'^shop/client-token/?$', payment_views.GetToken.as_view(), name='get-client-token'),

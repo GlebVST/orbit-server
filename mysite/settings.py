@@ -141,6 +141,7 @@ PAYPAL_API_BASEURL = 'https://api.paypal.com/v1/' if ENV_TYPE == ENV_PROD else '
 AUTH0_DOMAIN = get_environment_variable('ORBIT_AUTH0_DOMAIN')
 AUTH0_CLIENTID = get_environment_variable('ORBIT_AUTH0_CLIENTID')
 AUTH0_SECRET = get_environment_variable('ORBIT_AUTH0_SECRET')
+AUTH0_AUDIENCE = get_environment_variable('ORBIT_AUTH0_AUDIENCE')
 AUTH0_MGMT_CLIENTID = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENTID')
 AUTH0_MGMT_SECRET = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENT_SECRET')
 
@@ -157,7 +158,7 @@ GAUTH_SERVICE_CREDENTIALS_FILE = os.path.join(BASE_DIR, 'conf', 'orbit-274702-1a
 GSHEET_TUFTS_EVAL_DOCID = get_environment_variable('ORBIT_GSHEET_TUFTS_EVAL_DOCID')
 
 AUTHENTICATION_BACKENDS = (
-    'users.auth_backends.ImpersonateBackend',
+    #'users.auth_backends.ImpersonateBackend',
     'users.auth_backends.Auth0Backend',
     'django.contrib.auth.backends.ModelBackend',
 )
@@ -170,8 +171,10 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 100,
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        # OAuth
-        'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
+        'rest_framework_jwt.authentication.JSONWebTokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+        ##'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
     ),
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema'
 }
@@ -183,6 +186,16 @@ OAUTH2_PROVIDER = {
     'SCOPES': {'read': 'Read scope', 'write': 'Write scope', 'groups': 'Access to your groups'}
 }
 
+# JWT Auth - used by drf-jwt library
+JWT_AUTH = {
+    'JWT_PAYLOAD_GET_USERNAME_HANDLER': 'users.jwtauthutils.jwt_get_username_from_payload_handler',
+    'JWT_DECODE_HANDLER': 'users.jwtauthutils.jwt_decode_token',
+    'JWT_ALGORITHM': 'RS256',
+    'JWT_AUDIENCE': AUTH0_AUDIENCE,
+    'JWT_ISSUER': 'https://' + AUTH0_DOMAIN + '/',
+    'JWT_AUTH_HEADER_PREFIX': 'Bearer'
+}
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -190,6 +203,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.auth.middleware.RemoteUserMiddleware',   # added for auth0
     'django.contrib.messages.middleware.MessageMiddleware',  # required by admin interface
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -302,17 +316,19 @@ LOGGING = {
     'formatters': {
         'simple': {
             '()': 'django.utils.log.ServerFormatter',
-            'format': '[%(server_time)s] %(levelname)-8s : %(message)s',
+            'format': '[{asctime}] {levelname} : {message}',
+            'style': '{'
         },
         'verbose': {
             '()': 'django.utils.log.ServerFormatter',
-            #'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(process)d %(thread)d %(lineno)-6s: %(message)s',
-            'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(lineno)-6s: %(message)s',
+            'format': '[{asctime}] {levelname} {name} {lineno}: {message}',
+            'style': '{'
         },
         # requires extra context key: requser (request.user)
         'req_fmt': {
             '()': 'django.utils.log.ServerFormatter',
-            'format': '[%(server_time)s] %(levelname)-8s %(name)-15s %(requser)-20s: %(message)s',
+            'format': '[{asctime}] {levelname} {name} {requser}: {message}',
+            'style': '{'
         },
     },
     'filters': {
