@@ -58,7 +58,7 @@ api_patterns = [
     re_path(r'^auth/debug/?$', auth_views.auth_debug, name='auth-debug'),
     re_path(r'^auth/status/?$', auth_views.auth_status, name='auth-status'),
     # new user signup
-    re_path(r'^auth/signup/(?<bt_plan_id>[a-zA-Z0-9_\-])/?$', auth_views.signup, name='auth-signup'),
+    re_path(r'^auth/signup/(?P<bt_plan_id>[a-zA-Z0-9_\-]+)/?$', auth_views.signup, name='auth-signup'),
     # client requests to revoke internal token and logout user
     re_path(r'^auth/logout/?$', auth_views.logout, name='auth-logout'),
 
