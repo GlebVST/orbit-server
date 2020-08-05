@@ -10,7 +10,6 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import generic, View
-from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 from rest_framework import generics, exceptions, permissions, status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -30,7 +29,6 @@ logger = logging.getLogger('api.shop')
 class GetToken(APIView):
     """Returns Client Token.
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def get(self, request, *args, **kwargs):
         context = {
             'token': braintree.ClientToken.generate()
@@ -39,7 +37,6 @@ class GetToken(APIView):
 
 # 2020-04-19: added for UI to get per-plan welcome_offer_url for authenticated user
 class SubscriptionPlanWelcomeInfo(APIView):
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def get(self, request):
         user = request.user
@@ -66,7 +63,6 @@ class SubscriptionPlanWelcomeInfo(APIView):
 
 class SubscriptionPlanList(generics.ListAPIView):
     serializer_class = SubscriptionPlanSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def getUpgradeAmount(self, new_plan, user_subs):
         can_upgrade = False
@@ -201,7 +197,6 @@ class SubscriptionPlanPublic(generics.ListAPIView):
 
 
 class SignupDiscountList(APIView):
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get(self, request, *args, **kwargs):
         user = request.user
@@ -242,7 +237,6 @@ class GetPaymentMethods(APIView):
     Returns a list of existing payment methods from the Customer vault (if any).
 
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def get(self, request, *args, **kwargs):
         try:
             customer = Customer.objects.get(user=request.user)
@@ -274,7 +268,6 @@ class UpdatePaymentToken(APIView):
       "payment-method-nonce":"abcd-efg"
     }
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):
         context = {}
         userdata = request.data
@@ -357,7 +350,6 @@ class NewSubscription(generics.CreateAPIView):
     If do_trial == 1 (or key not present), the trial period is activated. This is the default.
     """
     serializer_class = CreateUserSubsSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def perform_create(self, serializer, format=None):
         user = self.request.user
@@ -506,7 +498,6 @@ class ActivatePaidSubscription(generics.CreateAPIView):
     It creates new active BT subscription with no trial period (billing starts immediately).
     """
     serializer_class = ActivatePaidUserSubsSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def perform_create(self, serializer, format=None):
         user = self.request.user
@@ -602,7 +593,6 @@ class UpgradePlanAmount(APIView):
     """This calculates the amount the user will be charged for upgrading to the new higher-priced plan. If user's current subscription status is not Active, the user cannot upgrade.
     Example response
     """
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
     def get(self, request, *args, **kwargs):
         try:
             new_plan = SubscriptionPlan.objects.get(pk=kwargs['plan_pk'])
@@ -713,7 +703,6 @@ class UpgradePlan(generics.CreateAPIView):
     If a Nonce is given, it takes precedence and will be saved to the Customer vault and converted into a token.
     """
     serializer_class = UpgradePlanSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def perform_create(self, serializer, format=None):
         with transaction.atomic():
@@ -821,7 +810,6 @@ class DowngradePlan(generics.CreateAPIView):
     This will take effect at the end of the current billing cycle.
     """
     serializer_class = DowngradePlanSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def create(self, request, *args, **kwargs):
         logDebug(logger, request, 'DowngradePlan begin')
@@ -868,7 +856,6 @@ class SwitchTrialToActive(APIView):
     Example JSON when using existing customer payment method with token obtained from Vault:
         {"payment-method-token":"5wfrrp"}
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):
         user = request.user
         customer = user.customer
@@ -928,7 +915,6 @@ class CancelSubscription(APIView):
         If the subscription is in UI_ACTIVE:
             call makeActiveCanceled
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):
         userdata = request.data
         subscriptionId = userdata.get('subscription-id', None)
@@ -1001,7 +987,6 @@ class ResumeSubscription(APIView):
     If the subscription Id is valid and it is in one of: UI_ACTIVE_CANCELED/UI_ACTIVE_DOWNGRADE:
             call reactivateBtSubscription
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):
         userdata = request.data
         subscriptionId = userdata.get('subscription-id', None)
@@ -1075,11 +1060,9 @@ class ResumeSubscription(APIView):
 class CmeBoostList(generics.ListAPIView):
     queryset = CmeBoost.objects.filter(active=True).order_by('credits')
     serializer_class = CmeBoostSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
 class CmeBoostPurchase(generics.CreateAPIView):
     serializer_class = CmeBoostPurchaseSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def perform_create(self, serializer, format=None):
         user = self.request.user

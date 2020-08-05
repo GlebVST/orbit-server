@@ -86,7 +86,7 @@ INSTALLED_APPS = [
     'django.contrib.postgres',
     'django.contrib.staticfiles',
     'corsheaders',
-    'oauth2_provider',
+    'oauth2_provider', # TODO: remove
     'rest_framework',
     'storages',
     'users.apps.UsersConfig',
@@ -158,7 +158,7 @@ GAUTH_SERVICE_CREDENTIALS_FILE = os.path.join(BASE_DIR, 'conf', 'orbit-274702-1a
 GSHEET_TUFTS_EVAL_DOCID = get_environment_variable('ORBIT_GSHEET_TUFTS_EVAL_DOCID')
 
 AUTHENTICATION_BACKENDS = (
-    #'users.auth_backends.ImpersonateBackend',
+    'users.auth_backends.ImpersonateBackend',
     'users.auth_backends.Auth0Backend',
     'django.contrib.auth.backends.ModelBackend',
 )

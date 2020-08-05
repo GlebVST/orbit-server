@@ -8,7 +8,6 @@ from rest_framework import generics, exceptions, permissions, status, serializer
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
 from common.viewutils import ExtUpdateAPIView
@@ -34,13 +33,13 @@ class LogValidationErrorMixin(object):
 class EntryTypeList(generics.ListAPIView):
     queryset = EntryType.objects.all().order_by('name')
     serializer_class = EntryTypeSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsAdminOrAuthenticated,]
 
 # Sponsor - list only
 class SponsorList(generics.ListAPIView):
     queryset = Sponsor.objects.all().order_by('name')
     serializer_class = SponsorSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsAdminOrAuthenticated,]
 
 # custom pagination for OrbitCmeOfferList
 class OrbitCmeOfferPagination(PageNumberPagination):
@@ -53,7 +52,7 @@ class OrbitCmeOfferList(generics.ListAPIView):
     """
     serializer_class = OrbitCmeOfferSerializer
     pagination_class = OrbitCmeOfferPagination
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewOffer)
+    permission_classes = (permissions.IsAuthenticated, CanViewOffer)
 
     def get_queryset(self):
         user = self.request.user
@@ -74,7 +73,7 @@ class FeedListPagination(PageNumberPagination):
 class FeedList(generics.ListAPIView):
     serializer_class = EntryReadSerializer
     pagination_class = FeedListPagination
-    permission_classes = (CanViewFeed, permissions.IsAuthenticated, TokenHasReadWriteScope)
+    permission_classes = (CanViewFeed, permissions.IsAuthenticated)
 
     def get_queryset(self):
         user = self.request.user
@@ -83,7 +82,7 @@ class FeedList(generics.ListAPIView):
 
 class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
     serializer_class = EntryReadSerializer
-    permission_classes = (CanViewFeed, IsOwnerOrAuthenticated, TokenHasReadWriteScope)
+    permission_classes = (CanViewFeed, IsOwnerOrAuthenticated)
 
     def get_queryset(self):
         user = self.request.user
@@ -108,7 +107,7 @@ class FeedEntryDetail(LogValidationErrorMixin, generics.RetrieveDestroyAPIView):
 
 class InvalidateEntry(ExtUpdateAPIView):
     serializer_class = EntryReadSerializer
-    permission_classes = (CanInvalidateEntry, IsOwnerOrAuthenticated, TokenHasReadWriteScope)
+    permission_classes = (CanInvalidateEntry, IsOwnerOrAuthenticated)
 
     def get_queryset(self):
         user = self.request.user
@@ -126,7 +125,7 @@ class InvalidateEntry(ExtUpdateAPIView):
 
 class InvalidateOffer(ExtUpdateAPIView):
     serializer_class = OrbitCmeOfferSerializer
-    permission_classes = (IsOwnerOrAuthenticated, TokenHasReadWriteScope)
+    permission_classes = (IsOwnerOrAuthenticated,)
 
     def get_queryset(self):
         user = self.request.user
@@ -172,7 +171,7 @@ class CreateBrowserCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIVie
     This action redeems the offer specified in the request.
     """
     serializer_class = BRCmeCreateSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanPostBRCme)
+    permission_classes = (permissions.IsAuthenticated, CanPostBRCme)
 
     def perform_create(self, serializer, format=None):
         user = self.request.user
@@ -219,7 +218,7 @@ class UpdateBrowserCme(LogValidationErrorMixin, TagsMixin, ExtUpdateAPIView):
     This action does not change the credits earned from the original creation.
     """
     serializer_class = BRCmeUpdateSerializer
-    permission_classes = (IsEntryOwner, TokenHasReadWriteScope)
+    permission_classes = (IsEntryOwner,)
 
     def get_queryset(self):
         return BrowserCme.objects.select_related('entry')
@@ -262,7 +261,7 @@ class CreateSRCme(LogValidationErrorMixin, TagsMixin, generics.CreateAPIView):
     Create SRCme Entry in the user's feed.
     """
     serializer_class = SRCmeFormSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanPostSRCme)
+    permission_classes = (permissions.IsAuthenticated, CanPostSRCme)
 
     def get_queryset(self):
         user = self.request.user
@@ -310,7 +309,7 @@ class UpdateSRCme(LogValidationErrorMixin, TagsMixin, ExtUpdateAPIView):
     Update an existing SRCme Entry in the user's feed.
     """
     serializer_class = SRCmeFormSerializer
-    permission_classes = (IsEntryOwner, TokenHasReadWriteScope)
+    permission_classes = (IsEntryOwner,)
 
     def get_queryset(self):
         return SRCme.objects.select_related('entry')
@@ -354,7 +353,6 @@ class UpdateSRCme(LogValidationErrorMixin, TagsMixin, ExtUpdateAPIView):
         return Response(out_serializer.data)
 
 class RecAllowedUrlList(APIView):
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get(self, request, *args, **kwargs):
         user = request.user

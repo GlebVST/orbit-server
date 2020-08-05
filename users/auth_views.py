@@ -60,7 +60,6 @@ def login_via_code(request):
     code = request.GET.get('code')
     if not code:
         return HttpResponse(status=400)
-    remote_addr = request.META.get('REMOTE_ADDR')
     get_token = GetToken(settings.AUTH0_DOMAIN)
     auth0_users = Users(settings.AUTH0_DOMAIN)
     token = get_token.authorization_code(
@@ -70,20 +69,17 @@ def login_via_code(request):
         CALLBACK_URL
     )
     user_info_dict = auth0_users.userinfo(token['access_token'])
-    print(user_info_dict)
+    #print(user_info_dict)
     logInfo(logger, request, 'user_id: {user_id} email:{email}'.format(**user_info_dict))
     user = authenticate(request, remote_user=user_info_dict)
     if user:
-        auth_login(request, user)
-        logDebug(logger, request, 'login from ip: ' + remote_addr)
+        auth_login(request, user, backend='users.auth_backends.Auth0Backend')
         return redirect('api-docs')
     else:
         context = {
             'success': False,
             'message': 'User authentication failed'
         }
-        msg = context['message'] + ' from ip: ' + remote_addr
-        logDebug(logger, request, msg)
         return redirect('ss-login-error')
 
 
@@ -177,83 +173,63 @@ def auth_debug(request):
 
 
 @api_view()
-@permission_classes((AllowAny,))
+#@permission_classes((AllowAny,))
 def auth_status(request):
-    """Called by UI
+    """Called by UI to get user context for an authenticated user
     """
-    access_token = get_token_auth_header(request)
-    if not access_token:
-        context = {
-            'success': False,
-            'message': 'Invalid or missing access_token'
-        }
-        return Response(context, status=status.HTTP_401_UNAUTHORIZED)
-    decoded = decode_token(access_token) # dict (same as the payload dict passed to jwt_get_username_from_payload)
-    logger.info('auth_status: decoded sub: {sub}'.format(**decoded))
-    username = decoded.get('sub').replace('|', '.')
-    user_info_dict = dict(username=username, email=username)
-    # User should already exist (this is not a signup)
-    user = authenticate(request, remote_user=user_info_dict)
-    if user:
-        auth_login(request, user)
-        logDebug(logger, request, 'login from ip: ' + remote_addr)
-        context = make_login_context(user)
+    if request.user.is_authenticated:
+        if not request.session:
+            auth_login(request, user, backend='users.auth_backends.Auth0Backend')
+        context = make_login_context(request.user)
         return Response(context, status=status.HTTP_200_OK)
-    # else
+    # else, bad token
     context = {
         'success': False,
-        'message': 'User not signed up'
+        'message': 'Invalid or missing access_token'
     }
     return Response(context, status=status.HTTP_401_UNAUTHORIZED)
 
-
 @api_view()
-@permission_classes((AllowAny,))
-def signup(request):
+def signup(request, bt_plan_id):
     """Called by UI for new user signup.
-    Expected GET parameters (make this part of url?):
-        'plan': planId of the plan selected by user
+    Expected URL parameter: planId of the plan selected by user (for BT lookup)
     Optional GET parameters:
-        inviteid:
-        affiliateId
+        inviteid: invite code of an existing Orbit user
+        affid: affiliateId value for a particular AffiliateDetail instance
     Create new user and profile
     Return user context
     """
-    remote_addr = request.META.get('REMOTE_ADDR')
     inviterId = request.GET.get('inviteid') # if present, this is the inviteId of the inviter
     affiliateId = request.GET.get('affid') # if present, this is the affiliateId of the converter
-    planId = request.GET.get('plan') # expected to be present for new user signup
-    if planId:
-        try:
-            plan = SubscriptionPlan.objects.get(planId=planId)
-        except SubscriptionPlan.DoesNotExist:
-            context = {
-                'success': False,
-                'message': 'User authentication failed. Invalid plan.'
-            }
-            msg = "Invalid planId: {0}. No plan found".format(planId)
-            logWarning(logger, request, msg)
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        plan = SubscriptionPlan.objects.get(planId=bt_plan_id)
+    except SubscriptionPlan.DoesNotExist:
+        context = {
+            'success': False,
+            'message': 'User signup failed. Invalid plan.'
+        }
+        msg = "Invalid planId: {0}. No plan found".format(planId)
+        logWarning(logger, request, msg)
+        return Response(context, status=status.HTTP_400_BAD_REQUEST)
     access_token = get_token_auth_header(request)
     auth0_users = Users(settings.AUTH0_DOMAIN) # Authentication API
     # https://auth0.com/docs/api/authentication#user-profile
     user_info_dict = auth0_users.userinfo(access_token) # returns dict as of auth0 v3.9.1
-    user_info_dict['planId'] = planId
+    user_info_dict['planId'] = plan.planId
     user_info_dict['inviterId'] = inviterId
     user_info_dict['affiliateId'] = affiliateId
-    msg = 'user_id:{user_id} email:{email} v:{email_verified}'.format(**user_info_dict)
-    if planId:
-        msg += " plan:{planId}".format(**user_info_dict)
+    msg = 'user_id:{user_id} email:{email} v:{email_verified} plan:{planId}'.format(**user_info_dict)
     if affiliateId:
         msg += " from-affl:{affiliateId}".format(**user_info_dict)
     elif inviterId:
         msg += " invitedBy:{inviterId}".format(**user_info_dict)
     logInfo(logger, request, msg)
+    remote_addr = request.META.get('REMOTE_ADDR')
     user = authenticate(request, remote_user=user_info_dict) # creates User (and Profile)
     if user:
         auth_login(request, user)
-        logDebug(logger, request, 'login from ip: ' + remote_addr)
-        context = make_login_context(token, user)
+        logDebug(logger, request, 'signup from ip: ' + remote_addr)
+        context = make_login_context(user)
         return Response(context, status=status.HTTP_200_OK)
     else:
         context = {

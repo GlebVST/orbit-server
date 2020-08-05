@@ -19,15 +19,22 @@ def jwt_get_username_from_payload_handler(payload):
           'azp': '9A8qdQltnfm65z1TjA0xWES64dNmq8Ap',
           'gty': 'client-credentials'
         }
+        Example payload from UI Lock
+        {
+            'iss': https://orbit-dev.auth0.com/,
+            'sub': 'auth0|5906ccc95a90b615f9504a77',
+            'aud': [https://orbit-dev/new-orbit-api’, https://orbit-dev.auth0.com/userinfo],
+            'iat': 1596564441
+            'exp': 1596571641,
+            'azp': 'JNm7ns-4_ARJZA-Kz487V81ihb-48Qni',
+            'scope': 'openid profile email',
+        }
     """
     logger.info(str(payload))
-    username = payload.get('sub').replace('|', '.')
-    if username == '9A8qdQltnfm65z1TjA0xWES64dNmq8Ap@clients':
-        username='faria@orbitcme.com'
-    user_dict = dict(username=username, email=username)
+    user_dict = {'user_id': payload.get('sub')}
     user = authenticate(request=None, remote_user=user_dict)
-    print('jwt_get_username_from_payload authenticate: {0}'.format(user))
-    return username
+    #logger.info('jwt_get_username_from_payload authenticate: {0}'.format(user))
+    return user.email
 
 
 def jwt_decode_token(token):
@@ -51,11 +58,12 @@ def get_token_auth_header(request):
     """Obtains the access token from the Authorization Header
     """
     auth = request.META.get("HTTP_AUTHORIZATION", None)
-    parts = auth.split()
-    token = parts[1]
-    print('get_token_auth_header: {0}'.format(token))
-    return token
-
+    #logger.info('get_token_auth_header: {0}'.format(auth))
+    if auth:
+        parts = auth.split()
+        token = parts[1]
+        return token
+    return None
 
 def decode_token(token):
     """Decode verified token and return decoded dict"""

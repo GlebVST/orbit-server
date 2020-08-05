@@ -16,7 +16,6 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
 from common.dateutils import LOCAL_TZ
@@ -56,20 +55,20 @@ class PingTest(APIView):
 class CountryList(generics.ListAPIView):
     queryset = Country.objects.all().order_by('id')
     serializer_class = CountrySerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsAdminOrAuthenticated,]
 
 
 # Degree - list only
 class DegreeList(generics.ListAPIView):
     queryset = Degree.objects.all().order_by('sort_order')
     serializer_class = DegreeSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsAdminOrAuthenticated,]
 
 # LicenseType - list only
 class LicenseTypeList(generics.ListAPIView):
     queryset = LicenseType.objects.filter(name__in=[LicenseType.TYPE_STATE, LicenseType.TYPE_DEA, LicenseType.TYPE_FLUO]).order_by('name')
     serializer_class = LicenseTypeSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsAdminOrAuthenticated,]
     pagination_class = None
 
 class HospitalFilterBackend(BaseFilterBackend):
@@ -93,7 +92,7 @@ class HospitalFilterBackend(BaseFilterBackend):
 class HospitalList(generics.ListAPIView):
     queryset = Hospital.objects.all()
     serializer_class = HospitalSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsAdminOrAuthenticated,]
     filter_backends = (HospitalFilterBackend,)
 
 
@@ -101,7 +100,7 @@ class HospitalList(generics.ListAPIView):
 class ResidencyProgramList(generics.ListAPIView):
     queryset = ResidencyProgram.objects.all()
     serializer_class = ResidencyProgramSerializer
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsAdminOrAuthenticated,]
 
     def get_queryset(self):
         """Filter by GET parameter: q
@@ -124,7 +123,7 @@ class PracticeSpecialtyList(generics.ListAPIView):
 class CmeTagList(generics.ListAPIView):
     serializer_class = CmeTagWithSpecSerializer
     pagination_class = LongPagination
-    permission_classes = [IsAdminOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsAdminOrAuthenticated,]
 
     def get_queryset(self):
         return CmeTag.objects.all().prefetch_related('specialties').order_by('priority','name')
@@ -140,7 +139,7 @@ class ProfileUpdate(ExtUpdateAPIView):
     """
     queryset = Profile.objects.all().select_related('country')
     serializer_class = ProfileUpdateSerializer
-    permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsOwnerOrAuthenticated,]
 
     def perform_update(self, serializer, format=None):
         with transaction.atomic():
@@ -169,7 +168,7 @@ class ProfileInitialUpdate(ExtUpdateAPIView):
     """
     queryset = Profile.objects.all().select_related('country')
     serializer_class = ProfileInitialUpdateSerializer
-    permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsOwnerOrAuthenticated,]
 
     def perform_update(self, serializer, format=None):
         planId = self.request.data.get('planId', '')
@@ -335,7 +334,6 @@ class SetProfileAccessedTour(APIView):
     Example JSON in the POST data:
         {"value": 0 or 1}
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):
         value = request.data.get('value', None)
         if value not in (0, 1):
@@ -359,7 +357,6 @@ class UserEmailUpdate(ExtUpdateAPIView):
         {"email": "someemail@orbitcme.com"}
     """
     serializer_class = UserEmailUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -408,7 +405,6 @@ class ManageProfileCmetags(APIView):
         }
     """
     serializer_class = ManageProfileCmetagSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
     def post(self, request, *args, **kwargs):
         in_serializer = ManageProfileCmetagSerializer(request.user.profile, request.data)
         in_serializer.is_valid(raise_exception=True)
@@ -424,7 +420,6 @@ class ManageProfileCmetags(APIView):
 
 class UserStateLicenseList(generics.ListAPIView):
     serializer_class = StateLicenseSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         """Returns the latest (by expireDate) license per (state, license_type, licenseNumber)
@@ -437,7 +432,7 @@ class UserStateLicenseList(generics.ListAPIView):
 class UserStateLicenseDetail(ExtRetrieveUpdateAPIView):
     queryset = StateLicense.objects.all()
     serializer_class = StateLicenseSerializer
-    permission_classes = [IsOwnerOrAuthenticated, TokenHasReadWriteScope]
+    permission_classes = [IsOwnerOrAuthenticated,]
 
     def perform_update(self, serializer, format=None):
         user = self.request.user
@@ -446,7 +441,6 @@ class UserStateLicenseDetail(ExtRetrieveUpdateAPIView):
 
 class CreateDocument(LogValidationErrorMixin, generics.CreateAPIView):
     serializer_class = UploadDocumentSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     parser_classes = (MultiPartParser,FormParser,)
 
     def perform_create(self, serializer, format=None):
@@ -480,7 +474,6 @@ class DeleteDocument(APIView):
     Example JSON:
         {"document-id": [1,2,3]}
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, *args, **kwargs):
         userdata = request.data
         doc_pks = userdata.get('document-id', [])
@@ -515,7 +508,6 @@ class DeleteDocument(APIView):
 # User Feedback
 class UserFeedbackList(generics.ListCreateAPIView):
     serializer_class = UserFeedbackSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def get_queryset(self):
         return UserFeedback.objects.filter(user=self.request.user)
 

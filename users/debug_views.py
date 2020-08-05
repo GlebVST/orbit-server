@@ -13,7 +13,6 @@ from rest_framework.filters import BaseFilterBackend
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # app
 from .auth0_tools import Auth0Api
 from .emailutils import sendCancelReminderEmail, sendRenewalReminderEmail, sendCardExpiredAlertEmail
@@ -30,7 +29,7 @@ class ValidateLicenseFile(generics.UpdateAPIView):
     """Validate an existing uploaded license file
     """
     serializer_class = LicenseFileTypeUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
     def get_queryset(self):
         org = self.request.user.profile.organization
         return OrgFile.objects.filter(organization=org)
@@ -83,7 +82,6 @@ class MakeOrbitCmeOffer(APIView):
     Create a test OrbitCmeOffer for the authenticated user.
     Pick a random AllowedUrl for the url for the offer.
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         user = request.user
         now = timezone.now()
@@ -113,7 +111,6 @@ class EmailSubscriptionReceipt(APIView):
     and email a receipt for it, and return success:True and the transactionId.
     If no transaction exists: return success:False
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         user = request.user
         #print('User: {0.pk} {0.email}'.format(user))
@@ -165,7 +162,6 @@ class EmailSubscriptionPaymentFailure(APIView):
     and send a payment failure email for it, and return success:True and the transactionId.
     If no transaction exists: return success:False
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         user = request.user
         user_subs = UserSubscription.objects.getLatestSubscription(user)
@@ -217,7 +213,6 @@ class EmailSubscriptionPaymentFailure(APIView):
 class InvitationDiscountList(generics.ListAPIView):
     """List of InvitationDiscounts for the current authenticated user as inviter"""
     serializer_class = InvitationDiscountReadSerializer
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         user = self.request.user
@@ -226,7 +221,6 @@ class InvitationDiscountList(generics.ListAPIView):
 class PreEmail(APIView):
     """send test email using premailer
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         user = request.user
         etype = EntryType.objects.get(name=ENTRYTYPE_BRCME)
@@ -275,7 +269,6 @@ class PreEmail(APIView):
 class EmailCardExpired(APIView):
     """Call emailutils.SendCardExpiredAlertEmail for request.user
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         user = request.user
         paymentMethods = Customer.objects.getPaymentMethods(user.customer)
@@ -298,7 +291,6 @@ class EmailCardExpired(APIView):
 class EmailSubscriptionRenewalReminder(APIView):
     """Call emailutils.SendRenewalReminderEmail for request.user
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         user = request.user
         paymentMethods = Customer.objects.getPaymentMethods(user.customer)
@@ -325,7 +317,6 @@ class EmailSubscriptionRenewalReminder(APIView):
 class EmailSubscriptionCancelReminder(APIView):
     """Call emailutils.SendCancelReminderEmail for request.user
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     def post(self, request, format=None):
         user = request.user
         paymentMethods = Customer.objects.getPaymentMethods(user.customer)
@@ -347,7 +338,6 @@ class EmailSubscriptionCancelReminder(APIView):
 
 class DocumentList(generics.ListAPIView):
     serializer_class = DocumentReadSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def get_queryset(self):
         return Document.objects.filter(user=self.request.user)
@@ -435,13 +425,13 @@ class OrgMemberFilterBackend(BaseFilterBackend):
 class OrgMemberList(generics.ListAPIView):
     queryset = OrgMember.objects.filter(removeDate__isnull=True)
     serializer_class = OrgMemberReadSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
     filter_backends = (OrgMemberFilterBackend,)
 
 
 class CreateOrgMember(generics.CreateAPIView):
     serializer_class = OrgMemberFormSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
     def perform_create(self, serializer, format=None):
         """If email is given, check that it does not trample on an existing user account
@@ -470,7 +460,7 @@ class CreateOrgMember(generics.CreateAPIView):
 
 class OrgMemberDetail(generics.RetrieveAPIView):
     serializer_class = OrgMemberReadSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
 
     def get_queryset(self):
@@ -483,7 +473,7 @@ class OrgMemberDetail(generics.RetrieveAPIView):
 
 class UpdateOrgMember(generics.UpdateAPIView):
     serializer_class = OrgMemberFormSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
 
     def get_queryset(self):
@@ -521,7 +511,6 @@ class UpdateOrgMember(generics.UpdateAPIView):
 
 
 class EmailSetPassword(APIView):
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def post(self, request, *args, **kwargs):
         apiConn = Auth0Api.getConnection(self.request)
@@ -561,7 +550,6 @@ class CreateAuditReport(CertificateMixin, APIView):
     It generates an Audit Report for the date range, and uploads to S3.
     For each tag with non-zero brcme credits, it also generates a Specialty Certificate that is associated with the report.
     """
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
     def post(self, request, userid, start, end):
         try:
@@ -682,7 +670,6 @@ class CreateAuditReport(CertificateMixin, APIView):
         return report
 
 class RecAllowedUrlListForUser(APIView):
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get(self, request, userid, *args, **kwargs):
         from .feed_serializers import RecAllowedUrlReadSerializer
