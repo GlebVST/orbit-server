@@ -86,7 +86,6 @@ INSTALLED_APPS = [
     'django.contrib.postgres',
     'django.contrib.staticfiles',
     'corsheaders',
-    'oauth2_provider', # TODO: remove
     'rest_framework',
     'storages',
     'users.apps.UsersConfig',
@@ -177,13 +176,6 @@ REST_FRAMEWORK = {
         ##'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
     ),
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema'
-}
-
-# OAuth
-OAUTH2_PROVIDER = {
-    'ACCESS_TOKEN_EXPIRE_SECONDS': APP_EXPIRE_SECONDS,
-    # this is the list of available scopes
-    'SCOPES': {'read': 'Read scope', 'write': 'Write scope', 'groups': 'Access to your groups'}
 }
 
 # JWT Auth - used by drf-jwt library
@@ -316,19 +308,16 @@ LOGGING = {
     'formatters': {
         'simple': {
             '()': 'django.utils.log.ServerFormatter',
-            'format': '[{asctime}] {levelname} : {message}',
-            'style': '{'
+            'format': '[%(asctime)s] %(levelname)-8s : %(message)s',
         },
         'verbose': {
             '()': 'django.utils.log.ServerFormatter',
-            'format': '[{asctime}] {levelname} {name} {lineno}: {message}',
-            'style': '{'
+            'format': '[%(asctime)s] %(levelname)-8s %(name)-15s %(lineno)-6s: %(message)s',
         },
         # requires extra context key: requser (request.user)
         'req_fmt': {
             '()': 'django.utils.log.ServerFormatter',
-            'format': '[{asctime}] {levelname} {name} {requser}: {message}',
-            'style': '{'
+            'format': '[%(asctime)s] %(levelname)-8s %(name)-15s %(requser)-20s: %(message)s',
         },
     },
     'filters': {

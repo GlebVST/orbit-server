@@ -118,8 +118,8 @@ def serialize_creditTypes(profile):
     s = CreditTypeSerializer(qset, many=True)
     return s.data
 
-def make_login_context(user):
-    """Create context dict for response.
+def make_user_context(user):
+    """Create context dict for the given user.
     Args:
         user: User instance
     """
@@ -180,7 +180,7 @@ def auth_status(request):
     if request.user.is_authenticated:
         if not request.session:
             auth_login(request, user, backend='users.auth_backends.Auth0Backend')
-        context = make_login_context(request.user)
+        context = make_user_context(request.user)
         return Response(context, status=status.HTTP_200_OK)
     # else, bad token
     context = {
@@ -227,9 +227,9 @@ def signup(request, bt_plan_id):
     remote_addr = request.META.get('REMOTE_ADDR')
     user = authenticate(request, remote_user=user_info_dict) # creates User (and Profile)
     if user:
-        auth_login(request, user)
+        auth_login(request, user, backend='users.auth_backends.Auth0Backend')
         logDebug(logger, request, 'signup from ip: ' + remote_addr)
-        context = make_login_context(user)
+        context = make_user_context(user)
         return Response(context, status=status.HTTP_200_OK)
     else:
         context = {
