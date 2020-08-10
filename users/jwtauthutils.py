@@ -31,15 +31,17 @@ def jwt_get_username_from_payload_handler(payload):
             'azp': 'JNm7ns-4_ARJZA-Kz487V81ihb-48Qni',
             'scope': 'openid profile email',
         }
+    Note: this has to return a non-empty str otherwise client gets invalid token error.
     """
     #logger.info(str(payload))
-    user_dict = {'user_id': payload.get('sub')}
+    user_id = payload.get('sub')
+    user_dict = {'user_id': user_id}
     # This function does not take request as an arg, and so cannot pass it to authenticate!
     user = authenticate(request=None, remote_user=user_dict)
     logger.info('jwt_get_username_from_payload authenticate: {0}'.format(user))
-    if user:
-        return user.email
-    return None
+    if user and user.email:
+        return user.email # existing user (completed signup)
+    return user_id # new user (just created, only has username set to user_id)
 
 def jwt_decode_token(token):
     header = jwt.get_unverified_header(token)

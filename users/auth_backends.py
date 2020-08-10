@@ -26,7 +26,7 @@ logger = logging.getLogger('gen.auth')
 # Format of user_id: {identity provider id}|{unique id in the provider}
 # Reference: https://auth0.com/docs/user-profile/normalized
 #
-
+USER_BACKEND = 'users.auth_backends.Auth0Backend'
 def configure_user(user_info_dict):
     """Called by auth_views.signup
     1. It updates the user.email/username to the email given in user_info_dict.
@@ -84,6 +84,7 @@ def configure_user(user_info_dict):
         user.email = email
         user.username = email
         user.save()
+        user.backend = USER_BACKEND
         profile = Profile.objects.createProfile(user, auth0Id, planId)
     if inviter:
         profile.inviter = inviter 
@@ -135,13 +136,14 @@ class Auth0Backend(RemoteUserBackend):
         try:
             profile = Profile.objects.get(socialId=auth0Id)
         except Profile.DoesNotExist:
-            # Create User instance as username=auth0Id (otherwise client will get invalid payload error for their access token)
-            # auth_views should call signup_user to complete the initialization
+            # Create User instance as username=auth0Id
+            # auth_views must call configure_user to update this user instance
+            # and complete the initialization
             user = User.objects.create(username=auth0Id)
-            user.backend = 'users.auth_backends.Auth0Backend'
+            user.backend = USER_BACKEND
         else:
             user = profile.user
-            user.backend = 'users.auth_backends.Auth0Backend'
+            user.backend = USER_BACKEND
         return user
 
     def get_user(self, user_id):
@@ -166,7 +168,7 @@ class ImpersonateBackend(object):
             # User must have is_staff perm to use impersonate
             if not user.is_staff:
                 return None
-        user.backend = 'users.auth_backends.Auth0Backend'
+        user.backend = USER_BACKEND
         # check AuthImpersonation
         now = timezone.now()
         qset = AuthImpersonation.objects.filter(impersonator=user, expireDate__gt=now, valid=True).order_by('-expireDate')

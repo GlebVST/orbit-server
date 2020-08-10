@@ -216,7 +216,16 @@ def signup(request, bt_plan_id):
     access_token = get_token_auth_header(request)
     auth0_users = Users(settings.AUTH0_DOMAIN) # Authentication API
     # https://auth0.com/docs/api/authentication#user-profile
-    user_info_dict = auth0_users.userinfo(access_token) # returns dict as of auth0 v3.9.1
+    user_info_dict = auth0_users.userinfo(access_token) # returns dict w. keys sub, email, etc
+    # Example user_info_dict
+    # 'email': 'gleb+auth3@codeabovelab.com',
+    # 'email_verified': False,
+    # 'name': 'gleb+auth3@codeabovelab.com',
+    # 'nickname': 'gleb+auth3',
+    # 'picture': 'https://s.gravatar.com/avatar/ae11827127b30004410dcb343ac3a0b1?s=480&r=pg&d=https%3A%2F%2Fcdn.auth0.com%2Favatars%2Fgl.png',
+    # 'sub': 'auth0|5f30e94bc95c6900378fe586',
+    # 'updated_at': '2020-08-10T06:29:31.708Z'}
+    user_info_dict['user_id'] = user_info_dict['sub'] # set key expected by authenticate
     user_info_dict['planId'] = plan.planId
     user_info_dict['inviterId'] = inviterId
     user_info_dict['affiliateId'] = affiliateId
