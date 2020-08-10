@@ -18,6 +18,7 @@ from common.logutils import *
 # app
 from .models import *
 from .jwtauthutils import get_token_auth_header, decode_token
+from .auth_backends import configure_user
 from .serializers import ProfileReadSerializer, ActiveCmeTagSerializer, UserSubsReadSerializer, InvitationDiscountReadSerializer
 from .feed_serializers import CreditTypeSerializer
 
@@ -199,6 +200,7 @@ def signup(request, bt_plan_id):
     Create new user and profile
     Return user context
     """
+    logInfo(logger, request, "Begin signup with bt_plan_id: {0}".format(bt_plan_id))
     inviterId = request.GET.get('inviteid') # if present, this is the inviteId of the inviter
     affiliateId = request.GET.get('affid') # if present, this is the affiliateId of the converter
     try:
@@ -225,16 +227,16 @@ def signup(request, bt_plan_id):
         msg += " invitedBy:{inviterId}".format(**user_info_dict)
     logInfo(logger, request, msg)
     remote_addr = request.META.get('REMOTE_ADDR')
-    user = authenticate(request, remote_user=user_info_dict) # creates User (and Profile)
+    user = configure_user(user_info_dict) # create Profile and complete initialization
     if user:
-        auth_login(request, user, backend='users.auth_backends.Auth0Backend')
+        auth_login(request, user, backend=user.backend)
         logDebug(logger, request, 'signup from ip: ' + remote_addr)
         context = make_user_context(user)
         return Response(context, status=status.HTTP_200_OK)
     else:
         context = {
             'success': False,
-            'message': 'User authentication failed'
+            'message': 'User signup failed'
         }
         msg = context['message'] + ' from ip: ' + remote_addr
         logDebug(logger, request, msg)

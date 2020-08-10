@@ -575,9 +575,21 @@ def orgfile_document_path(instance, filename):
 
 class ProfileManager(models.Manager):
 
+    def createProfile(self, user, socialId, planId):
+        """Create Profile instance for the given user
+        This is called auth_backeds.signup_user
+        """
+        hashgen = Hashids(salt=settings.HASHIDS_SALT, alphabet=HASHIDS_ALPHABET, min_length=5)
+        profile = Profile.objects.create(
+            user=user,
+            inviteId=hashgen.encode(user.pk),
+            planId=planId,
+            socialId=socialId
+        )
+        return profile
+
     def createUserAndProfile(self, email, planId, inviter=None, affiliateId='', socialId='', pictureUrl='', verified=False, organization=None, firstName='', lastName=''):
         """Create new User instance and new Profile instance"""
-        hashgen = Hashids(salt=settings.HASHIDS_SALT, alphabet=HASHIDS_ALPHABET, min_length=5)
         user = User.objects.create(
             username=email,
             email=email

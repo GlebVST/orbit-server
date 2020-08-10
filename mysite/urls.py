@@ -16,13 +16,13 @@ from users import (
 )
 from goals import views as goal_views
 from goals import ac_views as goal_ac_views
-from common.swagger import SwaggerCustomUIRenderer
+##from common.swagger import SwaggerCustomUIRenderer
 from rest_framework.decorators import api_view, renderer_classes, authentication_classes, permission_classes
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import response, schemas
 from rest_framework.renderers import CoreJSONRenderer
-from rest_framework_swagger.renderers import OpenAPIRenderer
+#from rest_framework_swagger.renderers import OpenAPIRenderer
 
 auth_patterns = [
     # site login via server-side login (for testing only)
@@ -185,14 +185,14 @@ if settings.ENV_TYPE != settings.ENV_PROD:
 
 
 # Custom view to render Swagger UI consuming only /api/ endpoints
-@api_view()
-@authentication_classes((SessionAuthentication,))
-@renderer_classes([CoreJSONRenderer, OpenAPIRenderer, SwaggerCustomUIRenderer])
-@permission_classes((IsAuthenticated,))
-def swagger_view(request):
-    patterns = re_path(r'^api/v1/', include(api_patterns)),
-    generator = schemas.SchemaGenerator(title='Orbit API', patterns=patterns)
-    return response.Response(generator.get_schema(request=request))
+#@api_view()
+#@authentication_classes((SessionAuthentication,))
+#@renderer_classes([CoreJSONRenderer, OpenAPIRenderer, SwaggerCustomUIRenderer])
+#@permission_classes((IsAuthenticated,))
+#def swagger_view(request):
+#    patterns = re_path(r'^api/v1/', include(api_patterns)),
+#    generator = schemas.SchemaGenerator(title='Orbit API', patterns=patterns)
+#    return response.Response(generator.get_schema(request=request))
 
 
 urlpatterns = [
@@ -202,7 +202,7 @@ urlpatterns = [
     # Django admin interface
     re_path(r'^admin/', admin_site.urls),
     # Swagger
-    re_path(r'^api-docs/', swagger_view, name='api-docs'),
+    #re_path(r'^api-docs/', swagger_view, name='api-docs'),
     # server-side login
     re_path(r'auth/', include(auth_patterns)),
 ]

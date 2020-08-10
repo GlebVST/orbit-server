@@ -32,12 +32,14 @@ def jwt_get_username_from_payload_handler(payload):
             'scope': 'openid profile email',
         }
     """
-    logger.info(str(payload))
+    #logger.info(str(payload))
     user_dict = {'user_id': payload.get('sub')}
+    # This function does not take request as an arg, and so cannot pass it to authenticate!
     user = authenticate(request=None, remote_user=user_dict)
-    #logger.info('jwt_get_username_from_payload authenticate: {0}'.format(user))
-    return user.email
-
+    logger.info('jwt_get_username_from_payload authenticate: {0}'.format(user))
+    if user:
+        return user.email
+    return None
 
 def jwt_decode_token(token):
     header = jwt.get_unverified_header(token)
