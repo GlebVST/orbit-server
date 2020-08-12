@@ -90,7 +90,6 @@ INSTALLED_APPS = [
     'storages',
     'users.apps.UsersConfig',
     'goals.apps.GoalsConfig',
-    'rest_framework_swagger',
     'django_extensions',
 ]
 
@@ -173,9 +172,7 @@ REST_FRAMEWORK = {
         'rest_framework_jwt.authentication.JSONWebTokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
-        ##'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
     ),
-    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema'
 }
 
 # JWT Auth - used by drf-jwt library
@@ -289,13 +286,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'collected_static')
 
 # auth settings (for server-side login/logout)
 LOGIN_URL = 'ss-login'      # named url pattern
-LOGIN_REDIRECT_URL = 'api-docs' # ,,
-
-SWAGGER_SETTINGS = {
-    'LOGIN_URL': 'ss-login',
-    'LOGOUT_URL': 'ss-logout',
-    'USE_SESSION_AUTH': True,
-}
+LOGIN_REDIRECT_URL = 'ss-home' # ,,
 
 #
 # logging configuration.
