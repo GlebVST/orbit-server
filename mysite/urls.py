@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path, re_path
 from .admin import admin_site
+from .hybridrouter import HybridRouter
 from users import (
     ac_views,
     auth_views,
@@ -16,6 +17,8 @@ from users import (
 )
 from goals import views as goal_views
 from goals import ac_views as goal_ac_views
+
+router = HybridRouter(trailing_slash=False)
 
 auth_patterns = [
     # site login via server-side login (for testing only)
@@ -43,16 +46,12 @@ ac_patterns = [
     re_path(r'^licensegoal-autocomplete/$', goal_ac_views.LicenseGoalAutocomplete.as_view(), name='licensegoal-autocomplete'),
 ]
 
+# API
 api_patterns = [
-    # ping test
-    re_path(r'^ping/?$', views.PingTest.as_view(), name='ping-pong'),
-
     # AUTH
     re_path(r'^auth/debug/?$', auth_views.auth_debug, name='auth-debug'),
     re_path(r'^auth/status/?$', auth_views.auth_status, name='auth-status'),
-    # new user signup
     re_path(r'^auth/signup/(?P<bt_plan_id>[a-zA-Z0-9_\-]+)/?$', auth_views.signup, name='auth-signup'),
-    # client requests to revoke internal token and logout user
     re_path(r'^auth/logout/?$', auth_views.logout, name='auth-logout'),
 
     # payment views
@@ -75,119 +74,124 @@ api_patterns = [
     re_path(r'^shop/boosts/purchase?$', payment_views.CmeBoostPurchase.as_view(), name='shop-boost-purchase'),
 
     # views
-    re_path(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileUpdate.as_view()),
+    re_path(r'^profiles/(?P<pk>[0-9]+)/?$', views.ProfileUpdate.as_view(), name='profile-update'),
     re_path(r'^profiles/(?P<pk>[0-9]+)/update-initial/?$', views.ProfileInitialUpdate.as_view(), name='profile-initial-update'),
-    re_path(r'^profiles/set-email/?$', views.UserEmailUpdate.as_view()),
+    re_path(r'^profiles/set-email/?$', views.UserEmailUpdate.as_view(), name='profile-set-email'),
     re_path(r'^profiles/set-accessed-tour/?$', views.SetProfileAccessedTour.as_view(), name='profile-set-accessed-tour'),
     re_path(r'^profiles/set-cmetags/?$', views.ManageProfileCmetags.as_view(), name='profile-set-cmetags'),
-    re_path(r'^cmetags/?$', views.CmeTagList.as_view()),
-    re_path(r'^degrees/?$', views.DegreeList.as_view()),
-    re_path(r'^countries/?$', views.CountryList.as_view()),
-    re_path(r'^hospitals/?$', views.HospitalList.as_view()),
-    re_path(r'^license-types/?$', views.LicenseTypeList.as_view()),
-    re_path(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view()),
-    re_path(r'^residency-programs/?$', views.ResidencyProgramList.as_view()),
-    re_path(r'^licenses/?$', views.UserStateLicenseList.as_view()),
-    re_path(r'^invite-lookup/(?P<inviteid>[0-9A-Za-z!@]+)/?$', views.InviteIdLookup.as_view()),
-    re_path(r'^aff-lookup/(?P<affid>[0-9A-Za-z]+)/?$', views.AffiliateIdLookup.as_view()),
-    re_path(r'^emlkup/?$', views.EmailLookup.as_view()),
-    re_path(r'^eligible-sites/?$', views.EligibleSiteList.as_view()),
-    re_path(r'^eligible-sites/(?P<pk>[0-9]+)/?$', views.EligibleSiteDetail.as_view()),
-    re_path(r'^upload-document/?$', views.CreateDocument.as_view()),
-    re_path(r'^delete-document/?$', views.DeleteDocument.as_view()),
-    re_path(r'^feedback/?$', views.UserFeedbackList.as_view()),
+    re_path(r'^cmetags/?$', views.CmeTagList.as_view(), name='cmetags'),
+    re_path(r'^degrees/?$', views.DegreeList.as_view(), name='degrees'),
+    re_path(r'^countries/?$', views.CountryList.as_view(), name='countries'),
+    re_path(r'^hospitals/?$', views.HospitalList.as_view(), name='hospitals'),
+    re_path(r'^license-types/?$', views.LicenseTypeList.as_view(), name='license-types'),
+    re_path(r'^practice-specialties/?$', views.PracticeSpecialtyList.as_view(), name='practice-specialties'),
+    re_path(r'^residency-programs/?$', views.ResidencyProgramList.as_view(), name='residency-programs'),
+    re_path(r'^licenses/?$', views.UserStateLicenseList.as_view(), name='user-licenses'),
+    re_path(r'^invite-lookup/(?P<inviteid>[0-9A-Za-z!@]+)/?$', views.InviteIdLookup.as_view(), name='invite-lookup'),
+    re_path(r'^aff-lookup/(?P<affid>[0-9A-Za-z]+)/?$', views.AffiliateIdLookup.as_view(), name='affiliate-lookup'),
+    re_path(r'^emlkup/?$', views.EmailLookup.as_view(), name='email-lookup'),
+    re_path(r'^eligible-sites/?$', views.EligibleSiteList.as_view(), name='eligiblesites'),
+    re_path(r'^eligible-sites/(?P<pk>[0-9]+)/?$', views.EligibleSiteDetail.as_view(), name='eligiblesite-detail'),
+    re_path(r'^upload-document/?$', views.CreateDocument.as_view(), name='upload-document'),
+    re_path(r'^delete-document/?$', views.DeleteDocument.as_view(), name='delete-document'),
+    re_path(r'^feedback/?$', views.UserFeedbackList.as_view(), name='user-feedback'),
 
     # Feed views
-    re_path(r'^entrytypes/?$', feed_views.EntryTypeList.as_view()),
-    re_path(r'^sponsors/?$', feed_views.SponsorList.as_view()),
-    re_path(r'^feed/?$', feed_views.FeedList.as_view()),
-    re_path(r'^feed/(?P<pk>[0-9]+)/?$', feed_views.FeedEntryDetail.as_view()),
-    re_path(r'^feed/invalidate-entry/(?P<pk>[0-9]+)/?$', feed_views.InvalidateEntry.as_view()),
-    re_path(r'^feed/invalidate-offer/(?P<pk>[0-9]+)/?$', feed_views.InvalidateOffer.as_view()),
-    re_path(r'^feed/browser-cme-offers/?$', feed_views.OrbitCmeOfferList.as_view()),
-    re_path(r'^feed/browser-cme/?$', feed_views.CreateBrowserCme.as_view()),
-    re_path(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', feed_views.UpdateBrowserCme.as_view()),
-    re_path(r'^feed/cme/?$', feed_views.CreateSRCme.as_view()),
-    re_path(r'^feed/cme/(?P<pk>[0-9]+)/?$', feed_views.UpdateSRCme.as_view()),
-    re_path(r'^feed/rec-articles/?$', feed_views.RecAllowedUrlList.as_view()),
+    re_path(r'^entrytypes/?$', feed_views.EntryTypeList.as_view(), name='feed-entrytypes'),
+    re_path(r'^sponsors/?$', feed_views.SponsorList.as_view(), name='feed-sponsors'),
+    re_path(r'^feed/?$', feed_views.FeedList.as_view(), name='feed-list'),
+    re_path(r'^feed/(?P<pk>[0-9]+)/?$', feed_views.FeedEntryDetail.as_view(), name='feed-detail'),
+    re_path(r'^feed/invalidate-entry/(?P<pk>[0-9]+)/?$', feed_views.InvalidateEntry.as_view(), name='feed-invalidate-entry'),
+    re_path(r'^feed/invalidate-offer/(?P<pk>[0-9]+)/?$', feed_views.InvalidateOffer.as_view(), name='feed-offer-invalidate'),
+    re_path(r'^feed/browser-cme-offers/?$', feed_views.OrbitCmeOfferList.as_view(), name='feed-offer-list'),
+    re_path(r'^feed/browser-cme/?$', feed_views.CreateBrowserCme.as_view(), name='feed-brcme-create'),
+    re_path(r'^feed/browser-cme/(?P<pk>[0-9]+)/?$', feed_views.UpdateBrowserCme.as_view(), name='feed-brcme-update'),
+    re_path(r'^feed/cme/?$', feed_views.CreateSRCme.as_view(), name='feed-srcme-create'),
+    re_path(r'^feed/cme/(?P<pk>[0-9]+)/?$', feed_views.UpdateSRCme.as_view(), name='feed-srcme-update'),
+    re_path(r'^feed/rec-articles/?$', feed_views.RecAllowedUrlList.as_view(), name='feed-rec-articles'),
 
     # dashboard
-    re_path(r'^dashboard/cme-aggregate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', dashboard_views.CmeAggregateStats.as_view()),
-    re_path(r'^dashboard/cme-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', dashboard_views.CreateCmeCertificatePdf.as_view()),
-    re_path(r'^dashboard/cme-specialty-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/(?P<tag_id>[0-9]+)/?$', dashboard_views.CreateSpecialtyCmeCertificatePdf.as_view()),
-    re_path(r'^dashboard/story-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', dashboard_views.CreateStoryCmeCertificatePdf.as_view()),
-    re_path(r'^dashboard/cme-certificate/(?P<referenceId>\w+)/?$', dashboard_views.AccessCmeCertificate.as_view()),
-    re_path(r'^dashboard/audit-report/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', dashboard_views.CreateAuditReport.as_view()),
-    re_path(r'^dashboard/audit-report/(?P<referenceId>\w+)/?$', dashboard_views.AccessAuditReport.as_view()),
-    re_path(r'^dashboard/access-document/(?P<referenceId>\w+)/?$', dashboard_views.AccessDocumentOrCert.as_view()),
+    re_path(r'^dashboard/cme-aggregate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', dashboard_views.CmeAggregateStats.as_view(), name='dashboard-cme-aggregate'),
+    re_path(r'^dashboard/cme-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', dashboard_views.CreateCmeCertificatePdf.as_view(), name='dashboard-cme-certificate-generate'),
+    re_path(r'^dashboard/cme-specialty-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/(?P<tag_id>[0-9]+)/?$', dashboard_views.CreateSpecialtyCmeCertificatePdf.as_view(), name='dashboard-cme-specialty-certificate-generate'),
+    re_path(r'^dashboard/story-certificate/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', dashboard_views.CreateStoryCmeCertificatePdf.as_view(), name='dashboard-cme-story-certificate-generate'),
+    re_path(r'^dashboard/cme-certificate/(?P<referenceId>\w+)/?$', dashboard_views.AccessCmeCertificate.as_view(), name='dashboard-cme-certificate-access'),
+    re_path(r'^dashboard/audit-report/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', dashboard_views.CreateAuditReport.as_view(), name='dashboard-audit-report-generate'),
+    re_path(r'^dashboard/audit-report/(?P<referenceId>\w+)/?$', dashboard_views.AccessAuditReport.as_view(), name='dashboard-audit-report-access'),
+    re_path(r'^dashboard/access-document/(?P<referenceId>\w+)/?$', dashboard_views.AccessDocumentOrCert.as_view(), name='dashboard-document-access'),
 
     # goals
-    re_path(r'^goaltypes/?$', goal_views.GoalTypeList.as_view()),
-    re_path(r'^goals/?$', goal_views.UserGoalList.as_view()),
-    re_path(r'^goals/create-license/?$', goal_views.CreateUserLicenseGoal.as_view()),
-    re_path(r'^goals/update-license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view()),
-    re_path(r'^goals/admin-update-license/(?P<pk>[0-9]+)/?$', goal_views.AdminUpdateUserLicenseGoal.as_view()),
-    re_path(r'^goals/remove-licenses/?$', goal_views.RemoveUserLicenseGoals.as_view()),
-    re_path(r'^goals/user-summary/(?P<userid>[0-9]+)/?$', goal_views.UserGoalSummary.as_view()),
-    re_path(r'^goals/recs/(?P<pk>[0-9]+)/?$', goal_views.GoalRecsList.as_view()),
+    re_path(r'^goaltypes/?$', goal_views.GoalTypeList.as_view(), name='goal-goaltypes'),
+    re_path(r'^goals/?$', goal_views.UserGoalList.as_view(), name='goal-list'),
+    re_path(r'^goals/create-license/?$', goal_views.CreateUserLicenseGoal.as_view(), name='goal-license-create'),
+    re_path(r'^goals/update-license/(?P<pk>[0-9]+)/?$', goal_views.UpdateUserLicenseGoal.as_view(), name='goal-license-update'),
+    re_path(r'^goals/admin-update-license/(?P<pk>[0-9]+)/?$', goal_views.AdminUpdateUserLicenseGoal.as_view(), name='goal-license-admin-update'),
+    re_path(r'^goals/remove-licenses/?$', goal_views.RemoveUserLicenseGoals.as_view(), name='goal-license-remove'),
+    re_path(r'^goals/user-summary/(?P<userid>[0-9]+)/?$', goal_views.UserGoalSummary.as_view(), name='goal-summary'),
+    re_path(r'^goals/recs/(?P<pk>[0-9]+)/?$', goal_views.GoalRecsList.as_view(), name='goal-recarticle-list'),
 
     # enterprise admin
-    re_path(r'^enterprise/orggroups/?$', enterprise_views.OrgGroupList.as_view()),
-    re_path(r'^enterprise/orggroups/(?P<pk>[0-9]+)/?$', enterprise_views.OrgGroupDetail.as_view()),
-    re_path(r'^enterprise/orgmembers/?$', enterprise_views.OrgMemberList.as_view()),
-    re_path(r'^enterprise/orgmembers-create/?$', enterprise_views.OrgMemberCreate.as_view()),
-    re_path(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberDetail.as_view()),
-    re_path(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/licenses?$', enterprise_views.OrgMemberLicenseList.as_view()),
-    re_path(r'^enterprise/orgmembers-update/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberUpdate.as_view()),
-    re_path(r'^enterprise/orgmembers-remove/?$', enterprise_views.OrgMembersRemove.as_view()),
-    re_path(r'^enterprise/orgmembers-email-invite/?$', enterprise_views.OrgMembersEmailInvite.as_view()),
-    re_path(r'^enterprise/orgmembers-restore/?$', enterprise_views.OrgMembersRestore.as_view()),
-    re_path(r'^enterprise/orgmembers-audit-report/(?P<memberId>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.EnterpriseMemberAuditReport.as_view()),
-    re_path(r'^enterprise/orgfiles/?$', enterprise_views.OrgFileList.as_view()),
-    re_path(r'^enterprise/upload-roster/?$', enterprise_views.UploadRoster.as_view()),
-    re_path(r'^enterprise/upload-license/?$', enterprise_views.UploadLicense.as_view()),
-    re_path(r'^enterprise/process-license-file/(?P<pk>[0-9]+)/?$', enterprise_views.ProcessUploadedLicenseFile.as_view()),
-    re_path(r'^enterprise/team-stats/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.TeamStats.as_view()),
-    re_path(r'^enterprise/join-team/?$', enterprise_views.JoinTeam.as_view()),
+    re_path(r'^enterprise/orggroups/?$', enterprise_views.OrgGroupList.as_view(), name='enterprise-orggroup-list'),
+    re_path(r'^enterprise/orggroups/(?P<pk>[0-9]+)/?$', enterprise_views.OrgGroupDetail.as_view(), name='enterprise-orggroup-detail'),
+    re_path(r'^enterprise/orgmembers/?$', enterprise_views.OrgMemberList.as_view(), name='enterprise-orgmember-list'),
+    re_path(r'^enterprise/orgmembers-create/?$', enterprise_views.OrgMemberCreate.as_view(), name='enterprise-orgmember-create'),
+    re_path(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberDetail.as_view(), name='enterprise-orgmember-detail'),
+    re_path(r'^enterprise/orgmembers/(?P<pk>[0-9]+)/licenses?$', enterprise_views.OrgMemberLicenseList.as_view(), name='enterprise-orgmember-licenses'),
+    re_path(r'^enterprise/orgmembers-update/(?P<pk>[0-9]+)/?$', enterprise_views.OrgMemberUpdate.as_view(), name='enterprise-orgmember-update'),
+    re_path(r'^enterprise/orgmembers-remove/?$', enterprise_views.OrgMembersRemove.as_view(), name='enterprise-orgmember-remove'),
+    re_path(r'^enterprise/orgmembers-email-invite/?$', enterprise_views.OrgMembersEmailInvite.as_view(), name='enterprise-orgmember-email-invite'),
+    re_path(r'^enterprise/orgmembers-restore/?$', enterprise_views.OrgMembersRestore.as_view(), name='enterprise-orgmember-restore'),
+    re_path(r'^enterprise/orgmembers-audit-report/(?P<memberId>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.EnterpriseMemberAuditReport.as_view(), name='enterprise-orgmember-audit-report-generate'),
+    re_path(r'^enterprise/orgfiles/?$', enterprise_views.OrgFileList.as_view(), name='enterprise-orgfile-list'),
+    re_path(r'^enterprise/upload-roster/?$', enterprise_views.UploadRoster.as_view(), name='enterprise-rosterfile-upload'),
+    re_path(r'^enterprise/upload-license/?$', enterprise_views.UploadLicense.as_view(), name='enterprise-licensefile-upload'),
+    re_path(r'^enterprise/process-license-file/(?P<pk>[0-9]+)/?$', enterprise_views.ProcessUploadedLicenseFile.as_view(), name='enterprise-licensefile-process'),
+    re_path(r'^enterprise/team-stats/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', enterprise_views.TeamStats.as_view(), name='enterprise-teamstats'),
+    re_path(r'^enterprise/join-team/?$', enterprise_views.JoinTeam.as_view(), name='enterprise-join-team'),
     re_path(r'^enterprise/report/?$', enterprise_views.OrgReportList.as_view(), name='enterprise-report-list'),
     re_path(r'^enterprise/enrollment/?$', enterprise_views.OrgEnrolleeList.as_view(), name='enterprise-enrollee-list'),
     # reports - must specify name for reverse (used as value for OrgReport.resource field)
     re_path(r'^enterprise/report/roster/?$', enterprise_views.OrgMemberRoster.as_view(), name='enterprise-report-roster'),
 ]
-if settings.ENV_TYPE != settings.ENV_PROD:
-    # debug
-    api_patterns.extend([
-        re_path(r'^debug/make-offer/?$', debug_views.MakeOrbitCmeOffer.as_view()),
-        re_path(r'^debug/email-receipt/?$', debug_views.EmailSubscriptionReceipt.as_view()),
-        re_path(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view()),
-        re_path(r'^debug/invitation-discount/?$', debug_views.InvitationDiscountList.as_view()),
-        re_path(r'^debug/premail/?$', debug_views.PreEmail.as_view()),
-        re_path(r'^debug/email-card-expired/?$', debug_views.EmailCardExpired.as_view()),
-        re_path(r'^debug/email-subs-renewal-reminder/?$', debug_views.EmailSubscriptionRenewalReminder.as_view()),
-        re_path(r'^debug/email-subs-cancel-reminder/?$', debug_views.EmailSubscriptionCancelReminder.as_view()),
-        re_path(r'^debug/orgmembers/?$', debug_views.OrgMemberList.as_view()),
-        re_path(r'^debug/orgmembers/add/?$', debug_views.CreateOrgMember.as_view()),
-        re_path(r'^debug/orgmembers/(?P<pk>[0-9]+)/?$', debug_views.OrgMemberDetail.as_view()),
-        re_path(r'^debug/orgmembers/(?P<pk>[0-9]+)/update/?$', debug_views.UpdateOrgMember.as_view()),
-        re_path(r'^debug/orgmembers/(?P<pk>[0-9]+)/email-set-password/?$', debug_views.EmailSetPassword.as_view()),
-        re_path(r'^debug/audit-report/(?P<userid>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', debug_views.CreateAuditReport.as_view()),
-        re_path(r'^debug/validate-license-file/(?P<pk>[0-9]+)/?$', debug_views.ValidateLicenseFile.as_view()),
-        re_path(r'^debug/recare_paths-for-user/(?P<userid>[0-9]+)/?$', debug_views.RecAllowedUrlListForUser.as_view()),
-        re_path(r'^debug/documents/?$', debug_views.DocumentList.as_view()),
-    ])
+# debug
+debug_patterns = [
+    re_path(r'^debug/make-offer/?$', debug_views.MakeOrbitCmeOffer.as_view(), name='debug-make-offer'),
+    re_path(r'^debug/email-receipt/?$', debug_views.EmailSubscriptionReceipt.as_view(), name='debug-email-receipt'),
+    re_path(r'^debug/email-payment-failure/?$', debug_views.EmailSubscriptionPaymentFailure.as_view(), name='debug-email-payment-failure'),
+    re_path(r'^debug/invitation-discount/?$', debug_views.InvitationDiscountList.as_view(), name='debug-invdiscount'),
+    re_path(r'^debug/premail/?$', debug_views.PreEmail.as_view(), name='debug-premail'),
+    re_path(r'^debug/email-card-expired/?$', debug_views.EmailCardExpired.as_view(), name='debug-email-card-expired'),
+    re_path(r'^debug/email-subs-renewal-reminder/?$', debug_views.EmailSubscriptionRenewalReminder.as_view(), name='debug-email-subs-renewal-reminder'),
+    re_path(r'^debug/email-subs-cancel-reminder/?$', debug_views.EmailSubscriptionCancelReminder.as_view(), name='debug-email-subs-cancel-reminder'),
+    re_path(r'^debug/orgmembers/?$', debug_views.OrgMemberList.as_view(), name='debug-orgmember-list'),
+    re_path(r'^debug/orgmembers/add/?$', debug_views.CreateOrgMember.as_view(), name='debug-orgmember-create'),
+    re_path(r'^debug/orgmembers/(?P<pk>[0-9]+)/?$', debug_views.OrgMemberDetail.as_view(), name='debug-orgmember-detail'),
+    re_path(r'^debug/orgmembers/(?P<pk>[0-9]+)/update/?$', debug_views.UpdateOrgMember.as_view(), name='debug-orgmember-update'),
+    re_path(r'^debug/orgmembers/(?P<pk>[0-9]+)/email-set-password/?$', debug_views.EmailSetPassword.as_view(), name='debug-orgmember-email-set-password'),
+    re_path(r'^debug/audit-report/(?P<userid>[0-9]+)/(?P<start>[0-9]+)/(?P<end>[0-9]+)/?$', debug_views.CreateAuditReport.as_view(), name='debug-audit-report-create'),
+    re_path(r'^debug/validate-license-file/(?P<pk>[0-9]+)/?$', debug_views.ValidateLicenseFile.as_view(), name='debug-validate-licensefile'),
+    re_path(r'^debug/recaurls-for-user/(?P<userid>[0-9]+)/?$', debug_views.RecAllowedUrlListForUser.as_view(), name='debug-recaurls-for-user'),
+    re_path(r'^debug/documents/?$', debug_views.DocumentList.as_view(), name='debug-document-list'),
+]
 
+# Add patterns to router (all patterns should be named)
+for pattern in api_patterns:
+    router.add_api_view(pattern)
+if settings.DEBUG or 'admin' in settings.SERVER_HOSTNAME:
+    for pattern in debug_patterns:
+        router.add_api_view(pattern)
 
 urlpatterns = [
     # api
-    re_path(r'^api/v1/', include(api_patterns)),
+    re_path(r'^api/v1/', include(router.urls)),
     re_path(r'^ac/', include(ac_patterns)),
     # Django admin interface
     re_path(r'^admin/', admin_site.urls),
+    # server-side login
+    re_path(r'auth/', include(auth_patterns)),
 ]
 if settings.ENV_TYPE != settings.ENV_PROD:
     urlpatterns.extend([
         # BT tests
         re_path(r'^bt/', include(bt_patterns)),
-        # server-side login
-        re_path(r'auth/', include(auth_patterns)),
     ])

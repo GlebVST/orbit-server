@@ -25,17 +25,21 @@ from .feed_serializers import CreditTypeSerializer
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
 
-# Used in development and to allow access to Swagger UI.
-CALLBACK_URL = 'http://localhost:8000/auth/auth0-cb-login' # used by login_via_code for server-side login only
-if settings.ENV_TYPE == settings.ENV_PROD:
-    CALLBACK_URL = 'https://admin.orbitcme.com/auth/auth0-cb-login' # must be added to callback url for auth0 client settings
+CALLBACK_ENDPOINT = '/auth/auth0-cb-login' # used by login_via_code for server-side login
+
+def getServerUrl():
+    if settings.DEBUG:
+        return 'http://localhost:8000'
+    return "https://{0}".format(settings.SERVER_HOSTNAME)
 
 def ss_login(request):
     msg = "host: {0}".format(request.get_host())
     # to test if nginx passes correct host to django
     logDebug(logger, request, msg)
+    serverUrl = getServerUrl()
+    CALLBACK_URL = "{0}{1}".format(serverUrl, CALLBACK_ENDPOINT)
     context = {
-        'AUTH0_CLIENTID': settings.AUTH0_CLIENTID,
+        'AUTH0_CLIENTID': settings.AUTH0_SPA_CLIENTID,
         'AUTH0_DOMAIN': settings.AUTH0_DOMAIN,
         'CALLBACK_URL': CALLBACK_URL
     }
@@ -46,7 +50,11 @@ def ss_login_error(request):
 
 @login_required()
 def ss_home(request):
-    return render(request, os.path.join(TPL_DIR, 'home.html'))
+    API_ROOT_URL = "/api/v1/"
+    context = {
+        'DRF_BROWSABLE_API_ROOT_URL': API_ROOT_URL
+    }
+    return render(request, os.path.join(TPL_DIR, 'home.html'), context)
 
 def ss_logout(request):
     auth_logout(request)
@@ -61,11 +69,13 @@ def login_via_code(request):
     code = request.GET.get('code')
     if not code:
         return HttpResponse(status=400)
+    serverUrl = getServerUrl()
+    CALLBACK_URL = "{0}{1}".format(serverUrl, CALLBACK_ENDPOINT)
     get_token = GetToken(settings.AUTH0_DOMAIN)
     auth0_users = Users(settings.AUTH0_DOMAIN)
     token = get_token.authorization_code(
-        settings.AUTH0_CLIENTID,
-        settings.AUTH0_SECRET,
+        settings.AUTH0_SPA_CLIENTID,
+        settings.AUTH0_SPA_SECRET,
         code,
         CALLBACK_URL
     )
@@ -74,8 +84,9 @@ def login_via_code(request):
     logInfo(logger, request, 'user_id: {user_id} email:{email}'.format(**user_info_dict))
     user = authenticate(request, remote_user=user_info_dict)
     if user:
-        auth_login(request, user, backend='users.auth_backends.Auth0Backend')
-        return redirect('api-docs')
+        # specify ModelBackend so that SessionAuthentication works
+        auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        return redirect('ss-home')
     else:
         context = {
             'success': False,
