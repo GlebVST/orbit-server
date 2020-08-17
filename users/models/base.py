@@ -444,7 +444,7 @@ class Organization(models.Model):
             help_text='End date of total credits calculation')
     joinCode = models.CharField(max_length=20, default='',
             help_text='Join Code for invitation URL')
-    providerStat = JSONField(default='', blank=True)
+    providerStat = JSONField(default='dict', blank=True)
     # Note: if value is changed to False after usergoals are created, a manual command must be run to delete the usergoals.
     # Likewise, if value is changed to True after members already exist, a manual command must be run to assign them usergoals.
     activateGoals = models.BooleanField(default=True,
