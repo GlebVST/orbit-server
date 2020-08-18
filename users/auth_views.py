@@ -221,7 +221,7 @@ def signup(request, bt_plan_id):
             'success': False,
             'message': 'User signup failed. Invalid plan.'
         }
-        msg = "Invalid planId: {0}. No plan found".format(planId)
+        msg = "Invalid planId: {0}. No plan found".format(bt_plan_id)
         logWarning(logger, request, msg)
         return Response(context, status=status.HTTP_400_BAD_REQUEST)
     access_token = get_token_auth_header(request)
