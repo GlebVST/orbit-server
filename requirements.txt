@@ -2,7 +2,7 @@ amqp==2.6.0
 appdirs==1.4.3
 appnope==0.1.0
 argon2-cffi==19.1.0
-auth0-python==3.11.0
+auth0-python==3.12.0
 backcall==0.1.0
 backports.functools-lru-cache==1.4
 backports.shutil-get-terminal-size==1.0.0
@@ -55,7 +55,7 @@ kiwisolver==1.1.0
 kombu==4.6.11
 logdna==1.5.3
 lxml==4.5.1
-MarkupSafe==1.0
+MarkupSafe==1.1.1
 matplotlib==3.0.3
 numpy==1.18.1
 oauthlib==2.0.7
@@ -85,7 +85,7 @@ python-openid==2.2.5
 pytz==2020.1
 PyYAML==3.12
 redis==3.5.3
-reportlab==3.5.44
+reportlab==3.5.47
 requests==2.21.0
 requests-oauthlib==0.8.0
 rsa==4.0
