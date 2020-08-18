@@ -346,9 +346,8 @@ class OrgMemberCreate(generics.CreateAPIView):
 
 class OrgMembersRemove(APIView):
     """This view sets `removeDate` field on allowed OrgMember instances matching passed ids array.
-    Allowed criterion: user cannot have redeemed any OrbitCME credits.
-    If the member has already redeemed some credits, then member is added to the disallowed list,
-    and remains active.
+    It also calls UserSubscription method: endEnterpriseSubscription to cancel the user's
+    enterprise subs and transfer them to a free plan.
     Example JSON in the DELETE data:
         {"ids": [1, 23, 94]}
     """
@@ -362,13 +361,14 @@ class OrgMembersRemove(APIView):
         members = OrgMember.objects.select_related('user__profile').filter(pk__in=ids)
         for member in members:
             u = member.user
+            # 2020-08-17: commented out per request of Ram (in order to allow removal of a user who had earned credits)
             # check if member has already earned credits
-            if UserCmeCredit.objects.filter(user=u).exists():
-                uc = UserCmeCredit.objects.get(user=u)
-                if uc.total_credits_earned:
-                    logger.warning('Disallow remove for user {0.user}. total_credits_earned={0.total_credits_earned}.'.format(uc))
-                    disallowed.append(member.pk)
-                    continue
+            #if UserCmeCredit.objects.filter(user=u).exists():
+            #    uc = UserCmeCredit.objects.get(user=u)
+            #    if uc.total_credits_earned:
+            #        logger.warning('Disallow remove for user {0.user}. total_credits_earned={0.total_credits_earned}.'.format(uc))
+            #        disallowed.append(member.pk)
+            #        continue
             member.removeDate = now
             member.save(update_fields=('removeDate',))
             updates.append({
