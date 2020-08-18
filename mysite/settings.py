@@ -91,6 +91,7 @@ INSTALLED_APPS = [
 SESSION_COOKIE_AGE = APP_EXPIRE_SECONDS
 SESSION_COOKIE_NAME = ENV_TYPE + '_sessionid'
 SESSION_COOKIE_SECURE = False if ENV_TYPE == ENV_DEV else True # stage/prod must use https
+SESSION_LOGIN_KEY = 'auth_userid' # used by auth_views to add authenticate userid to request.session
 
 # django-storages AWS S3
 AWS_ACCESS_KEY_ID = get_environment_variable('ORBIT_AWS_ACCESS_KEY_ID')
