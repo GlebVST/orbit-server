@@ -190,8 +190,9 @@ def auth_status(request):
     """Called by UI to get user context for an authenticated user
     """
     if request.user.is_authenticated:
-        if not request.session:
-            auth_login(request, user, backend='users.auth_backends.Auth0Backend')
+        if settings.SESSION_LOGIN_KEY not in request.session:
+            auth_login(request, request.user, backend='users.auth_backends.Auth0Backend')
+            request.session[settings.SESSION_LOGIN_KEY] = request.user.pk
         context = make_user_context(request.user)
         return Response(context, status=status.HTTP_200_OK)
     # else, bad token
@@ -211,9 +212,10 @@ def signup(request, bt_plan_id):
     Create new user and profile
     Return user context
     """
-    logInfo(logger, request, "Begin signup with bt_plan_id: {0}".format(bt_plan_id))
     inviterId = request.GET.get('inviteid') # if present, this is the inviteId of the inviter
     affiliateId = request.GET.get('affid') # if present, this is the affiliateId of the converter
+    msg = "Begin signup planId:{0} inviteid:{1} affid:{2}".format(bt_plan_id, inviterId, affiliateId)
+    logInfo(logger, request, msg) 
     try:
         plan = SubscriptionPlan.objects.get(planId=bt_plan_id)
     except SubscriptionPlan.DoesNotExist:
@@ -225,6 +227,7 @@ def signup(request, bt_plan_id):
         logWarning(logger, request, msg)
         return Response(context, status=status.HTTP_400_BAD_REQUEST)
     access_token = get_token_auth_header(request)
+    logInfo(logger, request, access_token) 
     auth0_users = Users(settings.AUTH0_DOMAIN) # Authentication API
     # https://auth0.com/docs/api/authentication#user-profile
     user_info_dict = auth0_users.userinfo(access_token) # returns dict w. keys sub, email, etc
@@ -250,6 +253,7 @@ def signup(request, bt_plan_id):
     user = configure_user(user_info_dict) # create Profile and complete initialization
     if user:
         auth_login(request, user, backend=user.backend)
+        request.session[settings.SESSION_LOGIN_KEY] = user.pk
         logDebug(logger, request, 'signup from ip: ' + remote_addr)
         context = make_user_context(user)
         return Response(context, status=status.HTTP_200_OK)
@@ -264,7 +268,8 @@ def signup(request, bt_plan_id):
 
 @api_view()
 def logout(request):
-    logDebug(logger, request, 'logout')
+    if settings.SESSION_LOGIN_KEY in request.session:
+        del request.session[settings.SESSION_LOGIN_KEY]
     auth_logout(request)
     context = {'success': True}
     return Response(context, status=status.HTTP_200_OK)

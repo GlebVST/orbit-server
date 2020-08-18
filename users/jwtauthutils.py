@@ -38,9 +38,9 @@ def jwt_get_username_from_payload_handler(payload):
     user_dict = {'user_id': user_id}
     # This function does not take request as an arg, and so cannot pass it to authenticate!
     user = authenticate(request=None, remote_user=user_dict)
-    logger.info('jwt_get_username_from_payload authenticate: {0}'.format(user))
     if user and user.email:
         return user.email # existing user (completed signup)
+    logger.info('jwt_get_username_from_payload authenticate: {0}'.format(user))
     return user_id # new user (just created, only has username set to user_id)
 
 def jwt_decode_token(token):

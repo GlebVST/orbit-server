@@ -89,6 +89,7 @@ INSTALLED_APPS = [
 
 # Session
 SESSION_COOKIE_AGE = APP_EXPIRE_SECONDS
+SESSION_COOKIE_NAME = ENV_TYPE + '_sessionid'
 SESSION_COOKIE_SECURE = False if ENV_TYPE == ENV_DEV else True # stage/prod must use https
 
 # django-storages AWS S3
@@ -274,7 +275,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.10/howto/static-files/
 
-STATIC_URL = '/static/'
+STATIC_URL = '/django-static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
