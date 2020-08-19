@@ -4,7 +4,7 @@ from .models import LicenseGoal
 
 class LicenseGoalAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
-        if not self.request.user.is_authenticated():
+        if not self.request.user.is_authenticated:
             return LicenseGoal.objects.none()
         qs = LicenseGoal.objects.all().order_by('title')
         if self.q:

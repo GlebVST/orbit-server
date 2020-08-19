@@ -1,7 +1,7 @@
 {% extends 'users/base.html' %}
 
 {% block jshead %}
-<script src="https://cdn.auth0.com/js/lock/11.6.1/lock.min.js"></script>
+<script src="https://cdn.auth0.com/js/lock/11.14/lock.min.js"></script>
 <script>
     var lock = new Auth0Lock('{{ AUTH0_CLIENTID }}', '{{ AUTH0_DOMAIN }}', {
         auth: {

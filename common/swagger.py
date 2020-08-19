@@ -9,7 +9,7 @@ class SwaggerCustomUIRenderer(SwaggerUIRenderer):
         self.set_context(renderer_context)
         user = renderer_context['request'].user
         token = None
-        if user.is_authenticated():
+        if user.is_authenticated:
             token = get_access_token(user)
             if not token:
                 token = new_access_token(user)

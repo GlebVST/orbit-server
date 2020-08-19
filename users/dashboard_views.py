@@ -12,7 +12,6 @@ from django.utils import timezone
 from rest_framework import generics, exceptions, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
 # app
@@ -91,7 +90,7 @@ class CmeAggregateStats(APIView):
           type: string
           paramType: form
     """
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    permission_classes = (permissions.IsAuthenticated, CanViewDashboard)
     def serialize_and_render(self, stats):
         context = {
             'result': stats
@@ -214,7 +213,7 @@ class CreateCmeCertificatePdf(CertificateMixin, APIView):
           type: string
           paramType: form
     """
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    permission_classes = (permissions.IsAuthenticated, CanViewDashboard)
     def post(self, request, start, end):
         try:
             startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
@@ -277,7 +276,7 @@ class CreateSpecialtyCmeCertificatePdf(CertificateMixin, APIView):
           type: string
           paramType: form
     """
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    permission_classes = (permissions.IsAuthenticated, CanViewDashboard)
     def post(self, request, start, end, tag_id):
         try:
             startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
@@ -343,7 +342,7 @@ class CreateStoryCmeCertificatePdf(CertificateMixin, APIView):
           type: string
           paramType: form
     """
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    permission_classes = (permissions.IsAuthenticated, CanViewDashboard)
     def post(self, request, start, end):
         try:
             startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)
@@ -553,7 +552,7 @@ class CreateAuditReport(AuditReportMixin, APIView):
           type: string
           paramType: form
     """
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, CanViewDashboard)
+    permission_classes = (permissions.IsAuthenticated, CanViewDashboard)
     def post(self, request, start, end):
         try:
             startdt = timezone.make_aware(datetime.utcfromtimestamp(int(start)), pytz.utc)

@@ -22,7 +22,6 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
 from common.signals import profile_saved
@@ -56,7 +55,7 @@ class LogValidationErrorMixin(object):
 
 class OrgReportList(generics.ListAPIView):
     serializer_class = OrgReportReadSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
 
     def get_queryset(self):
         return OrgReport.objects.filter(active=True).order_by('name')
@@ -67,7 +66,7 @@ class OrgFileListPagination(PageNumberPagination):
 class OrgFileList(generics.ListAPIView):
     serializer_class = OrgFileReadSerializer
     pagination_class = OrgFileListPagination
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
 
     def get_queryset(self):
         req_user = self.request.user # OrgMember user with is_admin=True
@@ -82,7 +81,7 @@ class OrgEnrolleeListPagination(PageNumberPagination):
 class OrgEnrolleeList(LogValidationErrorMixin, generics.ListAPIView):
     serializer_class = OrgEnrolleeReadSerializer
     pagination_class = OrgEnrolleeListPagination
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
 
     def get_queryset(self):
         """Return only the entries belonging to the same Org as request.user"""
@@ -92,7 +91,7 @@ class OrgEnrolleeList(LogValidationErrorMixin, generics.ListAPIView):
 # OrgGroup (Enterprise Practice Divisions)
 class OrgGroupList(LogValidationErrorMixin, generics.ListCreateAPIView):
     serializer_class = OrgGroupSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
 
     def get_queryset(self):
         """Return only the files belonging to the same Org as request.user"""
@@ -109,7 +108,7 @@ class OrgGroupList(LogValidationErrorMixin, generics.ListCreateAPIView):
         return instance
 
 class OrgGroupDetail(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
     queryset = OrgGroup.objects.all()
     serializer_class = OrgGroupSerializer
 
@@ -219,7 +218,7 @@ class OrgMemberList(generics.ListAPIView):
     queryset = OrgMember.objects.all()
     serializer_class = OrgMemberReadSerializer
     pagination_class = OrgMemberListPagination
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
 
     def get_queryset(self):
         """Note: this excludes indiv_subscriber users
@@ -239,7 +238,7 @@ class OrgMemberList(generics.ListAPIView):
 class OrgMemberCreate(generics.CreateAPIView):
     queryset = OrgMember.objects.all()
     serializer_class = OrgMemberFormSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
 
     def make_form_data(self, request):
         form_data = request.data.copy()
@@ -347,13 +346,12 @@ class OrgMemberCreate(generics.CreateAPIView):
 
 class OrgMembersRemove(APIView):
     """This view sets `removeDate` field on allowed OrgMember instances matching passed ids array.
-    Allowed criterion: user cannot have redeemed any OrbitCME credits.
-    If the member has already redeemed some credits, then member is added to the disallowed list,
-    and remains active.
+    It also calls UserSubscription method: endEnterpriseSubscription to cancel the user's
+    enterprise subs and transfer them to a free plan.
     Example JSON in the DELETE data:
         {"ids": [1, 23, 94]}
     """
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
     def post(self, request, *args, **kwargs):
         ids = request.data.get('ids', [])
         logInfo(logger, self.request, 'Remove OrgMembers: {}'.format(ids))
@@ -363,13 +361,14 @@ class OrgMembersRemove(APIView):
         members = OrgMember.objects.select_related('user__profile').filter(pk__in=ids)
         for member in members:
             u = member.user
+            # 2020-08-17: commented out per request of Ram (in order to allow removal of a user who had earned credits)
             # check if member has already earned credits
-            if UserCmeCredit.objects.filter(user=u).exists():
-                uc = UserCmeCredit.objects.get(user=u)
-                if uc.total_credits_earned:
-                    logger.warning('Disallow remove for user {0.user}. total_credits_earned={0.total_credits_earned}.'.format(uc))
-                    disallowed.append(member.pk)
-                    continue
+            #if UserCmeCredit.objects.filter(user=u).exists():
+            #    uc = UserCmeCredit.objects.get(user=u)
+            #    if uc.total_credits_earned:
+            #        logger.warning('Disallow remove for user {0.user}. total_credits_earned={0.total_credits_earned}.'.format(uc))
+            #        disallowed.append(member.pk)
+            #        continue
             member.removeDate = now
             member.save(update_fields=('removeDate',))
             updates.append({
@@ -384,7 +383,7 @@ class OrgMembersRemove(APIView):
 
 class OrgMemberDetail(generics.RetrieveAPIView):
     serializer_class = OrgMemberDetailSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
 
     def get_queryset(self):
         """This ensures that an OrgMember instance can only be updated by
@@ -395,7 +394,7 @@ class OrgMemberDetail(generics.RetrieveAPIView):
 
 class OrgMemberLicenseList(generics.ListAPIView):
     serializer_class = UserLicenseGoalSummarySerializer
-    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
     def list(self, request, *args, **kwargs):
         try:
@@ -411,7 +410,7 @@ class OrgMemberLicenseList(generics.ListAPIView):
 
 class OrgMemberUpdate(ExtUpdateAPIView):
     serializer_class = OrgMemberFormSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin]
 
     def get_queryset(self):
         """This ensures that an OrgMember instance can only be updated by
@@ -457,7 +456,7 @@ class OrgMemberUpdate(ExtUpdateAPIView):
 
 class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
     serializer_class = UploadRosterFileSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
     parser_classes = (FormParser, MultiPartParser)
 
     def perform_create(self, serializer, format=None):
@@ -506,7 +505,7 @@ class UploadRoster(LogValidationErrorMixin, generics.CreateAPIView):
 # It determines the file_type (either DEA or STATE_LICENSE) and validates the file
 class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
     serializer_class = UploadLicenseFileSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
     parser_classes = (FormParser, MultiPartParser)
 
     def perform_create(self, serializer, format=None):
@@ -605,7 +604,7 @@ class UploadLicense(LogValidationErrorMixin, generics.CreateAPIView):
         return Response(context, status=status.HTTP_201_CREATED)
 
 class ProcessUploadedLicenseFile(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
     def post(self, request, pk):
         try:
@@ -644,7 +643,7 @@ class OrgMembersEmailInvite(APIView):
     users using celery task. (The pending users receive the Welcome Email after they have joined
     and started their Enterprise subs).
     """
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
     def post(self, request, *args, **kwargs):
         ids = request.data.get('ids', [])
@@ -682,7 +681,7 @@ class OrgMembersEmailInvite(APIView):
         return Response(context, status=status.HTTP_200_OK)
 
 class OrgMembersRestore(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
     def post(self, request, *args, **kwargs):
         ids = request.data.get('ids', [])
@@ -714,7 +713,7 @@ class OrgMembersRestore(APIView):
 
 
 class TeamStats(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope]
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
     def getOrgAggStats(self, org, startdt, enddt):
         oaLatest = OrgAgg.objects.filter(organization=org).order_by('-day')[0]
@@ -793,7 +792,6 @@ class TeamStats(APIView):
 # 3. Emit profile_saved signal (to create usergoals)
 # 4. For non-admin user: send Welcome Email
 class JoinTeam(APIView):
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def post(self, request, *args, **kwargs):
         user = self.request.user
@@ -874,7 +872,7 @@ class EnterpriseMemberAuditReport(AuditReportMixin, APIView):
           type: string
           paramType: form
     """
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope, IsEnterpriseAdmin)
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
     def post(self, request, memberId, start, end):
         # check if specified user is member if the same organisation as admin
         admin_user = request.user
@@ -906,7 +904,7 @@ class EnterpriseMemberAuditReport(AuditReportMixin, APIView):
 class OrgMemberRoster(APIView):
     """The response data is written to a csv file by the UI and downloadable by the enterprise admin user
     """
-    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
     def get(self, request):
         org = self.request.user.profile.organization

@@ -37,14 +37,15 @@ class Command(BaseCommand):
             'goal__goalType__in': gts,
             'is_composite_goal': False,
         }
-        orgs = Organization.objects.filter(activateGoals=True).order_by('id')
+        # Get orgs that qualify as active Enterpise orgs
+        orgs = Organization.objects.filter(activateGoals=True, computeTeamStats=True).order_by('id')
         for org in orgs:
-            if not org.orgmembers.exists():
-                continue
-            logger.info('Compute user snapshot for org: {0}'.format(org))
             members = org.orgmembers \
                     .filter(removeDate__isnull=True, pending=False) \
                     .order_by('id')
+            if not members.exists(): # no active members
+                continue
+            logger.info('Compute user snapshot for org: {0}'.format(org))
             total_cme_gap_expired = 0
             total_licenses_expired = 0
             total_cme_gap_expiring = 0

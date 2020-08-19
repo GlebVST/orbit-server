@@ -16,7 +16,6 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from oauth2_provider.contrib.rest_framework import TokenHasReadWriteScope, TokenHasScope
 # proj
 from common.logutils import *
 from users.permissions import IsEnterpriseAdmin, IsOwnerOrEnterpriseAdmin
@@ -40,12 +39,10 @@ class LogValidationErrorMixin(object):
 class GoalTypeList(generics.ListAPIView):
     queryset = GoalType.objects.all().order_by('name')
     serializer_class = GoalTypeSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
 
 class LicenseTypeList(generics.ListAPIView):
     queryset = LicenseType.objects.all().order_by('name')
     serializer_class = LicenseTypeSerializer
-    permission_classes = [permissions.IsAuthenticated, TokenHasReadWriteScope]
     pagination_class = None
 
 class LongPagination(PageNumberPagination):
@@ -54,7 +51,6 @@ class LongPagination(PageNumberPagination):
 
 class UserGoalSummary(APIView):
     pagination_class = LongPagination
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get(self, request, *args, **kwargs):
         try:
@@ -78,7 +74,6 @@ class UserGoalSummary(APIView):
 class UserGoalList(generics.ListAPIView):
     serializer_class = UserGoalReadSerializer
     pagination_class = LongPagination
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get_queryset(self):
         user = self.request.user
@@ -96,7 +91,7 @@ class CreateUserLicenseGoal(LogValidationErrorMixin, generics.CreateAPIView):
     }
     """
     serializer_class = UserLicenseCreateSerializer
-    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
     def perform_create(self, serializer):
         """Call serializer to create new StateLicense and update profile.
@@ -199,7 +194,7 @@ class UpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView):
     }
     """
     serializer_class = UserLicenseGoalUpdateSerializer
-    permission_classes = (permissions.IsAuthenticated, IsOwnerOrEnterpriseAdmin, TokenHasReadWriteScope)
+    permission_classes = (permissions.IsAuthenticated, IsOwnerOrEnterpriseAdmin)
 
     def get_queryset(self):
         return UserGoal.objects.select_related('goal', 'license')
@@ -271,7 +266,7 @@ class AdminUpdateUserLicenseGoal(LogValidationErrorMixin, generics.UpdateAPIView
     }
     """
     serializer_class = UserLicenseGoalUpdateSerializer
-    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
 
     def get_queryset(self):
         return UserGoal.objects.select_related('goal', 'license')
@@ -323,7 +318,7 @@ class RemoveUserLicenseGoals(APIView):
     Example JSON in the POST data:
         {"ids": [1, 23, 94]}
     """
-    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin, TokenHasReadWriteScope)
+    permission_classes = (permissions.IsAuthenticated, IsEnterpriseAdmin)
     def post(self, request, *args, **kwargs):
         ids = request.data.get('ids', [])
         logInfo(logger, request, 'Remove license usergoals: {}'.format(ids))
@@ -360,7 +355,6 @@ class RemoveUserLicenseGoals(APIView):
 
 
 class GoalRecsList(APIView):
-    permission_classes = (permissions.IsAuthenticated, TokenHasReadWriteScope)
 
     def get(self, request, *args, **kwargs):
         user = request.user

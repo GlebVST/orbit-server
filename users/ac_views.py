@@ -12,7 +12,7 @@ from .models import (
 
 class UserEmailAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
-        if not self.request.user.is_authenticated():
+        if not self.request.user.is_authenticated:
             return User.objects.none()
         qs = User.objects.exclude(username='admin').order_by('email')
         if self.q:
@@ -22,7 +22,7 @@ class UserEmailAutocomplete(autocomplete.Select2QuerySetView):
 # Non srcme_only tags
 class CmeTagAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
-        if not self.request.user.is_authenticated():
+        if not self.request.user.is_authenticated:
             return CmeTag.objects.none()
         qs = CmeTag.objects.only('pk','name').order_by('name')
         if self.q:
@@ -32,7 +32,7 @@ class CmeTagAutocomplete(autocomplete.Select2QuerySetView):
 # all cme tags
 class AllCmeTagAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
-        if not self.request.user.is_authenticated():
+        if not self.request.user.is_authenticated:
             return CmeTag.objects.none()
         qs = CmeTag.objects.only('pk','name').order_by('name')
         if self.q:
@@ -41,7 +41,7 @@ class AllCmeTagAutocomplete(autocomplete.Select2QuerySetView):
 
 class StateNameAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
-        if not self.request.user.is_authenticated():
+        if not self.request.user.is_authenticated:
             return State.objects.none()
         qs = State.objects.all().order_by('name')
         if self.q:
@@ -50,7 +50,7 @@ class StateNameAutocomplete(autocomplete.Select2QuerySetView):
 
 class HospitalAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
-        if not self.request.user.is_authenticated():
+        if not self.request.user.is_authenticated:
             return Hospital.objects.none()
         qs = Hospital.objects.all().order_by('display_name')
         if self.q:
@@ -59,7 +59,7 @@ class HospitalAutocomplete(autocomplete.Select2QuerySetView):
 
 class AllowedUrlAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
-        if not self.request.user.is_authenticated():
+        if not self.request.user.is_authenticated:
             return AllowedUrl.objects.none()
         qs = AllowedUrl.objects.only('pk','url').order_by('url')
         if self.q:
@@ -68,7 +68,7 @@ class AllowedUrlAutocomplete(autocomplete.Select2QuerySetView):
 
 class EligibleSiteAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
-        if not self.request.user.is_authenticated():
+        if not self.request.user.is_authenticated:
             return EligibleSite.objects.none()
         qs = EligibleSite.objects.only('pk','domain_title').order_by('domain_title')
         if self.q:
@@ -77,7 +77,7 @@ class EligibleSiteAutocomplete(autocomplete.Select2QuerySetView):
 
 class PracticeSpecialtyAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
-        if not self.request.user.is_authenticated():
+        if not self.request.user.is_authenticated:
             return PracticeSpecialty.objects.none()
         qs = PracticeSpecialty.objects.only('pk','name').order_by('name')
         if self.q:
