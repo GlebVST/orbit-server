@@ -21,6 +21,7 @@ from .jwtauthutils import get_token_auth_header, decode_token
 from .auth_backends import configure_user
 from .serializers import ProfileReadSerializer, ActiveCmeTagSerializer, UserSubsReadSerializer, InvitationDiscountReadSerializer
 from .feed_serializers import CreditTypeSerializer
+from .tab_config import getTab, addTabToData, addTabToMoreItems
 
 logger = logging.getLogger('api.auth')
 TPL_DIR = 'users'
@@ -130,10 +131,11 @@ def serialize_creditTypes(profile):
     s = CreditTypeSerializer(qset, many=True)
     return s.data
 
-def make_user_context(user):
+def make_user_context(user, platform=''):
     """Create context dict for the given user.
     Args:
         user: User instance
+        platform: str - ios or ''
     """
     profile = Profile.objects.get(user=user)
     user_subs = UserSubscription.objects.getLatestSubscription(user)
@@ -162,7 +164,31 @@ def make_user_context(user):
             'totalCompleteInvites': numCompleteInvites,
             'totalCredit': InvitationDiscount.objects.sumCreditForInviter(user)
         }
+    if platform == 'ios':
+        context['iosTabConfiguration'] = get_ios_tab_config()
     return context
+
+def get_ios_tab_config():
+    """Return list of dicts for the tab configuration
+    TODO: eventually the data will be plan-dependent
+    """
+    data = []
+    # define more items
+    moreTab = getTab('more')
+    addTabToMoreItems(moreTab, getTab('sites'))
+    addTabToMoreItems(moreTab, getTab('feedback'))
+    addTabToMoreItems(moreTab, getTab('terms'))
+    addTabToMoreItems(moreTab, getTab('logout'))
+    # define data tabs
+    # first tab specifies the homeUrl in its contents
+    # The middle tabs specify a webview in their contents
+    # The last tab is the More tab
+    addTabToData(data, getTab('explore')) # first tab defines homeurl
+    addTabToData(data, getTab('earn')) # middle tab
+    addTabToData(data, getTab('submit')) # middle tab
+    addTabToData(data, getTab('profile')) # middle tab
+    addTabToData(data, moreTab) # last tab
+    return data
 
 @api_view()
 def auth_debug(request):
@@ -185,22 +211,15 @@ def auth_debug(request):
 
 
 @api_view()
-#@permission_classes((AllowAny,))
 def auth_status(request):
     """Called by UI to get user context for an authenticated user
     """
-    if request.user.is_authenticated:
-        if settings.SESSION_LOGIN_KEY not in request.session:
-            auth_login(request, request.user, backend='users.auth_backends.Auth0Backend')
-            request.session[settings.SESSION_LOGIN_KEY] = request.user.pk
-        context = make_user_context(request.user)
-        return Response(context, status=status.HTTP_200_OK)
-    # else, bad token
-    context = {
-        'success': False,
-        'message': 'Invalid or missing access_token'
-    }
-    return Response(context, status=status.HTTP_401_UNAUTHORIZED)
+    if settings.SESSION_LOGIN_KEY not in request.session:
+        auth_login(request, request.user, backend='users.auth_backends.Auth0Backend')
+        request.session[settings.SESSION_LOGIN_KEY] = request.user.pk
+    platform = request.META.get("Orbit-App-Platform", '')
+    context = make_user_context(request.user, platform)
+    return Response(context, status=status.HTTP_200_OK)
 
 @api_view()
 def signup(request, bt_plan_id):
