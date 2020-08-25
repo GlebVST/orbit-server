@@ -849,8 +849,8 @@ class Plantag(models.Model):
     tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
     num_recs = models.PositiveIntegerField(default=0,
         help_text='Number of recommended articles for this tag created for users on this plan')
-    num_diplay_in_panel = models.PositiveIntegerField(default=0,
-        help_text='Max number of recommended articles to display in Plugin overflow panel for this tag. Must be less or than or equal to num_recs')
+    num_display_panel = models.PositiveIntegerField(default=0,
+        help_text='Max number of recommended articles to display in Plugin overflow panel. Must be less or than or equal to num_recs')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 

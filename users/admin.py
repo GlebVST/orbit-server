@@ -660,9 +660,9 @@ class PlantagForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super(PlantagForm, self).clean()
         num_recs = cleaned_data.get('num_recs', 0)
-        num_display = cleaned_data.get('num_display_in_panel', 0)
+        num_display = cleaned_data.get('num_display_panel', 0)
         if num_display > num_recs:
-            self.add_error('num_display_in_panel', 'This number to display in panel must be less than or equal to the number of recommended articles (num_recs).')
+            self.add_error('num_display_panel', 'The number to display in Overflow panel must be less than or equal to num_recs.')
 
 class PlantagInline(admin.TabularInline):
     model = Plantag
