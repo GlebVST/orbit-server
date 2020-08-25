@@ -217,7 +217,8 @@ def auth_status(request):
     if settings.SESSION_LOGIN_KEY not in request.session:
         auth_login(request, request.user, backend='users.auth_backends.Auth0Backend')
         request.session[settings.SESSION_LOGIN_KEY] = request.user.pk
-    platform = request.META.get("Orbit-App-Platform", '')
+    platform = request.META.get("HTTP_ORBIT_APP_PLATFORM", '')
+    logInfo(logger, request, "platform: {0}".format(platform))
     context = make_user_context(request.user, platform)
     return Response(context, status=status.HTTP_200_OK)
 
