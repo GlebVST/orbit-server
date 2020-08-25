@@ -11,7 +11,7 @@ TAB_EXPLORE = {
   },
   "contents": {
     "exploreTab": {
-      "homeURL": "/submit"
+      "homeURL": "/whitelist"
     }
   }
 }
