@@ -35,9 +35,9 @@ TAB_SUBMIT = {
   "index": 2,
   "title": "Submit",
   "icon": {
-    "at1x": "/assets/images-ios/submit-icon/submit-icon.png",
-    "at2x": "/assets/images-ios/submit-icon/submit-icon@2x.png",
-    "at3x": "/assets/images-ios/submit-icon/submit-icon@3x.png"
+    "at1x": "/assets/images/ios/submit-icon/submit-icon.png",
+    "at2x": "/assets/images/ios/submit-icon/submit-icon@2x.png",
+    "at3x": "/assets/images/ios/submit-icon/submit-icon@3x.png"
   },
   "contents": {
     "webview": {
