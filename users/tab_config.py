@@ -5,9 +5,9 @@ TAB_EXPLORE = {
   "index": 0,
   "title": "Explore",
   "icon": {
-    "at1x": "/assets/images-ios/explore-icon/explore-icon.png",
-    "at2x": "/assets/images-ios/explore-icon/explore-icon@2x.png",
-    "at3x": "/assets/images-ios/explore-icon/explore-icon@3x.png"
+    "at1x": "/assets/images/ios/explore-icon/explore-icon.png",
+    "at2x": "/assets/images/ios/explore-icon/explore-icon@2x.png",
+    "at3x": "/assets/images/ios/explore-icon/explore-icon@3x.png"
   },
   "contents": {
     "exploreTab": {
@@ -20,9 +20,9 @@ TAB_EARN = {
   "index": 1,
   "title": "Earn",
   "icon": {
-    "at1x": "/assets/images-ios/earn-icon/earn-icon.png",
-    "at2x": "/assets/images-ios/earn-icon/earn-icon@2x.png",
-    "at3x": "/assets/images-ios/earn-icon/earn-icon@3x.png"
+    "at1x": "/assets/images/ios/earn-icon/earn-icon.png",
+    "at2x": "/assets/images/ios/earn-icon/earn-icon@2x.png",
+    "at3x": "/assets/images/ios/earn-icon/earn-icon@3x.png"
   },
   "contents": {
     "webview": {
@@ -50,9 +50,9 @@ TAB_PROFILE = {
   "index": 3,
   "title": "Profile",
   "icon": {
-    "at1x": "/assets/images-ios/profile-icon/profile-icon.png",
-    "at2x": "/assets/images-ios/profile-icon/profile-icon@2x.png",
-    "at3x": "/assets/images-ios/profile-icon/profile-icon@3x.png"
+    "at1x": "/assets/images/ios/profile-icon/profile-icon.png",
+    "at2x": "/assets/images/ios/profile-icon/profile-icon@2x.png",
+    "at3x": "/assets/images/ios/profile-icon/profile-icon@3x.png"
   },
   "contents": {
     "webview": {
@@ -65,9 +65,9 @@ TAB_SITES = {
     "index": 0,
     "title": "Sites",
     "icon": {
-        "at1x": "/assets/images-ios/explore-icon/explore-icon.png",
-        "at2x": "/assets/images-ios/explore-icon/explore-icon@2x.png",
-        "at3x": "/assets/images-ios/explore-icon/explore-icon@3x.png"
+        "at1x": "/assets/images/ios/explore-icon/explore-icon.png",
+        "at2x": "/assets/images/ios/explore-icon/explore-icon@2x.png",
+        "at3x": "/assets/images/ios/explore-icon/explore-icon@3x.png"
     },
     "contents": {
         "webview": {
@@ -80,9 +80,9 @@ TAB_FEEDBACK = {
     "index": 1,
     "title": "Feedback",
     "icon": {
-        "at1x": "/assets/images-ios/explore-icon/feedback-icon.png",
-        "at2x": "/assets/images-ios/explore-icon/feedback-icon@2x.png",
-        "at3x": "/assets/images-ios/explore-icon/feedback-icon@3x.png"
+        "at1x": "/assets/images/ios/explore-icon/feedback-icon.png",
+        "at2x": "/assets/images/ios/explore-icon/feedback-icon@2x.png",
+        "at3x": "/assets/images/ios/explore-icon/feedback-icon@3x.png"
     },
     "contents": {
         "webview": {
@@ -95,9 +95,9 @@ TAB_TERMS = {
     "index": 2,
     "title": "Terms",
     "icon": {
-        "at1x": "/assets/images-ios/terms-icon/terms-icon.png",
-        "at2x": "/assets/images-ios/terms-icon/terms-icon@2x.png",
-        "at3x": "/assets/images-ios/terms-icon/terms-icon@3x.png"
+        "at1x": "/assets/images/ios/terms-icon/terms-icon.png",
+        "at2x": "/assets/images/ios/terms-icon/terms-icon@2x.png",
+        "at3x": "/assets/images/ios/terms-icon/terms-icon@3x.png"
     },
     "contents": {
         "webview": {
@@ -110,9 +110,9 @@ TAB_LOGOUT = {
     "index": 3,
     "title": "Logout",
     "icon": {
-        "at1x": "/assets/images-ios/logout-icon/logout-icon.png",
-        "at2x": "/assets/images-ios/logout-icon/logout-icon@2x.png",
-        "at3x": "/assets/images-ios/logout-icon/logout-icon@3x.png"
+        "at1x": "/assets/images/ios/logout-icon/logout-icon.png",
+        "at2x": "/assets/images/ios/logout-icon/logout-icon@2x.png",
+        "at3x": "/assets/images/ios/logout-icon/logout-icon@3x.png"
     },
     "contents": {
         "logout": {}
@@ -123,9 +123,9 @@ TAB_MORE = {
   "index": 4,
   "title": "More",
   "icon": {
-    "at1x": "/assets/images-ios/more-icon/more-icon.png",
-    "at2x": "/assets/images-ios/more-icon/more-icon@2x.png",
-    "at3x": "/assets/images-ios/more-icon/more-icon@3x.png"
+    "at1x": "/assets/images/ios/more-icon/more-icon.png",
+    "at2x": "/assets/images/ios/more-icon/more-icon@2x.png",
+    "at3x": "/assets/images/ios/more-icon/more-icon@3x.png"
   },
   "contents": {
     "moreTab": {
