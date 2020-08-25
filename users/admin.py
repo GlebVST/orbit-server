@@ -657,6 +657,13 @@ class PlantagForm(forms.ModelForm):
             ),
         }
 
+    def clean(self):
+        cleaned_data = super(PlantagForm, self).clean()
+        num_recs = cleaned_data.get('num_recs', 0)
+        num_display = cleaned_data.get('num_display_in_panel', 0)
+        if num_display > num_recs:
+            self.add_error('num_display_in_panel', 'This number to display in panel must be less than or equal to the number of recommended articles (num_recs).')
+
 class PlantagInline(admin.TabularInline):
     model = Plantag
     form = PlantagForm
@@ -677,7 +684,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'formatTags'
     )
     list_select_related = True
-    list_filter = ('active', 'is_public', 'plan_type', 'allowArticleHistory', 'allowArticleSearch', 'plan_key', 'organization')
+    list_filter = ('active', 'is_public', 'plan_type', 'allowArticleHistory', 'allowArticleSearch', 'allowDdx', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
     filter_horizontal = ('tags',)
     form = PlanForm

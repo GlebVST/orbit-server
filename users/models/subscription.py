@@ -736,8 +736,10 @@ class SubscriptionPlan(models.Model):
         help_text='If false, this plan is not available to the general public (e.g. RP Advanced). Used for Braintree plans.')
     displayMonthlyPrice = models.BooleanField(default=False,
         help_text='Flag controls if UI displays price as per month in credit card screen')
+    allowDdx = models.BooleanField(default=False,
+        help_text="Enable Ddx collection in plugin for users on this plan. This field is OR'd with the per-user assignment to the Ddx group to decide the permission.")
     allowArticleSearch = models.BooleanField(default=False,
-        help_text="Enable Related Article rail in plugin for users on this plan. This field is OR'd with the per-user assignment to the RelatedArticle group to decide the permission.")
+        help_text="Enable Google Custom Search in plugin for users on this plan. This field is OR'd with the per-user assignment to the ArticleSearch group to decide the permission.")
     allowArticleHistory = models.BooleanField(default=False,
         help_text="Enable Article History rail in plugin for users on this plan. This field is OR'd with the per-user assignment to the ArticleHistory group to decide the permission.")
     plan_type = models.ForeignKey(SubscriptionPlanType,
@@ -760,11 +762,6 @@ class SubscriptionPlan(models.Model):
         blank=True,
         related_name='plans',
         help_text='Associate plan with a particular Organization - used for Enterprise plans, and Braintree Advanced plans.'
-    )
-    cmeTags = models.ManyToManyField(CmeTag,
-        blank=True,
-        related_name='old_plans',
-        help_text='cmeTags to be added to profile for users on this plan'
     )
     tags = models.ManyToManyField(CmeTag,
         through='Plantag',
@@ -851,7 +848,9 @@ class Plantag(models.Model):
     plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, db_index=True)
     tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
     num_recs = models.PositiveIntegerField(default=0,
-        help_text='Number of article recommendations for this tag to users on this plan')
+        help_text='Number of recommended articles for this tag created for users on this plan')
+    num_diplay_in_panel = models.PositiveIntegerField(default=0,
+        help_text='Max number of recommended articles to display in Plugin overflow panel for this tag. Must be less or than or equal to num_recs')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
