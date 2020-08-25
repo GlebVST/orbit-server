@@ -80,9 +80,9 @@ TAB_FEEDBACK = {
     "index": 1,
     "title": "Feedback",
     "icon": {
-        "at1x": "/assets/images/ios/explore-icon/feedback-icon.png",
-        "at2x": "/assets/images/ios/explore-icon/feedback-icon@2x.png",
-        "at3x": "/assets/images/ios/explore-icon/feedback-icon@3x.png"
+        "at1x": "/assets/images/ios/feedback-icon/feedback-icon.png",
+        "at2x": "/assets/images/ios/feedback-icon/feedback-icon@2x.png",
+        "at3x": "/assets/images/ios/feedback-icon/feedback-icon@3x.png"
     },
     "contents": {
         "webview": {
