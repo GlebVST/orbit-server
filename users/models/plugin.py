@@ -777,10 +777,17 @@ class GArticleSearch(models.Model):
     specialties = models.ManyToManyField(PracticeSpecialty,
         blank=True,
         related_name='garticlesearches')
-    users = models.ManyToManyField(User,
-        related_name='garticlesearches',
-        through='GArticleSearchLog',
+    articles = models.ManyToManyField(AllowedUrl,
         blank=True,
+        help_text='Articles assigned to this search entry',
+        related_name='garticlesearches')
+    reference_article= models.ForeignKey(AllowedUrl,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='ref_garticlesearches',
+        help_text='The Reference Article determines which ddx/studytopics are used for the articles assigned to this entry. By default, the ReferenceUrl is set from the top search result that was done using the internalSearchEngineid of a specialty.'
     )
     results = JSONField(blank=True)
     processed_results = JSONField(blank=True)
@@ -791,35 +798,11 @@ class GArticleSearch(models.Model):
         managed = False
         db_table = 'trackers_garticlesearch'
         unique_together = ('search_term','gsearchengid')
-        verbose_name = 'Google Article Search'
-        verbose_name_plural = 'Google Article Searches'
+        verbose_name = 'Related Article Search'
+        verbose_name_plural = 'Related Article Searches'
 
     def __str__(self):
         return self.search_term
-
-class GArticleSearchLog(models.Model):
-    id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User,
-        on_delete=models.CASCADE,
-        db_index=True,
-        related_name='garticlesearchlogs',
-    )
-    search = models.ForeignKey(GArticleSearch,
-        on_delete=models.CASCADE,
-        db_index=True,
-        related_name='garticlesearchlogs',
-    )
-    created = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        managed = False
-        db_table = 'trackers_garticlesearchlog'
-        unique_together = ('user','search')
-        verbose_name = 'Google Article Search Log'
-        verbose_name_plural = 'Google Article Search Logs'
-
-    def __str__(self):
-        return "{0.user} on {0.created}".format(self)
 
 
 class Topic(models.Model):
