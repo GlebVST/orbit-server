@@ -157,7 +157,7 @@ class SubscriptionPlanList(generics.ListAPIView):
             if user_subs and user_subs.next_plan and user_subs.next_plan.pk not in pks:
                 pks.append(user_subs.next_plan.pk)
             msg = "PlanList pks: {0}".format(pks)
-            logDebug(logger, request, msg)
+            logDebug(logger, self.request, msg)
             filter_kwargs = dict(pk__in=pks)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
 
