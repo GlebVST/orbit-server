@@ -156,6 +156,8 @@ class SubscriptionPlanList(generics.ListAPIView):
             # Normally user_subs.next_plan, if set, is plan.downgrade_plan, but in case it differs, then add it.
             if user_subs and user_subs.next_plan and user_subs.next_plan.pk not in pks:
                 pks.append(user_subs.next_plan.pk)
+            msg = "PlanList pks: {0}".format(pks)
+            logDebug(logger, request, msg)
             filter_kwargs = dict(pk__in=pks)
             return SubscriptionPlan.objects.filter(**filter_kwargs).order_by('price','pk')
 
@@ -371,6 +373,7 @@ class NewSubscription(generics.CreateAPIView):
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
         # form_data will be modified before passing it to serializer
         form_data = request.data.copy()
+        logDebug(logger, request, str(form_data)) # log original data sent by UI
         payment_nonce = form_data.get('payment_method_nonce', None)
         payment_token = form_data.get('payment_method_token', None)
         trial_duration = form_data.get('trial_duration', None)
@@ -465,6 +468,7 @@ class NewSubscription(generics.CreateAPIView):
         if not do_trial:
             form_data['trial_duration'] = 0 # 0 days of trial. Subs starts immediately
         # set plan from profile.planId
+        logInfo(logger, request, "NewSubscription: get plan from profile.planId: {0.planId}".format(profile))
         form_data['plan'] = SubscriptionPlan.objects.get(planId=profile.planId).pk
         logDebug(logger, request, str(form_data))
         in_serializer = self.get_serializer(data=form_data)

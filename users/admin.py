@@ -8,7 +8,6 @@ from django.utils.safestring import mark_safe
 from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
-from common.appconstants import GROUP_ARTICLEHISTORY, GROUP_RELATEDARTICLE
 from common.ac_filters import UserFilter, CmeTagFilter, TagFilter, StateFilter, EligibleSiteFilter, PracticeSpecialtyFilter 
 from common.dateutils import fmtLocalDatetime
 from .models import *
@@ -332,60 +331,6 @@ class ProfileAdmin(admin.ModelAdmin):
         if 'delete_selected' in actions:
             del actions['delete_selected']
         return actions
-
-    def toggleArticleHistoryPermission(self, request, queryset):
-        """Toggle membership in GROUP_ARTICLEHISTORY for the selected users"""
-        num_users = len(queryset)
-        if num_users == 0:
-            errmsg = 'Select user profile (use the User Filter dropdown menu if needed), and then select this action to toggle permission.'
-            self.message_user(request, errmsg, level=messages.ERROR)
-            return
-        data = []
-        grp = Group.objects.get(name=GROUP_ARTICLEHISTORY)
-        # toggle membership in the group
-        for profile in queryset:
-            user = profile.user
-            qs = user.groups.filter(name=grp.name)
-            if qs.exists():
-                # remove group
-                user.groups.remove(grp)
-                status = 'OFF'
-            else:
-                # add group
-                user.groups.add(grp)
-                status = 'ON'
-            data.append("{0}: {1}".format(profile, status))
-        msg = "Toggled ArticleHistory permission for num_users: {0}<br />".format(num_users)
-        msg += "<br />".join(data)
-        self.message_user(request, mark_safe(msg), level=messages.SUCCESS)
-    toggleArticleHistoryPermission.short_description = 'Select user profile to toggle ArticleHistory rail permission'
-
-    def toggleRelatedArticlePermission(self, request, queryset):
-        """Toggle membership in GROUP_RELATEDARTICLE for the selected users"""
-        num_users = len(queryset)
-        if num_users == 0:
-            errmsg = 'Select user profile (use the User Filter dropdown menu if needed), and then select this action to toggle permission.'
-            self.message_user(request, errmsg, level=messages.ERROR)
-            return
-        data = []
-        grp = Group.objects.get(name=GROUP_RELATEDARTICLE)
-        # toggle membership in the group
-        for profile in queryset:
-            user = profile.user
-            qs = user.groups.filter(name=grp.name)
-            if qs.exists():
-                # remove group
-                user.groups.remove(grp)
-                status = 'OFF'
-            else:
-                # add group
-                user.groups.add(grp)
-                status = 'ON'
-            data.append("{0}: {1}".format(profile, status))
-        msg = "Toggled RelatedArticle permission for num_users: {0}<br />".format(num_users)
-        msg += "<br />".join(data)
-        self.message_user(request, mark_safe(msg), level=messages.SUCCESS)
-    toggleRelatedArticlePermission.short_description = 'Select user profile to toggle RelatedArticle rail permission'
 
     def get_queryset(self, request):
         qs = super(ProfileAdmin, self).get_queryset(request)
@@ -842,6 +787,9 @@ class UserCmeCreditAdmin(admin.ModelAdmin):
 #
 # plugin models
 #
+class AdblockerAdmin(admin.ModelAdmin):
+    list_display = ('id', 'ios', 'name', 'file_url', 'created')
+
 class ProxyPatternAdmin(admin.ModelAdmin):
     list_display = ('id', 'proxyname', 'delimiter', 'created', 'modified')
 
@@ -1177,6 +1125,7 @@ admin_site.register(InfluencerMembership, InfluencerMembershipAdmin)
 #
 # plugin models
 #
+admin_site.register(Adblocker, AdblockerAdmin)
 admin_site.register(AllowedHost, AllowedHostAdmin)
 admin_site.register(HostPattern, HostPatternAdmin)
 admin_site.register(AllowedUrl, AllowedUrlAdmin)

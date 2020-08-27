@@ -26,6 +26,23 @@ logger = logging.getLogger('gen.models')
 
 OFFER_LOOKBACK_DAYS = 365*3
 
+class Adblocker(models.Model):
+    name = models.CharField(max_length=60, unique=True)
+    ios = models.BooleanField(default=False,
+        help_text='Check box if this entry is for the ios app')
+    file_url = models.URLField(max_length=1000, blank=True, default='',
+        help_text='For ios app entry: S3 URL of the adblock file. Upload to the adblocker folder in the orbitcme-dev and orbitcme-prod S3 bucket. Filename should be unique.')
+    created = models.DateTimeField(auto_now_add=True, blank=True)
+    modified = models.DateTimeField(auto_now=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_adblocker'
+        ordering = ('-created',)
+
+    def __str__(self):
+        return self.name
+
 class ProxyPattern(models.Model):
     proxyname = models.CharField(max_length=100, unique=True,
         help_text='proxy part of netloc only. Example: offcampus.lib.washington.edu')

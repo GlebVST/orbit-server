@@ -20,7 +20,7 @@ from common.appconstants import (
     GROUP_ENTERPRISE_ADMIN,
     GROUP_ENTERPRISE_MEMBER,
     GROUP_ARTICLEHISTORY,
-    GROUP_RELATEDARTICLE
+    GROUP_ARTICLESEARCH
 )
 logger = logging.getLogger('gen.models')
 
@@ -675,20 +675,29 @@ class ProfileManager(models.Manager):
             return user_subs.plan.allowArticleHistory
         return False
 
-    def allowRelatedArticle(self, user, user_subs):
-        """User belongs to RelatedArticle group OR plan.allowArticleSearch is True
+    def allowArticleSearch(self, user, user_subs):
+        """User belongs to ArticleSearch group OR plan.allowArticleSearch is True
         Args:
             user: User instance
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
-        in_group = user.groups.filter(name=GROUP_RELATEDARTICLE).exists()
+        in_group = user.groups.filter(name=GROUP_ARTICLESEARCH).exists()
         if in_group:
             return True
         # else check plan
         if user_subs:
             return user_subs.plan.allowArticleSearch
         return False
+
+    def allowDdx(self, user, user_subs):
+        """User belongs to Ddx group or plan.allowDdx is True
+        Args:
+            user: User instance
+            user_subs: UserSubscription instance (can be None)
+        Returns bool - True if allowed, else False
+        """
+        return False # stub; fill in after GROUP_DDX is created with view_ddx perm
 
 @python_2_unicode_compatible
 class Profile(models.Model):

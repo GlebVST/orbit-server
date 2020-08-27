@@ -6,8 +6,8 @@ GROUP_CONTENTADMIN = 'ContentAdmin' # Whitelist Admin (and other admin-level sit
 GROUP_CMEREQADMIN = 'CmeReqAdmin'   # to edit Cme Requirements per Specialty (group not used atm)
 GROUP_ENTERPRISE_ADMIN = 'EnterpriseAdmin'
 GROUP_ENTERPRISE_MEMBER = 'EnterpriseMember'
-GROUP_ARTICLEHISTORY = 'ArticleHistory'  # group w. permission for ArticleHistory rail
-GROUP_RELATEDARTICLE = 'RelatedArticle'  # group w. permission for RelatedArticle rail
+GROUP_ARTICLEHISTORY = 'ArticleHistory'  # group w. PERM_VIEW_ARTICLE_HISTORY
+GROUP_ARTICLESEARCH = 'ArticleSearch'  # group w. PERM_VIEW_ARTICLE_SEARCH
 
 # codenames for permissions
 PERM_VIEW_OFFER = u'view_offer'
@@ -33,7 +33,6 @@ PERM_EDIT_PROFILECMETAG = u'change_profilecmetag'
 # permission to view ArticleHistory rail (perm defined on ActivitySet model)
 PERM_VIEW_ARTICLE_HISTORY = u'view_articlehistory'
 # permission to view RelatedArticle rail (perm defined on GArticleSearch model)
-# this is a composite perm
 PERM_VIEW_RELATED_ARTICLE = u'view_relatedarticle'
 # permission to use Google article search feaure (default view_perm on GArticleSearch model)
 PERM_VIEW_ARTICLE_SEARCH = u'view_garticlesearch'

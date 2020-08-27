@@ -651,7 +651,7 @@ class SubscriptionPlanManager(models.Manager):
                 BT Pro Plan         # needs payment method at signup
             ]
         else:
-            Only public Braintree plans are returned. These require a payment method at signup
+            Only active, public Braintree plans are returned. These require a payment method at signup
             return [
                 BT Basic Plan,
                 BT Pro Plan
@@ -919,6 +919,25 @@ class UserSubscriptionManager(models.Manager):
         subscription = self.getLatestSubscription(user=user)
         self.setUserCmeCreditByPlan(user, subscription.plan)
 
+    def allowRelatedArticle(self, user, user_subs):
+        """This is a composite permission. It returns True if user has any of the following:
+                allowArticleSearch
+                allowDdx
+                has Plantags with non-zero recs
+        Args:
+            user: User instance
+            user_subs: UserSubscription instance (can be None)
+        Returns bool - True if allowed, else False
+        """
+        if Profile.objects.allowArticleSearch(user, user_subs):
+            return True
+        if Profile.objects.allowDdx(user, user_subs):
+            return True
+        if user_subs:
+            return Plantag.objects.filter(plan=user_subs.plan, num_recs__gt=0).exists()
+        return False
+
+
     def getPermissions(self, user_subs):
         """Helper method used by serialize_permissions.
         Get the permissions for the group that matches user_subs.display_status
@@ -1010,8 +1029,8 @@ class UserSubscriptionManager(models.Manager):
         # ArticleHistory rail permission
         if Profile.objects.allowArticleHistory(user, user_subs):
             allowed_codes.add(PERM_VIEW_ARTICLE_HISTORY)
-        # RelatedArticle rail permission
-        if Profile.objects.allowRelatedArticle(user, user_subs):
+        # RelatedArticle rail (composite permission)
+        if self.allowRelatedArticle(user, user_subs):
             allowed_codes.add(PERM_VIEW_RELATED_ARTICLE)
         for codename in discard_codes:
             allowed_codes.discard(codename) # remove from set if exist
@@ -1040,6 +1059,7 @@ class UserSubscriptionManager(models.Manager):
         if not user_subs:
             return True
         status = user_subs.status
+        logger.info("allowNewSubscription: user_subs {0}: {0.status}/{0.display_status}".format(user_subs))
         return (status == UserSubscription.CANCELED or status == UserSubscription.EXPIRED or status == UserSubscription.PASTDUE)
 
     def findBtSubscription(self, subscriptionId):
@@ -1268,6 +1288,7 @@ class UserSubscriptionManager(models.Manager):
         profile = user.profile
         profile.planId = plan.planId
         profile.save(update_fields=('planId',))
+        logger.info("createSubscriptionFromBt: set profile.planId: {0}/{0.planId}".format(profile))
         # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist
         result_transactions = bt_subs.transactions # list
         if len(result_transactions):
