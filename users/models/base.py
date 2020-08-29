@@ -20,7 +20,7 @@ from common.appconstants import (
     GROUP_ENTERPRISE_ADMIN,
     GROUP_ENTERPRISE_MEMBER,
     GROUP_ARTICLEHISTORY,
-    GROUP_RELATEDARTICLE
+    GROUP_ARTICLESEARCH
 )
 logger = logging.getLogger('gen.models')
 
@@ -372,8 +372,10 @@ class PracticeSpecialty(models.Model):
     is_primary = models.BooleanField(default=False, help_text='True if this is a Primary Specialty Certificate')
     planText = models.CharField(max_length=500, blank=True, default='',
             help_text='Default response for changes to clinical plan')
-    gsearchengid = models.CharField(max_length=50, blank=True, default='',
-            help_text='Google search engine ID to use for this specialty. Must match a valid ID defined in the google console.')
+    internalSearchEngineid = models.CharField(max_length=50, blank=True, default='',
+            help_text='Internal Google search engine ID to use for categorizing articles in this specialty. Used for ddx/studytopic assignment. Must match a valid ID defined in the google console.')
+    userSearchEngineid = models.CharField(max_length=50, blank=True, default='',
+            help_text='Public Google search engine ID to use for the RelatedArticleRail for users in this specialty. Must match a valid ID defined in the google console.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -673,20 +675,29 @@ class ProfileManager(models.Manager):
             return user_subs.plan.allowArticleHistory
         return False
 
-    def allowRelatedArticle(self, user, user_subs):
-        """User belongs to RelatedArticle group OR plan.allowArticleSearch is True
+    def allowArticleSearch(self, user, user_subs):
+        """User belongs to ArticleSearch group OR plan.allowArticleSearch is True
         Args:
             user: User instance
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
-        in_group = user.groups.filter(name=GROUP_RELATEDARTICLE).exists()
+        in_group = user.groups.filter(name=GROUP_ARTICLESEARCH).exists()
         if in_group:
             return True
         # else check plan
         if user_subs:
             return user_subs.plan.allowArticleSearch
         return False
+
+    def allowDdx(self, user, user_subs):
+        """User belongs to Ddx group or plan.allowDdx is True
+        Args:
+            user: User instance
+            user_subs: UserSubscription instance (can be None)
+        Returns bool - True if allowed, else False
+        """
+        return False # stub; fill in after GROUP_DDX is created with view_ddx perm
 
 @python_2_unicode_compatible
 class Profile(models.Model):

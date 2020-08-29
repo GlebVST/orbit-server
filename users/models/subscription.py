@@ -651,7 +651,7 @@ class SubscriptionPlanManager(models.Manager):
                 BT Pro Plan         # needs payment method at signup
             ]
         else:
-            Only public Braintree plans are returned. These require a payment method at signup
+            Only active, public Braintree plans are returned. These require a payment method at signup
             return [
                 BT Basic Plan,
                 BT Pro Plan
@@ -736,8 +736,10 @@ class SubscriptionPlan(models.Model):
         help_text='If false, this plan is not available to the general public (e.g. RP Advanced). Used for Braintree plans.')
     displayMonthlyPrice = models.BooleanField(default=False,
         help_text='Flag controls if UI displays price as per month in credit card screen')
+    allowDdx = models.BooleanField(default=False,
+        help_text="Enable Ddx collection in plugin for users on this plan. This field is OR'd with the per-user assignment to the Ddx group to decide the permission.")
     allowArticleSearch = models.BooleanField(default=False,
-        help_text="Enable Related Article rail in plugin for users on this plan. This field is OR'd with the per-user assignment to the RelatedArticle group to decide the permission.")
+        help_text="Enable Google Custom Search in plugin for users on this plan. This field is OR'd with the per-user assignment to the ArticleSearch group to decide the permission.")
     allowArticleHistory = models.BooleanField(default=False,
         help_text="Enable Article History rail in plugin for users on this plan. This field is OR'd with the per-user assignment to the ArticleHistory group to decide the permission.")
     plan_type = models.ForeignKey(SubscriptionPlanType,
@@ -760,11 +762,6 @@ class SubscriptionPlan(models.Model):
         blank=True,
         related_name='plans',
         help_text='Associate plan with a particular Organization - used for Enterprise plans, and Braintree Advanced plans.'
-    )
-    cmeTags = models.ManyToManyField(CmeTag,
-        blank=True,
-        related_name='old_plans',
-        help_text='cmeTags to be added to profile for users on this plan'
     )
     tags = models.ManyToManyField(CmeTag,
         through='Plantag',
@@ -851,7 +848,9 @@ class Plantag(models.Model):
     plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, db_index=True)
     tag = models.ForeignKey(CmeTag, on_delete=models.CASCADE)
     num_recs = models.PositiveIntegerField(default=0,
-        help_text='Number of article recommendations for this tag to users on this plan')
+        help_text='Number of recommended articles for this tag created for users on this plan')
+    num_display_panel = models.PositiveIntegerField(default=0,
+        help_text='Max number of recommended articles to display in Plugin overflow panel. Must be less or than or equal to num_recs')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -919,6 +918,25 @@ class UserSubscriptionManager(models.Manager):
     def reloadUserCmeCreditByCurrentPlan(self, user):
         subscription = self.getLatestSubscription(user=user)
         self.setUserCmeCreditByPlan(user, subscription.plan)
+
+    def allowRelatedArticle(self, user, user_subs):
+        """This is a composite permission. It returns True if user has any of the following:
+                allowArticleSearch
+                allowDdx
+                has Plantags with non-zero recs
+        Args:
+            user: User instance
+            user_subs: UserSubscription instance (can be None)
+        Returns bool - True if allowed, else False
+        """
+        if Profile.objects.allowArticleSearch(user, user_subs):
+            return True
+        if Profile.objects.allowDdx(user, user_subs):
+            return True
+        if user_subs:
+            return Plantag.objects.filter(plan=user_subs.plan, num_recs__gt=0).exists()
+        return False
+
 
     def getPermissions(self, user_subs):
         """Helper method used by serialize_permissions.
@@ -1011,8 +1029,8 @@ class UserSubscriptionManager(models.Manager):
         # ArticleHistory rail permission
         if Profile.objects.allowArticleHistory(user, user_subs):
             allowed_codes.add(PERM_VIEW_ARTICLE_HISTORY)
-        # RelatedArticle rail permission
-        if Profile.objects.allowRelatedArticle(user, user_subs):
+        # RelatedArticle rail (composite permission)
+        if self.allowRelatedArticle(user, user_subs):
             allowed_codes.add(PERM_VIEW_RELATED_ARTICLE)
         for codename in discard_codes:
             allowed_codes.discard(codename) # remove from set if exist
@@ -1041,6 +1059,7 @@ class UserSubscriptionManager(models.Manager):
         if not user_subs:
             return True
         status = user_subs.status
+        logger.info("allowNewSubscription: user_subs {0}: {0.status}/{0.display_status}".format(user_subs))
         return (status == UserSubscription.CANCELED or status == UserSubscription.EXPIRED or status == UserSubscription.PASTDUE)
 
     def findBtSubscription(self, subscriptionId):
@@ -1269,6 +1288,7 @@ class UserSubscriptionManager(models.Manager):
         profile = user.profile
         profile.planId = plan.planId
         profile.save(update_fields=('planId',))
+        logger.info("createSubscriptionFromBt: set profile.planId: {0}/{0.planId}".format(profile))
         # create SubscriptionTransaction object in database - if user skipped trial then an initial transaction should exist
         result_transactions = bt_subs.transactions # list
         if len(result_transactions):
