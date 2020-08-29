@@ -13,14 +13,11 @@ def extractDdx(page_url_deque, file_pointer, proxy_pool):
 
     proxy = next(proxy_pool)
     try:
-        r = requests.get(page_url,proxies={"http": proxy, "https": proxy})
-        #r = requests.get(page_url)
-
-        #print(response.json())
+        r = requests.get(page_url, proxies={"http": proxy, "https": proxy})
 
     except:
-        #Most free proxies will often get connection errors. You will have retry the entire request using another proxy to work. 
-        #We will just skip retries as its beyond the scope of this tutorial and we are only downloading a single url 
+        # most free proxies will often get connection errors. So, if this happens,
+        # we retry the entire request by adding the url back into the page_url_deque
         print("Skipping " + page_url + ". Connnection error with proxy " + str(proxy))
         page_url_deque.appendleft((page_title, page_url))
         
@@ -30,24 +27,37 @@ def extractDdx(page_url_deque, file_pointer, proxy_pool):
 
     header_title = soup.find_all("h1", class_=["header-title"])
 
+    # if the page did not load properly, that means maybe the page only partially
+    # loaded, or the web server was unavailable. So, we retry the entire request by
+    # adding the url back into the page_url_deque.
     if len(header_title) == 0:
         print("Did not load page " + page_url + " properly, could not find header")
         page_url_deque.appendleft((page_title, page_url))
         return []
 
-    #title = soup.title.text
-
-    #suffix_idx = title.find("|")
-    #title = title[:suffix_idx]
-
     print(page_url)
 
+    # look for the header for differential diagnosis
     h4_diff_diag = soup.select("#nav_differential-diagnosis")
     if len(h4_diff_diag) == 0:
         return
     else:
         h4_diff_diag = h4_diff_diag[0]
 
+    # we want to find the next "ul" that is not
+    # under "Differential Diagnosis". We have to do this
+    # because the bullet points that are ddx are not actually 
+    # under the h4 differential diagnosis, but instead will be its siblings
+    # so, we look for the next h4 header.
+    # if the next h4 header does not exist, try next div
+    # if next div does not exist, try next li
+    # example is https://radiopaedia.org/articles/abnormally-thickened-endometrium-differential-1?lang=us
+    # else, there are no other possible bullet points that are next
+    # to h4 differential diagnosis that are not ddx
+
+    # there might be a possibility that we only need to look at the li's under the ul that is the
+    # next sibling of the h4 ddx header
+    # TODO: look into this to maybe shorten the code
     ending_next_li = None
     ending_next_ul = None
     ending = h4_diff_diag.find_next_sibling("h4")
@@ -95,140 +105,64 @@ def extractDdx(page_url_deque, file_pointer, proxy_pool):
                     url = "https://radiopaedia.org" + link.get('href')
                     file_pointer.writerow([page_url, page_title, link.string, url])
                     link_added = True
-                    #print(url)
             else:
                 for link in links:
                     url = "https://radiopaedia.org" + link.get('href')
                     file_pointer.writerow([page_url, page_title, link.string, url])
                     link_added = True
-                    #print(url)
 
-            #if new_line_idx > 0:
-            #    print(text[:new_line_idx])
-            #else:
-            #    print(text)
-            
             if link_added == False:
                 file_pointer.writerow([page_url, page_title, description, ""])
             
-            #print("tada")
         ul_iter = ul_iter.find_next_sibling("ul")
-'''
-#url = 'https://radiopaedia.org/articles/acute-pyelonephritis-1?lang=us'
-f = csv.writer(open("ddx_links.csv", "w"))
-f.writerow(["Page Url", "Page Title", "Bullet text", "Link"])
 
-#url = 'https://radiopaedia.org/articles/acute-coronary-syndrome?lang=us'
+if __name__=="__main__":
 
-#extractDdx(url, f)
-#print(extractUrl("https://radiopaedia.org/encyclopaedia/all/urogenital"))
+    # this is a list of proxies. You can get a list of proxies from 
+    # http://free-proxy.cz/en/proxylist/country/all/https/ping/level1
+    # there is a very high chance that the below proxy will not work in the future
+    # try to choose an elite/high anonymity proxy. If none are available, try to 
+    # choose an anonymous proxy.
+    # other helpful sites are 
+    # http://www.freeproxylists.net/?c=&pt=&pr=HTTPS&a%5B%5D=0&a%5B%5D=1&a%5B%5D=2&u=70
+    proxies = ['51.75.162.18:9999']
+    proxy_pool = cycle(proxies)
 
-starting_idx_urls = {"https://radiopaedia.org/encyclopaedia/all/urogenital": 11, 
-                     "https://radiopaedia.org/encyclopaedia/all/vascular": 13,
-                     "https://radiopaedia.org/encyclopaedia/artificial-intelligence/all?lang=us": 1,
-                     "https://radiopaedia.org/encyclopaedia/physics/all": 7}
+    page_urls_deque = collections.deque()
 
-for starting_url in starting_idx_urls:
-    
-    page_urls = extractUrl(starting_url)
+    # collect the page urls that we are going to scrape over for ddx
+    # note that this is called radiopaedia-articles-all-first.csv . This
+    # is the first half of radiopaedia-articles-all.csv and was generated from
+    # split_article.py . This is so we can run web scraper over multiple machines
+    # so that it is faster.
+    with open("radiopaedia-articles-all-first.csv") as infile:
+        read_csv = csv.DictReader(infile)
+        for row in read_csv:
+            title = row["articleTitle_articleName"]
+            url = row["articleTitle_articleURL"]
+            # make sure that this url is a radiopaedia url
+            if url[:18] == "https://radiopaedi":
+                page_urls_deque.append((title, url))
 
-    for page_url in page_urls:
-        extractDdx(page_url, f)
-'''
-#proxies = get_proxies()
-#print(proxies)
+    # this is so if our scraper dies in the middle, we don't have to
+    # start from the beginning. Every 100 urls this scraper goes through, it
+    # saves the results in a csv file. So, let's say the scraper dies after
+    # processing 732 urls. We can then set count_to_pop to 700 and begin
+    # the scraper again.
+    total = len(page_urls_deque)
+    count_to_pop = 0
+    for i in range(count_to_pop):
+        page_urls_deque.popleft()
 
-#proxies = ['216.158.89.114:8088', '103.250.166.4:6666']#['132.255.92.35:53281', '23.97.53.135:44355', '45.77.231.240:31764']#, '216.158.89.114:8088', '103.250.166.4:6666']
-
-proxies = ['51.75.162.18:9999']#['187.130.139.197:8080', '200.106.55.125:80', '81.201.60.130:80']#['200.106.55.125:80', '81.201.60.130:80', '80.187.140.74:8080'] #['23.97.53.135:44355', '144.217.101.245:3129', '46.151.108.6:41171']#['175.139.179.65:42580'] #['36.89.99.98:44030']#['178.72.74.40:31372']
-proxy_pool = cycle(proxies)
-'''
-f = csv.writer(open("ddx_links_tmp.csv", "w"))
-f.writerow(["ToC Section", "Page Url", "Page Title", "Bullet text", "Link"])
-
-page_urls_deque = collections.deque(["https://radiopaedia.org/articles/dysembryoplastic-neuroepithelial-tumour?lang=us"])
-extractDdx(page_urls_deque, f, proxy_pool, "dummy")
-
-'''
-'''
-starting_url = "https://radiopaedia.org/encyclopaedia/interventional-radiology/all"
-start_page_url = collections.deque([starting_url + "?lang=us&page=1"])   
-
-while start_page_url:
-    toc_title, page_urls = extractUrl(start_page_url, proxy_pool)
-
-prefix = toc_title.find('|')
-suffix = toc_title.find('|', prefix + 1)
-
-toc_title = toc_title[(prefix + 1):suffix]
-count = 158
-f = csv.writer(open("ddx_links" + str(count) + ".csv", "w"))
-f.writerow(["ToC Section", "Page Url", "Page Title", "Bullet text", "Link"])
-count += 1
-
-page_urls_deque = collections.deque(page_urls)
-#for page_url in page_urls:
-while page_urls_deque:
-    extractDdx(page_urls_deque, f, proxy_pool, toc_title)
-'''
-starting_idx_urls = {"https://radiopaedia.org/encyclopaedia/all/urogenital": 11, 
-                     "https://radiopaedia.org/encyclopaedia/all/vascular": 13,
-                     "https://radiopaedia.org/encyclopaedia/artificial-intelligence/all?lang=us": 1,
-                     "https://radiopaedia.org/encyclopaedia/physics/all": 7, 
-                     "https://radiopaedia.org/encyclopaedia/anatomy/all": 32, 
-                     "https://radiopaedia.org/encyclopaedia/approach/all": 5,
-                     "https://radiopaedia.org/encyclopaedia/classifications/all": 6, 
-                     "https://radiopaedia.org/encyclopaedia/gamuts/all": 10, 
-                     "https://radiopaedia.org/encyclopaedia/interventional-radiology/all": 2, 
-                     "https://radiopaedia.org/encyclopaedia/mnemonics/all": 3, 
-                     "https://radiopaedia.org/encyclopaedia/pathology/all": 3, 
-                     "https://radiopaedia.org/encyclopaedia/radiography/all": 5, 
-                     "https://radiopaedia.org/encyclopaedia/signs/all": 11, 
-                     "https://radiopaedia.org/encyclopaedia/staging/all?lang=us": 1, 
-                     "https://radiopaedia.org/encyclopaedia/syndromes/all": 7, 
-                     "https://radiopaedia.org/encyclopaedia/all/breast": 4, 
-                     "https://radiopaedia.org/encyclopaedia/all/cardiac": 7,
-                     "https://radiopaedia.org/encyclopaedia/all/central-nervous-system": 28}#,
-''' 
-starting_idx_urls = {"https://radiopaedia.org/encyclopaedia/all/chest": 19, 
-                     "https://radiopaedia.org/encyclopaedia/all/forensic?lang=us": 1, 
-                     "https://radiopaedia.org/encyclopaedia/all/gastrointestinal": 14, 
-                     "https://radiopaedia.org/encyclopaedia/all/gynaecology": 7, 
-                     "https://radiopaedia.org/encyclopaedia/all/haematology": 3, 
-                     "https://radiopaedia.org/encyclopaedia/all/head-neck": 18, 
-                     "https://radiopaedia.org/encyclopaedia/all/hepatobiliary": 7,
-                     "https://radiopaedia.org/encyclopaedia/all/interventional": 3, 
-                     "https://radiopaedia.org/encyclopaedia/all/musculoskeletal": 37, 
-                     "https://radiopaedia.org/encyclopaedia/all/obstetrics": 9, 
-                     "https://radiopaedia.org/encyclopaedia/all/oncology": 9, 
-                     "https://radiopaedia.org/encyclopaedia/all/paediatrics": 13, 
-                     "https://radiopaedia.org/encyclopaedia/all/spine": 7,
-                     "https://radiopaedia.org/encyclopaedia/all/trauma": 6}
-'''
-
-page_urls_deque = collections.deque()
-
-with open("radiopaedia-articles-all-first.csv") as infile:
-    read_csv = csv.DictReader(infile)
-    for row in read_csv:
-        title = row["articleTitle_articleName"]
-        url = row["articleTitle_articleURL"]
-        if url[:18] == "https://radiopaedi":
-            page_urls_deque.append((title, url))
-
-total = len(page_urls_deque)
-count_to_pop = 0
-for i in range(count_to_pop):
-    page_urls_deque.popleft()
-
-#for page_url in page_urls:
-while page_urls_deque:
-    print("length of page_urls_deque: " + str(len(page_urls_deque)))
-    count_processed = total - len(page_urls_deque)
-    if count_processed == 100:
-        break
-    print("count processed: " + str(count_processed))
-    if count_processed % 100 == 0:
-        f = csv.writer(open("ddx_links" + str(count_processed//100) + ".csv", "w"))
-        f.writerow(["Page Url", "Page Title", "Bullet text", "Link"])
-    extractDdx(page_urls_deque, f, proxy_pool)
+    # Every 100 urls processed, we save the results in a csv file.
+    # for each url, we call function extractDdx.
+    while page_urls_deque:
+        print("length of page_urls_deque: " + str(len(page_urls_deque)))
+        count_processed = total - len(page_urls_deque)
+        if count_processed == 100:
+            break
+        print("count processed: " + str(count_processed))
+        if count_processed % 100 == 0:
+            f = csv.writer(open("ddx_links" + str(count_processed//100) + ".csv", "w"))
+            f.writerow(["Page Url", "Page Title", "Bullet text", "Link"])
+        extractDdx(page_urls_deque, f, proxy_pool)
