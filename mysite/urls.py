@@ -37,6 +37,7 @@ bt_patterns = [
 
 ac_patterns = [
     re_path(r'^useremail-autocomplete/$', ac_views.UserEmailAutocomplete.as_view(), name='useremail-autocomplete'),
+    re_path(r'^aurl-autocomplete/$', ac_views.AllowedUrlAutocomplete.as_view(), name='aurl-autocomplete'),
     re_path(r'^cmetag-autocomplete/$', ac_views.CmeTagAutocomplete.as_view(), name='cmetag-autocomplete'),
     re_path(r'^statename-autocomplete/$', ac_views.StateNameAutocomplete.as_view(), name='statename-autocomplete'),
     re_path(r'^hospital-autocomplete/$', ac_views.HospitalAutocomplete.as_view(), name='hospital-autocomplete'),
