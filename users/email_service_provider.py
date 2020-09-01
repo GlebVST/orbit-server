@@ -116,12 +116,15 @@ def getDataFromDb(listData):
             completedLicenses=0,
             expiredCmeGap=0,
             expiringCmeGap=0,
+            # emailToSendDate is a field that can
+            # be used to determine when we can send the email to the person
+            emailToSendDate='',
             totalExpiredCmeGap=0,
             totalExpiringCmeGap=0,
-            totalNumProviders=0,
+            #totalNumProviders=0,
             totalExpiredCmeGapPercentChange=0,
             totalExpiringCmeGapPercentChange=0,
-            totalNumProvidersPercentChange=0
+            #totalNumProvidersPercentChange=0
         )
        
         qs = SubscriptionPlan.objects.filter(planId=profile.planId)
@@ -192,7 +195,7 @@ def getDataFromDb(listData):
                         todayOrgagg = todayQs[0]
                         d['totalExpiredCmeGap'] = todayOrgagg.cme_gap_expired
                         d['totalExpiringCmeGap'] = todayOrgagg.cme_gap_expiring
-                        d['totalNumProviders'] = todayOrgagg.users_invited + todayOrgagg.users_active
+                        #d['totalNumProviders'] = todayOrgagg.users_invited + todayOrgagg.users_active
 
                     lastMonday = today - timedelta(days=7)
                     #print("lastMonday: ", lastMonday)
@@ -212,11 +215,11 @@ def getDataFromDb(listData):
                                 (d['totalExpiringCmeGap'] - lastMondayOrgagg.cme_gap_expiring)/lastCmeGapExpiring
                         elif lastCmeGapExpiring == 0 and d['totalExpiringCmeGap'] == 0:
                             d['totalExpiringCmeGapPercentChange'] = 0
-                        if lastNumProviders != 0:
-                            d['totalNumProvidersPercentChange'] = \
-                                (d['totalNumProviders'] - lastNumProviders)/lastNumProviders
-                        elif lastNumProviders == 0 and d['totalNumProviders'] == 0:
-                            d['totalNumProvidersPercentChange'] = 0
+                        #if lastNumProviders != 0:
+                        #    d['totalNumProvidersPercentChange'] = \
+                        #        (d['totalNumProviders'] - lastNumProviders)/lastNumProviders
+                        #elif lastNumProviders == 0 and d['totalNumProviders'] == 0:
+                        #    d['totalNumProvidersPercentChange'] = 0
         data.append(d)
 
     return data
@@ -463,7 +466,7 @@ class MailchimpApi(EspApiBackend):
         'PLAN_SPECI': 'planSpecialty',
         'SUBSCN_STA': 'subscriptionStatus',
         #'SUBSCN_FDT': 'billingFirstDate',
-        #'SUBSCN_SDT': 'billingStartDate',
+        'SUBSCN_SDT': 'billingStartDate',
         #'SUBSCN_EDT': 'billingEndDate',
         #'SUBSCN_CYC': 'billingCycle',
         # Enterprise-related fields
@@ -478,10 +481,11 @@ class MailchimpApi(EspApiBackend):
         'EXPRNG_GAP': 'expiringCmeGap',
         'TOT_EXPRD': 'totalExpiredCmeGap',
         'TOT_EXPRNG': 'totalExpiringCmeGap',
-        'TOT_PROVID': 'totalNumProviders',
+        #'TOT_PROVID': 'totalNumProviders',
         'EXPRD_PCT': 'totalExpiredCmeGapPercentChange',
         'EXPRNG_PCT': 'totalExpiringCmeGapPercentChange',
-        'PROVID_PCT': 'totalNumProvidersPercentChange', 
+        #'PROVID_PCT': 'totalNumProvidersPercentChange', 
+        'EMAIL_DATE': 'emailToSendDate',
         # Credit-related fields
         'CRDT_REDEE': 'overallCreditsRedeemed',
         'CRDT_EARNE': 'overallCreditsEarned',
@@ -525,10 +529,11 @@ class MailchimpApi(EspApiBackend):
         'EXPRNG_GAP': {'type': 'number'},
         'TOT_EXPRD': {'type': 'number'},
         'TOT_EXPRNG': {'type': 'number'},
-        'TOT_PROVID': {'type': 'number'},
+        #'TOT_PROVID': {'type': 'number'},
         'EXPRD_PCT': {'type': 'number'},
         'EXPRNG_PCT': {'type': 'number'},
-        'PROVID_PCT': {'type': 'number'},
+        #'PROVID_PCT': {'type': 'number'},
+        'EMAIL_DATE': {'type': 'date'},
         # Credit-related fields
         'CRDT_REDEE': {'type':'number'},
         'CRDT_EARNE': {'type':'number'},
