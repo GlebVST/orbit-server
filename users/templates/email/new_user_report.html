@@ -33,4 +33,13 @@
     {% timezone "America/Los_Angeles" %}
     <p>Total number of new user signups going back 24 hours from {% now "D, d N Y H:i e" %}: {{ data|length }}.</p>
     {% endtimezone %}
+    {% if profilesToFix %}
+        <h4>Warning: The following users have never activated a subscription but their initial plan selected at signup is now inactive.</h4>
+        <p>Use the Admin UI to update their profile.planId to a suitable active plan in case they activate a subscription later.</p>
+        <ul>
+        {% for p in profilesToFix %}
+            <li>{{ p.user.email }} - {{ p.planId }}</li>
+        {% endfor %}
+        </ul>
+    {% endif %}
 </div>
