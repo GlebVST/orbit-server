@@ -791,6 +791,7 @@ class GArticleSearch(models.Model):
     id = models.AutoField(primary_key=True)
     search_term = models.CharField(max_length=SEARCH_TERM_MAX_LENGTH, help_text='search term passed to the query')
     gsearchengid = models.CharField(max_length=50, help_text='Google search engineid passed to the query')
+    searchDate = models.DateTimeField(null=True, blank=True, help_text='timestamp of the search')
     specialties = models.ManyToManyField(PracticeSpecialty,
         blank=True,
         related_name='garticlesearches')

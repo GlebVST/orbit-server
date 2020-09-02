@@ -1052,8 +1052,13 @@ class InfluencerMembershipAdmin(admin.ModelAdmin):
         ]
 
 class GArticleSearchAdmin(admin.ModelAdmin):
-    list_display = ('id','search_term','gsearchengid','modified')
-    ordering = ('-modified',)
+    list_display = ('id','search_term','gsearchengid','numProcessedResults', 'searchDate')
+    ordering = ('-searchDate',)
+    raw_id_fields = ('articles','reference_article') # otherwise detail page takes too long to load
+
+    def numProcessedResults(self, obj):
+        return len(obj.processed_results)
+    numProcessedResults.short_description = 'Results'
 
 class StudyTopicGroupAdmin(admin.ModelAdmin):
     list_display = ('groupID','name','description','modified')
