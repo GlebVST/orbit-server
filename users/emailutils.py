@@ -46,7 +46,7 @@ def setCommonContext(ctx):
         'orbit_logo_white': settings.ORBIT_LOGO_WHITE,
     })
 
-def sendNewUserReportEmail(profiles, profilestoFix):
+def sendNewUserReportEmail(profiles, profilesToFix):
     """New user email report
     Args:
         profiles: Profile queryset of new profiles created since some cutoff
