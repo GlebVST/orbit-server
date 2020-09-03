@@ -671,6 +671,12 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         qs = super(SubscriptionPlanAdmin, self).get_queryset(request)
         return qs.prefetch_related('tags')
 
+    class Media:
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
+
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
         'billingStartDate', 'billingEndDate', 'billingCycle', 'nextBillingAmount')
