@@ -571,6 +571,10 @@ class EligibleSiteList(LogValidationErrorMixin, generics.ListCreateAPIView):
             error_msg = "Required field"
             raise serializers.ValidationError({'example_url': error_msg}, code='invalid')
         else:
+            qs = AllowedUrl.objects.filter(url=example_url)
+            if qs.exists():
+                error_msg = "This example_url already exists as an AllowedUrl. Please check its detail page."
+                raise serializers.ValidationError({'example_url': error_msg}, code='invalid')
             res = urlparse(example_url)
             msg = "Example_url netloc: {0}. Cleaned domain_name: {1}".format(res.netloc, domain_name)
             logInfo(logger, self.request, msg)
