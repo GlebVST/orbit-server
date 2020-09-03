@@ -1267,6 +1267,12 @@ class EligibleSite(models.Model):
         help_text='e.g. Journal of Nuclear Medicine')
     journal_home_page = models.CharField(max_length=200, blank=True, default='',
         help_text='Journal homepage if different from domain_name. e.g. jamanetwork.com/journals/jamacardiology/ This allows the plugin to recognize the home page even though it itself is not a whitelisted article.')
+    citation_journal_title = models.CharField(max_length=200, blank=True, default='',
+        help_text='If this is a journal site, specify its citation_journal_title so that search results can be matched to this EligibleSite'
+    )
+    preferred_title_key = models.CharField(max_length=40, blank=True, default='',
+        help_text='The title key name to use when extracting title from google search results. If not specified, will use citation_title.'
+    )
     example_url = models.URLField(max_length=1000,
         help_text='A URL within the given domain')
     example_title = models.CharField(max_length=300, blank=True,
