@@ -553,29 +553,36 @@ class EligibleSiteList(LogValidationErrorMixin, generics.ListCreateAPIView):
     permission_classes = (IsContentAdminOrAny,)
 
     def perform_create(self, serializer, format=None):
-        """Pre-process domain_name before saving.
+        """Clean domain_name before saving.
         """
         data = self.request.data
-        domain_name = data.get('domain_name', '')
-        if domain_name.startswith('http://'):
-            domain_name = domain_name[7:]
-        elif domain_name.startswith('https://'):
-            domain_name = domain_name[8:]
+        domain_name = data.get('domain_name', '').replace('http://', '').replace('https://', '').lower()
+        journal_home_page = ''
+        if '/' in domain_name:
+            journal_home_page = domain_name # netloc plus some path
+            domain_name = domain_name.split('/', 1)[0] # netloc only
+        site_type = data.get('site_type', EligibleSite.SITE_TYPE_JOURNAL)
+        example_title = data.get('example_title', '')
+        if not example_title:
+            error_msg = "Required field"
+            raise serializers.ValidationError({'example_title': error_msg}, code='invalid')
         example_url = data.get('example_url', '')
-        if example_url:
-            # check domain_name
+        if not example_url:
+            error_msg = "Required field"
+            raise serializers.ValidationError({'example_url': error_msg}, code='invalid')
+        else:
             res = urlparse(example_url)
             msg = "Example_url netloc: {0}. Cleaned domain_name: {1}".format(res.netloc, domain_name)
             logInfo(logger, self.request, msg)
             netloc = res.netloc
             if netloc.startswith('www.') and not domain_name.startswith('www.'):
                 netloc = netloc[4:]
-            if not domain_name.startswith(netloc):
-                error_msg = "The domain of the example_url must be contained in the user-specified domain_name"
+            if domain_name != netloc:
+                error_msg = "The domain name of the example_url does match the user-specified domain_name"
                 raise serializers.ValidationError({'domain_name': error_msg}, code='invalid')
         with transaction.atomic():
             # create EligibleSite, AllowedHost, AllowedUrl
-            instance = serializer.save(domain_name=domain_name)
+            instance = serializer.save(domain_name=domain_name, journal_home_page=journal_home_page, site_type=site_type)
         return instance
 
 class EligibleSiteDetail(generics.RetrieveUpdateDestroyAPIView):

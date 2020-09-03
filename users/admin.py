@@ -5,6 +5,7 @@ from django import forms
 from django.contrib import admin,messages
 from django.db.models import Count, Q, Subquery
 from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
@@ -34,6 +35,12 @@ class AuthImpersonationForm(forms.ModelForm):
 class AuthImpersonationAdmin(admin.ModelAdmin):
     list_display = ('id', 'impersonator', 'impersonatee', 'valid', 'expireDate')
     form = AuthImpersonationForm
+
+    class Media:
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'sort_order', 'created')
@@ -439,8 +446,8 @@ class ArticleTypeInline(admin.TabularInline):
     model = ArticleType
 
 class EligibleSiteAdmin(admin.ModelAdmin):
-    list_display = ('id', 'domain_name', 'domain_title', 'page_title_suffix', 'page_title_prefix', 'strip_title_after', 'formatArticleTypes')
-    list_filter = ('needs_ad_block', 'all_specialties', 'is_unlisted', 'verify_journal')
+    list_display = ('id', 'site_type', 'domain_name', 'domain_title', 'journal_home_page', 'page_title_suffix', 'page_title_prefix', 'strip_title_after', 'formatArticleTypes')
+    list_filter = ('site_type', 'needs_ad_block', 'all_specialties', 'is_unlisted', 'verify_journal')
     ordering = ('domain_name',)
     filter_horizontal = ('specialties',)
     inlines = [
@@ -455,8 +462,8 @@ class EligibleSiteAdmin(admin.ModelAdmin):
                 ats.append("<b>{0.name}</b>".format(m))
             else:
                 ats.append(m.name)
-        return ','.join(ats)
-    formatArticleTypes.allow_tags = True
+        return format_html(','.join(ats))
+    formatArticleTypes.short_description = 'ArticleTypes'
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')

@@ -446,7 +446,7 @@ class Organization(models.Model):
             help_text='End date of total credits calculation')
     joinCode = models.CharField(max_length=20, default='',
             help_text='Join Code for invitation URL')
-    providerStat = JSONField(default='dict', blank=True)
+    providerStat = JSONField(default=dict, blank=True)
     # Note: if value is changed to False after usergoals are created, a manual command must be run to delete the usergoals.
     # Likewise, if value is changed to True after members already exist, a manual command must be run to assign them usergoals.
     activateGoals = models.BooleanField(default=True,
@@ -1247,20 +1247,32 @@ class EligibleSiteManager(models.Manager):
 
 @python_2_unicode_compatible
 class EligibleSite(models.Model):
-    """Eligible (or white-listed) domains that will be recognized by the plugin.
-    To start, we will have a manual system for translating data in this model
-    into the AllowedUrl model.
+    """Eligible (or white-listed) sites that will be recognized by the plugin. An eligible site can be: a wiki, a single journal, or an aggregator site such as ScienceDirect.
     """
+    SITE_TYPE_JOURNAL = 1
+    SITE_TYPE_WIKI = 2
+    SITE_TYPE_DATABASE = 3
+    # fields
+    site_type = models.PositiveIntegerField(default=1,
+        choices=(
+            (SITE_TYPE_JOURNAL, 'Journal'),
+            (SITE_TYPE_WIKI, 'Wiki'),
+            (SITE_TYPE_DATABASE, 'Database')
+        ),
+        help_text='Example: radiopaedia.org is a wiki. JAMA is a journal'
+    )
     domain_name = models.CharField(max_length=100,
-        help_text='wikipedia.org')
+        help_text='A proper domain name without the scheme and no slashes. Example: jamanetwork.com')
     domain_title = models.CharField(max_length=300,
-        help_text='e.g. Wikipedia Anatomy Pages')
+        help_text='e.g. Journal of Nuclear Medicine')
+    journal_home_page = models.CharField(max_length=200, blank=True, default='',
+        help_text='Journal homepage if different from domain_name. e.g. jamanetwork.com/journals/jamacardiology/ This allows the plugin to recognize the home page even though it itself is not a whitelisted article.')
     example_url = models.URLField(max_length=1000,
         help_text='A URL within the given domain')
     example_title = models.CharField(max_length=300, blank=True,
         help_text='Label for the example URL')
     verify_journal = models.BooleanField(default=False,
-            help_text='If True, need to verify article belongs to an allowed journal before making offer.')
+            help_text='If True, need to verify article belongs to an allowed journal before making offer. Used for ScienceDirect and similar sites.')
     issn = models.CharField(max_length=9, blank=True, default='', help_text='ISSN')
     electronic_issn = models.CharField(max_length=9, blank=True, default='', help_text='Electronic ISSN')
     description = models.CharField(max_length=500, blank=True)
