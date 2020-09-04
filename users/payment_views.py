@@ -124,8 +124,9 @@ class SubscriptionPlanList(generics.ListAPIView):
             if plan.isEnterprise():
                 return SubscriptionPlan.objects.filter(pk=plan.pk) # current plan only
             pks = [plan.pk,]
-            fkwargs = dict(user=user, pending=False)
             org = None
+            orgplansets = OrgPlanset.objects.none()
+            fkwargs = dict(user=user, pending=False)
             if user_subs and user_subs.display_status == UserSubscription.UI_ENTERPRISE_CANCELED:
                 # get OrgMember
                 qs = OrgMember.objects.filter(**fkwargs).order_by('-created')
@@ -140,10 +141,10 @@ class SubscriptionPlanList(generics.ListAPIView):
                 qs = OrgMember.objects.filter(**fkwargs).order_by('-created')
                 if qs.exists():
                     org = qs[0].organization
-            if org:
-                # get plans for this org
-                op_qs = OrgPlanset.objects.filter(organization=org).order_by('id')
-                for m in op_qs:
+                    # get plans for this org (e.g. radpartners allows access to RP Advanced plan)
+                    orgplansets = OrgPlanset.objects.filter(organization=org).order_by('pk')
+            if org and orgplansets.exists():
+                for m in orgplansets:
                     if m.plan.pk not in pks:
                         pks.append(m.plan.pk)
             else:
