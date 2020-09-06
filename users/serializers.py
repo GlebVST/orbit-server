@@ -582,12 +582,14 @@ class EligibleSiteSerializer(serializers.ModelSerializer):
                 host.save(update_fields=('is_secure',))
         # create AllowedUrl
         page_title = validated_data.get('example_title')
-        aurl, created = AllowedUrl.objects.get_or_create(url=example_url)
-        if created:
-            aurl.host = host
-            aurl.eligible_site = instance
-            aurl.page_title = page_title
-            aurl.save(update_fields=('host','eligible_site','page_title'))
+        qs = AllowedUrl.objects.filter(url=example_url)
+        if not qs.exists():
+            aurl = AllowedUrl.objects.create(
+                host=host,
+                eligible_site=instance,
+                url=example_url,
+                page_title page_title
+            )
             logger.info('CreateEligibleSite: new AllowedUrl: {0}'.format(aurl))
         else:
             logger.warning('CreateEligibleSite: AllowedUrl already exists: {0}'.format(aurl))
