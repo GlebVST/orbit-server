@@ -21,6 +21,35 @@ class ProcedureCode(models.Model):
     def __str__(self):
         return self.code
 
+class TrainingProgram(models.Model):
+    PROGRAM_TYPE_RESIDENCY = 0
+    PROGRAM_TYPE_FELLOWSHIP = 1
+    PROGRAM_TYPE_CHOICES = (
+        (PROGRAM_TYPE_RESIDENCY, 'Residency'),
+        (PROGRAM_TYPE_FELLOWSHIP, 'Fellowship'),
+    )
+    name = models.CharField(max_length=200, unique=True, help_text='Training program name. Must be unique.')
+    type= models.IntegerField(
+        default=1,
+        choices=PROGRAM_TYPE_CHOICES,
+        help_text='Training program type'
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+class ProcedureCategory(models.Model):
+    name = models.CharField(max_length=200, unique=True, help_text='Procedure category name. Must be unique.')
+    training_program = models.ForeignKey(TrainingProgram, null=False, on_delete=models.CASCADE, help_text='Training program type for this ontology.')
+    parent = models.ForeignKey('self', null=True, on_delete=models.CASCADE, help_text='Parent category reference for subcategories.')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
 class Procedure(models.Model):
     name = models.CharField(max_length=200, unique=True, help_text='Procedure name. Must be unique.')
     codes = models.ManyToManyField(ProcedureCode,
@@ -33,6 +62,12 @@ class Procedure(models.Model):
                                    related_name='procedures',
                                    help_text='Case tag categories that apply to this procedure.'
                                    )
+    procedure_subcategories = models.ManyToManyField(ProcedureCategory,
+                                            blank=True,
+                                            related_name='procedures',
+                                            help_text='Procedure Ontology subcategories that apply to this procedure.'
+                                            )
+
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
