@@ -36,6 +36,8 @@ class TrainingProgram(models.Model):
     )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
+    start_date = models.DateTimeField(null=True, help_text='Start of the program.')
+    end_date = models.DateTimeField(null=True, help_text='End of the program.')
 
     def __str__(self):
         return self.name
@@ -73,6 +75,15 @@ class Procedure(models.Model):
 
     def __str__(self):
         return self.name
+
+class TrainingGoal(models.Model):
+    program = models.ForeignKey(TrainingProgram, null=False, on_delete=models.CASCADE, help_text='Training program for this goal.')
+    procedure = models.ForeignKey(Procedure, null=False, on_delete=models.CASCADE, help_text='Procedure reference for this goal.')
+    value = models.IntegerField(default=0, help_text="Goal value.")
+
+    class Meta:
+        unique_together = ('program', 'procedure')
+
 
 class Case(models.Model):
     user = models.ForeignKey(User,
