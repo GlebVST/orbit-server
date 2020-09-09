@@ -46,6 +46,22 @@ TAB_SUBMIT = {
   }
 }
 
+TAB_TRACK = {
+  "index": 2,
+  "title": "Track",
+  "icon": {
+    "at1x": "/assets/images/ios/track-icon/track-icon.png",
+    "at2x": "/assets/images/ios/track-icon/track-icon@2x.png",
+    "at3x": "/assets/images/ios/track-icon/track-icon@3x.png"
+  },
+  "contents": {
+    "webview": {
+      "url": "/track"
+    }
+  }
+}
+
+
 TAB_PROFILE = {
   "index": 3,
   "title": "Profile",
@@ -138,6 +154,7 @@ TABS_BY_NAME = {
     'explore': TAB_EXPLORE,
     'earn': TAB_EARN,
     'submit': TAB_SUBMIT,
+    'track': TAB_TRACK,
     'profile': TAB_PROFILE,
     'more': TAB_MORE,
     'sites': TAB_SITES,

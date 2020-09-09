@@ -582,7 +582,7 @@ class EligibleSiteList(LogValidationErrorMixin, generics.ListCreateAPIView):
             if netloc.startswith('www.') and not domain_name.startswith('www.'):
                 netloc = netloc[4:]
             if domain_name != netloc:
-                error_msg = "The domain name of the example_url does match the user-specified domain_name"
+                error_msg = "The domain name of the example_url does not match the user-specified domain_name"
                 raise serializers.ValidationError({'domain_name': error_msg}, code='invalid')
         with transaction.atomic():
             # create EligibleSite, AllowedHost, AllowedUrl

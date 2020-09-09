@@ -165,13 +165,16 @@ def make_user_context(user, platform=''):
             'totalCredit': InvitationDiscount.objects.sumCreditForInviter(user)
         }
     if platform == 'ios':
-        context['iosTabConfiguration'] = get_ios_tab_config()
+        context['iosTabConfiguration'] = get_ios_tab_config(user_subs)
     return context
 
-def get_ios_tab_config():
+def get_ios_tab_config(user_subs):
     """Return list of dicts for the tab configuration
     TODO: eventually the data will be plan-dependent
     """
+    isEnterprise = False
+    if user_subs:
+        isEnterprise = user_subs.plan.isEnterprise()
     data = []
     # define more items
     moreTab = getTab('more')
@@ -180,13 +183,18 @@ def get_ios_tab_config():
     addTabToMoreItems(moreTab, getTab('terms'))
     addTabToMoreItems(moreTab, getTab('logout'))
     # define data tabs
-    # first tab specifies the homeUrl in its contents
+    # Home tab specifies the homeUrl in its contents
     # The middle tabs specify a webview in their contents
     # The last tab is the More tab
-    addTabToData(data, getTab('explore')) # first tab defines homeurl
-    addTabToData(data, getTab('earn')) # middle tab
-    addTabToData(data, getTab('submit')) # middle tab
-    addTabToData(data, getTab('profile')) # middle tab
+    addTabToData(data, getTab('explore')) # defines homeurl
+    if isEnterprise:
+        addTabToData(data, getTab('earn'))
+        addTabToData(data, getTab('track'))
+        addTabToData(data, getTab('submit'))
+    else:
+        addTabToData(data, getTab('earn'))
+        addTabToData(data, getTab('submit'))
+        addTabToData(data, getTab('profile'))
     addTabToData(data, moreTab) # last tab
     return data
 
