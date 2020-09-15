@@ -1067,7 +1067,9 @@ class InfluencerMembershipAdmin(admin.ModelAdmin):
 class GArticleSearchAdmin(admin.ModelAdmin):
     list_display = ('id','search_term','gsearchengid','numProcessedResults', 'searchDate')
     ordering = ('-searchDate',)
+    search_fields = ['gsearchengid','search_term']
     raw_id_fields = ('articles','reference_article') # otherwise detail page takes too long to load
+    #date_hierarchy = 'searchDate'
 
     def numProcessedResults(self, obj):
         return len(obj.processed_results)
@@ -1087,6 +1089,26 @@ class StudyTopicAdmin(admin.ModelAdmin):
             'admin/js/jquery.init.js',
             'autocomplete_light/jquery.init.js',
         ]
+
+class DdxTopicBookAdmin(admin.ModelAdmin):
+    list_display = ('id','name','description','formatSpecialties','created')
+    ordering = ('id',)
+
+    def get_queryset(self, request):
+        qs = super(DdxTopicBookAdmin, self).get_queryset(request)
+        return qs.prefetch_related('specialties')
+
+class DxTopicAdmin(admin.ModelAdmin):
+    list_display = ('id','book','name','source_aurl','created')
+    list_select_related = True
+    search_fields = ['name',]
+    list_filter = ('book',)
+    ordering = ('-created',)
+
+class DdxTopicCollectionAdmin(admin.ModelAdmin):
+    list_display = ('id','ddx_topic','dx_topic','created')
+    list_select_related = True
+    ordering = ('-created',)
 
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
@@ -1158,3 +1180,6 @@ admin_site.register(ProxyPattern, ProxyPatternAdmin)
 admin_site.register(GArticleSearch, GArticleSearchAdmin)
 admin_site.register(StudyTopicGroup, StudyTopicGroupAdmin)
 admin_site.register(StudyTopic, StudyTopicAdmin)
+admin_site.register(DdxTopicBook, DdxTopicBookAdmin)
+admin_site.register(DxTopic, DxTopicAdmin)
+admin_site.register(DdxTopicCollection, DdxTopicCollectionAdmin)
