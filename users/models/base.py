@@ -1517,3 +1517,18 @@ class StateLicense(models.Model):
         if not self.expireDate:
             return False
         return self.expireDate.date() == dt.date()
+
+#
+# UI Tab specification
+#
+class UITab(models.Model):
+    title = models.CharField(max_length=30, unique=True, help_text='Tab title')
+    icon1x = models.URLField(max_length=500, help_text='Tab icon URL')
+    icon2x = models.URLField(max_length=500, help_text='Tab icon URL 2x size')
+    icon3x = models.URLField(max_length=500, help_text='Tab icon URL 3x size')
+    contents = JSONField(blank=True, help_text='JSON object containing the contents of the tab. See existing tabs as a guide.')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return self.title

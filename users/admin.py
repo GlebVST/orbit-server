@@ -620,6 +620,16 @@ class PlantagInline(admin.TabularInline):
     model = Plantag
     form = PlantagForm
 
+class UITabAdmin(admin.ModelAdmin):
+    list_display = ('id','title','icon1x','contents','created')
+    ordering = ('id',)
+
+class UITabInline(admin.TabularInline):
+    model = PlanUITab
+
+class UIMoreTabInline(admin.TabularInline):
+    model = PlanUIMoreTab
+
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ('id',
         'plan_type',
@@ -638,10 +648,12 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_select_related = True
     list_filter = ('active', 'is_public', 'plan_type', 'allowArticleHistory', 'allowArticleSearch', 'allowDdx', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
-    filter_horizontal = ('tags',)
+#    filter_horizontal = ('tags',)
     form = PlanForm
     inlines = [
         PlantagInline,
+        UITabInline,
+        UIMoreTabInline
     ]
     fieldsets = (
         (None, {
@@ -1156,6 +1168,7 @@ admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 admin_site.register(SubSpecialty, SubSpecialtyAdmin)
 admin_site.register(UserCmeCredit, UserCmeCreditAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
+admin_site.register(UITab, UITabAdmin)
 #
 # social models
 #

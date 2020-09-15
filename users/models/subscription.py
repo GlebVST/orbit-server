@@ -22,7 +22,8 @@ from .base import (
     Organization,
     Degree,
     PracticeSpecialty,
-    Profile
+    Profile,
+    UITab
 )
 from .feed import BrowserCme
 from common.appconstants import (
@@ -740,7 +741,7 @@ class SubscriptionPlan(models.Model):
         help_text="Enable Ddx collection in plugin for users on this plan. This field is OR'd with the per-user assignment to the Ddx group to decide the permission.")
     allowArticleSearch = models.BooleanField(default=False,
         help_text="Enable Google Custom Search in plugin for users on this plan. This field is OR'd with the per-user assignment to the ArticleSearch group to decide the permission.")
-    allowArticleHistory = models.BooleanField(default=False,
+    allowArticleHistory = models.BooleanField(default=True,
         help_text="Enable Article History rail in plugin for users on this plan. This field is OR'd with the per-user assignment to the ArticleHistory group to decide the permission.")
     plan_type = models.ForeignKey(SubscriptionPlanType,
         on_delete=models.PROTECT,
@@ -800,6 +801,19 @@ class SubscriptionPlan(models.Model):
         help_text='For individual plans: check box if this plan allows users to have State-specific CME tags')
     welcome_offer_url = models.URLField(max_length=500, blank=True,
         help_text='URL for initial welcome offer. Must be an existing AllowedUrl in db. If blank, then the default hard-coded article is used as the welcome offer.')
+
+    ui_tabs = models.ManyToManyField(UITab,
+        through='PlanUITab',
+        blank=True,
+        related_name='plan_tabs',
+        help_text='UI Tab configuration'
+    )
+    ui_more_tabs = models.ManyToManyField(UITab,
+        through='PlanUIMoreTab',
+        blank=True,
+        related_name='plan_more_tabs',
+        help_text='UI More Tab configuration'
+    )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     objects = SubscriptionPlanManager()
@@ -860,6 +874,33 @@ class Plantag(models.Model):
 
     def __str__(self):
         return '{0.plan}|{0.tag}'.format(self)
+
+# Many-to-many through relation between SubscriptionPlan and UITab
+class PlanUITab(models.Model):
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, db_index=True)
+    tab = models.ForeignKey(UITab, on_delete=models.CASCADE)
+    index = models.PositiveIntegerField(default=0, help_text='Tab index')
+
+    class Meta:
+        unique_together = ('plan','tab')
+        ordering = ['index',]
+
+    def __str__(self):
+        return '{0.plan}|{0.tab}|{0.index}'.format(self)
+
+# Many-to-many through relation between SubscriptionPlan and UITab: for the More tab
+class PlanUIMoreTab(models.Model):
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, db_index=True)
+    tab = models.ForeignKey(UITab, on_delete=models.CASCADE)
+    index = models.PositiveIntegerField(default=0, help_text='Tab index')
+
+    class Meta:
+        unique_together = ('plan','tab')
+        ordering = ['index',]
+
+    def __str__(self):
+        return '{0.plan}|{0.tab}|{0.index}'.format(self)
+
 
 # Many-to-many through relation between SubscriptionPlan and Organization
 class OrgPlanset(models.Model):
