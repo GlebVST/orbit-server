@@ -1523,10 +1523,10 @@ class StateLicense(models.Model):
 #
 class UITab(models.Model):
     title = models.CharField(max_length=30, unique=True, help_text='Tab title')
-    icon1x = models.URLField(max_length=500, help_text='Tab icon URL')
-    icon2x = models.URLField(max_length=500, help_text='Tab icon URL 2x size')
-    icon3x = models.URLField(max_length=500, help_text='Tab icon URL 3x size')
-    contents = JSONField(blank=True, help_text='JSON object containing the contents of the tab. See existing tabs as a guide.')
+    icon_1x = models.CharField(max_length=500, blank=True, default='', help_text='Tab icon 1x relative path')
+    icon_2x = models.CharField(max_length=500, blank=True, default='', help_text='Tab icon 2x relative path')
+    icon_3x = models.CharField(max_length=500, blank=True, default='', help_text='Tab icon 3x relative path')
+    contents = JSONField(default=dict, blank=True, help_text='JSON object that represents the contents of the tab. See existing tabs as a guide.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
     

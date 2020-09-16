@@ -621,7 +621,7 @@ class PlantagInline(admin.TabularInline):
     form = PlantagForm
 
 class UITabAdmin(admin.ModelAdmin):
-    list_display = ('id','title','icon1x','contents','created')
+    list_display = ('id','title','icon_1x','contents','created')
     ordering = ('id',)
 
 class UITabInline(admin.TabularInline):
