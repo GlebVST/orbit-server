@@ -1521,6 +1521,18 @@ class StateLicense(models.Model):
 #
 # UI Tab specification
 #
+class UITabManager(models.Manager):
+    def getTabsByTitles(self, titles):
+        """Args:
+            titles: list of tab titles
+        Returns: dict: {title => UITab instance}
+        """
+        data = {}
+        qs = self.model.objects.filter(title__in=titles)
+        for m in qs:
+            data[m.title] = m
+        return data
+
 class UITab(models.Model):
     title = models.CharField(max_length=30, unique=True, help_text='Tab title')
     icon_1x = models.CharField(max_length=500, blank=True, default='', help_text='Tab icon 1x relative path')
@@ -1529,6 +1541,20 @@ class UITab(models.Model):
     contents = JSONField(default=dict, blank=True, help_text='JSON object that represents the contents of the tab. See existing tabs as a guide.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
-    
+    objects = UITabManager()
+
     def __str__(self):
         return self.title
+
+    def toUIDict(self, index):
+        """Return dict structure as expected by UI"""
+        return {
+            'index': index,
+            'title': self.title,
+            'icon': {
+                "at1x": self.icon_1x,
+                "at2x": self.icon_2x,
+                "at3x": self.icon_3x,
+            },
+            'contents': self.contents.copy() 
+        }
