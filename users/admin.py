@@ -1079,8 +1079,9 @@ class InfluencerMembershipAdmin(admin.ModelAdmin):
 class GArticleSearchAdmin(admin.ModelAdmin):
     list_display = ('id','search_term','gsearchengid','numProcessedResults', 'searchDate')
     ordering = ('-searchDate',)
+    list_filter = ('override_ddx_reference_article','override_studytopic_reference_article')
     search_fields = ['gsearchengid','search_term']
-    raw_id_fields = ('articles','reference_article') # otherwise detail page takes too long to load
+    raw_id_fields = ('articles','ddx_reference_article','studytopic_reference_article') # otherwise detail page takes too long to load
     #date_hierarchy = 'searchDate'
 
     def numProcessedResults(self, obj):
