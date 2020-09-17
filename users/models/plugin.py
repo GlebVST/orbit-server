@@ -800,14 +800,26 @@ class GArticleSearch(models.Model):
         blank=True,
         help_text='Articles assigned to this search entry',
         related_name='garticlesearches')
-    reference_article= models.ForeignKey(AllowedUrl,
+    ddx_reference_article= models.ForeignKey(AllowedUrl,
         on_delete=models.SET_NULL,
         db_index=True,
         null=True,
         blank=True,
-        related_name='ref_garticlesearches',
-        help_text='The Reference Article determines which ddx/studytopics are used for the articles assigned to this entry. By default, the ReferenceUrl is set from the top search result that was done using the internalSearchEngineid of a specialty.'
+        related_name='ddx_garticlesearches',
+        help_text='The ddx_reference_article is used as a pointer to the Ddx for the articles assigned to this entry. By default, the reference is set from the top search result that was done using the internalSearchEngineid of a specialty.'
     )
+    override_ddx_reference_article = models.BooleanField(default=False,
+        help_text='Check box if ddx_reference_article has been manually set by admin user.')
+    studytopic_reference_article= models.ForeignKey(AllowedUrl,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='studytopic_garticlesearches',
+        help_text='The studtopic_reference_article is used as a pointer to the StudyTopic for the articles assigned to this entry. By default, the reference is set from the top search result that was done using the internalSearchEngineid of a specialty.'
+    )
+    override_studytopic_reference_article = models.BooleanField(default=False,
+        help_text='Check box if studytopic_reference_article has been manually set by admin user.')
     results = JSONField(blank=True)
     processed_results = JSONField(blank=True)
     created = models.DateTimeField(auto_now_add=True)
