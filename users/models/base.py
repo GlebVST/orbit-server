@@ -20,7 +20,8 @@ from common.appconstants import (
     GROUP_ENTERPRISE_ADMIN,
     GROUP_ENTERPRISE_MEMBER,
     GROUP_ARTICLEHISTORY,
-    GROUP_ARTICLESEARCH
+    GROUP_ARTICLESEARCH,
+    GROUP_ARTICLEDDX
 )
 logger = logging.getLogger('gen.models')
 
@@ -667,13 +668,9 @@ class ProfileManager(models.Manager):
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
-        in_group = user.groups.filter(name=GROUP_ARTICLEHISTORY).exists()
-        if in_group:
+        if user_subs and user_subs.plan.allowArticleHistory:
             return True
-        # else check plan
-        if user_subs:
-            return user_subs.plan.allowArticleHistory
-        return False
+        return user.groups.filter(name=GROUP_ARTICLEHISTORY).exists()
 
     def allowArticleSearch(self, user, user_subs):
         """User belongs to ArticleSearch group OR plan.allowArticleSearch is True
@@ -682,13 +679,9 @@ class ProfileManager(models.Manager):
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
-        in_group = user.groups.filter(name=GROUP_ARTICLESEARCH).exists()
-        if in_group:
+        if user_subs and user_subs.plan.allowArticleSearch:
             return True
-        # else check plan
-        if user_subs:
-            return user_subs.plan.allowArticleSearch
-        return False
+        return user.groups.filter(name=GROUP_ARTICLESEARCH).exists()
 
     def allowDdx(self, user, user_subs):
         """User belongs to Ddx group or plan.allowDdx is True
@@ -697,7 +690,9 @@ class ProfileManager(models.Manager):
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
-        return False # stub; fill in after GROUP_DDX is created with view_ddx perm
+        if user_subs and user_subs.plan.allowDdx:
+            return True
+        return user.groups.filter(name=GROUP_ARTICLEDDX).exists()
 
 @python_2_unicode_compatible
 class Profile(models.Model):
