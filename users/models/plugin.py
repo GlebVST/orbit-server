@@ -149,7 +149,7 @@ class AllowedUrl(models.Model):
     page_title = models.TextField(blank=True, default='')
     metadata = models.TextField(blank=True, default='')
     diff_diagnosis = models.TextField(blank=True, default='')
-    doi = models.CharField(max_length=100, blank=True,
+    doi = models.CharField(max_length=200, blank=True,
         help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
     pmid = models.CharField(max_length=20, blank=True, help_text='PubMed Identifier (PMID)')
     pmcid = models.CharField(max_length=20, blank=True, help_text='PubMedCentral Identifier (PMCID)')

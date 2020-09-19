@@ -672,7 +672,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
                 'billingCycleMonths',
                 'allowArticleHistory',
                 'allowArticleSearch',
-                'allowArticleDdx',
+                'allowDdx',
                 'allowProfileStateTags',
                 'active',
                 'welcome_offer_url'
