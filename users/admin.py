@@ -5,6 +5,7 @@ from django import forms
 from django.contrib import admin,messages
 from django.db.models import Count, Q, Subquery
 from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
@@ -34,6 +35,12 @@ class AuthImpersonationForm(forms.ModelForm):
 class AuthImpersonationAdmin(admin.ModelAdmin):
     list_display = ('id', 'impersonator', 'impersonatee', 'valid', 'expireDate')
     form = AuthImpersonationForm
+
+    class Media:
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class DegreeAdmin(admin.ModelAdmin):
     list_display = ('id', 'abbrev', 'name', 'sort_order', 'created')
@@ -439,8 +446,8 @@ class ArticleTypeInline(admin.TabularInline):
     model = ArticleType
 
 class EligibleSiteAdmin(admin.ModelAdmin):
-    list_display = ('id', 'domain_name', 'domain_title', 'page_title_suffix', 'page_title_prefix', 'strip_title_after', 'formatArticleTypes')
-    list_filter = ('needs_ad_block', 'all_specialties', 'is_unlisted', 'verify_journal')
+    list_display = ('id', 'site_type', 'domain_name', 'domain_title', 'journal_home_page', 'page_title_suffix', 'page_title_prefix', 'strip_title_after', 'formatArticleTypes')
+    list_filter = ('site_type', 'needs_ad_block', 'all_specialties', 'is_unlisted', 'verify_journal')
     ordering = ('domain_name',)
     filter_horizontal = ('specialties',)
     inlines = [
@@ -455,8 +462,8 @@ class EligibleSiteAdmin(admin.ModelAdmin):
                 ats.append("<b>{0.name}</b>".format(m))
             else:
                 ats.append(m.name)
-        return ','.join(ats)
-    formatArticleTypes.allow_tags = True
+        return format_html(','.join(ats))
+    formatArticleTypes.short_description = 'ArticleTypes'
 
 class UserFeedbackAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'hasBias', 'hasUnfairContent', 'message_snippet', 'reviewed', 'created')
@@ -613,6 +620,16 @@ class PlantagInline(admin.TabularInline):
     model = Plantag
     form = PlantagForm
 
+class UITabAdmin(admin.ModelAdmin):
+    list_display = ('id','title','icon_1x','contents','created')
+    ordering = ('id',)
+
+class UITabInline(admin.TabularInline):
+    model = PlanUITab
+
+class UIMoreTabInline(admin.TabularInline):
+    model = PlanUIMoreTab
+
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ('id',
         'plan_type',
@@ -631,10 +648,12 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_select_related = True
     list_filter = ('active', 'is_public', 'plan_type', 'allowArticleHistory', 'allowArticleSearch', 'allowDdx', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
-    filter_horizontal = ('tags',)
+#    filter_horizontal = ('tags',)
     form = PlanForm
     inlines = [
         PlantagInline,
+        UITabInline,
+        UIMoreTabInline
     ]
     fieldsets = (
         (None, {
@@ -653,6 +672,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
                 'billingCycleMonths',
                 'allowArticleHistory',
                 'allowArticleSearch',
+                'allowDdx',
                 'allowProfileStateTags',
                 'active',
                 'welcome_offer_url'
@@ -663,6 +683,12 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super(SubscriptionPlanAdmin, self).get_queryset(request)
         return qs.prefetch_related('tags')
+
+    class Media:
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
 
 class UserSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'subscriptionId', 'user', 'plan', 'status', 'display_status',
@@ -1052,8 +1078,16 @@ class InfluencerMembershipAdmin(admin.ModelAdmin):
         ]
 
 class GArticleSearchAdmin(admin.ModelAdmin):
-    list_display = ('id','search_term','gsearchengid','modified')
-    ordering = ('-modified',)
+    list_display = ('id','search_term','gsearchengid','numProcessedResults', 'searchDate')
+    ordering = ('-searchDate',)
+    list_filter = ('override_ddx_reference_article','override_studytopic_reference_article')
+    search_fields = ['gsearchengid','search_term']
+    raw_id_fields = ('articles','ddx_reference_article','studytopic_reference_article') # otherwise detail page takes too long to load
+    #date_hierarchy = 'searchDate'
+
+    def numProcessedResults(self, obj):
+        return len(obj.processed_results)
+    numProcessedResults.short_description = 'Results'
 
 class StudyTopicGroupAdmin(admin.ModelAdmin):
     list_display = ('groupID','name','description','modified')
@@ -1069,6 +1103,26 @@ class StudyTopicAdmin(admin.ModelAdmin):
             'admin/js/jquery.init.js',
             'autocomplete_light/jquery.init.js',
         ]
+
+class DdxTopicBookAdmin(admin.ModelAdmin):
+    list_display = ('id','name','description','formatSpecialties','created')
+    ordering = ('id',)
+
+    def get_queryset(self, request):
+        qs = super(DdxTopicBookAdmin, self).get_queryset(request)
+        return qs.prefetch_related('specialties')
+
+class DxTopicAdmin(admin.ModelAdmin):
+    list_display = ('id','book','name','source_aurl','created')
+    list_select_related = True
+    search_fields = ['name',]
+    list_filter = ('book',)
+    ordering = ('-created',)
+
+class DdxTopicCollectionAdmin(admin.ModelAdmin):
+    list_display = ('id','ddx_topic','dx_topic','created')
+    list_select_related = True
+    ordering = ('-created',)
 
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
@@ -1116,6 +1170,7 @@ admin_site.register(SubscriptionTransaction, SubscriptionTransactionAdmin)
 admin_site.register(SubSpecialty, SubSpecialtyAdmin)
 admin_site.register(UserCmeCredit, UserCmeCreditAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
+admin_site.register(UITab, UITabAdmin)
 #
 # social models
 #
@@ -1140,3 +1195,6 @@ admin_site.register(ProxyPattern, ProxyPatternAdmin)
 admin_site.register(GArticleSearch, GArticleSearchAdmin)
 admin_site.register(StudyTopicGroup, StudyTopicGroupAdmin)
 admin_site.register(StudyTopic, StudyTopicAdmin)
+admin_site.register(DdxTopicBook, DdxTopicBookAdmin)
+admin_site.register(DxTopic, DxTopicAdmin)
+admin_site.register(DdxTopicCollection, DdxTopicCollectionAdmin)

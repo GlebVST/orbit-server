@@ -20,7 +20,8 @@ from common.appconstants import (
     GROUP_ENTERPRISE_ADMIN,
     GROUP_ENTERPRISE_MEMBER,
     GROUP_ARTICLEHISTORY,
-    GROUP_ARTICLESEARCH
+    GROUP_ARTICLESEARCH,
+    GROUP_ARTICLEDDX
 )
 logger = logging.getLogger('gen.models')
 
@@ -446,7 +447,7 @@ class Organization(models.Model):
             help_text='End date of total credits calculation')
     joinCode = models.CharField(max_length=20, default='',
             help_text='Join Code for invitation URL')
-    providerStat = JSONField(default='dict', blank=True)
+    providerStat = JSONField(default=dict, blank=True)
     # Note: if value is changed to False after usergoals are created, a manual command must be run to delete the usergoals.
     # Likewise, if value is changed to True after members already exist, a manual command must be run to assign them usergoals.
     activateGoals = models.BooleanField(default=True,
@@ -667,13 +668,9 @@ class ProfileManager(models.Manager):
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
-        in_group = user.groups.filter(name=GROUP_ARTICLEHISTORY).exists()
-        if in_group:
+        if user_subs and user_subs.plan.allowArticleHistory:
             return True
-        # else check plan
-        if user_subs:
-            return user_subs.plan.allowArticleHistory
-        return False
+        return user.groups.filter(name=GROUP_ARTICLEHISTORY).exists()
 
     def allowArticleSearch(self, user, user_subs):
         """User belongs to ArticleSearch group OR plan.allowArticleSearch is True
@@ -682,13 +679,9 @@ class ProfileManager(models.Manager):
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
-        in_group = user.groups.filter(name=GROUP_ARTICLESEARCH).exists()
-        if in_group:
+        if user_subs and user_subs.plan.allowArticleSearch:
             return True
-        # else check plan
-        if user_subs:
-            return user_subs.plan.allowArticleSearch
-        return False
+        return user.groups.filter(name=GROUP_ARTICLESEARCH).exists()
 
     def allowDdx(self, user, user_subs):
         """User belongs to Ddx group or plan.allowDdx is True
@@ -697,7 +690,9 @@ class ProfileManager(models.Manager):
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
-        return False # stub; fill in after GROUP_DDX is created with view_ddx perm
+        if user_subs and user_subs.plan.allowDdx:
+            return True
+        return user.groups.filter(name=GROUP_ARTICLEDDX).exists()
 
 @python_2_unicode_compatible
 class Profile(models.Model):
@@ -1247,20 +1242,38 @@ class EligibleSiteManager(models.Manager):
 
 @python_2_unicode_compatible
 class EligibleSite(models.Model):
-    """Eligible (or white-listed) domains that will be recognized by the plugin.
-    To start, we will have a manual system for translating data in this model
-    into the AllowedUrl model.
+    """Eligible (or white-listed) sites that will be recognized by the plugin. An eligible site can be: a wiki, a single journal, or an aggregator site such as ScienceDirect.
     """
+    SITE_TYPE_JOURNAL = 1
+    SITE_TYPE_WIKI = 2
+    SITE_TYPE_DATABASE = 3
+    # fields
+    site_type = models.PositiveIntegerField(default=1,
+        choices=(
+            (SITE_TYPE_JOURNAL, 'Journal'),
+            (SITE_TYPE_WIKI, 'Wiki'),
+            (SITE_TYPE_DATABASE, 'Database')
+        ),
+        help_text='Example: radiopaedia.org is a wiki. JAMA is a journal'
+    )
     domain_name = models.CharField(max_length=100,
-        help_text='wikipedia.org')
+        help_text='A proper domain name without the scheme and no slashes. Example: jamanetwork.com')
     domain_title = models.CharField(max_length=300,
-        help_text='e.g. Wikipedia Anatomy Pages')
+        help_text='e.g. Journal of Nuclear Medicine')
+    journal_home_page = models.CharField(max_length=200, blank=True, default='',
+        help_text='Journal homepage if different from domain_name. e.g. jamanetwork.com/journals/jamacardiology/ This allows the plugin to recognize the home page even though it itself is not a whitelisted article.')
+    citation_journal_title = models.CharField(max_length=200, blank=True, default='',
+        help_text='If this is a journal site, specify its citation_journal_title so that search results can be matched to this EligibleSite'
+    )
+    preferred_title_key = models.CharField(max_length=40, blank=True, default='',
+        help_text='The title key name to use when extracting title from google search results. If not specified, will use title.'
+    )
     example_url = models.URLField(max_length=1000,
         help_text='A URL within the given domain')
     example_title = models.CharField(max_length=300, blank=True,
         help_text='Label for the example URL')
     verify_journal = models.BooleanField(default=False,
-            help_text='If True, need to verify article belongs to an allowed journal before making offer.')
+            help_text='If True, need to verify article belongs to an allowed journal before making offer. Used for ScienceDirect and similar sites.')
     issn = models.CharField(max_length=9, blank=True, default='', help_text='ISSN')
     electronic_issn = models.CharField(max_length=9, blank=True, default='', help_text='Electronic ISSN')
     description = models.CharField(max_length=500, blank=True)
@@ -1499,3 +1512,44 @@ class StateLicense(models.Model):
         if not self.expireDate:
             return False
         return self.expireDate.date() == dt.date()
+
+#
+# UI Tab specification
+#
+class UITabManager(models.Manager):
+    def getTabsByTitles(self, titles):
+        """Args:
+            titles: list of tab titles
+        Returns: dict: {title => UITab instance}
+        """
+        data = {}
+        qs = self.model.objects.filter(title__in=titles)
+        for m in qs:
+            data[m.title] = m
+        return data
+
+class UITab(models.Model):
+    title = models.CharField(max_length=30, unique=True, help_text='Tab title')
+    icon_1x = models.CharField(max_length=500, blank=True, default='', help_text='Tab icon 1x relative path')
+    icon_2x = models.CharField(max_length=500, blank=True, default='', help_text='Tab icon 2x relative path')
+    icon_3x = models.CharField(max_length=500, blank=True, default='', help_text='Tab icon 3x relative path')
+    contents = JSONField(default=dict, blank=True, help_text='JSON object that represents the contents of the tab. See existing tabs as a guide.')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+    objects = UITabManager()
+
+    def __str__(self):
+        return self.title
+
+    def toUIDict(self, index):
+        """Return dict structure as expected by UI"""
+        return {
+            'index': index,
+            'title': self.title,
+            'icon': {
+                "at1x": self.icon_1x,
+                "at2x": self.icon_2x,
+                "at3x": self.icon_3x,
+            },
+            'contents': self.contents.copy() 
+        }

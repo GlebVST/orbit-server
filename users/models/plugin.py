@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pytz
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models import Q, Subquery, Sum
 from django.utils import timezone
@@ -148,7 +149,7 @@ class AllowedUrl(models.Model):
     page_title = models.TextField(blank=True, default='')
     metadata = models.TextField(blank=True, default='')
     diff_diagnosis = models.TextField(blank=True, default='')
-    doi = models.CharField(max_length=100, blank=True,
+    doi = models.CharField(max_length=200, blank=True,
         help_text='Digital Object Identifier e.g. 10.1371/journal.pmed.1002234')
     pmid = models.CharField(max_length=20, blank=True, help_text='PubMed Identifier (PMID)')
     pmcid = models.CharField(max_length=20, blank=True, help_text='PubMedCentral Identifier (PMCID)')
@@ -791,6 +792,7 @@ class GArticleSearch(models.Model):
     id = models.AutoField(primary_key=True)
     search_term = models.CharField(max_length=SEARCH_TERM_MAX_LENGTH, help_text='search term passed to the query')
     gsearchengid = models.CharField(max_length=50, help_text='Google search engineid passed to the query')
+    searchDate = models.DateTimeField(null=True, blank=True, help_text='timestamp of the search')
     specialties = models.ManyToManyField(PracticeSpecialty,
         blank=True,
         related_name='garticlesearches')
@@ -798,14 +800,26 @@ class GArticleSearch(models.Model):
         blank=True,
         help_text='Articles assigned to this search entry',
         related_name='garticlesearches')
-    reference_article= models.ForeignKey(AllowedUrl,
+    ddx_reference_article= models.ForeignKey(AllowedUrl,
         on_delete=models.SET_NULL,
         db_index=True,
         null=True,
         blank=True,
-        related_name='ref_garticlesearches',
-        help_text='The Reference Article determines which ddx/studytopics are used for the articles assigned to this entry. By default, the ReferenceUrl is set from the top search result that was done using the internalSearchEngineid of a specialty.'
+        related_name='ddx_garticlesearches',
+        help_text='The ddx_reference_article is used as a pointer to the Ddx for the articles assigned to this entry. By default, the reference is set from the top search result that was done using the internalSearchEngineid of a specialty.'
     )
+    override_ddx_reference_article = models.BooleanField(default=False,
+        help_text='Check box if ddx_reference_article has been manually set by admin user.')
+    studytopic_reference_article= models.ForeignKey(AllowedUrl,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        null=True,
+        blank=True,
+        related_name='studytopic_garticlesearches',
+        help_text='The studtopic_reference_article is used as a pointer to the StudyTopic for the articles assigned to this entry. By default, the reference is set from the top search result that was done using the internalSearchEngineid of a specialty.'
+    )
+    override_studytopic_reference_article = models.BooleanField(default=False,
+        help_text='Check box if studytopic_reference_article has been manually set by admin user.')
     results = JSONField(blank=True)
     processed_results = JSONField(blank=True)
     created = models.DateTimeField(auto_now_add=True)
@@ -822,54 +836,82 @@ class GArticleSearch(models.Model):
         return self.search_term
 
 
-class Topic(models.Model):
+#
+# DDX and Dx topics
+#
+class DdxTopicBook(models.Model):
     id = models.AutoField(primary_key=True)
-    name= models.CharField(max_length=300, help_text='Topic name')
-    lcname= models.CharField(max_length=300, help_text='Topic name - all lowercased')
-    specialty = models.ForeignKey(PracticeSpecialty,
-        on_delete=models.SET_NULL,
-        db_index=True,
-        null=True,
+    name = models.CharField(max_length=80, unique=True, help_text='Ddx Topic Book name')
+    description = models.TextField(default='', blank=True, help_text='Notes/description of this book')
+    specialties = models.ManyToManyField(PracticeSpecialty,
         blank=True,
-        related_name='topics',
+        related_name='ddxtopicbooks')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'trackers_ddxtopicbook'
+
+    def __str__(self):
+        return self.name
+
+    def formatSpecialties(self):
+        return ", ".join([d.name for d in self.specialties.all()])
+    formatSpecialties.short_description = "Specialties"
+
+class DxTopic(models.Model):
+    id = models.AutoField(primary_key=True)
+    book = models.ForeignKey(DdxTopicBook,
+        on_delete=models.CASCADE,
+        db_index=True,
+        related_name='dxtopics',
+        help_text='TopicBook'
     )
+    name= models.CharField(max_length=1000, help_text='Dx Topic name. Note: every Ddx topic is also an entry here.')
+    lcname= models.CharField(max_length=1000, help_text='Dx Topic name - all lowercased')
     source_aurl= models.ForeignKey(AllowedUrl,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         db_index=True,
-        null=True,
-        blank=True,
-        related_name='topics',
+        related_name='dxtopics',
         help_text='AllowedUrl source of this topic'
-    )
-    diffdiag_topics = models.ManyToManyField('self',
-        related_name='diffdiag_parents',
-        symmetrical=False,
-        through='DiffDiagnosis',
-        blank=True,
-        help_text='Related topics listed under Differential Diagnosis for this topic'
     )
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
     class Meta:
         managed = False
-        db_table = 'trackers_topic'
-        unique_together = ('specialty', 'lcname')
-        ordering = ('specialty', 'name')
+        db_table = 'trackers_dxtopic'
+        unique_together = ('book','source_aurl','lcname')
+        ordering = ('-created',)
 
     def __str__(self):
-        return "{0.name}|{0.specialty}".format(self)
+        return self.name
 
-class DiffDiagnosis(models.Model):
+class DdxTopicCollection(models.Model):
     id = models.AutoField(primary_key=True)
-    from_topic = models.ForeignKey(Topic, related_name='from_topics', on_delete=models.CASCADE, db_index=True)
-    to_topic = models.ForeignKey(Topic, related_name='to_topics', on_delete=models.CASCADE)
+    ddx_topic = models.ForeignKey(DxTopic,
+        related_name='ddxtopics',
+        on_delete=models.CASCADE,
+        db_index=True,
+        help_text='The parent topic of this collection (the ddx topic)'
+    )
+    dx_topic = models.ForeignKey(DxTopic,
+        related_name='dxtopics',
+        on_delete=models.CASCADE,
+        help_text="Dx topic that belongs to the collection for this ddx topic"
+    )
+    probability = models.FloatField(default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(1)],
+        help_text='Probability between 0 and 1 for this item in the collection'
+    )
     created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
 
     class Meta:
         managed = False
-        db_table = 'trackers_diffdiagnosis'
-        unique_together = ('from_topic','to_topic')
+        db_table = 'trackers_ddxtopiccollection'
+        unique_together = ('ddx_topic','dx_topic')
 
     def __str__(self):
-        return "{0.from_topic.name} to {0.to_topic.name}".format(self)
+        return "{0.ddx_topic.name}|{0.dx_topic.name}".format(self)

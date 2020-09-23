@@ -1,170 +1,101 @@
-""""Temporary file for tab config until we have a db schema in place"""
-from copy import deepcopy
+""""UI Tab configuration for iOS app. This file stores the default configuration"""
+from .models import UITab, PlanUITab, PlanUIMoreTab
 
-TAB_EXPLORE = {
-  "index": 0,
-  "title": "Explore",
-  "icon": {
-    "at1x": "/assets/images/ios/explore-icon/explore-icon.png",
-    "at2x": "/assets/images/ios/explore-icon/explore-icon@2x.png",
-    "at3x": "/assets/images/ios/explore-icon/explore-icon@3x.png"
-  },
-  "contents": {
-    "exploreTab": {
-      "homeURL": "/whitelist"
-    }
-  }
-}
+# Default tabs (tabs must exist in database with these titles)
+TAB_MORE = "More"
+TAB_EXPLORE = "Explore"
+TAB_EARN = "Earn"
+TAB_SUBMIT = "Submit"
+TAB_TRACK = "Track"
+TAB_PROFILE = "Profile"
+TAB_SITES = "Sites"
+TAB_FEEDBACK = "Feedback"
+TAB_TERMS = "Terms"
+TAB_LOGOUT = "Logout"
 
-TAB_EARN = {
-  "index": 1,
-  "title": "Earn",
-  "icon": {
-    "at1x": "/assets/images/ios/earn-icon/earn-icon.png",
-    "at2x": "/assets/images/ios/earn-icon/earn-icon@2x.png",
-    "at3x": "/assets/images/ios/earn-icon/earn-icon@3x.png"
-  },
-  "contents": {
-    "webview": {
-      "url": "/feed"
-    }
-  }
-}
+DEFAULT_INDIV_SUBSCRIBER_TABS = (
+    TAB_EXPLORE,
+    TAB_EARN,
+    TAB_SUBMIT,
+    TAB_PROFILE,
+    TAB_MORE
+)
 
-TAB_SUBMIT = {
-  "index": 2,
-  "title": "Submit",
-  "icon": {
-    "at1x": "/assets/images/ios/submit-icon/submit-icon.png",
-    "at2x": "/assets/images/ios/submit-icon/submit-icon@2x.png",
-    "at3x": "/assets/images/ios/submit-icon/submit-icon@3x.png"
-  },
-  "contents": {
-    "webview": {
-      "url": "/dashboard"
-    } 
-  }
-}
+DEFAULT_ENTERPRISE_TABS = (
+    TAB_EXPLORE,
+    TAB_EARN,
+    TAB_TRACK,
+    TAB_SUBMIT,
+    TAB_MORE
+)
 
-TAB_PROFILE = {
-  "index": 3,
-  "title": "Profile",
-  "icon": {
-    "at1x": "/assets/images/ios/profile-icon/profile-icon.png",
-    "at2x": "/assets/images/ios/profile-icon/profile-icon@2x.png",
-    "at3x": "/assets/images/ios/profile-icon/profile-icon@3x.png"
-  },
-  "contents": {
-    "webview": {
-      "url": "/profile"
-    } 
-  }
-}
-
-TAB_SITES = {
-    "index": 0,
-    "title": "Sites",
-    "icon": {
-        "at1x": "/assets/images/ios/explore-icon/explore-icon.png",
-        "at2x": "/assets/images/ios/explore-icon/explore-icon@2x.png",
-        "at3x": "/assets/images/ios/explore-icon/explore-icon@3x.png"
-    },
-    "contents": {
-        "webview": {
-            "url": "/whitelist"
-        } 
-    }
-}
-
-TAB_FEEDBACK = {
-    "index": 1,
-    "title": "Feedback",
-    "icon": {
-        "at1x": "/assets/images/ios/feedback-icon/feedback-icon.png",
-        "at2x": "/assets/images/ios/feedback-icon/feedback-icon@2x.png",
-        "at3x": "/assets/images/ios/feedback-icon/feedback-icon@3x.png"
-    },
-    "contents": {
-        "webview": {
-            "url": "/feedback"
-        } 
-    }
-}
-
-TAB_TERMS = {
-    "index": 2,
-    "title": "Terms",
-    "icon": {
-        "at1x": "/assets/images/ios/terms-icon/terms-icon.png",
-        "at2x": "/assets/images/ios/terms-icon/terms-icon@2x.png",
-        "at3x": "/assets/images/ios/terms-icon/terms-icon@3x.png"
-    },
-    "contents": {
-        "webview": {
-            "url": "/terms.html"
-        } 
-    }
-}
-
-TAB_LOGOUT = {
-    "index": 3,
-    "title": "Logout",
-    "icon": {
-        "at1x": "/assets/images/ios/logout-icon/logout-icon.png",
-        "at2x": "/assets/images/ios/logout-icon/logout-icon@2x.png",
-        "at3x": "/assets/images/ios/logout-icon/logout-icon@3x.png"
-    },
-    "contents": {
-        "logout": {}
-    }
-}
-
-TAB_MORE = {
-  "index": 4,
-  "title": "More",
-  "icon": {
-    "at1x": "/assets/images/ios/more-icon/more-icon.png",
-    "at2x": "/assets/images/ios/more-icon/more-icon@2x.png",
-    "at3x": "/assets/images/ios/more-icon/more-icon@3x.png"
-  },
-  "contents": {
-    "moreTab": {
-      "items": []
-    } 
-  }
-}
-
-TABS_BY_NAME = {
-    'explore': TAB_EXPLORE,
-    'earn': TAB_EARN,
-    'submit': TAB_SUBMIT,
-    'profile': TAB_PROFILE,
-    'more': TAB_MORE,
-    'sites': TAB_SITES,
-    'feedback': TAB_FEEDBACK,
-    'terms': TAB_TERMS,
-    'logout': TAB_LOGOUT
-}
-
-def getTab(name):
-    return deepcopy(TABS_BY_NAME[name])
+DEFAULT_MORE_ITEMS = (
+    TAB_SITES,
+    TAB_FEEDBACK,
+    TAB_TERMS,
+    TAB_LOGOUT
+)
 
 def addTabToMoreItems(moreTab, tabDict):
     items = moreTab['contents']['moreTab']['items']
-    num_items = len(items)
-    tabDict['index'] = num_items
     items.append(tabDict)
 
-def addTabToData(data, tabDict):
-    """Append tabDict to data and set tabDict.index
-    Example data: [
-            exploreTab,
-            earnTab,
-            submitTab,
-            profileTab,
-            moreTab
-        ]
+def makeTabConfigData(tab_titles, more_titles):
     """
-    num_tabs = len(data)
-    tabDict['index'] = num_tabs
-    data.append(tabDict)
+    Args:
+        tab_titles: list of tab titles
+        more_titles: list of more_titles
+    Returns: list of dicts - each dict is a tab.
+    """
+    data = []
+    moreTab = None
+    #print(tab_titles)
+    #print(more_titles)
+    tabsByTitle = UITab.objects.getTabsByTitles(tab_titles+more_titles)
+    for index,title in enumerate(tab_titles):
+        uitab = tabsByTitle[title] # UITab instance
+        tabDict = uitab.toUIDict(index)
+        if title == TAB_MORE:
+            moreTab = tabDict
+        data.append(tabDict)
+    # add items to moreTab
+    if moreTab:
+        for index,title in enumerate(more_titles):
+            uitab = tabsByTitle[title] # UITab instance
+            tabDict = uitab.toUIDict(index)
+            addTabToMoreItems(moreTab, tabDict) 
+    return data
+
+
+def getDefaultTabConfig():
+    """Use default tab configuration
+    Returns: list of dicts
+    """
+    tab_titles = DEFAULT_INDIV_SUBSCRIBER_TABS
+    more_titles = DEFAULT_MORE_ITEMS
+    return makeTabConfigData(tab_titles, more_titles)
+
+def getPlanTabConfig(plan):
+    """
+    Args:
+        plan: SubscriptionPlan instance
+    1. Get the PlanUITabs for this plan order by index
+       If plan does not have custome tabs: use default
+    2. Get the PlanUIMoreTabs for this plan order by index
+        If plan does not have custom more items: use default
+    Returns: list of dicts
+    """
+    qs = PlanUITab.objects.filter(plan=plan).order_by('index')
+    tab_titles = [m.tab.title for m in qs]
+    if not tab_titles:
+        # plan does not specify a custom config. Use default
+        if plan.isEnterprise():
+            tab_titles = DEFAULT_ENTERPRISE_TABS
+        else:
+            tab_titles = DEFAULT_INDIV_SUBSCRIBER_TABS
+    qs_more = PlanUIMoreTab.objects.filter(plan=plan).order_by('index')
+    more_titles = [m.tab.title for m in qs_more]
+    if not more_titles and TAB_MORE in tab_titles:
+        # Plan does not specify a custom, and moreTab is included in tabs
+        more_titles = DEFAULT_MORE_ITEMS
+    return makeTabConfigData(tab_titles, more_titles)

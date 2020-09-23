@@ -8,6 +8,7 @@ GROUP_ENTERPRISE_ADMIN = 'EnterpriseAdmin'
 GROUP_ENTERPRISE_MEMBER = 'EnterpriseMember'
 GROUP_ARTICLEHISTORY = 'ArticleHistory'  # group w. PERM_VIEW_ARTICLE_HISTORY
 GROUP_ARTICLESEARCH = 'ArticleSearch'  # group w. PERM_VIEW_ARTICLE_SEARCH
+GROUP_ARTICLEDDX = 'ArticleDdx'  # group w. PERM_VIEW_ARTICLE_DDX
 
 # codenames for permissions
 PERM_VIEW_OFFER = u'view_offer'
@@ -36,6 +37,8 @@ PERM_VIEW_ARTICLE_HISTORY = u'view_articlehistory'
 PERM_VIEW_RELATED_ARTICLE = u'view_relatedarticle'
 # permission to use Google article search feaure (default view_perm on GArticleSearch model)
 PERM_VIEW_ARTICLE_SEARCH = u'view_garticlesearch'
+# permission to view Ddx in rail (perm defined on DdxTopicCollection model)
+PERM_VIEW_ARTICLE_DDX = u'view_ddxtopiccollection'
 
 ALL_PERMS = (
     PERM_VIEW_OFFER,
@@ -55,7 +58,8 @@ ALL_PERMS = (
     PERM_EDIT_PROFILECMETAG,
     PERM_VIEW_ARTICLE_HISTORY,
     PERM_VIEW_RELATED_ARTICLE,
-    PERM_VIEW_ARTICLE_SEARCH
+    PERM_VIEW_ARTICLE_SEARCH,
+    PERM_VIEW_ARTICLE_DDX
 )
 
 SELF_REPORTED_AUTHORITY = u'Self Reported'

@@ -46,12 +46,17 @@ def setCommonContext(ctx):
         'orbit_logo_white': settings.ORBIT_LOGO_WHITE,
     })
 
-def sendNewUserReportEmail(profiles, email_to):
-    """Send report of new user signups. Info included:
-    email, getFullNameAndDegree, npiNumber, plan_name, subscriptionId,referral
+def sendNewUserReportEmail(profiles, profilesToFix):
+    """New user email report
+    Args:
+        profiles: Profile queryset of new profiles created since some cutoff
+        profilesToFix: list of profiles whose planId is set to an inactive planId and could not be corrected.
+    Send report of new user signups. Info included:
+        email, fullNameAndDegree, npiNumber, plan_name, subscriptionId,referralName, country
     Can raise SMTPException
     """
     from_email = settings.EMAIL_FROM
+    to_email = settings.SALES_EMAIL
     now = timezone.now()
     subject = makeSubject('New User Accounts Report - {0:%b %d %Y}'.format(now.astimezone(LOCAL_TZ)))
     data = []
@@ -85,10 +90,11 @@ def sendNewUserReportEmail(profiles, email_to):
             d['country'] = p.country.name
         data.append(d)
     ctx = {
-        'data': data
+        'data': data,
+        'profilesToFix': profilesToFix
     }
     message = get_template('email/new_user_report.html').render(ctx)
-    msg = EmailMessage(subject, message, to=[email_to], from_email=from_email)
+    msg = EmailMessage(subject, message, to=[to_email,], from_email=from_email)
     msg.content_subtype = 'html'
     msg.send()
 

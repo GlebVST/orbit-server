@@ -18,6 +18,11 @@ class Command(BaseCommand):
             user_subs = UserSubscription.objects.getLatestSubscription(user)
             if not user_subs:
                 continue
+            subs_planId = user_subs.plan.planId
+            if profile.planId != subs_planId:
+                profile.planId = subs_planId
+                profile.save(update_fields=('planId',))
+                logger.info('User {0.pk}|{0}: updated planId to match subs:{0.planId}.'.format(profile))
             if not user_subs.plan.isPaid():
                 continue
             # terminal states that don't need to check for updates

@@ -1,0 +1,170 @@
+[
+{
+  "model": "users.uitab",
+  "pk": 6,
+  "fields": {
+    "title": "More",
+    "icon_1x": "/assets/images/ios/more-icon/more-icon.png",
+    "icon_2x": "/assets/images/ios/more-icon/more-icon@2x.png",
+    "icon_3x": "/assets/images/ios/more-icon/more-icon@3x.png",
+    "contents": {
+      "moreTab": {
+        "items": []
+      }
+    },
+    "created": "2020-09-15T07:21:03.886Z",
+    "modified": "2020-09-15T07:21:03.886Z"
+  }
+},
+{
+  "model": "users.uitab",
+  "pk": 7,
+  "fields": {
+    "title": "Explore",
+    "icon_1x": "/assets/images/ios/explore-icon/explore-icon.png",
+    "icon_2x": "/assets/images/ios/explore-icon/explore-icon@2x.png",
+    "icon_3x": "/assets/images/ios/explore-icon/explore-icon@3x.png",
+    "contents": {
+      "exploreTab": {
+        "homeURL": "/whitelist"
+      }
+    },
+    "created": "2020-09-15T07:23:39.320Z",
+    "modified": "2020-09-18T16:45:43.469Z"
+  }
+},
+{
+  "model": "users.uitab",
+  "pk": 8,
+  "fields": {
+    "title": "Earn",
+    "icon_1x": "/assets/images/ios/earn-icon/earn-icon.png",
+    "icon_2x": "/assets/images/ios/earn-icon/earn-icon@2x.png",
+    "icon_3x": "/assets/images/ios/earn-icon/earn-icon@3x.png",
+    "contents": {
+      "webview": {
+        "url": "/feed"
+      }
+    },
+    "created": "2020-09-15T07:24:43.385Z",
+    "modified": "2020-09-15T07:31:47.065Z"
+  }
+},
+{
+  "model": "users.uitab",
+  "pk": 9,
+  "fields": {
+    "title": "Submit",
+    "icon_1x": "/assets/images/ios/submit-icon/submit-icon.png",
+    "icon_2x": "/assets/images/ios/submit-icon/submit-icon@2x.png",
+    "icon_3x": "/assets/images/ios/submit-icon/submit-icon@3x.png",
+    "contents": {
+      "webview": {
+        "url": "/dashboard"
+      }
+    },
+    "created": "2020-09-15T07:28:15.161Z",
+    "modified": "2020-09-15T07:31:20.889Z"
+  }
+},
+{
+  "model": "users.uitab",
+  "pk": 10,
+  "fields": {
+    "title": "Track",
+    "icon_1x": "/assets/images/ios/track-icon/track-icon.png",
+    "icon_2x": "/assets/images/ios/track-icon/track-icon@2x.png",
+    "icon_3x": "/assets/images/ios/track-icon/track-icon@3x.png",
+    "contents": {
+      "webview": {
+        "url": "/track"
+      }
+    },
+    "created": "2020-09-15T07:30:56.437Z",
+    "modified": "2020-09-15T07:30:56.437Z"
+  }
+},
+{
+  "model": "users.uitab",
+  "pk": 11,
+  "fields": {
+    "title": "Profile",
+    "icon_1x": "/assets/images/ios/profile-icon/profile-icon.png",
+    "icon_2x": "/assets/images/ios/profile-icon/profile-icon@2x.png",
+    "icon_3x": "/assets/images/ios/profile-icon/profile-icon@3x.png",
+    "contents": {
+      "webview": {
+        "url": "/profile"
+      }
+    },
+    "created": "2020-09-15T07:33:32.831Z",
+    "modified": "2020-09-15T07:33:32.831Z"
+  }
+},
+{
+  "model": "users.uitab",
+  "pk": 12,
+  "fields": {
+    "title": "Sites",
+    "icon_1x": "/assets/images/ios/explore-icon/explore-icon.png",
+    "icon_2x": "/assets/images/ios/explore-icon/explore-icon@2x.png",
+    "icon_3x": "/assets/images/ios/more-icon/explore-icon@3x.png",
+    "contents": {
+      "webview": {
+        "url": "/whitelist"
+      }
+    },
+    "created": "2020-09-15T07:35:53.086Z",
+    "modified": "2020-09-15T07:35:53.086Z"
+  }
+},
+{
+  "model": "users.uitab",
+  "pk": 13,
+  "fields": {
+    "title": "Feedback",
+    "icon_1x": "/assets/images/ios/feedback-icon/feedback-icon.png",
+    "icon_2x": "/assets/images/ios/feedback-icon/feedback-icon@2x.png",
+    "icon_3x": "/assets/images/ios/feedback-icon/feedback-icon@3x.png",
+    "contents": {
+      "webview": {
+        "url": "/feedback"
+      }
+    },
+    "created": "2020-09-15T07:37:18.690Z",
+    "modified": "2020-09-15T07:37:18.690Z"
+  }
+},
+{
+  "model": "users.uitab",
+  "pk": 14,
+  "fields": {
+    "title": "Terms",
+    "icon_1x": "/assets/images/ios/terms-icon/terms-icon.png",
+    "icon_2x": "/assets/images/ios/terms-icon/terms-icon@2x.png",
+    "icon_3x": "/assets/images/ios/terms-icon/terms-icon@3x.png",
+    "contents": {
+      "webview": {
+        "url": "/terms.html"
+      }
+    },
+    "created": "2020-09-15T07:39:14.655Z",
+    "modified": "2020-09-15T07:39:14.655Z"
+  }
+},
+{
+  "model": "users.uitab",
+  "pk": 15,
+  "fields": {
+    "title": "Logout",
+    "icon_1x": "/assets/images/ios/logout-icon/logout-icon.png",
+    "icon_2x": "/assets/images/ios/logout-icon/logout-icon@2x.png",
+    "icon_3x": "/assets/images/ios/logout-icon/logout-icon@3x.png",
+    "contents": {
+      "logout": {}
+    },
+    "created": "2020-09-15T07:40:30.732Z",
+    "modified": "2020-09-15T07:40:30.733Z"
+  }
+}
+]

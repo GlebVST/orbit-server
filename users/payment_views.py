@@ -124,8 +124,9 @@ class SubscriptionPlanList(generics.ListAPIView):
             if plan.isEnterprise():
                 return SubscriptionPlan.objects.filter(pk=plan.pk) # current plan only
             pks = [plan.pk,]
-            fkwargs = dict(user=user, pending=False)
             org = None
+            orgplansets = OrgPlanset.objects.none()
+            fkwargs = dict(user=user, pending=False)
             if user_subs and user_subs.display_status == UserSubscription.UI_ENTERPRISE_CANCELED:
                 # get OrgMember
                 qs = OrgMember.objects.filter(**fkwargs).order_by('-created')
@@ -140,10 +141,10 @@ class SubscriptionPlanList(generics.ListAPIView):
                 qs = OrgMember.objects.filter(**fkwargs).order_by('-created')
                 if qs.exists():
                     org = qs[0].organization
-            if org:
-                # get plans for this org
-                op_qs = OrgPlanset.objects.filter(organization=org).order_by('id')
-                for m in op_qs:
+                    # get plans for this org (e.g. radpartners allows access to RP Advanced plan)
+                    orgplansets = OrgPlanset.objects.filter(organization=org).order_by('pk')
+            if org and orgplansets.exists():
+                for m in orgplansets:
                     if m.plan.pk not in pks:
                         pks.append(m.plan.pk)
             else:
@@ -237,19 +238,18 @@ class SignupDiscountList(APIView):
 class GetPaymentMethods(APIView):
     """
     Returns a list of existing payment methods from the Customer vault (if any).
-
     """
     def get(self, request, *args, **kwargs):
+        results = []
         try:
             customer = Customer.objects.get(user=request.user)
             results = Customer.objects.getPaymentMethods(customer)
         except Customer.DoesNotExist:
             results = []
         except braintree.exceptions.not_found_error.NotFoundError:
-            logWarning(logger, request, "BT Customer not found: {0.user}".format(request))
+            logError(logger, request, "BT Customer not found: {0.user}".format(request))
             results = []
-        finally:
-            return Response(results, status=status.HTTP_200_OK)
+        return Response(results, status=status.HTTP_200_OK)
 
 
 class UpdatePaymentToken(APIView):
