@@ -39,6 +39,11 @@ class AllowedUrlFilter(AutocompleteFilter):
     field_name = 'url'
     autocomplete_url = 'aurl-autocomplete'
 
+class SourceAurlFilter(AutocompleteFilter):
+    title = 'Source AllowedUrl'
+    field_name = 'source_aurl'
+    autocomplete_url = 'aurl-autocomplete'
+
 class EligibleSiteFilter(AutocompleteFilter):
     title = 'EligibleSite'
     field_name = 'eligible_site'

@@ -9,7 +9,7 @@ from django.utils.html import format_html
 from django.utils import timezone
 from dal import autocomplete
 from mysite.admin import admin_site
-from common.ac_filters import UserFilter, CmeTagFilter, TagFilter, StateFilter, EligibleSiteFilter, PracticeSpecialtyFilter 
+from common.ac_filters import *
 from common.dateutils import fmtLocalDatetime
 from .models import *
 from django.utils.html import format_html
@@ -875,8 +875,8 @@ class AllowedUrlAdmin(admin.ModelAdmin):
     list_display = ('id', 'eligible_site', 'url', 'valid', 'set_id', 'modified')
     list_select_related = ('host', 'eligible_site')
     list_filter = ('valid',EligibleSiteFilter, 'host','studyTopics')
-    filter_horizontal = ('cmeTags',)
-    search_fields = ['page_title','set_id']
+    filter_horizontal = ('cmeTags','studyTopics')
+    search_fields = ['url','page_title','set_id']
     ordering = ('-modified',)
     inlines = [
         UrlTagFreqInline,
@@ -1080,6 +1080,7 @@ class InfluencerMembershipAdmin(admin.ModelAdmin):
 class GArticleSearchAdmin(admin.ModelAdmin):
     list_display = ('id','search_term','gsearchengid','numProcessedResults', 'searchDate')
     ordering = ('-searchDate',)
+    filter_horizontal = ('specialties',)
     list_filter = ('override_ddx_reference_article','override_studytopic_reference_article')
     search_fields = ['gsearchengid','search_term']
     raw_id_fields = ('articles','ddx_reference_article','studytopic_reference_article') # otherwise detail page takes too long to load
@@ -1113,16 +1114,41 @@ class DdxTopicBookAdmin(admin.ModelAdmin):
         return qs.prefetch_related('specialties')
 
 class DxTopicAdmin(admin.ModelAdmin):
-    list_display = ('id','book','name','source_aurl','created')
+    list_display = ('id','book','name','source_aurl','formatDdx')
     list_select_related = True
     search_fields = ['name',]
-    list_filter = ('book',)
-    ordering = ('-created',)
+    list_filter = ('book', SourceAurlFilter)
+    list_per_page = 25
+    ordering = ('id',)
 
-class DdxTopicCollectionAdmin(admin.ModelAdmin):
-    list_display = ('id','ddx_topic','dx_topic','created')
-    list_select_related = True
-    ordering = ('-created',)
+    class Media:
+        js = [
+            'admin/js/jquery.init.js',
+            'autocomplete_light/jquery.init.js',
+        ]
+
+    def formatDdx(self, obj):
+        """Display the ddx collection for this obj (e.g. obj is a parent topic in DdxTopicCollection)"""
+        qs = obj.ddxtopics.all().order_by('pk')
+        if not qs.exists():
+            return ''
+        L = ["<li><span>{0.dx_topic.name}</span> - <span>{0.dx_topic.source_aurl.url}</span></li>".format(m) for m in qs]
+        return format_html("<ul>{0}</ul>".format(''.join(L)))
+    formatDdx.short_description = 'Ddx Collection'
+
+    def formatInDdx(self, obj):
+        """Display in which ddx collections does this obj belong to (e.g. obj is a child topic in DdxTopicCollection)"""
+        qs = obj.dxtopics.all().order_by('pk')
+        if not qs.exists():
+            return ''
+        L = ["<li><span>{0.ddx_topic.name}</span> - <span>{0.ddx_topic.source_aurl.url}</span></li>".format(m) for m in qs]
+        return format_html("<ul>{0}</ul>".format(''.join(L)))
+    formatInDdx.short_description = 'In Ddx Collections'
+
+    def get_queryset(self, request):
+        qs = super(DxTopicAdmin, self).get_queryset(request)
+        #return qs.prefetch_related('ddxtopics', 'dxtopics') # if including formatInDdx
+        return qs.prefetch_related('ddxtopics')
 
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
@@ -1197,4 +1223,3 @@ admin_site.register(StudyTopicGroup, StudyTopicGroupAdmin)
 admin_site.register(StudyTopic, StudyTopicAdmin)
 admin_site.register(DdxTopicBook, DdxTopicBookAdmin)
 admin_site.register(DxTopic, DxTopicAdmin)
-admin_site.register(DdxTopicCollection, DdxTopicCollectionAdmin)

@@ -869,7 +869,6 @@ class DxTopic(models.Model):
         help_text='TopicBook'
     )
     name= models.CharField(max_length=1000, help_text='Dx Topic name. Note: every Ddx topic is also an entry here.')
-    lcname= models.CharField(max_length=1000, help_text='Dx Topic name - all lowercased')
     source_aurl= models.ForeignKey(AllowedUrl,
         on_delete=models.CASCADE,
         db_index=True,
@@ -882,7 +881,7 @@ class DxTopic(models.Model):
     class Meta:
         managed = False
         db_table = 'trackers_dxtopic'
-        unique_together = ('book','source_aurl','lcname')
+        unique_together = ('book','source_aurl')
         ordering = ('-created',)
 
     def __str__(self):
