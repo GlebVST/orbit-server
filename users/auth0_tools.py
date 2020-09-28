@@ -167,15 +167,16 @@ class Auth0Api(object):
 
     def updateUser(self, user_id, email, verify_email=True):
         """Update email of an existing user account
-        Note: cannot update username (auth0 will do it), get 400 error:
-            Auth0Error: Cannot update username and email_verified simultaneously
+        Note: we dont ask for separate username at signup, so here
+          we update both name and email to the new email.
         Args:
             user_id: str - auth0 user_id
-            email: str - used as both username and email
+            email: str - used as both name and email
         Returns: dict response object
         """
         body = {
             'connection': DEFAULT_CONN_NAME,
+            'name': email,
             'email': email,
             'email_verified': False,
             'verify_email': verify_email,
