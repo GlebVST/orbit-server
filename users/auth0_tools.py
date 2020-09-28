@@ -10,7 +10,6 @@ from django.conf import settings
 logger = logging.getLogger('gen.auth0')
 
 DEFAULT_CONN_NAME = 'Username-Password-Authentication'
-API_URL = 'https://{0}/api/v2/'.format(settings.AUTH0_DOMAIN)
 PSUFIX = 'AjMAVYQgiOgeS4Kwijb6ejHTzsMNsqvsauMIooVlxkOA'
 
 class Auth0Api(object):
@@ -24,7 +23,7 @@ class Auth0Api(object):
         Returns: Auth0Api instance
         """
         now = timezone.now()
-        now_ts = time.mktime(now.timetuple()) # use now.timestamp in py3
+        now_ts = now.timestamp() # <float>
         do_save = False
         acc_token = request.session.get('auth0_token', None)
         if not acc_token:
@@ -41,7 +40,7 @@ class Auth0Api(object):
         if do_save:
             request.session['auth0_token'] = apiConn.getAccessToken()
             cutoff = now + timedelta(seconds=apiConn.getTokenExpiresIn())
-            request.session['auth0_token_expire'] = time.mktime(cutoff.timetuple())
+            request.session['auth0_token_expire'] = cutoff.timestamp()
         return apiConn
 
 
@@ -49,6 +48,10 @@ class Auth0Api(object):
         """create connection using parameters from settings
         Args:
             acc_token: str/None if None, a new token will be requested
+        Example token scope: (str containing all the available permissions)
+            read:client_grants read:users update:users delete:users create:users
+            read:users_app_metadata update:users_app_metadata delete:users_app_metadata create:users_app_metadata
+        Most functions in this class require the above permissions.
         """
         self.token = None # dict
         if not acc_token:
@@ -58,9 +61,10 @@ class Auth0Api(object):
             token = get_token.client_credentials(
                     settings.AUTH0_MGMT_CLIENTID,
                     settings.AUTH0_MGMT_SECRET,
-                    API_URL)
+                    settings.AUTH0_MGMT_API)
             acc_token = token['access_token']
             self.token = token
+            #logger.info("GetToken scope: {scope}".format(**token)) # to check scope
         self.conn = Auth0(settings.AUTH0_DOMAIN, acc_token)
 
     def getAccessToken(self):

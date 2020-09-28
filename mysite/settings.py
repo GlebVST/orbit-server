@@ -140,6 +140,8 @@ AUTH0_SPA_CLIENTID = get_environment_variable('ORBIT_AUTH0_SPA_CLIENTID')
 AUTH0_SPA_SECRET = get_environment_variable('ORBIT_AUTH0_SPA_SECRET')
 AUTH0_MGMT_CLIENTID = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENTID')
 AUTH0_MGMT_SECRET = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENT_SECRET')
+AUTH0_MGMT_DOMAIN = get_environment_variable('ORBIT_AUTH0_MGMT_CLIENT_SECRET')
+AUTH0_MGMT_API = get_environment_variable('ORBIT_AUTH0_MGMT_API')
 
 # MailChimp
 ORBIT_MAILCHIMP_USERNAME = get_environment_variable('ORBIT_MAILCHIMP_USERNAME')
@@ -411,7 +413,6 @@ EMAIL_SUBJECT_PREFIX = '[Orbit] ' if ENV_TYPE == ENV_PROD else '[Orbit Test] '
 FEEDBACK_RECIPIENT_EMAIL = 'feedback@orbitcme.com'
 SUPPORT_EMAIL = 'support@orbitcme.com'
 SALES_EMAIL = 'sales@orbitcme.com'
-#SALES_EMAIL = 'faria@orbitcme.com'
 FOUNDER_EMAIL = 'ram@orbitcme.com'
 
 HASHIDS_SALT = 'random jOFIGS94d4+Kti8elcIutjuBFaueNyU2bsCSpdLp'
