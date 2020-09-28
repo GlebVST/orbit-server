@@ -2200,7 +2200,7 @@ class UserSubscriptionManager(models.Manager):
                     bt_subs = self.findBtSubscription(user_subs.subscriptionId)
                     self.updateSubscriptionFromBt(user_subs, bt_subs)
                 else:
-                    logger.warning('switchPlanNoCharge: Cancel user_subs {0} failed with message: {1.message}'.format(user_subs, cancel_res))
+                    logger.error('switchPlanNoCharge: Cancel user_subs {0} failed with message: {1.message}'.format(user_subs, cancel_res))
                     return None
         subs_params = {
             'plan_id': new_plan.planId,
@@ -2221,7 +2221,7 @@ class UserSubscriptionManager(models.Manager):
         try:
             ret = profile.updateProfileForNewPlan(old_plan, new_plan)
         except Exception as e:
-            logger.error('switchPlan: updateProfileForNewPlan exception for user {0}'.format(user))
+            logger.exception('switchPlan: updateProfileForNewPlan exception for user {0}'.format(user))
         return new_user_subs
 
     def updateLatestUserSubsAndTransactions(self, user):
