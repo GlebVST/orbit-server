@@ -35,7 +35,7 @@ SACME_SPECIALTIES = (
     'Radiation Oncology',
     'Osteopathic Radiology',
     'Pathology',
-    'Opthamology'
+    'Opthalmology'
 )
 # Physician specialties eligible for ABIM MOC Points
 ABIM_MOC_SPECIALTIES = (
