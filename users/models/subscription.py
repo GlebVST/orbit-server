@@ -799,6 +799,8 @@ class SubscriptionPlan(models.Model):
         help_text='Maximum OrbitCME credits allowed in Trial period. -1 means: no redeeming allowed in Trial. 0 means: use default max_trial_credits in settings.py. A positive value: overrides default value in settings.py')
     allowProfileStateTags = models.BooleanField(default=False,
         help_text='For individual plans: check box if this plan allows users to have State-specific CME tags')
+    createWelcomeOffer = models.BooleanField(default=True,
+        help_text='Controls if the users on this plan get a welcome offer created for them at signup.')
     welcome_offer_url = models.URLField(max_length=500, blank=True,
         help_text='URL for initial welcome offer. Must be an existing AllowedUrl in db. If blank, then the default hard-coded article is used as the welcome offer.')
 

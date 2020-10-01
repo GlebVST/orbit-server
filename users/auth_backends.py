@@ -96,8 +96,11 @@ def configure_user(user_info_dict):
     
     # initialize UserCmeCredit instance for this user
     UserSubscription.objects.setUserCmeCreditByPlan(user, plan)
-    # pre-generate offer for the welcome article
-    OrbitCmeOffer.objects.makeWelcomeOffer(user)
+
+    if plan.createWelcomeOffer:
+        # pre-generate offer for the welcome article
+        OrbitCmeOffer.objects.makeWelcomeOffer(user)
+
     # Some plans provide article recs for specific tags
     plantags = Plantag.objects.filter(plan=plan, num_recs__gt=0)
     for pt in plantags:
@@ -106,7 +109,7 @@ def configure_user(user_info_dict):
     org_match = Organization.objects.getOrgForEmail(user.email)
     if org_match:
         orgm = OrgMember.objects.createMember(org_match, None, profile, indiv_subscriber=True)
-    
+
     # create local customer object
     customer = Customer(user=user)
     customer.save()

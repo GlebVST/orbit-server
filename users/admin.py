@@ -646,7 +646,8 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         'formatTags'
     )
     list_select_related = True
-    list_filter = ('active', 'is_public', 'plan_type', 'allowArticleHistory', 'allowArticleSearch', 'allowDdx', 'plan_key', 'organization')
+    list_filter = ('active', 'is_public', 'plan_type', 'allowArticleHistory',
+        'allowArticleSearch', 'allowDdx', 'createWelcomeOffer', 'plan_key', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
 #    filter_horizontal = ('tags',)
     form = PlanForm
@@ -675,6 +676,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
                 'allowDdx',
                 'allowProfileStateTags',
                 'active',
+                'createWelcomeOffer',
                 'welcome_offer_url'
             )
         })

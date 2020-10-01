@@ -357,7 +357,8 @@ class OrgMemberFormSerializer(serializers.Serializer):
             profile.save(update_fields=('accessedTour',))
         else:
             # pre-generate a first orbit cme offer for the welcome article
-            OrbitCmeOffer.objects.makeWelcomeOffer(user)
+            if plan.createWelcomeOffer:
+                OrbitCmeOffer.objects.makeWelcomeOffer(user)
         # 7. Create change-password ticket
         if password_ticket:
             m = OrgMember.objects.sendPasswordTicket(socialId, m, apiConn)
