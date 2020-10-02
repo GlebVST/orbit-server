@@ -119,7 +119,7 @@ if __name__=="__main__":
     # the scraper again.
     total = len(page_urls_deque)
     print(total)
-    count_to_pop = 4200
+    count_to_pop = 0
     for i in range(count_to_pop):
         page_urls_deque.popleft()
 

@@ -1,0 +1,26 @@
+This directory is used to generated 
+pathology_outlines_pubmed.csv, which has columns 
+Page Url, Page Title, and Bullet Text. Page Url is the url 
+of the Pathology Outlines article. Page Title is the title of
+the Pathology Outlines article. Bullet Text is the text of
+the Pubmed Search title. 
+
+To generate pathology_outlines_pubmed.csv, please run
+
+python pathology_pubmed.py
+
+Note that you will need python 3, and that the python 
+virtual environment will work fine. Also note that you
+will need to have already generated 
+all_pathology_outline_articles.csv, which is generated
+from scripts/scraping/pathology/pathology_outlines_ddx
+
+To get the Pubmed search tags, please run
+
+python get_pathologyoutlines_tags.py
+
+Note that you will again need python 3, and that 
+pathology_outlines_pubmed.csv should have been generated
+previously.
+
+
