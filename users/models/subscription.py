@@ -1251,16 +1251,15 @@ class UserSubscriptionManager(models.Manager):
         if not plan_key:
             plan_key = SubscriptionPlanKey.objects.get(name='radiology/pricing')
             logger.warning('endEnterpriseSubscription: could not find plan_key for user {0}. Use fallback plan_key.'.format(user))
-        # Assign user to the FREE_INDIVIDUAL Basic plan under plan_key
+        # Assign user to the FREE_INDIVIDUAL plan under plan_key
         filter_kwargs = dict(
                 active=True,
                 plan_key=plan_key,
                 plan_type=pt_free,
-                display_name='Basic'
                 )
-        qset = SubscriptionPlan.objects.filter(**filter_kwargs)
+        qset = SubscriptionPlan.objects.filter(**filter_kwargs).order_by('-created')
         if not qset.exists():
-            logger.error('endEnterpriseSubscription: no Free plan for plan_key: {0}'.format(plan_key))
+            logger.error('endEnterpriseSubscription: no Free plan for plan_key: {0}. User: {1}'.format(plan_key, user))
             return
         # else
         free_plan = qset[0]
