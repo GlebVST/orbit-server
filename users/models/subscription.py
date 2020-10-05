@@ -617,6 +617,17 @@ class SubscriptionPlanType(models.Model):
     def __str__(self):
         return self.name
 
+class PlanOnboardType(models.Model):
+    name = models.CharField(max_length=60, unique=True,
+            help_text='Name of onboarding type. Must be unique. Must be in-sync with what UI expects')
+    description = models.TextField(blank=True, default='', help_text='Description')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
 class SubscriptionPlanManager(models.Manager):
     def makePlanId(self, name):
         """Create a planId based on name and hashid of next pk
@@ -763,6 +774,14 @@ class SubscriptionPlan(models.Model):
         blank=True,
         related_name='plans',
         help_text='Associate plan with a particular Organization - used for Enterprise plans, and Braintree Advanced plans.'
+    )
+    onboarding_type = models.ForeignKey(PlanOnboardType,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        db_index=True,
+        related_name='plans',
+        help_text='Onboarding type for this plan'
     )
     tags = models.ManyToManyField(CmeTag,
         through='Plantag',

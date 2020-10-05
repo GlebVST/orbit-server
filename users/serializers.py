@@ -617,6 +617,7 @@ class DocumentReadSerializer(serializers.ModelSerializer):
 class UserSubsReadSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     plan_type = serializers.StringRelatedField(source='plan.plan_type', read_only=True)
+    onboarding_type = serializers.StringRelatedField(source='plan.onboarding_type', read_only=True)
     plan = serializers.PrimaryKeyRelatedField(read_only=True)
     plan_name = serializers.ReadOnlyField(source='plan.name')
     display_name = serializers.SerializerMethodField()
@@ -653,6 +654,7 @@ class UserSubsReadSerializer(serializers.ModelSerializer):
             'user',
             'plan',
             'plan_type',
+            'onboarding_type',
             'plan_name',
             'display_name',
             'bt_status',

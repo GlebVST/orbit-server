@@ -534,6 +534,9 @@ class InvitationDiscountAdmin(admin.ModelAdmin):
 class SubscriptionPlanTypeAdmin(admin.ModelAdmin):
     list_display = ('id','name', 'needs_payment_method')
 
+class PlanOnboardTypeAdmin(admin.ModelAdmin):
+    list_display = ('id','name', 'description', 'created')
+
 class SubscriptionPlanKeyAdmin(admin.ModelAdmin):
     list_display = ('id','name','degree','specialty','description','use_free_plan', 'video_url', 'created')
     list_select_related = True
@@ -647,9 +650,8 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     )
     list_select_related = True
     list_filter = ('active', 'is_public', 'plan_type', 'allowArticleHistory',
-        'allowArticleSearch', 'allowDdx', 'createWelcomeOffer', 'plan_key', 'organization')
+        'allowArticleSearch', 'allowDdx', 'createWelcomeOffer', 'plan_key', 'onboarding_type', 'organization')
     ordering = ('plan_type', 'plan_key__name','price')
-#    filter_horizontal = ('tags',)
     form = PlanForm
     inlines = [
         PlantagInline,
@@ -658,7 +660,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     ]
     fieldsets = (
         (None, {
-            'fields': ('plan_type', 'organization', 'plan_key','name','display_name', 'upgrade_plan','downgrade_plan'),
+            'fields': ('plan_type', 'organization', 'plan_key','onboarding_type', 'name','display_name', 'upgrade_plan','downgrade_plan'),
         }),
         ('Price', {
             'fields': ('price', 'discountPrice','displayMonthlyPrice')
@@ -1183,6 +1185,7 @@ admin_site.register(OrgFile, OrgFileAdmin)
 admin_site.register(OrgMember, OrgMemberAdmin)
 admin_site.register(OrgEnrollee, OrgEnrolleeAdmin)
 admin_site.register(OrgReport, OrgReportAdmin)
+admin_site.register(PlanOnboardType, PlanOnboardTypeAdmin)
 admin_site.register(Profile, ProfileAdmin)
 admin_site.register(PracticeSpecialty, PracticeSpecialtyAdmin)
 admin_site.register(ResidencyProgram, ResidencyProgramAdmin)

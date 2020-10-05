@@ -14,6 +14,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
     plan_key_specialty = serializers.SerializerMethodField()
     upgrade_plan = serializers.PrimaryKeyRelatedField(read_only=True)
     needs_payment_method = serializers.BooleanField(source='plan_type.needs_payment_method')
+    onboarding_type = serializers.StringRelatedField(read_only=True)
 
     def get_plan_key_specialty(self, obj):
         """Return specialty name if not null, else degree abbrev from plan_key"""
@@ -30,6 +31,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             'id',
             'planId',
             'plan_type',
+            'onboarding_type',
             'plan_key',
             'plan_key_specialty',
             'name',
@@ -55,6 +57,7 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     discountPrice = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False, read_only=True)
     displayMonthlyPrice = serializers.BooleanField(read_only=True)
+    onboarding_type = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = SubscriptionPlan
@@ -62,6 +65,7 @@ class SubscriptionPlanPublicSerializer(serializers.ModelSerializer):
             'id',
             'planId',
             'plan_type',
+            'onboarding_type',
             'plan_key',
             'display_name',
             'price',
