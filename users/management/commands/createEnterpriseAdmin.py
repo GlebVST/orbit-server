@@ -80,9 +80,10 @@ class Command(BaseCommand):
         }
         ser = OrgMemberFormSerializer(data=form_data)
         ser.is_valid(raise_exception=True)
-        with transaction.atomic():
+        try:
             orgmember = ser.save(organization=org, apiConn=api, plan=plan)
-            msg = "Created Enterprise Admin: {0} with plan: {1}".format(orgmember, plan)
+            profile = orgmember.user.profile
+            msg = "Created Enterprise Admin: {0} on plan: {1}. User Auth0 Id:{2.socialId}".format(orgmember, plan, profile)
             logger.info(msg)
             self.stdout.write(msg)
             # initialize stats used by UI
@@ -90,4 +91,8 @@ class Command(BaseCommand):
             org.computeProviderStats()
             # store first OrgAgg entry (TeamStats view expects at least one entry)
             oa = OrgAgg.objects.compute_user_stats(org)
-            self.stdout.write('Initialized first OrgAgg entry for TeamStats: {0}'.format(oa))
+            logger.info('Initialized first OrgAgg entry for TeamStats: {0}'.format(oa))
+        except Exception as e:
+            msg = "createEnterpriseAdmin exception: {0}".format(e)
+            self.stdout.write(msg)
+            logger.exception(msg)

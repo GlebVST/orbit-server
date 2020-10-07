@@ -495,7 +495,7 @@ class Organization(models.Model):
         firstMember = self.orgmembers.all().order_by('created')[0]
         startDate = firstMember.created
         filter_kwargs = {
-            'user__profile__organization': org,
+            'user__profile__organization': self,
             'valid': True
         }
         if self.creditEndDate:
@@ -594,6 +594,7 @@ class ProfileManager(models.Manager):
 
     def createUserAndProfile(self, email, planId, inviter=None, affiliateId='', socialId='', pictureUrl='', verified=False, organization=None, firstName='', lastName=''):
         """Create new User instance and new Profile instance"""
+        hashgen = Hashids(salt=settings.HASHIDS_SALT, alphabet=HASHIDS_ALPHABET, min_length=5)
         user = User.objects.create(
             username=email,
             email=email

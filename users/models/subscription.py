@@ -66,7 +66,7 @@ class Affiliate(models.Model):
         on_delete=models.CASCADE,
         primary_key=True
     )
-    displayLabel = models.CharField(max_length=60, blank=True, default='', help_text='Identifying label used by UI for display')
+    displayLabel = models.CharField(max_length=60, blank=True, default='', help_text='Identifying label used by UI for display. Max Chars:60.')
     paymentEmail = models.EmailField(help_text='Valid email address to be used for Payouts.')
     bonus = models.DecimalField(max_digits=3, decimal_places=2, default=None,
         blank=True,
@@ -101,7 +101,7 @@ class AffiliateDetail(models.Model):
         related_name='affdetails',
         db_index=True
     )
-    affiliateId = models.CharField(max_length=20, unique=True, help_text='Affiliate ID')
+    affiliateId = models.CharField(max_length=20, unique=True, help_text='Affiliate ID. Max Chars:20.')
     active = models.BooleanField(default=True)
     personalText = models.TextField(blank=True, default='', help_text='Custom personal text for display')
     photoUrl = models.URLField(max_length=500, blank=True, help_text='Link to photo')
@@ -109,7 +109,7 @@ class AffiliateDetail(models.Model):
     og_title = models.TextField(blank=True, default='Orbit', help_text='Value for og:title metatag')
     og_description = models.TextField(blank=True, default='', help_text='Value for og:description metatag')
     og_image = models.URLField(max_length=500, blank=True, help_text='URL for og:image metatag')
-    redirect_page = models.CharField(max_length=80, blank=True, default='', help_text='Name of HTML page for redirect - e.g. orbitPA.html')
+    redirect_page = models.CharField(max_length=80, blank=True, default='', help_text='Name of HTML page for redirect (e.g. orbitPA.html). Max Chars:80.')
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -312,7 +312,7 @@ class SignupDiscountManager(models.Manager):
 
 @python_2_unicode_compatible
 class SignupDiscount(models.Model):
-    email_domain = models.CharField(max_length=40)
+    email_domain = models.CharField(max_length=40, help_text='Email domain. Max Chars:40')
     organization = models.ForeignKey(Organization,
         on_delete=models.CASCADE,
         db_index=True,
@@ -361,7 +361,7 @@ class SignupEmailPromo(models.Model):
         blank=True,
         help_text='First billingCycle promotional price (price and discount should not be specified together)')
     display_label = models.CharField(max_length=60, blank=True, default='',
-            help_text='Display label shown to the user in the discount screen')
+            help_text='Display label shown to the user in the discount screen. Max Chars:60')
     created = models.DateTimeField(auto_now_add=True)
     objects = SignupEmailPromoManager()
 
@@ -578,7 +578,7 @@ class AffiliatePayout(models.Model):
 
 class SubscriptionPlanKey(models.Model):
     name = models.CharField(max_length=64, unique=True,
-            help_text='Must be unique. Must match the landing_key in the pricing page URL')
+            help_text='Must be unique. Must match the landing_key in the pricing page URL. Max Chars:64.')
     description = models.TextField(blank=True, default='')
     use_free_plan = models.BooleanField(default=False,
             help_text='If true: expects a Free Plan assigned to it, to be used in place of the BT Plan for signup')
@@ -635,7 +635,7 @@ class SubscriptionPlanManager(models.Manager):
         """
         HASHIDS_ALPHABET = 'abcdefghijklmnopqrstuvwxyz1234567890' # lowercase + digits
         SALT = 'SubscriptionPlan'
-        MAX_NAME_LENGTH = 32
+        PLANID_LENGTH = 36 # planId CharField size
         cursor = connection.cursor()
         cursor.execute("select nextval('users_subscriptionplan_id_seq')")
         result = cursor.fetchone()
@@ -647,10 +647,12 @@ class SubscriptionPlanManager(models.Manager):
             min_length=4
         )
         hash_pk = hashgen.encode(next_pk)
+        suffix = "-{0}".format(hash_pk)
+        max_name_length = PLANID_LENGTH - len(suffix)
         cleaned_name = '-'.join(name.strip().lower().split())
-        if len(cleaned_name) > MAX_NAME_LENGTH:
-            cleaned_name = cleaned_name[0:MAX_NAME_LENGTH]
-        return cleaned_name + '-{0}'.format(hash_pk)
+        if len(cleaned_name) > max_name_length:
+            cleaned_name = cleaned_name[0:max_name_length]
+        return cleaned_name + suffix
 
     def getPlansForKey(self, plan_key):
         """This swaps out the Braintree Plan for the Free Plan depending on plan_key.use_free_plan.
@@ -730,11 +732,11 @@ class SubscriptionPlanManager(models.Manager):
 class SubscriptionPlan(models.Model):
     planId = models.CharField(max_length=36,
             unique=True,
-            help_text='Unique. No whitespace. If plan_type is Braintree, the planId must be in sync with the actual plan in Braintree')
+            help_text='Unique. Max Chars:36. No whitespace. If plan_type is Braintree, the planId must be in sync with the actual plan in Braintree')
     name = models.CharField(max_length=80,
-            help_text='Internal Plan name (alphanumeric only). If plan_type is Braintree, it must match value in Braintree. Will be used to set planId.')
+            help_text='Internal Plan name (alphanumeric only). Max Chars:80. If plan_type is Braintree, it must match value in Braintree. Will be used to set planId.')
     display_name = models.CharField(max_length=40,
-            help_text='Display name - what the user sees (e.g. Standard).')
+            help_text='Display name - what the user sees (e.g. Standard). Max Chars:40.')
     price = models.DecimalField(max_digits=6, decimal_places=2, help_text=' in USD')
     trialDays = models.IntegerField(default=0,
             help_text='Trial period in days')
@@ -2525,7 +2527,8 @@ class SubscriptionTransaction(models.Model):
 @python_2_unicode_compatible
 class CmeBoost(models.Model):
     # fields
-    name = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=50, unique=True,
+        help_text='Boost Name. Max Chars:50. Must be unique')
     credits = models.IntegerField(default=0)
     price = models.DecimalField(max_digits=6, decimal_places=2, help_text='Price per credit in USD', default=0)
     active = models.BooleanField(default=True)
