@@ -540,6 +540,7 @@ class Organization(models.Model):
                 d = profile.degrees.all()[0]
                 providerStat[d.abbrev]['count'] += 1
         # get datetime of end of last month
+        now = timezone.now()
         cutoffDate = datetime(now.year, now.month, 1, 23, 59, 59, tzinfo=pytz.utc) - relativedelta(days=1)
         # members existing at that time
         members = self.orgmembers.filter(
@@ -567,7 +568,7 @@ class Organization(models.Model):
             providerStat[abbrev]['diff'] = diff*100
         self.providerStat = providerStat
         self.save(update_fields=('providerStat',))
-        logger.info('Updated providerStat for org {0}'.format(org))
+        logger.info('Updated providerStat for org {0}'.format(self))
 
 def orgfile_document_path(instance, filename):
     """Used as the OrgFile document FileField upload_to value
