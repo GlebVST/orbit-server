@@ -31,9 +31,9 @@ class Command(BaseCommand):
         verify_email = True if settings.ENV_TYPE == settings.ENV_PROD else False
         logger.info('Updating auth0 account for: {0.socialId}'.format(profile))
         res = api.updateUser(profile.socialId, new_email, verify_email)
-        print('auth0 email: {email} updated_at: {updated_at}'.format(**res))
+        self.stdout.write('auth0 email: {email} updated_at: {updated_at}'.format(**res))
         profile.verified = False
-        profile.save()
+        profile.save(update_fields=('verified',))
         user.username = new_email
         user.email = new_email
         user.save()

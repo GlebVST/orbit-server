@@ -6,6 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 from users.models import Profile, SubscriptionPlan, UserSubscription
 from users.emailutils import sendNewUserReportEmail
+from users.auth0_tools import Auth0Api()
 
 logger = logging.getLogger('mgmt.newuser')
 
@@ -62,6 +63,12 @@ class Command(BaseCommand):
             profiles = Profile.objects.filter(created__gte=cutoff).order_by('created')
             if profilesToFix or profiles.count():
                 sendNewUserReportEmail(profiles, profilesToFix)
+            cutoff = now - timedelta(days=5)
+            profiles = Profile.objects.filter(verified=False, created__gte=cutoff).order_by('created')
+            if profiles.count():
+                api = Auth0Api()
+                num_upd = api.checkVerified(profiles) # check and update profile.verified for the given profiles
+                logger.info('Num profile.verified updated: {0}'.format(num_upd))
         except SMTPException as e:
             logger.exception('New User Report Email to {0} failed'.format(email_to))
         except Exception as e:

@@ -84,7 +84,7 @@ class Auth0Api(object):
         """
         list_kwargs = {
                 'page': 0,
-                'per_page': 100,
+                'per_page': 500,
                 'sort':"created_at:-1",
                 'include_totals': True
         }
@@ -109,25 +109,24 @@ class Auth0Api(object):
             cur_total += data['length']
         return users
 
-    def syncVerified(self, users):
-        """Sync profile.verified with data from users
+    def checkVerified(self, profiles):
+        """Check auth0 email_verified for the given profiles and update profile if needed.
         Args:
-            users: list of dicts from getUsers
+            profiles: Profile queryset (e.g. profiles with verified=False)
         Returns: int - number of profiles updated
         """
-        from .models import Profile
         num_upd = 0
-        for d in users:
-            try:
-                profile = Profile.objects.get(socialId=d['user_id'])
-            except Profile.DoesNotExist:
-                logger.warning('Profile does not exist for user_id: {user_id}'.format(**d))
-            else:
-                ev = d.get('email_verified', None)
-                if ev is not None and ev != profile.verified:
-                    profile.verified = bool(ev)
-                    profile.save(update_fields=('verified',))
-                    num_upd += 1
+        for p in profiles:
+            if not p.socialId:
+                continue
+            result = self.getUserDictForAuth0Id(p.socialId) # dict
+            ev = result.get('email_verified', None)
+            if ev is not None and ev != p.verified:
+                p.verified = bool(ev)
+                p.save(update_fields=('verified',))
+                num_upd += 1
+                logger.info("Updated verified for user {0.pk}".format(p))
+            time.sleep(0.5) # to prevent Auth0Error: 429: Global limit has been reached
         return num_upd
 
     def make_initial_pass(self, email, date_joined):
@@ -140,6 +139,34 @@ class Auth0Api(object):
         p = "Z.{0:%Y%m%d%H%M%S}.{1}!".format(date_joined, PSUFIX)
         logger.debug('{0}={1}'.format(email, p))
         return p
+
+    def getUserDictForAuth0Id(self, user_id):
+        """Returns user result dict for the given auth0 user_id
+        Returns: dict
+        Example: {
+            'created_at': '2020-09-23T14:33:14.817Z',
+            'name': 'some@gmail.com',
+            'nickname': 'some',
+            'email': 'some@gmail.com',
+            'email_verified': False,
+            'identities': [{'connection': 'Username-Password-Authentication',
+                'isSocial': False,
+                'provider': 'auth0',
+                'user_id': '5f6b5caa3810fa006f719db9'}
+            ],
+            'last_ip': '143.111.84.114',
+            'last_login': '2020-10-09T17:51:15.343Z',
+            'logins_count': 5,
+            'picture': 'https://s.gravatar.com/avatar/some.png',
+            'updated_at': '2020-10-09T17:51:15.343Z',
+            'user_id': 'auth0|5f6b5caa3810fa006f719db9'}
+        """
+        qterm = "user_id:{0}".format(user_id)
+        data = self.conn.users.list(q=qterm, search_engine='v2')
+        if 'users' in data and len(data['users']) > 0:
+            result = data['users'][0]
+            return result
+        return None
 
     def findUserByEmail(self, email):
         """Returns user_id or None if not found"""
