@@ -665,12 +665,14 @@ class ProfileManager(models.Manager):
         return profiles
 
     def allowArticleHistory(self, user, user_subs):
-        """User belongs to ArticleHistory group OR plan.allowArticleHistory is True
+        """User belongs to ArticleHistory group OR plan.allowArticleHistory is True. User must also have a non-expired subscription.
         Args:
             user: User instance
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
+        if user_subs and user_subs.inTerminalState():
+            return False
         if user_subs and user_subs.plan.allowArticleHistory:
             return True
         return user.groups.filter(name=GROUP_ARTICLEHISTORY).exists()

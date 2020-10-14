@@ -988,11 +988,14 @@ class UserSubscriptionManager(models.Manager):
                 allowArticleSearch
                 allowDdx
                 has Plantags with non-zero recs
+        In addtion, user must have a non-expired subscription.
         Args:
             user: User instance
             user_subs: UserSubscription instance (can be None)
         Returns bool - True if allowed, else False
         """
+        if user_subs and user_subs.inTerminalState():
+            return False
         if Profile.objects.allowArticleSearch(user, user_subs):
             return True
         if Profile.objects.allowDdx(user, user_subs):
