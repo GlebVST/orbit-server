@@ -63,7 +63,7 @@ class Command(BaseCommand):
             profiles = Profile.objects.filter(created__gte=cutoff).order_by('created')
             if profilesToFix or profiles.count():
                 sendNewUserReportEmail(profiles, profilesToFix)
-            cutoff = now - timedelta(days=5)
+            cutoff = now - timedelta(days=90)
             profiles = Profile.objects.filter(verified=False, created__gte=cutoff).order_by('created')
             if profiles.count():
                 api = Auth0Api()
