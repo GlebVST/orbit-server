@@ -13,7 +13,6 @@ from django.template.loader import get_template
 from django.utils import timezone
 from common.dateutils import LOCAL_TZ, fmtLocalDatetime
 from .models import *
-from pprint import pprint
 
 ROCKET_ICON = '\U0001F680'
 REPLY_TO = settings.SUPPORT_EMAIL
@@ -142,7 +141,7 @@ def sendFirstSubsInvoiceEmail(user, user_subs, payment_method, subs_trans=None):
             message,
             from_email=from_email,
             to=[user.email],
-            bcc=['ap+provider_receipts@orbitcme.com','faria@orbitcme.com']
+            bcc=['ap+provider_receipts@orbitcme.com',]
         )
     msg.content_subtype = 'html'
     msg.send()
@@ -199,16 +198,30 @@ def sendReceiptEmail(user, user_subs, subs_trans):
     from_email = settings.SUPPORT_EMAIL
     plan_name = 'Orbit ' + user_subs.plan.display_name
     subject = makeSubject('Your receipt for subscription to {0}'.format(plan_name))
+    billingCycleMonths = user_subs.plan.billingCycleMonths
     ctx = {
         'profile': user.profile,
         'subscription': user_subs,
         'transaction': subs_trans,
         'plan_name': plan_name,
-        'plan_monthly_price': user_subs.plan.monthlyPrice(),
+        'plan_price': user_subs.plan.price,
     }
+    # set ctx billing_cycle_descr
+    key = 'billing_cycle_descr'
+    if billingCycleMonths == 12:
+        ctx[key] = 'annually'
+    elif billingCycleMonths == 1:
+        ctx[key] = 'monthly'
+    else:
+        ctx[key] = "every {0} months".format(billingCycleMonths)
     setCommonContext(ctx)
     message = get_template('email/receipt.html').render(ctx)
-    msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
+    msg = EmailMessage(subject,
+        message,
+        from_email=from_email,
+        to=[user.email],
+        #bcc=['ap+provider_receipts@orbitcme.com',]
+    )
     msg.content_subtype = 'html'
     msg.send()
 

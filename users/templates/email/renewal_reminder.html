@@ -38,9 +38,9 @@
         
         <p>Your subscription to the {{ plan.display_name }} plan renews on {{ nextBillingDate|date:" d M Y" }} when your {{ card.type }} card ending in {{ card.last4 }} expiring on {{ card.expiry }} will be charged 
         {% if nextBillingAmount == plan.price %}
-            ${{ plan.price }} which is ${{ plan.monthlyPrice }}/month billed annually.
+            ${{ plan.price }}.
         {% else %}
-            ${{ nextBillingAmount }} which is ${{ plan.monthlyPrice }}/month billed annually minus your earned discounts.
+            ${{ nextBillingAmount }} which is ${{ plan.price }} minus your earned discounts.
         {% endif %}
         </p> 
         {% if card.needs_update %}

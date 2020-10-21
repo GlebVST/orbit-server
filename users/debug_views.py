@@ -113,7 +113,7 @@ class EmailSubscriptionReceipt(APIView):
     """
     def post(self, request, format=None):
         user = request.user
-        #print('User: {0.pk} {0.email}'.format(user))
+        print('User: {0.pk} {0.email}'.format(user))
         user_subs = UserSubscription.objects.getLatestSubscription(user)
         if not user_subs:
             context = {'success': False, 'message': 'User does not have a subscription.'}
@@ -129,18 +129,32 @@ class EmailSubscriptionReceipt(APIView):
         # else prepare context for email
         subs_trans = qset[0]
         plan_name = 'Orbit ' + user_subs.plan.name
-        subject = 'Your receipt for annual subscription to {0}'.format(plan_name)
+        subject = 'Your receipt for subscription to {0}'.format(plan_name)
         from_email = settings.SUPPORT_EMAIL
+        to_emails = settings.DEV_EMAILS[0:1]
+        billingCycleMonths = user_subs.plan.billingCycleMonths
         ctx = {
             'profile': user.profile,
             'subscription': user_subs,
             'transaction': subs_trans,
             'plan_name': plan_name,
-            'plan_monthly_price': user_subs.plan.monthlyPrice(),
+            'plan_price': user_subs.plan.price,
         }
+        # set ctx billing_cycle_descr
+        key = 'billing_cycle_descr'
+        if billingCycleMonths == 12:
+            ctx[key] = 'annually'
+        elif billingCycleMonths == 1:
+            ctx[key] = 'monthly'
+        else:
+            ctx[key] = "every {0} months".format(billingCycleMonths)
         setCommonContext(ctx)
         message = get_template('email/receipt.html').render(ctx)
-        msg = EmailMessage(subject, message, to=[user.email], from_email=from_email)
+        msg = EmailMessage(subject,
+            message,
+            to=to_emails,
+            from_email=from_email
+        )
         msg.content_subtype = 'html'
         try:
             msg.send()
@@ -151,7 +165,7 @@ class EmailSubscriptionReceipt(APIView):
         else:
             context = {
                 'success': True,
-                'message': 'A receipt was emailed to {0.email}'.format(user),
+                'message': 'A receipt was emailed to {0}'.format(','.join(to_emails)),
                 'transactionId': subs_trans.transactionId
             }
             return Response(context, status=status.HTTP_200_OK)
