@@ -622,6 +622,7 @@ class PlantagForm(forms.ModelForm):
 class PlantagInline(admin.TabularInline):
     model = Plantag
     form = PlantagForm
+    verbose_name_plural = mark_safe("<p>Plan-tags</p><p>Specify any additional tags to be added to the user profile (this augments any tags they receive from their chosen specialty).<p>num_recs: number of article recommendations to generate for this tag (this is generated at user signup).</p><p>num_display_panel: number of article recs to display in plugin overflow panel.</p>")
 
 class UITabAdmin(admin.ModelAdmin):
     list_display = ('id','title','icon_1x','contents','created')
