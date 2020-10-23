@@ -1,5 +1,6 @@
 """Report used for RP pricing"""
 import csv 
+import collections
 from datetime import timedelta
 from django.conf import settings
 from django.core.mail import EmailMessage
@@ -61,15 +62,24 @@ def main():
     now = timezone.now()
     today = now.date()
 
-    one_week = today - timezone.timedelta(weeks=1)
+    one_week = today - timezone.timedelta(weeks=10)
 
-    dct = {}
+    num_offers_dct = collections.defaultdict(lambda : 0)
+    offer_percent_dct = collections.defaultdict(lambda : {})
 
     for d_user in discovery_users:
         offers = OrbitCmeOffer.objects.filter(user=d_user, activityDate__range=(one_week, today))
-        dct[d_user] = len(offers)
+        num_offers_dct[d_user] = len(offers)
+        for offer in offers:
+            allowed_url = offer.url
+            print(allowed_url.studyTopics.all())
+            for study_topic in allowed_url.studyTopics.all(): 
+                offer_percent_dct[d_user][study_topic.name] += 1/len(offers) 
 
-    return dct
+    print(num_offers_dct)
+    print(offer_percent_dct)
+
+    return offer_percent_dct
 
     #OrbitCmeOffer.objects.get(user="logicalmath33
     '''
