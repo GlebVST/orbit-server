@@ -49,14 +49,14 @@ def main():
     #ageData = makeAgeData(providerData)
     #oaggData = makeOrgAggData(org, startMY=(2, 2019), endMY=(10,2019))
 
-    discover_plans = []
+    discovery_plans = []
     discovery_monthly = SubscriptionPlan.objects.filter(name="Discover Monthly")
     discovery_plans.extend([d for d in discovery_monthly])
 
     discovery_users = []
-    for d_plan in plans:    
+    for d_plan in discovery_plans:    
         users_sub = UserSubscription.objects.filter(plan=d_plan)
-        discovery_users.extend([u for u.user in users_sub])
+        discovery_users.extend([u.user for u in users_sub])
 
     now = timezone.now()
     today = now.date()
