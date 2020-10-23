@@ -85,7 +85,7 @@ def main():
     print(num_offers_dct)
     print(offer_percent_dct)
 
-    num_offers_data = [[user.email, user.profile.lastName, user.profile.firstName, offers] for user, offers in num_offers_dict.items()]
+    num_offers_data = [[user.email, user.profile.lastName, user.profile.firstName, offers] for user, offers in num_offers_dct.items()]
 
     attachments = [
         dict(fileName='discovery_orbitcme.csv', contentFile=makeCsvAttachment('total_offers', num_offers_data))
