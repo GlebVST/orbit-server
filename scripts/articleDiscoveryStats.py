@@ -8,7 +8,8 @@ from django.utils import timezone
 from users.models import *
 from users.emailutils import makeCsvForAttachment
 
-fieldNamesMap = { 
+fieldNamesMap = {
+    'total_offers': ('email', 'lastName', 'firstName', 'totalOffers'),
     'providers': ('status','email','lastName','firstName','group','birthDate','age','creditsRedeemed'),
     'groups': ('group','totalCredits','avgCreditsPerProvider','numActiveProviders','totalProviders'),
     'age': ('age','totalCredits','avgCreditsPerProvider','numActiveProviders','totalProviders'),
@@ -23,7 +24,7 @@ def makeCsvAttachment(tabName, data):
 
 def sendEmail(attachments):
     to_emails = ['logicalmath333@gmail.com',]
-    subject='RP Stats Oct 2019'
+    subject='Discovery Article stats'
     message = 'See attached files'
     msg = EmailMessage(
             subject,
@@ -84,6 +85,13 @@ def main():
     print(num_offers_dct)
     print(offer_percent_dct)
 
+    num_offers_data = [[user.email, user.profile.lastName, user.profile.firstName, offers] for user, offers in num_offers_dict.items()]
+
+    attachments = [
+        dict(fileName='discovery_orbitcme.csv', contentFile=makeCsvAttachment('total_offers', num_offers_data))
+    ]
+
+    sendEmail(attachments)
     return offer_percent_dct
 
     #OrbitCmeOffer.objects.get(user="logicalmath33
