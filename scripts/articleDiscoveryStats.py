@@ -51,7 +51,7 @@ def main():
 
     discover_plans = []
     discovery_monthly = SubscriptionPlan.objects.filter(name="Discover Monthly")
-    discovery_plans.extend([d for d in discovery_monthly)
+    discovery_plans.extend([d for d in discovery_monthly])
 
     discovery_users = []
     for d_plan in plans:    
