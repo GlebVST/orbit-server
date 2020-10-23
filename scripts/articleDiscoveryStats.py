@@ -50,9 +50,14 @@ def main():
     #ageData = makeAgeData(providerData)
     #oaggData = makeOrgAggData(org, startMY=(2, 2019), endMY=(10,2019))
 
+    discovery_plan_names = ["Discover Monthly", "Discover Radiology Explorer", \
+                            "Discover Annual", "Discover Radiology", "Discover Radiology Pilot"]
+
     discovery_plans = []
-    discovery_monthly = SubscriptionPlan.objects.filter(name="Discover Monthly")
-    discovery_plans.extend([d for d in discovery_monthly])
+    for d_plan_name in discovery_plan_names:
+        discovery_plan = SubscriptionPlan.objects.filter(name=d_plan_name)
+        discovery_plans.extend([d for d in discovery_plan])
+
 
     discovery_users = []
     for d_plan in discovery_plans:    
