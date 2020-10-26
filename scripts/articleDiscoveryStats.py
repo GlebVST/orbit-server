@@ -68,6 +68,12 @@ def main():
     #ageData = makeAgeData(providerData)
     #oaggData = makeOrgAggData(org, startMY=(2, 2019), endMY=(10,2019))
 
+    discovery_org = []
+    for org in Organizations.objects:
+        s = org.getEnterprisePlan()
+        print(org.name, org.code, s)
+    
+
     discovery_plan_names = ["Discover Monthly", "Discover Radiology Explorer", \
                             "Discover Annual", "Discover Radiology", "Discover Radiology Pilot"]
 
@@ -108,12 +114,13 @@ def main():
                         'totalOffers': offers} for user, offers in num_offers_dct.items()]
 
     for user in num_offers_dct.keys():
-        message = "Hi {0} {1}<br>".format(user.profile.firstName, user.profile.lastName)
+        message = "Orbit Discovery Weekly Summary ({0} - {1})".format(now.strftime("%m/%d"), today.strftime("%m/%d"))
+        message += "{0} {1}<br>".format(user.profile.firstName, user.profile.lastName)
         message += "Great job with your studying! Here's a breakdown of what's happened in the past week: <br>"
-        message += "Total number of articles read: {0}<br>".format(num_offers_dct[user])
-        message += "Study topics: <br>"
+        message += "Total number of articles read this week: {0}<br>".format(num_offers_dct[user])
+        message += "Distribution of topics this week: <br>"
         for study_topic in offer_percent_dct[user]:
-            message += "{0}: {1} <br>".format(study_topic, offer_percent_dct[user][study_topic])
+            message += "{0}: {1} <br>".format(study_topic, int(offer_percent_dct[user][study_topic] * 100))
     
         message += "-Your Orbit Team <br>"
         message += "PS. To unsubscribe, please email support@orbitcme.com"
