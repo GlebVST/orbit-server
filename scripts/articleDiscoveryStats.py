@@ -17,6 +17,8 @@ fieldNamesMap = {
     'oagg': ('year','month','activeUsers','invitedUsers','totalUsers','addedUsers','expiredLicenses','expiredCMEGap')
 }
 
+unsubscribed_list = []
+
 def makeCsvAttachment(tabName, data):
     fieldNames = fieldNamesMap[tabName]
     cf = makeCsvForAttachment(fieldNames, data)
@@ -24,7 +26,7 @@ def makeCsvAttachment(tabName, data):
 
 def sendEmail(attachments):
     to_emails = ['logicalmath333@gmail.com',]
-    subject='Discovery Article stats'
+    subject='Orbit Discovery Article stats'
     message = 'See attached files'
     msg = EmailMessage(
             subject,
@@ -38,6 +40,21 @@ def sendEmail(attachments):
         msg.attach(d['fileName'], d['contentFile'], 'application/octet-stream')
     msg.send()
     print('Email sent')
+
+def sendEmailBody(user, message):
+    to_emails = ['logicalmath333@gmail.com',]
+    subject='Orbit Discovery Article stats'
+    msg = EmailMessage(
+            subject,
+            message,
+            to=to_emails,
+            cc=[],
+            bcc=[],
+            from_email=settings.EMAIL_FROM)
+    msg.content_subtype = 'html'
+    msg.send()
+    print('Email sent')
+
 
 def main():
 
@@ -90,11 +107,20 @@ def main():
                         'firstName': user.profile.firstName, 
                         'totalOffers': offers} for user, offers in num_offers_dct.items()]
 
-    attachments = [
-        dict(fileName='discovery_orbitcme.csv', contentFile=makeCsvAttachment('total_offers', num_offers_data))
-    ]
+    for user in num_offers_dct.keys():
+        message += "Hi {0} {1}\n".format(user.profile.firstName, user.profile.lastName)
+        message += "Great job with your studying! Here's a breakdown of what's happened in the past week: \n"
+        message += "Total number of articles read: {0}\n".format(num_offers_dct[user])
+        message += "Study topics: \n"
+        for study_topic in offer_percent_dct[user]:
+            message += "{0}: {1}".format(study_topic, offer_percent_dct[user][study_topic])
+            
+        sendEmailBody(user, message)
+    #attachments = [
+    #    dict(fileName='discovery_orbitcme.csv', contentFile=makeCsvAttachment('total_offers', num_offers_data))
+    #]
 
-    sendEmail(attachments)
+    #sendEmail(attachments)
     return offer_percent_dct
 
     #OrbitCmeOffer.objects.get(user="logicalmath33
