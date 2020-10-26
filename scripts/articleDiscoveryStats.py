@@ -88,7 +88,7 @@ def main():
     one_week = today - timezone.timedelta(weeks=10)
 
     num_offers_dct = collections.defaultdict(lambda : 0)
-    offer_percent_dct = collections.defaultdict(lambda : {})
+    offer_percent_dct = collections.defaultdict(lambda : collections.defaultdict(lambda : 0))
 
     for d_user in discovery_users:
         offers = OrbitCmeOffer.objects.filter(user=d_user, activityDate__range=(one_week, today))
