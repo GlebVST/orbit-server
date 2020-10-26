@@ -108,7 +108,7 @@ def main():
                         'totalOffers': offers} for user, offers in num_offers_dct.items()]
 
     for user in num_offers_dct.keys():
-        message += "Hi {0} {1}\n".format(user.profile.firstName, user.profile.lastName)
+        message = "Hi {0} {1}\n".format(user.profile.firstName, user.profile.lastName)
         message += "Great job with your studying! Here's a breakdown of what's happened in the past week: \n"
         message += "Total number of articles read: {0}\n".format(num_offers_dct[user])
         message += "Study topics: \n"
