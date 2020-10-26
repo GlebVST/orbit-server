@@ -108,13 +108,16 @@ def main():
                         'totalOffers': offers} for user, offers in num_offers_dct.items()]
 
     for user in num_offers_dct.keys():
-        message = "Hi {0} {1}\n".format(user.profile.firstName, user.profile.lastName)
-        message += "Great job with your studying! Here's a breakdown of what's happened in the past week: \n"
-        message += "Total number of articles read: {0}\n".format(num_offers_dct[user])
-        message += "Study topics: \n"
+        message = "Hi {0} {1}<br>".format(user.profile.firstName, user.profile.lastName)
+        message += "Great job with your studying! Here's a breakdown of what's happened in the past week: <br>"
+        message += "Total number of articles read: {0}<br>".format(num_offers_dct[user])
+        message += "Study topics: <br>"
         for study_topic in offer_percent_dct[user]:
-            message += "{0}: {1}".format(study_topic, offer_percent_dct[user][study_topic])
-            
+            message += "{0}: {1} <br>".format(study_topic, offer_percent_dct[user][study_topic])
+    
+        message += "-Your Orbit Team <br>"
+        message += "PS. To unsubscribe, please email support@orbitcme.com"
+        
         sendEmailBody(user, message)
     #attachments = [
     #    dict(fileName='discovery_orbitcme.csv', contentFile=makeCsvAttachment('total_offers', num_offers_data))
