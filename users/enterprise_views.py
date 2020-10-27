@@ -808,6 +808,7 @@ class JoinTeam(APIView):
             plan = SubscriptionPlan.objects.getEnterprisePlanForOrg(org)
         except IndexError:
             error_msg = "Failed to find SubscriptionPlan for OrgMember organization: {0.name}".format(org)
+            logException(logger, request, error_msg)
             raise serializers.ValidationError({'user': error_msg}, code='invalid')
             return
         with transaction.atomic():

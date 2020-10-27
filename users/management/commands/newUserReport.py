@@ -1,15 +1,32 @@
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from smtplib import SMTPException
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.utils import timezone
 from users.models import Profile, SubscriptionPlan, UserSubscription
 from users.emailutils import sendNewUserReportEmail
-from users.auth0_tools import Auth0Api()
+from users.auth0_tools import Auth0Api
 
 logger = logging.getLogger('mgmt.newuser')
 
+def updateProfileCmeDateRange():
+    """Update cmeStart/EndDate for profiles whose cmeEndDate is in the past.
+    Returns: Profile queryset of updated profiles
+    """
+    now = timezone.now()
+    nextday = now + timedelta(days=1)
+    newEndDate = datetime(nextday.year, nextday.month, nextday.day, tzinfo=nextday.tzinfo)
+    profiles = Profile.objects.filter(cmeEndDate__lte=now).order_by('pk')
+    for profile in profiles:
+        if profile.cmeStartDate:
+            timediff = profile.cmeEndDate - profile.cmeStartDate
+        else:
+            timediff = timedelta(days=2*365)
+        profile.cmeEndDate = newEndDate
+        profile.cmeStartDate = newEndDate - timediff
+        profile.save(update_fields=('cmeEndDate','cmeStartDate'))
+    return profiles
 
 def checkInactiveProfilePlans():
     """Find users who never activated a subscription and whose initial selected planId is now inactive
@@ -59,16 +76,19 @@ class Command(BaseCommand):
             now = timezone.now()
             # inactive plans check
             profilesToFix = checkInactiveProfilePlans()
-            cutoff = now - timedelta(days=1)
-            profiles = Profile.objects.filter(created__gte=cutoff).order_by('created')
-            if profilesToFix or profiles.count():
-                sendNewUserReportEmail(profiles, profilesToFix)
+            if settings.ENV_TYPE == settings.ENV_PROD:
+                cutoff = now - timedelta(days=1)
+                profiles = Profile.objects.filter(created__gte=cutoff).order_by('created')
+                if profilesToFix or profiles.count():
+                    sendNewUserReportEmail(profiles, profilesToFix)
             cutoff = now - timedelta(days=90)
-            profiles = Profile.objects.filter(verified=False, created__gte=cutoff).order_by('created')
+            profiles = Profile.objects.filter(verified=False, modified__gte=cutoff).order_by('created')
             if profiles.count():
                 api = Auth0Api()
                 num_upd = api.checkVerified(profiles) # check and update profile.verified for the given profiles
                 logger.info('Num profile.verified updated: {0}'.format(num_upd))
+            # Finally: update stale cmeDateRange (used in Submit tab)
+            qs = updateProfileCmeDateRange()
         except SMTPException as e:
             logger.exception('New User Report Email to {0} failed'.format(email_to))
         except Exception as e:
