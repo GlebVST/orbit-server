@@ -68,10 +68,10 @@ def main():
     #ageData = makeAgeData(providerData)
     #oaggData = makeOrgAggData(org, startMY=(2, 2019), endMY=(10,2019))
 
-    discovery_org = []
-    for org in Organizations.objects:
-        s = org.getEnterprisePlan()
-        print(org.name, org.code, s)
+    #discovery_org = []
+    #for org in Organizations.objects:
+    #    s = org.getEnterprisePlan()
+    #    print(org.name, org.code, s)
     
 
     discovery_plan_names = ["Discover Monthly", "Discover Radiology Explorer", \
@@ -95,6 +95,7 @@ def main():
 
     num_offers_dct = collections.defaultdict(lambda : 0)
     offer_percent_dct = collections.defaultdict(lambda : collections.defaultdict(lambda : 0))
+    users_orggroup_dct = collections.defaultdict(lambda : "")
 
     for d_user in discovery_users:
         offers = OrbitCmeOffer.objects.filter(user=d_user, activityDate__range=(one_week, today))
@@ -105,8 +106,12 @@ def main():
             for study_topic in allowed_url.studyTopics.all(): 
                 offer_percent_dct[d_user][study_topic.name] += 1/len(offers) 
 
+        org_member = OrgMember.objects.filter(user=d_user)
+        if len(org_member) > 0:
+            users_orggroup_dct[d_user] = org_member[0].group
     print(num_offers_dct)
     print(offer_percent_dct)
+    print(users_orggroup_dct)
 
     num_offers_data = [{'email': user.email, 
                         'lastName': user.profile.lastName, 
@@ -116,6 +121,8 @@ def main():
     for user in num_offers_dct.keys():
         message = "Orbit Discovery Weekly Summary ({0} - {1})".format(now.strftime("%m/%d"), today.strftime("%m/%d"))
         message += "{0} {1}<br>".format(user.profile.firstName, user.profile.lastName)
+        if users_orggroup_dict[user]:
+            message += "{0}<br>".format(users_orggroup_dict[user])
         message += "Great job with your studying! Here's a breakdown of what's happened in the past week: <br>"
         message += "Total number of articles read this week: {0}<br>".format(num_offers_dct[user])
         message += "Distribution of topics this week: <br>"
