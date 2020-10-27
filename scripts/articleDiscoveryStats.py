@@ -1,4 +1,8 @@
 """Report used for RP pricing"""
+# To run:
+# python manage.py shell
+# from scripts import articleDiscoveryStats
+# g = articleDiscoveryStats.main()
 import csv 
 import collections
 from datetime import timedelta
@@ -121,7 +125,7 @@ def main():
     for user in num_offers_dct.keys():
         message = "Orbit Discovery Weekly Summary ({0} - {1})".format(now.strftime("%m/%d"), today.strftime("%m/%d"))
         message += "{0} {1}<br>".format(user.profile.firstName, user.profile.lastName)
-        if users_orggroup_dict[user]:
+        if users_orggroup_dct[user]:
             message += "{0}<br>".format(users_orggroup_dict[user])
         message += "Great job with your studying! Here's a breakdown of what's happened in the past week: <br>"
         message += "Total number of articles read this week: {0}<br>".format(num_offers_dct[user])
