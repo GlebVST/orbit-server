@@ -699,16 +699,21 @@ class RecAllowedUrlManager(models.Manager):
         exclude_offers_blank_setid, exclude_offers_setid = OrbitCmeOffer.objects.getRedeemedOffersForUser(user)
         urls = []
         qs_url = UrlTagFreq.objects.getFromUrlTagFreq(tag, exclude_offers_blank_setid, exclude_offers_setid)
-        num_recs = 100 # limit queryset to top 100 entries
+        num_recs = 1000 # top N entries
         data = qs_url[0:num_recs]
         urls.extend([m.url for m in data])
-        # Finally: populate RecAllowedUrl from urls and as we iterate check that aurl is unique for this user
+        # Finally: populate RecAllowedUrl from urls and as we iterate check that article is unique for this user
         num_created = 0
         for aurl in urls[0:max_recs]:
             # check if user already has a rec for this aurl (for any tag)
             qs = user.recaurls.filter(url=aurl)
             if qs.exists():
                 continue
+            # check rec is unique over set_id
+            if aurl.set_id:
+                qs = RecAllowedUrl.objects.select_related('url').filter(user=user, url__set_id=aurl.set_id)
+                if qs.exists():
+                    continue
             m, created = RecAllowedUrl.objects.get_or_create(user=user, cmeTag=tag, url=aurl)
             if created:
                 num_created += 1

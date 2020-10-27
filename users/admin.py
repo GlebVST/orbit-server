@@ -669,14 +669,18 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
         ('CME', {
             'fields': ('maxCmeYear','maxCmeMonth','max_trial_credits')
         }),
+        ('Plugin Rail Permissions', {
+            'fields': (
+                'allowArticleHistory',
+                'allowArticleSearch',
+                'allowDdx',
+            ),
+        }),
         ('Other', {
             'fields': (
                 'is_public',
                 'trialDays',
                 'billingCycleMonths',
-                'allowArticleHistory',
-                'allowArticleSearch',
-                'allowDdx',
                 'allowProfileStateTags',
                 'active',
                 'createWelcomeOffer',
@@ -1002,21 +1006,43 @@ class RecAllowedUrlForm(forms.ModelForm):
         filter_kwargs = dict(
             user=user,
             url=aurl,
-            redeemed=True,
             valid=True,
             activityDate__gte=startdate,
         )
-        if OrbitCmeOffer.objects.filter(**filter_kwargs).exists():
-            # user has redeemed this url within OFFER_LOOKBACK_DAYS
-            self.add_error('url', 'User has already redeemed this url')
+        offers = OrbitCmeOffer.objects.filter(**filter_kwargs)
+        if offers.exists():
+            # user has read this article within OFFER_LOOKBACK_DAYS
+            offer = offers[0]
+            self.add_error('url', 'User has already read this article. OfferId: {0.pk}'.format(offer))
+        elif aurl.set_id:
+            filter_kwargs = dict(
+                user=user,
+                url__set_id=aurl.set_id,
+                valid=True,
+                activityDate__gte=startdate,
+            )
+            offers = OrbitCmeOffer.objects.select_related('url').filter(**filter_kwargs)
+            if offers.exists():
+                # user has read an article with this set_id within OFFER_LOOKBACK_DAYS
+                offer = offers[0]
+                self.add_error('url', "Duplicate Error: User has already read an article with this set_id: {0.set_id}. OfferId: {1.pk}".format(aurl, offer))
+            else:
+                # Check RecAllowedUrl
+                qs = RecAllowedUrl.objects.select_related('url').filter(user=user, url__set_id=aurl.set_id)
+                if qs.exists():
+                    recaurl = qs[0]
+                    self.add_error('url', "Duplicate Error: User has an existing Rec for article with this set_id: {0.set_id}. RecId: {1.pk}".format(aurl, recaurl))
 
 class RecAllowedUrlAdmin(admin.ModelAdmin):
-    list_display = ('id','user','cmeTag','url', 'offerid')
+    list_display = ('id','user','cmeTag','url', 'page_title', 'offerid')
     list_select_related = True
     raw_id_fields = ('offer',)
     list_filter = (UserFilter, CmeTagFilter)
     ordering = ('user', 'url')
     form = RecAllowedUrlForm
+
+    def page_title(self, obj):
+        return obj.url.page_title
 
     def offerid(self, obj):
         return obj.offer.pk if obj.offer else None
