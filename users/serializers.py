@@ -735,7 +735,7 @@ class UserEmailUpdateSerializer(serializers.Serializer):
             user.save()
             # update profile as new email needs verification
             profile.verified = False
-            profile.save()
+            profile.save(update_fields=('verified','modified'))
             # update auth0
             response = apiConn.updateUser(profile.socialId, email, True)
             logger.info('Auth0 User update result: {}'.format(response))
