@@ -106,7 +106,7 @@ def main():
         num_offers_dct[d_user] = len(offers)
         for offer in offers:
             allowed_url = offer.url
-            print(allowed_url.studyTopics.all())
+            print(allowed_url, allowed_url.studyTopics.all())
             for study_topic in allowed_url.studyTopics.all(): 
                 offer_percent_dct[d_user][study_topic.name] += 1/len(offers) 
 
@@ -123,7 +123,7 @@ def main():
                         'totalOffers': offers} for user, offers in num_offers_dct.items()]
 
     for user in num_offers_dct.keys():
-        message = "Orbit Discovery Weekly Summary ({0} - {1})".format(now.strftime("%m/%d"), today.strftime("%m/%d"))
+        message = "Orbit Discovery Weekly Summary ({0} - {1})<br>".format(now.strftime("%m/%d"), today.strftime("%m/%d"))
         message += "{0} {1}<br>".format(user.profile.firstName, user.profile.lastName)
         if users_orggroup_dct[user]:
             message += "{0}<br>".format(users_orggroup_dict[user])
@@ -131,7 +131,7 @@ def main():
         message += "Total number of articles read this week: {0}<br>".format(num_offers_dct[user])
         message += "Distribution of topics this week: <br>"
         for study_topic in offer_percent_dct[user]:
-            message += "{0}: {1} <br>".format(study_topic, int(offer_percent_dct[user][study_topic] * 100))
+            message += "{0}: {1}% <br>".format(study_topic, int(offer_percent_dct[user][study_topic] * 100))
     
         message += "-Your Orbit Team <br>"
         message += "PS. To unsubscribe, please email support@orbitcme.com"
