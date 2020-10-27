@@ -127,11 +127,12 @@ def main():
         message += "{0} {1}<br>".format(user.profile.firstName, user.profile.lastName)
         if users_orggroup_dct[user]:
             message += "{0}<br>".format(users_orggroup_dict[user])
-        message += "Great job with your studying! Here's a breakdown of what's happened in the past week: <br>"
+        #message += "Great job with your studying! Here's a breakdown of what's happened in the past week: <br>"
         message += "Total number of articles read this week: {0}<br>".format(num_offers_dct[user])
-        message += "Distribution of topics this week: <br>"
-        for study_topic in offer_percent_dct[user]:
-            message += "{0}: {1}% <br>".format(study_topic, int(offer_percent_dct[user][study_topic] * 100))
+        if len(offer_percent_dct[user]) > 0:
+            message += "Distribution of topics this week: <br>"
+            for study_topic in offer_percent_dct[user]:
+                message += "{0}: {1}% <br>".format(study_topic, int(offer_percent_dct[user][study_topic] * 100))
     
         message += "-Your Orbit Team <br>"
         message += "PS. To unsubscribe, please email support@orbitcme.com"
