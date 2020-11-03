@@ -596,6 +596,7 @@ class ProfileManager(models.Manager):
             username=email,
             email=email
         )
+        hashgen = Hashids(salt=settings.HASHIDS_SALT, alphabet=HASHIDS_ALPHABET, min_length=5)
         profile = Profile.objects.create(
             user=user,
             inviteId=hashgen.encode(user.pk),

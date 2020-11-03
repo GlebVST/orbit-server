@@ -1,0 +1,353 @@
+[
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 1,
+    "fields": {
+      "procedure": 1,
+      "regex": "MRI BRAIN*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 2,
+    "fields": {
+      "procedure": 2,
+      "regex": "MRI NECK SOFT TISSUE.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 3,
+    "fields": {
+      "procedure": 3,
+      "regex": "MRI CERVICAL*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 4,
+    "fields": {
+      "procedure": 4,
+      "regex": "MRI ANGIOGRAM (HEAD|NECK) .*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 5,
+    "fields": {
+      "procedure": 5,
+      "regex": "CT ANGIOGRAM (CEREBRAL|NECK) .*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 6,
+    "fields": {
+      "procedure": 6,
+      "regex": "CT HEAD WO.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 7,
+    "fields": {
+      "procedure": 7,
+      "regex": "CT CERVICAL SPINE WO .*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 8,
+    "fields": {
+      "procedure": 8,
+      "regex": "CT SOFT TISSUE NECK .*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 9,
+    "fields": {
+      "procedure": 9,
+      "regex": "IR ANGIOGRAM CAROTID CEREBRAL*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 10,
+    "fields": {
+      "procedure": 10,
+      "regex": ".* LUMBAR PUNCTURE .*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 11,
+    "fields": {
+      "procedure": 11,
+      "regex": "MR SKULL.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 12,
+    "fields": {
+      "procedure": 12,
+      "regex": "CT TEMPORAL BONES .*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 13,
+    "fields": {
+      "procedure": 13,
+      "regex": "^MAMMO SCREENING ((?!TOMO).)*$",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 14,
+    "fields": {
+      "procedure": 14,
+      "regex": "^MAMMO DIAGNOSTIC ((?!TOMO).)*$",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 15,
+    "fields": {
+      "procedure": 15,
+      "regex": "MAMMO SCREENING.*TOMO.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 16,
+    "fields": {
+      "procedure": 16,
+      "regex": "MAMMO DIAGNOSTIC.*TOMO.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 17,
+    "fields": {
+      "procedure": 17,
+      "regex": ".*US BREAST.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 18,
+    "fields": {
+      "procedure": 18,
+      "regex": ".*US GUIDED.*BREAST.*BIOPSY.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 19,
+    "fields": {
+      "procedure": 19,
+      "regex": "MAMMO STEREOTACTIC BREAST.*BIOPSY.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 20,
+    "fields": {
+      "procedure": 20,
+      "regex": "MRI BREAST BIOPSY.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 21,
+    "fields": {
+      "procedure": 21,
+      "regex": ".*NM.*131.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 22,
+    "fields": {
+      "procedure": 22,
+      "regex": "<33",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 23,
+    "fields": {
+      "procedure": 23,
+      "regex": ">33",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 24,
+    "fields": {
+      "procedure": 24,
+      "regex": "PET-CT.*(SKULL TO THIGH|VERTEX TO FEET|SKULL BASE TO THIGH).*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 25,
+    "fields": {
+      "procedure": 25,
+      "regex": "PET-CT BRAIN.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 26,
+    "fields": {
+      "procedure": 26,
+      "regex": "NM LUNG (.*(VENTILATION|PERFUSION).*){2}",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 27,
+    "fields": {
+      "procedure": 27,
+      "regex": "NM HEPATOBILIARY.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 28,
+    "fields": {
+      "procedure": 28,
+      "regex": "NM BONE.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 29,
+    "fields": {
+      "procedure": 29,
+      "regex": "NM GASTRIC EMPTYING.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 30,
+    "fields": {
+      "procedure": 30,
+      "regex": "NM MECKELS DIVERTICULUM",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 31,
+    "fields": {
+      "procedure": 31,
+      "regex": "NM MIBG.*",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.orbitprocedurematch",
+    "pk": 32,
+    "fields": {
+      "procedure": 32,
+      "regex": "NM LYMPHOSCINTIGRAM",
+      "facility": "UAMS",
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  }
+]
