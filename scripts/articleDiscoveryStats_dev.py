@@ -12,8 +12,15 @@ from django.utils import timezone
 from users.models import *
 from users.emailutils import makeCsvForAttachment
 
+fieldNamesMap = {
+    'articleStudy': ('email', 'url', 'study topics')
+}
+
 def sendEmailBody(user, message, subject, email_addr):
-    to_emails = ['logicalmath333@gmail.com', email_addr]
+    ''' This is used to send the weekly stats email'''
+    #to_emails = ['logicalmath333@gmail.com', email_addr]
+    to_emails = ['logicalmath333@gmail.com', 'ram@orbitcme.com']
+
     msg = EmailMessage(
             subject,
             message,
@@ -25,18 +32,46 @@ def sendEmailBody(user, message, subject, email_addr):
     msg.send()
     print('Email sent')
 
+def makeCsvAttachment(tabName, data):
+    fieldNames = fieldNamesMap[tabName]
+    cf = makeCsvForAttachment(fieldNames, data)
+    return cf
+
+def sendEmailWithAttachment(attachments):
+    ''' This is used to generate the table of urls and 
+        associated study topics
+    '''
+    to_emails = ['logicalmath333@gmail.com']
+    subject = "Url and Study topics stats"
+    message = "See attached csv"
+    msg = EmailMessage(
+            subject,
+            message,
+            to=to_emails,
+            cc=[],
+            bcc=[],
+            from_email=settings.EMAIL_FROM)
+    msg.content_subtype = 'html'
+    for d in attachments:
+        msg.attach(d['fileName'], d['contentFile'], 'application/octet-stream')
+    msg.send()
+    print('Email sent')
+
 def main():
 
-    allowed_emails = ["logicalmath333@gmail.com", "ram+discoverrad@orbitcme.com",\
-                      "rsrinivasan02@hotmail.com"]
+    #allowed_emails = ["logicalmath333@gmail.com", "ram+discoverrad@orbitcme.com",\
+    #                  "rsrinivasan02@hotmail.com", ]
 
-    discovery_plan_names = ["Discover Monthly", "Discover Radiology Explorer", \
+    allowed_emails = ["allenqye@gmail.com"]
+
+    discovery_plan_names = ["Discover Monthly", "Discover Radiology Explorer",\
                             "Discover Annual", "Discover Radiology", "Discover Radiology Pilot"]
 
     discovery_plans = []
     for d_plan_name in discovery_plan_names:
         discovery_plan = SubscriptionPlan.objects.filter(name=d_plan_name)
         discovery_plans.extend([d for d in discovery_plan])
+
 
     discovery_users = []
     for d_plan in discovery_plans:
@@ -55,6 +90,8 @@ def main():
     # dictionary where key is the user, and the value is the user's organization group
     users_orggroup_dct = collections.defaultdict(lambda : "")
 
+    articleStudyData = []
+
     for d_user in discovery_users:
         offers = OrbitCmeOffer.objects.filter(user=d_user, activityDate__range=(one_week, today))
         num_offers_dct[d_user] = len(offers)
@@ -64,6 +101,10 @@ def main():
             # only use weighted study topic so that the percentages add up to 100 percent
             if len(allowed_url.studyTopics.all()) > 0:
                 num_study_topics = len(allowed_url.studyTopics.all())
+                study_topics_names = [s.name.lower() for s in allowed_url.studyTopics.all()]
+                d = {'email': d_user.email, 'url': allowed_url,
+                    'study topics': ", ".join(study_topics_names)}
+                articleStudyData.append(d)
                 for study_topic in allowed_url.studyTopics.all():
                     offer_num_dct[d_user][study_topic.name] += 1/num_study_topics
                     print(d_user.email, study_topic.name.lower())
@@ -80,36 +121,33 @@ def main():
     for user in num_offers_dct.keys():
         if user.email not in allowed_emails:
             continue
+
         message = """\
-        <html>
-            <head>
-                <style>
-                table {
-                  font-family: arial, sans-serif;
-                  border-collapse: collapse;
-                  width: 100%;
-                }
-
-                td, th {
-                  border: 1px solid #dddddd;
-                  text-align: left;
-                  padding: 8px;
-                }
-
-                tr:nth-child(even) {
-                  background-color: #dddddd;
-                }
-                </style>        
-            </head>
+            <html>
+                <head>
+                    <style>
+                    table {
+                        font-family: arial, sans-serif;
+                        border-collapse: collapse;
+                        width: 100%;
+                        }   
+                        td, th {
+                            border: 1px solid #dddddd;
+                            text-align: left;
+                            padding: 8px;
+                        }   
+                        tr:nth-child(even) {
+                            background-color: #dddddd;
+                        }   
+                    </style>            
+                </head>
             <body>
         """
-        
-        message += "Dear {0}, 
+        message += "Dear {0}, <br>".format(user.profile.firstName)
         if users_orggroup_dct[user]:
-            message += "Hope all is well at {0}! ".format(users_orggroup_dct[user])        
+            message += "Hope all is well at {0}! ".format(users_orggroup_dct[user])
         message += "Here's your weekly progress report ({0} - {1}) of topics you covered while logged into Orbit on your Chrome browser, iPhone or iPad:<br>"\
-                .format(user.profile.firstName, one_week.strftime("%m/%d"), today.strftime("%m/%d"))
-
+                .format(one_week.strftime("%m/%d"), today.strftime("%m/%d"))
         message += "<br>Unique article visits: {0}<br><br>".format(num_offers_dct[user])
 
         message += "<table><tr><th>Study Topic</th><th>Percent Effort</th></tr>"
@@ -145,20 +183,21 @@ def main():
             message += "<tr><td>{0}</td><td>{1}%</td></tr>".format(topic, study_topic_percent)
 
         message += "</table>"
-
-        message += "-Your Orbit Team <br>"
-        message += "To unsubscribe, please email support@orbitcme.com"
-        
         message += """\
             </body>
         </html>
         """
-        
-        
-        subject='Discovery Weekly Summary ({0} - {1}) Version 1'.format(one_week.strftime("%m/%d"), today.strftime("%m/%d"))
+        message += "-Your Orbit Team <br>"
+        message += "To unsubscribe, please email support@orbitcme.com"
 
+        subject='Discovery Weekly Summary ({0} - {1}) Version 1'.format(one_week.strftime("%m/%d"), today.strftime("%m/%d"))
         sendEmailBody(user, message, subject, user.email)
 
+    attachments = [
+        dict(fileName='article_study_topics.csv', contentFile=makeCsvAttachment('articleStudy', articleStudyData))
+    ]
+
+    sendEmailWithAttachment(attachments)
 
     return offer_num_dct
 
