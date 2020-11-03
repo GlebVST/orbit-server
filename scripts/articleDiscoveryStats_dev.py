@@ -2,6 +2,10 @@
 # python manage.py shell
 # from scripts import articleDiscoveryStats
 # g = articleDiscoveryStats.main()
+# g = articleDiscoveryStats.main(1) runs version 1
+# g = articleDiscoveryStats.main(2) runs version 2
+# g = articleDiscoveryStats.main(3) runs version 3, 
+# which has the "other" study topic
 import math
 import csv
 import collections
@@ -20,6 +24,7 @@ def sendEmailBody(user, message, subject, email_addr):
     ''' This is used to send the weekly stats email'''
     #to_emails = ['logicalmath333@gmail.com', email_addr]
     to_emails = ['logicalmath333@gmail.com', 'ram@orbitcme.com']
+    #to_emails = ['logicalmath333@gmail.com']
 
     msg = EmailMessage(
             subject,
@@ -31,7 +36,6 @@ def sendEmailBody(user, message, subject, email_addr):
     msg.content_subtype = 'html'
     msg.send()
     print('Email sent')
-
 def makeCsvAttachment(tabName, data):
     fieldNames = fieldNamesMap[tabName]
     cf = makeCsvForAttachment(fieldNames, data)
@@ -57,7 +61,7 @@ def sendEmailWithAttachment(attachments):
     msg.send()
     print('Email sent')
 
-def main():
+def main(version):
 
     #allowed_emails = ["logicalmath333@gmail.com", "ram+discoverrad@orbitcme.com",\
     #                  "rsrinivasan02@hotmail.com", ]
@@ -71,7 +75,6 @@ def main():
     for d_plan_name in discovery_plan_names:
         discovery_plan = SubscriptionPlan.objects.filter(name=d_plan_name)
         discovery_plans.extend([d for d in discovery_plan])
-
 
     discovery_users = []
     for d_plan in discovery_plans:
@@ -163,23 +166,41 @@ def main():
             other = other - count
 
         other = max(other, 0)
-        if other > 0:
+        if other > 0 and version == 3:
             study_topic_lst.append(("other", None))
+
+        if version in [1,2]:
+            tagged_num_study_topics = 0
+
+            # get the total count of tagged offers
+            for _, study_topic in study_topic_lst:
+                count = offer_num_dct[user][study_topic.name]
+                tagged_num_study_topics += count
 
         # sort alphabetically the study topic list
         study_topic_lst.sort()
 
-        study_topic_offers.sort(reverse=True)
+        if version == 2:
+            # sort by percentage, and then alphabetically
+            study_topic_lst.sort(key=lambda x: (-offer_num_dct[user][x[1].name], x[0]))
+
+        #study_topic_offers.sort(reverse=True)
         # Adding the study topics table
         for topic, study_topic in study_topic_lst:
-            num_offers = num_offers_dct[user]
-            name = ""
-            if topic == "other" and num_offers > 0:
-                study_topic_percent = round(other * 100/num_offers)
-            elif num_offers > 0:
-                study_topic_percent = round(offer_num_dct[user][study_topic.name] * 100/num_offers)
-            else:
-                study_topic_percent = 0
+            if version in [1, 2]:
+                if tagged_num_study_topics > 0:
+                    study_topic_percent = round(offer_num_dct[user][study_topic.name] * 100/tagged_num_study_topics)
+                else:
+                    study_topic_percent = 0
+            elif version == 3:
+                num_offers = num_offers_dct[user]
+                name = ""
+                if topic == "other" and num_offers > 0:
+                    study_topic_percent = round(other * 100/num_offers)
+                elif num_offers > 0:
+                    study_topic_percent = round(offer_num_dct[user][study_topic.name] * 100/num_offers)
+                else:
+                    study_topic_percent = 0
             message += "<tr><td>{0}</td><td>{1}%</td></tr>".format(topic, study_topic_percent)
 
         message += "</table>"
@@ -190,7 +211,7 @@ def main():
         message += "-Your Orbit Team <br>"
         message += "To unsubscribe, please email support@orbitcme.com"
 
-        subject='Discovery Weekly Summary ({0} - {1}) Version 1'.format(one_week.strftime("%m/%d"), today.strftime("%m/%d"))
+        subject='Discovery Weekly Summary ({0} - {1}) Version {2}'.format(one_week.strftime("%m/%d"), today.strftime("%m/%d"), version)
         sendEmailBody(user, message, subject, user.email)
 
     attachments = [
