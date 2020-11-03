@@ -36,6 +36,7 @@ def sendEmailBody(user, message, subject, email_addr):
     msg.content_subtype = 'html'
     msg.send()
     print('Email sent')
+
 def makeCsvAttachment(tabName, data):
     fieldNames = fieldNamesMap[tabName]
     cf = makeCsvForAttachment(fieldNames, data)
@@ -94,7 +95,6 @@ def main(version):
     users_orggroup_dct = collections.defaultdict(lambda : "")
 
     articleStudyData = []
-
     for d_user in discovery_users:
         offers = OrbitCmeOffer.objects.filter(user=d_user, activityDate__range=(one_week, today))
         num_offers_dct[d_user] = len(offers)
@@ -157,7 +157,6 @@ def main(version):
         other = num_offers_dct[user]
         study_topic_lst = []
         study_topic_offers = []
-
         for study_topic in StudyTopic.objects.all():
             study_topic_lst.append((study_topic.name.lower(), study_topic))
 
@@ -201,7 +200,10 @@ def main(version):
                     study_topic_percent = round(offer_num_dct[user][study_topic.name] * 100/num_offers)
                 else:
                     study_topic_percent = 0
-            message += "<tr><td>{0}</td><td>{1}%</td></tr>".format(topic, study_topic_percent)
+            if study_topic_percent != 0:
+                message += '<tr bgcolor="lightgreen"><td>{0}</td><td>{1}%</td></tr>'.format(topic, study_topic_percent)
+            else:
+                message += '<tr><td>{0}</td><td>{1}%</td></tr>'.format(topic, study_topic_percent)
 
         message += "</table>"
         message += """\
