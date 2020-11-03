@@ -1,0 +1,82 @@
+[
+  {
+    "model": "users.residencyprogramtype",
+    "pk": 1,
+    "fields": {
+      "name": "Diagnostic Radiology",
+      "duration_years": 4,
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.residencyprogramtype",
+    "pk": 2,
+    "fields": {
+      "name": "Diagnostic Radiology with ESIR",
+      "duration_years": 4,
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.residencyprogramtype",
+    "pk": 3,
+    "fields": {
+      "name": "Integrated Interventional Radiology (IR)",
+      "duration_years": 5,
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.residencyprogramtype",
+    "pk": 4,
+    "fields": {
+      "name": "Independent IR - 2 Year Program",
+      "duration_years": 2,
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.residencyprogramtype",
+    "pk": 5,
+    "fields": {
+      "name": "Independent IR - 1 Year Program",
+      "duration_years": 1,
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.residencyprogramtype",
+    "pk": 6,
+    "fields": {
+      "name": "Nuclear Medicine",
+      "duration_years": 3,
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.residencyprogramtype",
+    "pk": 7,
+    "fields": {
+      "name": "Anesthesiology",
+      "duration_years": 4,
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  },
+  {
+    "model": "users.residencyprogramtype",
+    "pk": 8,
+    "fields": {
+      "name": "Neurosurgery",
+      "duration_years": 7,
+      "created": "2020-10-28T01:37:06.300Z",
+      "modified": "2020-10-28T01:37:06.300Z"
+    }
+  }
+]

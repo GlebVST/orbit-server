@@ -11,6 +11,7 @@ from dal import autocomplete
 from mysite.admin import admin_site
 from common.ac_filters import *
 from common.dateutils import fmtLocalDatetime
+from users.models.residents import ResidencyProgramType, Residency, OrbitProcedure, OrbitProcedureMatch, OrbitCaseType
 from .models import *
 from django.utils.html import format_html
 from django.urls import reverse, NoReverseMatch
@@ -1181,6 +1182,22 @@ class DxTopicAdmin(admin.ModelAdmin):
         #return qs.prefetch_related('ddxtopics', 'dxtopics') # if including formatInDdx
         return qs.prefetch_related('ddxtopics')
 
+class ResidencyProgramTypeAdmin(admin.ModelAdmin):
+    list_display = ('id','name', 'duration_years')
+
+class ResidencyAdmin(admin.ModelAdmin):
+    list_display = ('id','residency', 'program_type')
+
+class OrbitProcedureAdmin(admin.ModelAdmin):
+    list_display = ('id','name')
+
+class OrbitProcedureMatchAdmin(admin.ModelAdmin):
+    list_display = ('id', 'procedure', 'facility', 'regex')
+
+class OrbitCaseTypeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'procedure_type', 'program_type', 'subspecialty', 'procedure', 'goal_value')
+
+
 # register models
 admin_site.register(Affiliate, AffiliateAdmin)
 admin_site.register(AffiliateDetail, AffiliateDetailAdmin)
@@ -1230,6 +1247,14 @@ admin_site.register(UserCmeCredit, UserCmeCreditAdmin)
 admin_site.register(UserSubscription, UserSubscriptionAdmin)
 admin_site.register(UITab, UITabAdmin)
 #
+# Residents
+#
+admin_site.register(ResidencyProgramType, ResidencyProgramTypeAdmin)
+admin_site.register(Residency, ResidencyAdmin)
+admin_site.register(OrbitProcedure, OrbitProcedureAdmin)
+admin_site.register(OrbitProcedureMatch, OrbitProcedureMatchAdmin)
+admin_site.register(OrbitCaseType, OrbitCaseTypeAdmin)
+
 # social models
 #
 admin_site.register(HashTag, HashTagAdmin)
