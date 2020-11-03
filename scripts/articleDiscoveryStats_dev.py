@@ -80,14 +80,39 @@ def main():
     for user in num_offers_dct.keys():
         if user.email not in allowed_emails:
             continue
-        message = "Orbit Discovery Weekly Summary ({0} - {1}) Version 1<br>".format(one_week.strftime("%m/%d"), today.strftime("%m/%d"))
-        message += "{0} {1}<br>".format(user.profile.firstName, user.profile.lastName)
+        message = """\
+        <html>
+            <head>
+                <style>
+                table {
+                  font-family: arial, sans-serif;
+                  border-collapse: collapse;
+                  width: 100%;
+                }
+
+                td, th {
+                  border: 1px solid #dddddd;
+                  text-align: left;
+                  padding: 8px;
+                }
+
+                tr:nth-child(even) {
+                  background-color: #dddddd;
+                }
+                </style>        
+            </head>
+            <body>
+        """
+        
+        message += "Dear {0}, 
         if users_orggroup_dct[user]:
-            message += "{0}<br>".format(users_orggroup_dct[user])
-        message += "Total number of articles read this week: {0}<br>".format(num_offers_dct[user])
-        if len(offer_num_dct[user]) > 0:
-            message += "Distribution of topics this week: <br>"
-        message += "<table><tr><th>Study Topic</th><th>Percentage of Offers</th></tr>"
+            message += "Hope all is well at {0}! ".format(users_orggroup_dct[user])        
+        message += "Here's your weekly progress report ({0} - {1}) of topics you covered while logged into Orbit on your Chrome browser, iPhone or iPad:<br>"\
+                .format(user.profile.firstName, one_week.strftime("%m/%d"), today.strftime("%m/%d"))
+
+        message += "<br>Unique article visits: {0}<br><br>".format(num_offers_dct[user])
+
+        message += "<table><tr><th>Study Topic</th><th>Percent Effort</th></tr>"
         other = num_offers_dct[user]
         study_topic_lst = []
         study_topic_offers = []
@@ -123,6 +148,13 @@ def main():
 
         message += "-Your Orbit Team <br>"
         message += "To unsubscribe, please email support@orbitcme.com"
+        
+        message += """\
+            </body>
+        </html>
+        """
+        
+        
         subject='Discovery Weekly Summary ({0} - {1}) Version 1'.format(one_week.strftime("%m/%d"), today.strftime("%m/%d"))
 
         sendEmailBody(user, message, subject, user.email)
