@@ -104,9 +104,9 @@ def main():
             <body>
         """
         
-        message += "Dear {0}, 
+        message += "Dear {0},\ 
         if users_orggroup_dct[user]:
-            message += "Hope all is well at {0}! ".format(users_orggroup_dct[user])        
+            message += "<br>Hope all is well at {0}! ".format(users_orggroup_dct[user])        
         message += "Here's your weekly progress report ({0} - {1}) of topics you covered while logged into Orbit on your Chrome browser, iPhone or iPad:<br>"\
                 .format(user.profile.firstName, one_week.strftime("%m/%d"), today.strftime("%m/%d"))
 
