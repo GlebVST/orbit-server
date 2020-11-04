@@ -10,3 +10,6 @@
 SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
 BASEDIR="${SCRIPT_DIR}/celery"
 celery multi start w1 w2 -A mysite -c1 -l info --pidfile="${BASEDIR}/run/%n.pid" --logfile="${BASEDIR}/log/%n.log"
+
+# Start celery beat
+celery -A mysite beat -l info -s "${BASEDIR}/run/celerybeat-schedule" --pidfile="${BASEDIR}/run/beat.pid" --logfile="${BASEDIR}/log/beat.log" --detach

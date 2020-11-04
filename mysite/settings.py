@@ -426,7 +426,7 @@ CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 ##CELERY_IGNORE_RESULT = False  # enable for testing results only
 CELERY_ACCEPT_CONTENT = ['json',]
 CELERY_TASK_SERIALIZER = 'json'
-CELERY_IMPORTS = ['users.tasks','scripts.articleDiscoveryStats_dev_copy']
+CELERY_IMPORTS = ['users.tasks','scripts.articleDiscoveryStats']
 CELERY_BEAT_SCHEDULE = {
     'generate-discovery-stats': {
         'task': 'scripts.articleDiscoveryStats.main',

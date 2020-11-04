@@ -9,6 +9,7 @@
 import math
 import csv
 import collections
+from celery import shared_task
 from datetime import timedelta
 from django.conf import settings
 from django.core.mail import EmailMessage
@@ -20,11 +21,12 @@ fieldNamesMap = {
     'articleStudy': ('email', 'url', 'study topics')
 }
 
+@shared_task
 def sendEmailBody(user, message, subject, email_addr):
     ''' This is used to send the weekly stats email'''
     #to_emails = ['logicalmath333@gmail.com', email_addr]
-    to_emails = ['logicalmath333@gmail.com', 'ram@orbitcme.com']
-    #to_emails = ['logicalmath333@gmail.com']
+    #to_emails = ['logicalmath333@gmail.com', 'ram@orbitcme.com']
+    to_emails = ['logicalmath333@gmail.com']
     reply_emails = ['support@orbitcme.com']
 
     msg = EmailMessage(
@@ -39,11 +41,13 @@ def sendEmailBody(user, message, subject, email_addr):
     msg.send()
     print('Email sent')
 
+@shared_task
 def makeCsvAttachment(tabName, data):
     fieldNames = fieldNamesMap[tabName]
     cf = makeCsvForAttachment(fieldNames, data)
     return cf
 
+@shared_task
 def sendEmailWithAttachment(attachments):
     ''' This is used to generate the table of urls and 
         associated study topics
@@ -64,12 +68,18 @@ def sendEmailWithAttachment(attachments):
     msg.send()
     print('Email sent')
 
-def main(version):
+@shared_task
+def main():
 
+    version = 2
     #allowed_emails = ["logicalmath333@gmail.com", "ram+discoverrad@orbitcme.com",\
     #                  "rsrinivasan02@hotmail.com", ]
 
-    allowed_emails = ["logicalmath333@gmail.com", "allenqye@gmail.com"]
+    #allowed_emails = ["logicalmath333@gmail.com", "allenqye@gmail.com"]
+
+    allowed_emails = ["logicalmath333@gmail.com", "allenqye@gmail.com", \
+                        "gleb+discover11@codeabovelab.com", "ram+discover+test3@orbitcme.com", \
+                        "ram+discover+test@orbitcme.com"]
 
     discovery_plan_names = ["Discover Monthly", "Discover Radiology Explorer",\
                             "Discover Annual", "Discover Radiology", "Discover Radiology Pilot"]
