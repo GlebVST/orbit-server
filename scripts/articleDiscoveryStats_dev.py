@@ -182,16 +182,19 @@ def main(version):
             <body>
         """
         message += "Dear {0}, <br>".format(user.profile.firstName)
-        message += "Happy Friday. This week in Orbit Discovery, "
+        message += "Happy Friday. "
         print(users_orggroup_dct[user])
         print(org_popular_topic)
+        if most_popular_topic:
+            message += "This week in Orbit Discovery, "
+
         if users_orggroup_dct[user] and org_popular_topic[users_orggroup_dct[user]]:
             org = users_orggroup_dct[user]
             message += "the most popular topic at {0} was {1}, and ".format(org, org_popular_topic[org])
 
         if most_popular_topic:
             message += "the most popular topic across the country was {0}. ".format(most_popular_topic)
-        message += "Your summary for the week is below. To capture all of your progress "
+        message += "<br>Your summary for the week is below. To capture all of your progress "
         message += "on service or while studying, stay logged into Orbit - on your Chrome browser, iPhone, or iPad."
         message += "<ul>"
         message += '<li>Orbit for Chrome [<a href="https://chrome.google.com/webstore/detail/orbit-for-chrome/ffbnancjlgeeeipcmpiikloifeimgglf">here</a>]</li>'
@@ -251,10 +254,10 @@ def main(version):
                     study_topic_percent = 0
             if topic in topic_abbreviations:
                 topic = topic.upper()
-            if study_topic_percent != 0:
-                message += '<tr bgcolor="lightgrey"><td>{0}</td><td>{1}%</td></tr>'.format(topic, study_topic_percent)
-            else:
-                message += '<tr><td>{0}</td><td>{1}%</td></tr>'.format(topic, study_topic_percent)
+            #if study_topic_percent != 0:
+            #    message += '<tr bgcolor="lightgrey"><td>{0}</td><td>{1}%</td></tr>'.format(topic, study_topic_percent)
+            #else:
+            message += '<tr><td>{0}</td><td>{1}%</td></tr>'.format(topic, study_topic_percent)
 
         message += "</table>"
         message += """\
