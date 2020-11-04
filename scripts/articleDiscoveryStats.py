@@ -69,7 +69,7 @@ def main(version):
     #allowed_emails = ["logicalmath333@gmail.com", "ram+discoverrad@orbitcme.com",\
     #                  "rsrinivasan02@hotmail.com", ]
 
-    allowed_emails = ["allenqye@gmail.com"]
+    allowed_emails = ["logicalmath333@gmail.com", "allenqye@gmail.com"]
 
     discovery_plan_names = ["Discover Monthly", "Discover Radiology Explorer",\
                             "Discover Annual", "Discover Radiology", "Discover Radiology Pilot"]

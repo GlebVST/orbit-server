@@ -425,7 +425,14 @@ CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 ##CELERY_IGNORE_RESULT = False  # enable for testing results only
 CELERY_ACCEPT_CONTENT = ['json',]
 CELERY_TASK_SERIALIZER = 'json'
-CELERY_IMPORTS = ['users.tasks',]
+CELERY_IMPORTS = ['users.tasks','scripts.articleDiscoveryStats_dev_copy']
+CELERY_BEAT_SCHEDULE = {
+    'generate-discovery-stats': {
+        'task': 'scripts.articleDiscoveryStats.main',
+        'schedule': crontab(minute='*/3'),
+        'args': ()
+    },
+}
 
 # The ABA (ACCME) ID is used to submit CME data to ABA (American Board of Anesthesiology)
 ABA_ACCME_ID = 'LP392'
