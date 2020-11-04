@@ -430,7 +430,7 @@ CELERY_IMPORTS = ['users.tasks','scripts.articleDiscoveryStats']
 CELERY_BEAT_SCHEDULE = {
     'generate-discovery-stats': {
         'task': 'scripts.articleDiscoveryStats.main',
-        'schedule': crontab(day_of_week='3', hour='6', minute='45'),
+        'schedule': crontab(day_of_week='3', hour='7', minute='0'),
         'args': ()
     },
 }
