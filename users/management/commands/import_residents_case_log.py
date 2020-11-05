@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 import logging
 import csv
 import re
+from datetime import timezone
 from time import sleep
 from io import StringIO
 from dateutil.parser import parse as dparse
@@ -59,10 +60,10 @@ class ResidentsCaseLogCsvImport(CsvImport):
         created = [] # list of Cases
 
         qset = OrbitProcedureMatch.objects.filter(facility__iexact=facility)
-        procedureRegexDict = {p.regex:p for p in qset}
+        procedure_regex_dict = {p.regex:p for p in qset}
 
         qset = Profile.objects.all().filter(npiNumber__isnull=False)
-        profilesDict = {p.npiNumber:p for p in qset}
+        profiles_dict = {p.npiNumber:p for p in qset}
 
         try:
             f = StringIO(src_file.read())
@@ -89,28 +90,36 @@ class ResidentsCaseLogCsvImport(CsvImport):
                 procedure = d['procedure'].strip()
                 d['procedure_name'] = procedure
 
-                procedureMatch = next((rx for rx in procedureRegexDict if re.match(rx, procedure)), None)
+                procedure_match_regex = next((rx for rx in procedure_regex_dict if re.match(rx, procedure)), None)
 
                 # if not procedureMatch:
                 #     self.throwValueError('Procedure Name', pos, procedure)
-                if procedureMatch:
-                    d['procedure'] = procedureRegexDict[procedureMatch].procedure
+                if procedure_match_regex:
+                    d['procedure'] = procedure_regex_dict[procedure_match_regex].procedure
                 else:
                     d['procedure'] = None
 
 
                 try:
-                    d['timestamp'] = dparse(d['timestamp'])
+                    d['timestamp'] = dparse(d['timestamp']).replace(tzinfo=timezone.utc)
                 except ValueError as e:
                     self.throwValueError('Date-Time', pos, d['timestamp'])
 
                 npi = d['npi'].strip()
-                if npi in profilesDict:
-                    d['profile'] = profilesDict[npi]
+                if npi in profiles_dict:
+                    d['profile'] = profiles_dict[npi]
 
                 d['facility'] = facility
 
                 pos += 1
+
+            with_proc = []
+            for c in data:
+                if c['procedure']:
+                    with_proc.append(c)
+
+            self.print_out('Num cases matching existing Orbit Case Types: {0}'.format(len(with_proc)))
+            self.print_out('Num cases with no match to existing Orbit Case Types: {0}'.format(len(data) - len(with_proc)))
 
             for c in data:
                 c.pop('extra')
