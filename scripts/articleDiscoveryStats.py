@@ -219,8 +219,9 @@ def main():
             message += "the most popular topic at {0} was {1}, and ".format(org, org_popular_topic[org])
 
         if most_popular_topic:
-            message += "the most popular topic across the country was {0}. ".format(most_popular_topic)
-        message += "<br>Your summary for the week is below. To capture all of your progress "
+            message += "the most popular topic across the country was {0}. <br>".format(most_popular_topic)
+
+        message += "Your summary for the week is below. To capture all of your progress "
         message += "on service or while studying, stay logged into Orbit - on your Chrome browser, iPhone, or iPad."
         message += "<ul>"
         message += '<li>Orbit for Chrome [<a href="https://chrome.google.com/webstore/detail/orbit-for-chrome/ffbnancjlgeeeipcmpiikloifeimgglf">here</a>]</li>'
