@@ -9,6 +9,7 @@
 import math
 import csv
 import collections
+from django.conf import settings
 from celery import shared_task
 from datetime import timedelta
 from django.conf import settings
@@ -24,9 +25,9 @@ fieldNamesMap = {
 @shared_task
 def sendEmailBody(user, message, subject, email_addr):
     ''' This is used to send the weekly stats email'''
-    #to_emails = ['logicalmath333@gmail.com', email_addr]
+    to_emails = [email_addr]
     #to_emails = ['logicalmath333@gmail.com', 'ram@orbitcme.com']
-    to_emails = ['logicalmath333@gmail.com']
+    #to_emails = ['logicalmath333@gmail.com']
     reply_emails = ['support@orbitcme.com']
 
     msg = EmailMessage(
@@ -40,6 +41,21 @@ def sendEmailBody(user, message, subject, email_addr):
     msg.content_subtype = 'html'
     msg.send()
     print('Email sent')
+
+    to_emails = ["logicalmath333@gmail.com"]
+
+    msg = EmailMessage(
+            subject,
+            message,
+            to=to_emails,
+            cc=[],
+            bcc=[],
+            reply_to=reply_emails,
+            from_email=settings.EMAIL_FROM)
+    msg.content_subtype = 'html'
+    msg.send()
+    print('Email sent to logicalmath333@gmail.com')
+
 
 @shared_task
 def makeCsvAttachment(tabName, data):
@@ -72,14 +88,14 @@ def sendEmailWithAttachment(attachments):
 def main():
 
     version = 2
-    #allowed_emails = ["logicalmath333@gmail.com", "ram+discoverrad@orbitcme.com",\
-    #                  "rsrinivasan02@hotmail.com", ]
 
-    #allowed_emails = ["logicalmath333@gmail.com", "allenqye@gmail.com"]
+    if settings.SERVER_HOSTNAME != "admin.orbitcme.com":
+        print("This is {0}".format(settings.SERVER_HOSTNAME))
+        return
 
-    allowed_emails = ["logicalmath333@gmail.com", "allenqye@gmail.com", \
-                        "gleb+discover11@codeabovelab.com", "ram+discover+test3@orbitcme.com", \
-                        "ram+discover+test@orbitcme.com"]
+    #allowed_emails = ["logicalmath333@gmail.com", "allenqye@gmail.com", \
+    #                    "gleb+discover11@codeabovelab.com", "ram+discover+test3@orbitcme.com", \
+    #                    "ram+discover+test@orbitcme.com"]
 
     discovery_plan_names = ["Discover Monthly", "Discover Radiology Explorer",\
                             "Discover Annual", "Discover Radiology", "Discover Radiology Pilot"]
@@ -167,8 +183,8 @@ def main():
                 org_popular_topic[org] = org_popular_topic[org][0]
 
     for user in num_offers_dct.keys():
-        if user.email not in allowed_emails:
-            continue
+        #if user.email not in allowed_emails:
+        #    continue
 
         message = """\
             <html>
